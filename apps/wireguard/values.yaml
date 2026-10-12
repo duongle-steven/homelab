@@ -29,7 +29,7 @@ app-template:
         - path: /config/wg_confs
   rawResources:
     secret:
-      apiVersion: external-secrets.io/v1beta1
+      apiVersion: external-secrets.io/v1
       kind: ExternalSecret
       spec:
         spec:

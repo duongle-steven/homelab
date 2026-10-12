@@ -5,7 +5,8 @@ set -eu
 dir="$1"
 env="${2:-prod}"
 name="$(basename "$dir")"
-set -- -f "$dir/values.yaml"
+set --
+[ -f "$dir/values.yaml" ] && set -- -f "$dir/values.yaml"
 [ "$env" != prod ] && [ -f "$dir/values-$env.yaml" ] && set -- "$@" -f "$dir/values-$env.yaml"
 helm dependency update "$dir" >/dev/null
 helm template "$name" "$dir" --namespace "$name" --include-crds "$@"
