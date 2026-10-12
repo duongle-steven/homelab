@@ -25,10 +25,11 @@
 
 === "For admin"
 
-    Run the following script:
+    Add the person to one of the three groups (`admins`, `editors` or `users`):
 
     ```sh
-    ./scripts/onboard-user johndoe "John Doe" "johndoe@example.com"
+    ./scripts/onboard-user johndoe "John Doe" "johndoe@example.com" users
     ```
 
-    Let the user scan the QR code or follow the link to set up passkeys or password + TOTP.
+    The script prints the `idm_admin` password for the login prompt and ends with a credential reset link.
+    Let the user scan the QR code or follow the link to set up a passkey or password + TOTP (Kanidm requires MFA).
