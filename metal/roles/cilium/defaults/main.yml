@@ -1,5 +1,5 @@
 cilium_repo_url: https://helm.cilium.io
-cilium_version: 1.16.1
+cilium_version: 1.20.2
 cilium_namespace: kube-system
 cilium_values:
   operator:
@@ -7,11 +7,8 @@ cilium_values:
   kubeProxyReplacement: true
   l2announcements:
     enabled: true
-  # TODO the host and port are k3s-specific, generic solution is in progress
-  # https://github.com/cilium/cilium/issues/19038
-  # https://github.com/cilium/cilium/pull/28741
-  k8sServiceHost: 127.0.0.1
-  k8sServicePort: 6444
+  k8sServiceHost: "{{ cilium_k8s_service_host }}"
+  k8sServicePort: "{{ cilium_k8s_service_port }}"
   hubble:
     relay:
       enabled: true
