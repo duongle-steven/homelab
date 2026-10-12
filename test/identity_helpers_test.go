@@ -22,6 +22,7 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 	"github.com/gruntwork-io/terratest/modules/k8s"
+	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
@@ -76,6 +77,14 @@ var insecureClient = &http.Client{
 
 func kanidmNamespace() *k8s.KubectlOptions { return k8s.NewKubectlOptions("", "", "kanidm") }
 
+// quietKanidmNamespace is for kubectl calls whose arguments or output carry credentials or reset
+// tokens: terratest logs both by default.
+func quietKanidmNamespace() *k8s.KubectlOptions {
+	options := kanidmNamespace()
+	options.Logger = logger.Discard
+	return options
+}
+
 func randomPassword(t *testing.T) string {
 	const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 	var b strings.Builder
@@ -89,7 +98,7 @@ func randomPassword(t *testing.T) string {
 
 // ensureCredentials returns stored credentials, or enrols new ones with the reset token kaniop published.
 func ensureCredentials(t *testing.T, account string) credentials {
-	stored, err := k8s.RunKubectlAndGetOutputE(t, kanidmNamespace(),
+	stored, err := k8s.RunKubectlAndGetOutputE(t, quietKanidmNamespace(),
 		"get", "secret", credentialsSecret, "-o", "jsonpath={.data."+account+"}")
 	if err == nil && stored != "" {
 		raw, err := base64.StdEncoding.DecodeString(stored)
@@ -99,8 +108,10 @@ func ensureCredentials(t *testing.T, account string) credentials {
 		return c
 	}
 
-	c := enrol(t, account, resetToken(t, account))
+	return enrol(t, account, resetToken(t, account), func(c credentials) { storeCredentials(t, account, c) })
+}
 
+func storeCredentials(t *testing.T, account string, c credentials) {
 	encoded, err := json.Marshal(c)
 	require.NoError(t, err)
 	if _, err := k8s.RunKubectlAndGetOutputE(t, kanidmNamespace(), "get", "secret", credentialsSecret); err != nil {
@@ -108,8 +119,7 @@ func ensureCredentials(t *testing.T, account string) credentials {
 	}
 	patch, err := json.Marshal(map[string]any{"stringData": map[string]string{account: string(encoded)}})
 	require.NoError(t, err)
-	k8s.RunKubectl(t, kanidmNamespace(), "patch", "secret", credentialsSecret, "--type", "merge", "-p", string(patch))
-	return c
+	k8s.RunKubectl(t, quietKanidmNamespace(), "patch", "secret", credentialsSecret, "--type", "merge", "-p", string(patch))
 }
 
 var resetTokenPattern = regexp.MustCompile(`/ui/reset\?token=([A-Za-z0-9_-]+)`)
@@ -118,7 +128,7 @@ var resetTokenPattern = regexp.MustCompile(`/ui/reset\?token=([A-Za-z0-9_-]+)`)
 func resetToken(t *testing.T, account string) string {
 	var token string
 	require.Eventually(t, func() bool {
-		out, err := k8s.RunKubectlAndGetOutputE(t, kanidmNamespace(), "get", "events",
+		out, err := k8s.RunKubectlAndGetOutputE(t, quietKanidmNamespace(), "get", "events",
 			"--field-selector", "involvedObject.name="+account+",reason=TokenCreated",
 			"--sort-by", ".lastTimestamp", "-o", "jsonpath={range .items[*]}{.message}{\"\\n\"}{end}")
 		if err != nil {
@@ -171,7 +181,9 @@ func (s cuStatus) state() string {
 }
 
 // enrol sets a password and a TOTP through Kanidm's credential update API (Kanidm requires MFA for persons).
-func enrol(t *testing.T, account, token string) credentials {
+// store runs before the commit: if storing fails, the account keeps no credentials and kaniop issues a
+// new reset token once this one expires, instead of leaving credentials nobody knows.
+func enrol(t *testing.T, account, token string, store func(credentials)) credentials {
 	var exchanged []json.RawMessage
 	kanidmPost(t, "/v1/credential/_exchange_intent", token, &exchanged)
 	require.Len(t, exchanged, 2)
@@ -212,6 +224,7 @@ func enrol(t *testing.T, account, token string) credentials {
 	}
 	require.Equal(t, "None", verified.state(), "TOTP not accepted: %s", verified.MfaRegState)
 
+	store(c)
 	kanidmPost(t, "/v1/credential/_commit", session, nil)
 	return c
 }
@@ -250,8 +263,9 @@ func (k *totpClock) code(t *testing.T, account string, c credentials) string {
 	}
 }
 
-// browserAuthorize logs in through Dex and Kanidm and returns the code sent to the smoke client.
-func browserAuthorize(t *testing.T, account string, c credentials) (string, bool) {
+// browserAuthorize logs in through Dex and Kanidm with the given password. It returns the code sent to
+// the smoke client, or an empty code and the text of the page the browser ended on.
+func browserAuthorize(t *testing.T, account string, c credentials, password string) (string, string) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("ignore-certificate-errors", true),
 		chromedp.Flag("host-resolver-rules", "MAP *.127-0-0-1.nip.io "+sandboxIngress),
@@ -300,13 +314,15 @@ func browserAuthorize(t *testing.T, account string, c credentials) (string, bool
 	// Kanidm asks for the TOTP code before the password
 	step("username", chromedp.SendKeys(`input#username`, account+"\n"), chromedp.WaitVisible(`input#totp`))
 	step("totp", chromedp.SendKeys(`input#totp`, clock.code(t, account, c)+"\n"), chromedp.WaitVisible(`input#password`))
-	step("password", chromedp.SendKeys(`input#password`, c.Password+"\n"))
+	step("password", chromedp.SendKeys(`input#password`, password+"\n"))
 
 	select {
 	case code := <-codes:
-		return code, true
+		return code, ""
 	case <-time.After(30 * time.Second):
-		return "", false
+		var text string
+		require.NoError(t, chromedp.Run(ctx, chromedp.Evaluate(`document.body ? document.body.innerText : ""`, &text)))
+		return "", text
 	}
 }
 

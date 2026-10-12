@@ -39,6 +39,7 @@ The sandbox runs Kubernetes 1.36 and only ever installs from scratch, so it does
 - Cilium jumped 1.16 → 1.20; upgrade an existing cluster one minor at a time, and only on a Kubernetes version Cilium 1.20 supports (1.33–1.36). The current k3s 1.30 is too old.
 - Charts with changed workload selectors (app-template 2 → 5 for excalidraw) cannot be upgraded in place: delete the Deployment once or sync with `Replace=true`.
 - Run `make configure` to replace upstream's domain (`khuedoan.com`), seed repo, timezone and IP ranges. Until then, prod values still carry upstream's settings; the sandbox overrides them in `values-dev.yaml`.
+- `scripts/hacks` is gone (sub-project 1b). It used to create Gitea access tokens and OAuth apps that `platform/renovate` (`gitea.renovate`) and `platform/woodpecker` (`gitea.woodpecker`) read, and Gitea's Dex login. Recreate that setup (ideally as kaniop/Gitea config in git) before deploying those apps.
 
 ## Ideas (not planned)
 

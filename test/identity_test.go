@@ -49,8 +49,8 @@ func TestIdentityLogin(t *testing.T) {
 		t.Run(account.name, func(t *testing.T) {
 			c := ensureCredentials(t, account.name)
 
-			code, ok := browserAuthorize(t, account.name, c)
-			require.True(t, ok, "no authorization code for %s", account.name)
+			code, page := browserAuthorize(t, account.name, c, c.Password)
+			require.NotEmpty(t, code, "no authorization code for %s; page:\n%s", account.name, page)
 
 			claims := exchangeCode(t, code, secret)
 			t.Logf("groups claim for %s: %v", account.name, claims["groups"])
@@ -67,7 +67,24 @@ func TestIdentityDenied(t *testing.T) {
 	waitForIdentityStack(t)
 	c := ensureCredentials(t, "dev-outsider")
 
-	_, ok := browserAuthorize(t, "dev-outsider", c)
+	code, page := browserAuthorize(t, "dev-outsider", c, c.Password)
 
-	assert.False(t, ok, "an account in no homelab group must not get an authorization code")
+	// Refused after a successful login, not because the login itself failed
+	assert.Empty(t, code, "an account in no homelab group must not get an authorization code")
+	assert.Contains(t, page, "Access Denied")
+	assert.NotContains(t, page, "Login Failed")
+}
+
+// TestIdentityDeniedNeedsLogin guards TestIdentityDenied: a failed login must not look like a refusal.
+func TestIdentityDeniedNeedsLogin(t *testing.T) {
+	if os.Getenv("ENV") != "dev" {
+		t.Skip("identity tests run against the sandbox only")
+	}
+	waitForIdentityStack(t)
+	c := ensureCredentials(t, "dev-outsider")
+
+	code, page := browserAuthorize(t, "dev-outsider", c, "wrong-"+c.Password)
+
+	assert.Empty(t, code)
+	assert.NotContains(t, page, "Access Denied")
 }

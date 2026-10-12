@@ -60,6 +60,13 @@ kubectl -n kanidm get secret identity-test-credentials -o jsonpath='{.data.dev-a
 
 Use the `totpSecret` there in any authenticator app to log in by hand. Kanidm asks for the TOTP code before the password.
 
+If an account has credentials in Kanidm but none in that Secret (for example a run stopped mid-way), the tests cannot log in. Recreate the account so kaniop issues a new reset token:
+
+```sh
+kubectl -n kanidm delete kanidmpersonaccount dev-admin  # ArgoCD recreates it
+kubectl -n kanidm patch secret identity-test-credentials --type json -p '[{"op":"remove","path":"/data/dev-admin"}]'
+```
+
 Group membership in the sandbox is declared in `platform/kanidm/values-dev.yaml`; people added by hand with `scripts/onboard-user` are removed from those groups on the next reconcile.
 
 ## Make changes
