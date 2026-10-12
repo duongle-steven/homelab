@@ -1,0 +1,5 @@
+ingress-nginx:
+  controller:
+    service:
+      annotations:
+        lbipam.cilium.io/ips: 172.30.255.200
