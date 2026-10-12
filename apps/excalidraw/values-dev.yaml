@@ -1,0 +1,19 @@
+app-template:
+  ingress:
+    main:
+      # Helm cannot delete these keys across values files; empty values are inert without external-dns
+      annotations:
+        external-dns.alpha.kubernetes.io/target: ""
+        external-dns.alpha.kubernetes.io/cloudflare-proxied: ""
+      hosts:
+        - host: &host draw.127-0-0-1.nip.io
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                identifier: main
+                port: http
+      tls:
+        - hosts:
+            - *host
+          secretName: excalidraw-tls-certificate
