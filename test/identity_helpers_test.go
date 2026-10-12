@@ -310,6 +310,25 @@ func browserAuthorize(t *testing.T, account string, c credentials) (string, bool
 	}
 }
 
+// waitForIdentityStack blocks until a fresh sandbox has synced Kanidm and Dex, because the identity
+// tests run before the ingress smoke tests that would otherwise wait for them.
+func waitForIdentityStack(t *testing.T) {
+	ok := func(u string) bool {
+		resp, err := insecureClient.Get(u)
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}
+	require.Eventually(t, func() bool {
+		_, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", "global-secrets"), "get", "secret", "dex.smoke", "-o", "name")
+		return err == nil &&
+			ok(kanidmURL+"/oauth2/openid/dex/.well-known/openid-configuration") &&
+			ok(dexURL+"/.well-known/openid-configuration")
+	}, 20*time.Minute, 15*time.Second, "Kanidm and Dex are not ready")
+}
+
 func smokeClientSecret(t *testing.T) string {
 	secret := k8s.GetSecret(t, k8s.NewKubectlOptions("", "", "global-secrets"), "dex.smoke")
 	return string(secret.Data["client_secret"])

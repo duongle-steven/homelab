@@ -39,6 +39,7 @@ func TestIdentityLogin(t *testing.T) {
 	if os.Getenv("ENV") != "dev" {
 		t.Skip("identity tests run against the sandbox only")
 	}
+	waitForIdentityStack(t)
 	secret := smokeClientSecret(t)
 
 	for _, account := range testAccounts {
@@ -63,6 +64,7 @@ func TestIdentityDenied(t *testing.T) {
 	if os.Getenv("ENV") != "dev" {
 		t.Skip("identity tests run against the sandbox only")
 	}
+	waitForIdentityStack(t)
 	c := ensureCredentials(t, "dev-outsider")
 
 	_, ok := browserAuthorize(t, "dev-outsider", c)
