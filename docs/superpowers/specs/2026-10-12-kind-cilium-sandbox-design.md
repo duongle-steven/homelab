@@ -1,6 +1,6 @@
 # Sub-project 1a: kind + Cilium sandbox (foundation)
 
-Status: approved design, 2026-10-12. Branch: `dev`.
+Status: approved 2026-10-12, implemented on branch `dev`.
 
 ## Goal
 
