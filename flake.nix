@@ -21,6 +21,7 @@
             ansible
             ansible-lint
             bmake
+            chromium
             diffutils
             docker
             docker-compose

@@ -22,6 +22,8 @@ func smokeApps(env string) []smokeApp {
 		return []smokeApp{
 			{"argocd-server", "argocd"},
 			{"excalidraw", "excalidraw"},
+			{"kanidm", "kanidm"},
+			{"dex", "dex"},
 		}
 	}
 

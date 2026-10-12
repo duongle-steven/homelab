@@ -4,11 +4,12 @@
 
 KUBECONFIG = $(shell pwd)/metal/kubeconfig.yaml
 KUBE_CONFIG_PATH = $(KUBECONFIG)
+smoke_filter ?= Smoke
 
 default: metal system external smoke-test clean
 
 dev:
-	$(MAKE) env=dev ENV=dev INSECURE_SKIP_VERIFY=1 metal system smoke-test
+	$(MAKE) env=dev ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity' metal system smoke-test
 
 dev-clean:
 	$(MAKE) -C metal env=dev clean
@@ -27,7 +28,7 @@ external:
 	make -C external
 
 smoke-test:
-	make -C test filter=Smoke
+	make -C test filter="$(smoke_filter)"
 
 # TODO maybe there's a better way to manage backup with GitOps?
 backup:

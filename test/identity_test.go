@@ -1,0 +1,71 @@
+package test
+
+import (
+	"os"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestIdentityTOTPWaitsForNextStep(t *testing.T) {
+	c := credentials{TOTPSecret: "JBSWY3DPEHPK3PXP", Algorithm: "sha256", Digits: 6, Period: 30}
+	t0 := time.Unix(1_800_000_000, 0) // start of a 30 s step
+	now := t0
+	var slept time.Duration
+	clock := &totpClock{
+		now:   func() time.Time { return now },
+		sleep: func(d time.Duration) { slept += d; now = now.Add(d) },
+		last:  map[string]uint64{},
+	}
+
+	first := clock.code(t, "dev-admin", c)
+	second := clock.code(t, "dev-admin", c)
+
+	assert.Equal(t, 30*time.Second, slept, "second code must wait for the next step")
+	assert.NotEqual(t, first, second)
+	assert.Equal(t, totpCode(t, c, t0.Add(30*time.Second)), second)
+}
+
+func TestIdentityHasGroup(t *testing.T) {
+	assert.True(t, hasGroup(map[string]any{"groups": []any{"homelab-admins"}}, "homelab-admins"))
+	assert.True(t, hasGroup(map[string]any{"groups": []any{"homelab-admins@auth.127-0-0-1.nip.io"}}, "homelab-admins"))
+	assert.False(t, hasGroup(map[string]any{"groups": []any{"homelab-admins-old"}}, "homelab-admins"))
+	assert.False(t, hasGroup(map[string]any{}, "homelab-admins"))
+}
+
+func TestIdentityLogin(t *testing.T) {
+	if os.Getenv("ENV") != "dev" {
+		t.Skip("identity tests run against the sandbox only")
+	}
+	secret := smokeClientSecret(t)
+
+	for _, account := range testAccounts {
+		if account.group == "" {
+			continue
+		}
+		t.Run(account.name, func(t *testing.T) {
+			c := ensureCredentials(t, account.name)
+
+			code, ok := browserAuthorize(t, account.name, c)
+			require.True(t, ok, "no authorization code for %s", account.name)
+
+			claims := exchangeCode(t, code, secret)
+			t.Logf("groups claim for %s: %v", account.name, claims["groups"])
+			assert.Equal(t, account.name+"@example.com", claims["email"])
+			assert.True(t, hasGroup(claims, account.group), "groups %v lack %s", claims["groups"], account.group)
+		})
+	}
+}
+
+func TestIdentityDenied(t *testing.T) {
+	if os.Getenv("ENV") != "dev" {
+		t.Skip("identity tests run against the sandbox only")
+	}
+	c := ensureCredentials(t, "dev-outsider")
+
+	_, ok := browserAuthorize(t, "dev-outsider", c)
+
+	assert.False(t, ok, "an account in no homelab group must not get an authorization code")
+}

@@ -9,6 +9,8 @@ func TestSmokeAppsForEnv(t *testing.T) {
 	dev := []smokeApp{
 		{"argocd-server", "argocd"},
 		{"excalidraw", "excalidraw"},
+		{"kanidm", "kanidm"},
+		{"dex", "dex"},
 	}
 	if got := smokeApps("dev"); !reflect.DeepEqual(got, dev) {
 		t.Errorf("smokeApps(dev) = %v, want %v", got, dev)
