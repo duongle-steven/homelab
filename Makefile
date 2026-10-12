@@ -7,6 +7,12 @@ KUBE_CONFIG_PATH = $(KUBECONFIG)
 
 default: metal system external smoke-test post-install clean
 
+dev:
+	$(MAKE) env=dev ENV=dev INSECURE_SKIP_VERIFY=1 metal system smoke-test
+
+dev-clean:
+	$(MAKE) -C metal env=dev clean
+
 configure:
 	./scripts/configure
 	git status

@@ -11,13 +11,21 @@ import (
 	"github.com/gruntwork-io/terratest/modules/k8s"
 )
 
-func TestSmoke(t *testing.T) {
-	t.Parallel()
+type smokeApp struct {
+	name      string
+	namespace string
+}
 
-	var mainApps = []struct {
-		name      string
-		namespace string
-	}{
+// smokeApps returns the apps whose ingress is checked; the sandbox only runs a subset.
+func smokeApps(env string) []smokeApp {
+	if env == "dev" {
+		return []smokeApp{
+			{"argocd-server", "argocd"},
+			{"excalidraw", "excalidraw"},
+		}
+	}
+
+	return []smokeApp{
 		{"argocd-server", "argocd"},
 		{"gitea", "gitea"},
 		{"grafana", "grafana"},
@@ -25,8 +33,12 @@ func TestSmoke(t *testing.T) {
 		{"kanidm", "kanidm"},
 		{"zot", "zot"},
 	}
+}
 
-	for _, app := range mainApps {
+func TestSmoke(t *testing.T) {
+	t.Parallel()
+
+	for _, app := range smokeApps(os.Getenv("ENV")) {
 		app := app // https://github.com/golang/go/wiki/CommonMistakes#using-goroutines-on-loop-iterator-variables
 		t.Run(app.name, func(t *testing.T) {
 			t.Parallel()
