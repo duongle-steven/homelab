@@ -24,6 +24,12 @@ make dev
 
 ## Explore
 
+`make` uses the sandbox kubeconfig automatically. For `kubectl` in your own shell, point it at the same file first:
+
+```sh
+export KUBECONFIG=$PWD/metal/kubeconfig.yaml  # from the repository root
+```
+
 - <https://argocd.127-0-0-1.nip.io> (user `admin`, password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`)
 - <https://draw.127-0-0-1.nip.io>
 
