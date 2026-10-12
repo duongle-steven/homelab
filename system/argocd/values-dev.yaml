@@ -18,6 +18,7 @@ argocd-apps:
               - path: apps/excalidraw
               - path: platform/external-secrets
               - path: platform/global-secrets
+              - path: platform/kanidm
       template:
         spec:
           source:

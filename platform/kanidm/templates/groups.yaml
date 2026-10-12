@@ -1,0 +1,15 @@
+{{- range $group := list "homelab-admins" "homelab-editors" "homelab-users" }}
+---
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmGroup
+metadata:
+  name: {{ $group }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+  {{- with index $.Values.groupMembers $group }}
+  members:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

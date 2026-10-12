@@ -1,0 +1,15 @@
+{{- range .Values.testAccounts }}
+---
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmPersonAccount
+metadata:
+  name: {{ . }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+  personAttributes:
+    displayname: {{ . }}
+    mail:
+      - {{ . }}@example.com
+{{- end }}

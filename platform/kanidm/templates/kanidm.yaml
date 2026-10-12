@@ -1,0 +1,29 @@
+apiVersion: kaniop.rs/v1beta1
+kind: Kanidm
+metadata:
+  name: kanidm
+  namespace: {{ .Release.Namespace }}
+spec:
+  domain: {{ .Values.kanidm.domain }}
+  image: {{ .Values.kanidm.image }}
+  replicaGroups:
+    - name: default
+      replicas: 1
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.kanidm.storage }}
+  # cert-manager issues the ingress certificate; Kanidm serves the same secret (kanidm-tls)
+  ingress:
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+  # Dex owns its OAuth2 client in its own namespace
+  oauth2ClientNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: dex

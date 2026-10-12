@@ -1,0 +1,11 @@
+kanidm:
+  domain: auth.127-0-0-1.nip.io
+groupMembers:
+  homelab-admins: [dev-admin]
+  homelab-editors: [dev-editor]
+  homelab-users: [dev-viewer]
+testAccounts:
+  - dev-admin
+  - dev-editor
+  - dev-viewer
+  - dev-outsider
