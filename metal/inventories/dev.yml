@@ -1,0 +1,13 @@
+all:
+  vars:
+    cilium_k8s_service_host: homelab-dev-control-plane
+    cilium_k8s_service_port: 6443
+    load_balancer_ip_pool:
+      - 172.30.255.200/29
+# The kind node is not managed over SSH, so the metal plays have no hosts
+metal:
+  children:
+    masters:
+      hosts: {}
+    workers:
+      hosts: {}
