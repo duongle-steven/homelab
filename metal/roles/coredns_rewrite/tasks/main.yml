@@ -1,0 +1,34 @@
+- name: Read the CoreDNS configuration
+  kubernetes.core.k8s_info:
+    kind: ConfigMap
+    namespace: kube-system
+    name: coredns
+  register: coredns
+
+- name: Add the rewrite rule
+  vars:
+    corefile: "{{ coredns.resources[0].data.Corefile }}"
+  when: coredns_rewrite_rule not in corefile
+  kubernetes.core.k8s:
+    state: patched
+    kind: ConfigMap
+    namespace: kube-system
+    name: coredns
+    definition:
+      data:
+        Corefile: "{{ corefile | replace('    ready\n', '    ready\n    ' ~ coredns_rewrite_rule ~ '\n') }}"
+  register: corefile_patch
+
+- name: Restart CoreDNS to apply the rule now
+  when: corefile_patch is changed
+  kubernetes.core.k8s:
+    state: patched
+    kind: Deployment
+    namespace: kube-system
+    name: coredns
+    definition:
+      spec:
+        template:
+          metadata:
+            annotations:
+              homelab/corefile-patched: "{{ now(utc=true).isoformat() }}"

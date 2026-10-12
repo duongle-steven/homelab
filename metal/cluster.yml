@@ -9,3 +9,5 @@
   hosts: localhost
   roles:
     - cilium
+    - role: coredns_rewrite
+      when: coredns_rewrite_rule is defined
