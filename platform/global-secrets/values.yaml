@@ -1,0 +1,20 @@
+# Random secrets generated once per cluster and shared through the global-secrets ClusterSecretStore.
+# They are never rotated automatically; see docs/concepts/secrets-management.md.
+secrets:
+  - name: gitea.admin
+    key: password
+    special: true
+  - name: dex.grafana
+    key: client_secret
+  - name: dex.gitea
+    key: client_secret
+  - name: registry.admin
+    key: password
+    special: true
+  - name: woodpecker.agent
+    key: secret
+  - name: paperless.admin
+    key: PAPERLESS_ADMIN_PASSWORD
+    special: true
+# Environment-specific additions, so the list above does not have to be restated
+extraSecrets: []

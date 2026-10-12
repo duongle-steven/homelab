@@ -16,6 +16,8 @@ argocd-apps:
               - path: system/cert-manager
               - path: system/monitoring-system
               - path: apps/excalidraw
+              - path: platform/external-secrets
+              - path: platform/global-secrets
       template:
         spec:
           source:
