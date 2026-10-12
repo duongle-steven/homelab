@@ -1,0 +1,30 @@
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmOAuth2Client
+metadata:
+  name: dex
+  namespace: {{ .Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+    namespace: kanidm
+  displayname: Dex
+  origin: https://{{ .Values.kanidmClient.dexHost }}
+  redirectUrl:
+    - https://{{ .Values.kanidmClient.dexHost }}/callback
+  # First-party client managed by us
+  disableConsentPrompt: true
+  scopeMap:
+    {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+    - group: {{ . }}
+      scopes:
+        - openid
+        - profile
+        - email
+        - groups
+    {{- end }}
+  # Keep the variable names Dex's config already uses
+  secretKeyAliases:
+    clientId:
+      - KANIDM_CLIENT_ID
+    clientSecret:
+      - KANIDM_CLIENT_SECRET

@@ -1,0 +1,58 @@
+dex:
+  config:
+    issuer: https://dex.127-0-0-1.nip.io
+    connectors:
+      - type: oidc
+        id: kanidm
+        name: Kanidm
+        config:
+          clientID: $KANIDM_CLIENT_ID
+          clientSecret: $KANIDM_CLIENT_SECRET
+          redirectURI: https://dex.127-0-0-1.nip.io/callback
+          issuer: https://auth.127-0-0-1.nip.io/oauth2/openid/dex
+          pkceChallenge: S256
+          insecureEnableGroups: true
+          getUserInfo: true
+          # The sandbox CA, from Dex's own CA-issued certificate
+          rootCAs:
+            - /etc/dex/dev-ca/ca.crt
+          scopes:
+            - openid
+            - profile
+            - email
+            - groups
+    staticClients:
+      - id: grafana-sso
+        name: Grafana
+        redirectURIs:
+          - 'https://grafana.127-0-0-1.nip.io/login/generic_oauth'
+        secretEnv: GRAFANA_SSO_CLIENT_SECRET
+      - id: smoke
+        name: Smoke test
+        redirectURIs:
+          - 'https://smoke.127-0-0-1.nip.io/callback'
+        secretEnv: SMOKE_CLIENT_SECRET
+  volumes:
+    - name: dev-ca
+      secret:
+        secretName: dex-tls-certificate
+        items:
+          - key: ca.crt
+            path: ca.crt
+  volumeMounts:
+    - name: dev-ca
+      mountPath: /etc/dex/dev-ca
+      readOnly: true
+  ingress:
+    hosts:
+      - host: &host dex.127-0-0-1.nip.io
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls:
+      - secretName: dex-tls-certificate
+        hosts:
+          - *host
+kanidmClient:
+  dexHost: dex.127-0-0-1.nip.io
+smokeClient: true

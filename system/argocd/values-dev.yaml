@@ -19,6 +19,7 @@ argocd-apps:
               - path: platform/external-secrets
               - path: platform/global-secrets
               - path: platform/kanidm
+              - path: platform/dex
       template:
         spec:
           source:
