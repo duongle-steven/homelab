@@ -32,6 +32,10 @@ console:
 kind:
 	docker network inspect kind >/dev/null 2>&1 \
 		|| docker network create --subnet ${kind_subnet} kind
+	@subnet="$$(docker network inspect kind -f '{{(index .IPAM.Config 0).Subnet}}')"; \
+	if [ "$$subnet" != "${kind_subnet}" ]; then \
+		echo "docker network 'kind' has subnet $$subnet, expected ${kind_subnet}; run 'make dev-clean' first"; exit 1; \
+	fi
 	kind get clusters | grep -qx ${kind_cluster} \
 		|| kind create cluster --config kind-dev.yaml
 	kind get kubeconfig --name ${kind_cluster} > kubeconfig.yaml
