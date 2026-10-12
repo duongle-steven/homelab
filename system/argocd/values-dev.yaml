@@ -1,0 +1,28 @@
+# Sandbox: sync an allowlist from GitHub instead of in-cluster Gitea.
+# Helm replaces lists and anchors do not cross files, so generator and source are restated in full.
+argo-cd:
+  global:
+    domain: argocd.127-0-0-1.nip.io
+argocd-apps:
+  applicationsets:
+    root:
+      generators:
+        - git:
+            repoURL: &repoURL https://github.com/duongle-steven/homelab
+            revision: &revision dev
+            directories:
+              - path: system/argocd
+              - path: system/ingress-nginx
+              - path: system/cert-manager
+              - path: system/monitoring-system
+              - path: apps/excalidraw
+      template:
+        spec:
+          source:
+            repoURL: *repoURL
+            targetRevision: *revision
+            helm:
+              valueFiles:
+                - values.yaml
+                - values-dev.yaml
+              ignoreMissingValueFiles: true

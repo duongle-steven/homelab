@@ -24,8 +24,11 @@
         release_name: argocd
         release_namespace: argocd
         dependency_update: true
-        values_files:
-          - "argocd/{{ (first_install.resources | length == 0) | ternary('values-seed.yaml', 'values.yaml') }}"
+        values_files: >-
+          {{
+            ['argocd/values-dev.yaml'] if homelab_env | default('prod') == 'dev'
+            else ['argocd/' ~ ((first_install.resources | length == 0) | ternary('values-seed.yaml', 'values.yaml'))]
+          }}
       register: argocd_manifests
 
     - name: Apply ArgoCD manifests
