@@ -2,14 +2,17 @@
   description = "Homelab";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
+        # Only for tools whose stable release is newer than nixos-26.05 ships
+        unstable = import nixpkgs-unstable { inherit system; };
       in
       with pkgs;
       {
@@ -29,8 +32,7 @@
             iproute2
             jq
             k9s
-            kanidm
-            kube3d
+            kanidm_1_11
             kubectl
             kubernetes-helm
             kustomize
@@ -42,8 +44,11 @@
             pre-commit
             qrencode
             shellcheck
+            unstable.cilium-cli
+            unstable.kind
             wireguard-tools
             yamllint
+            yq-go
 
             (python3.withPackages (p: with p; [
               jinja2
