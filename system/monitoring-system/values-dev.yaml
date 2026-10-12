@@ -1,0 +1,13 @@
+kube-prometheus-stack:
+  # The ntfy relay would send real notifications from the sandbox
+  alertmanager:
+    enabled: false
+  # Cilium replaces kube-proxy
+  kubeProxy:
+    enabled: false
+  defaultRules:
+    rules:
+      kubeProxy: false
+  # No Loki in the sandbox
+  grafana:
+    additionalDataSources: []
