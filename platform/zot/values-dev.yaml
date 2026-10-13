@@ -1,0 +1,33 @@
+zot:
+  ingress:
+    hosts:
+      - host: &host registry.127-0-0-1.nip.io
+        paths:
+          - path: /
+    tls:
+      - secretName: zot-tls-certificate
+        hosts:
+          - *host
+  config:
+    http:
+      externalUrl: https://registry.127-0-0-1.nip.io
+      auth:
+        openid:
+          providers:
+            oidc:
+              issuer: https://dex.127-0-0-1.nip.io
+  # Trust the sandbox CA for calls to Dex
+  env:
+    - name: SSL_CERT_DIR
+      value: /etc/ssl/certs:/etc/homelab-dev-ca
+  extraVolumes:
+    - name: dev-ca
+      secret:
+        secretName: zot-tls-certificate
+        items:
+          - key: ca.crt
+            path: ca.crt
+  extraVolumeMounts:
+    - name: dev-ca
+      mountPath: /etc/homelab-dev-ca
+      readOnly: true

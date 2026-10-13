@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -118,5 +119,42 @@ func TestSSOArgoCD(t *testing.T) {
 		}
 		require.Equal(t, http.StatusOK, getJSON(t, "POST", base+"/api/v1/session", nil, "", "", map[string]string{"username": "admin", "password": password}, &session))
 		assert.NotEmpty(t, session.Token)
+	})
+}
+
+func TestSSOZot(t *testing.T) {
+	skipUnlessSandbox(t)
+	base := "https://" + registryHost
+	waitForApp(t, base+"/livez")
+	upload := base + "/v2/sso-test/blobs/uploads/"
+
+	expectedUpload := map[string]int{
+		"dev-admin":  http.StatusAccepted,
+		"dev-editor": http.StatusAccepted,
+		"dev-viewer": http.StatusForbidden,
+	}
+	for account, want := range expectedUpload {
+		t.Run(account, func(t *testing.T) {
+			cookies := appLogin(t, account, ensureCredentials(t, account), base+"/zot/auth/login?provider=oidc", registryHost)
+
+			var key struct {
+				APIKey string `json:"apiKey"`
+			}
+			label := fmt.Sprintf("sso-test-%d", time.Now().UnixNano())
+			require.Equal(t, http.StatusCreated, getJSON(t, "POST", base+"/zot/auth/apikey", cookies, "", "", map[string]any{"label": label, "scopes": []string{}}, &key))
+			require.NotEmpty(t, key.APIKey)
+
+			assert.Equal(t, want, getJSON(t, "POST", upload, nil, account, key.APIKey, nil, nil))
+			assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/v2/_catalog", nil, account, key.APIKey, nil, nil))
+		})
+	}
+
+	t.Run("ci", func(t *testing.T) {
+		password := secretValue(t, "global-secrets", "registry.ci", "password")
+		assert.Equal(t, http.StatusAccepted, getJSON(t, "POST", upload, nil, "ci", password, nil, nil))
+	})
+
+	t.Run("anonymous", func(t *testing.T) {
+		assert.Equal(t, http.StatusUnauthorized, getJSON(t, "GET", base+"/v2/_catalog", nil, "", "", nil, nil))
 	})
 }
