@@ -1,0 +1,4 @@
+domain: 127-0-0-1.nip.io
+addresses:
+  # The localhost proxy (metal/Makefile) forwards 127.0.0.1:80/443 here
+  homelab: 172.30.255.200

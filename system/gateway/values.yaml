@@ -1,0 +1,5 @@
+domain: khuedoan.com
+# Fixed LB IPs for the Gateways; empty takes the next free address from the Cilium pool
+addresses:
+  homelab: ""
+  homelab-public: ""

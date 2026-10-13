@@ -41,7 +41,7 @@ argocd-apps:
             revision: &revision dev
             directories:
               - path: system/argocd
-              - path: system/ingress-nginx
+              - path: system/gateway
               - path: system/cert-manager
               - path: system/monitoring-system
               - path: apps/excalidraw
