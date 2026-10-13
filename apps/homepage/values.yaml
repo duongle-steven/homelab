@@ -12,29 +12,19 @@ app-template:
         http:
           port: 3000
           protocol: HTTP
-  ingress:
+  route:
     main:
-      enabled: true
-      className: nginx
-      annotations:
-        cert-manager.io/cluster-issuer: letsencrypt-prod
-      hosts:
-        - host: &host home.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: main
-                port: http
-      tls:
-        - hosts:
-            - *host
-          secretName: homepage-tls-certificate
+      hostnames:
+        - home.khuedoan.com
+      parentRefs:
+        - name: homelab
+          namespace: gateway
+          sectionName: https
   persistence:
     config:
       enabled: true
       type: configMap
-      name: homepage-config
+      identifier: config
       globalMounts:
         - path: /app/config/settings.yaml
           subPath: settings.yaml

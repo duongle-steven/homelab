@@ -12,22 +12,11 @@ app-template:
         http:
           port: 3000
           protocol: HTTP
-  ingress:
+  route:
     main:
-      enabled: true
-      className: nginx
-      annotations:
-        nginx.ingress.kubernetes.io/proxy-body-size: 50m
-        cert-manager.io/cluster-issuer: letsencrypt-prod
-      hosts:
-        - host: &host speedtest.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: main
-                port: http
-      tls:
-        - hosts:
-            - *host
-          secretName: speedtest-tls-certificate
+      hostnames:
+        - speedtest.khuedoan.com
+      parentRefs:
+        - name: homelab
+          namespace: gateway
+          sectionName: https

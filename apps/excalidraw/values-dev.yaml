@@ -1,19 +1,13 @@
 app-template:
-  ingress:
+  route:
     main:
-      # Helm cannot delete these keys across values files; empty values are inert without external-dns
+      # No Cloudflare Tunnel in the sandbox: attach to the LAN Gateway behind the localhost proxy.
+      # Helm cannot delete the annotation across values files; an empty value is inert without external-dns.
       annotations:
-        external-dns.alpha.kubernetes.io/target: ""
-        external-dns.alpha.kubernetes.io/cloudflare-proxied: ""
-      hosts:
-        - host: &host draw.127-0-0-1.nip.io
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                identifier: main
-                port: http
-      tls:
-        - hosts:
-            - *host
-          secretName: excalidraw-tls-certificate
+        external-dns.kubernetes.io/cloudflare-proxied: ""
+      hostnames:
+        - draw.127-0-0-1.nip.io
+      parentRefs:
+        - name: homelab
+          namespace: gateway
+          sectionName: https

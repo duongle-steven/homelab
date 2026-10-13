@@ -45,6 +45,10 @@ argocd-apps:
               - path: system/cert-manager
               - path: system/monitoring-system
               - path: apps/excalidraw
+              - path: apps/actualbudget
+              - path: apps/homepage
+              - path: apps/pairdrop
+              - path: apps/speedtest
               - path: platform/external-secrets
               - path: platform/global-secrets
               - path: platform/kanidm
