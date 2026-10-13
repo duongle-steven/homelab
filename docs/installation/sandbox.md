@@ -35,8 +35,12 @@ export KUBECONFIG=$PWD/metal/kubeconfig.yaml  # from the repository root
 - <https://draw.127-0-0-1.nip.io>
 - <https://grafana.127-0-0-1.nip.io> ("Sign in with Dex", or user `admin` with `kubectl -n grafana get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`)
 - <https://registry.127-0-0-1.nip.io> (zot; log in with Kanidm, then create an API key under your user menu and `docker login registry.127-0-0-1.nip.io -u <username> -p <key>`)
+- <https://git.127-0-0-1.nip.io> (Gitea; user `gitea_admin`, password: `kubectl -n gitea get secret gitea-admin-secret -o jsonpath='{.data.password}' | base64 -d`; SSH on `172.30.255.200:22` from WSL)
+- <https://budget.127-0-0-1.nip.io>, <https://home.127-0-0-1.nip.io>, <https://drop.127-0-0-1.nip.io>, <https://speedtest.127-0-0-1.nip.io>
 
 On Windows with WSL, open these from the Windows browser.
+
+Everything goes through the Gateway API `Gateway` `homelab` (Cilium) at `172.30.255.200`; a localhost proxy forwards `127.0.0.1:80/443` to it. The Argo CD CLI works through it with `--grpc-web`.
 
 Certificates are issued by a local CA that is recreated with the cluster. To remove the browser warning, export it and import it into your trust store (on Windows: double-click `homelab-dev-ca.crt` → Install Certificate → Local Machine → Trusted Root Certification Authorities):
 
@@ -93,12 +97,12 @@ git switch -c feat/harness-the-sun
 scripts/render-chart platform/dex
 scripts/render-chart platform/dex dev
 # offline unit tests (the other tests need a cluster)
-(cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep)' ./...)
+(cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep)|TestGatewayRouteReady' ./...)
 mkdocs build --strict
 git push -u origin feat/harness-the-sun   # then open a PR into dev
 ```
 
-ArgoCD in the sandbox syncs from the `dev` branch on GitHub, so a change reaches the sandbox once its PR is merged. Then run `make dev` to run the smoke, identity and SSO tests against it. `dev` is merged into `master` through periodic pull requests.
+ArgoCD in the sandbox syncs from the `dev` branch on GitHub, so a change reaches the sandbox once its PR is merged. Then run `make dev` to run the smoke, identity, SSO and Gateway tests against it. `dev` is merged into `master` through periodic pull requests.
 
 Only the components listed in `system/argocd/values-dev.yaml` are synced. A component that needs sandbox-specific settings gets a `values-dev.yaml` next to its `values.yaml`. Check how ArgoCD will render it with:
 
@@ -108,7 +112,7 @@ scripts/render-chart apps/excalidraw dev
 
 ## Resource usage
 
-Measured with all sandbox components running (RAM per namespace):
+Measured with all sandbox components running (RAM per namespace), before the Gateway API migration and the Gitea, Actual Budget, Homepage, PairDrop and speedtest additions:
 
 | Namespace | RAM |
 |---|---|
@@ -116,7 +120,6 @@ Measured with all sandbox components running (RAM per namespace):
 | grafana | 874 MiB |
 | argocd | 628 MiB |
 | monitoring-system | 619 MiB |
-| ingress-nginx | 231 MiB |
 | cert-manager | 150 MiB |
 | kanidm | 144 MiB |
 | external-secrets | 139 MiB |
@@ -136,4 +139,6 @@ make dev-clean
 
 - Certificates come from a local CA instead of Let's Encrypt
 - Only accessible from the host machine
-- No Alertmanager, Loki, backups, or the Gitea/Woodpecker/Renovate platform services
+- No Alertmanager, Loki, backups, Woodpecker or Renovate
+- Gitea runs on SQLite with an in-memory cache, without SSO and without its repository import job
+- No Cloudflare Tunnel: excalidraw uses the LAN Gateway `homelab` instead of `homelab-public`

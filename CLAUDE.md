@@ -15,7 +15,7 @@ Each step changes one thing, with its own spec and plan in `docs/superpowers/`.
 
 - Use the current stable release of every tool and chart, pinned exactly. The versions in this repo are not a reference; check upstream when touching something.
 - Branches: create feature branches from `dev` and open PRs into `dev`; `dev` is merged into `master` through periodic PRs. Never commit straight to `dev` or `master`.
-- The sandbox only syncs `dev`. On a feature branch run the basic checks (`scripts/render-chart <dir>` and `scripts/render-chart <dir> dev` for every changed chart, `cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep)' ./...` (the other tests need a cluster), `mkdocs build --strict`); the full sandbox tests (`make dev`) run after the PR is merged into `dev`. If `dev` breaks, fix it with a new PR right away.
+- The sandbox only syncs `dev`. On a feature branch run the basic checks (`scripts/render-chart <dir>` and `scripts/render-chart <dir> dev` for every changed chart, `cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep)|TestGatewayRouteReady' ./...` (the other tests need a cluster), `mkdocs build --strict`); the full sandbox tests (`make dev`) run after the PR is merged into `dev`. If `dev` breaks, fix it with a new PR right away.
 - Sandbox config lives next to production config and is selected with `env=dev`. Never fork config into a separate branch or directory.
 
 ## Sandbox
@@ -26,12 +26,13 @@ Each step changes one thing, with its own spec and plan in `docs/superpowers/`.
 - A component that needs different settings in the sandbox gets a `values-dev.yaml` next to its `values.yaml`. It is loaded only in the sandbox.
 - Helm merges values files but cannot delete a key set in `values.yaml` (`null` only removes chart defaults); override with an inert value instead.
 - `scripts/render-chart <dir> [dev]` renders a component the way ArgoCD does.
-- Fixed addresses: Docker network `kind` 172.30.0.0/16, LB pool 172.30.255.200/29, ingress 172.30.255.200.
+- Fixed addresses: Docker network `kind` 172.30.0.0/16, LB pool 172.30.255.200/29, Gateway `homelab` 172.30.255.200.
 - Certificates come from a local CA (`homelab-dev-ca` in namespace `cert-manager`), issued under the production issuer name `letsencrypt-prod`.
 - Identity config is in git: groups and OAuth2 clients are kaniop resources (`platform/kanidm`, `platform/dex/templates/kanidm-client.yaml`). People are created with `scripts/onboard-user`; never put personal data in the repo. Production `KanidmGroup`s must not set `members` (it replaces the whole membership).
-- In the sandbox, CoreDNS rewrites `*.127-0-0-1.nip.io` to ingress-nginx so pods can reach Kanidm and Dex.
-- Dex has a sandbox-only client `smoke` used by the identity tests (`make dev` runs `Smoke|Identity|SSO`). Kanidm sends short group names in `homelab_groups`, which Dex maps to `groups`; apps match `homelab-admins|editors|users`.
-- Go apps (Grafana, Argo CD, zot) trust the sandbox CA through `SSL_CERT_DIR` and their own ingress certificate's `ca.crt`, set only in `values-dev.yaml`.
+- In the sandbox, CoreDNS rewrites `*.127-0-0-1.nip.io` to the `homelab` Gateway (`cilium-gateway-homelab.gateway`) so pods can reach Kanidm and Dex.
+- Dex has a sandbox-only client `smoke` used by the identity tests (`make dev` runs `Smoke|Identity|SSO|Gateway`). Kanidm sends short group names in `homelab_groups`, which Dex maps to `groups`; apps match `homelab-admins|editors|users`.
+- Go apps (Grafana, Argo CD, zot) and Dex trust the sandbox CA through the ConfigMap `homelab-dev-ca` (key `ca.crt`), which trust-manager copies into every namespace (sandbox only; `SSL_CERT_DIR` for the Go apps, set only in `values-dev.yaml`).
+- Apps publish `HTTPRoute`s (Gitea also a `TCPRoute`) on `gateway/homelab` (LAN) or `gateway/homelab-public` (Cloudflare Tunnel); there are no `Ingress` objects. `scripts/render-chart` renders Gateway API kinds as `v1`, like ArgoCD.
 - Dex reads client secrets from env at start: after adding a Dex static client to a running cluster, `kubectl -n dex rollout restart deploy/dex`.
 - The first sync on a fresh cluster takes about 20 minutes: some apps wait for CRDs (ServiceMonitor, ESO, kaniop) and admission webhooks, then ArgoCD retries.
 
@@ -39,6 +40,9 @@ Each step changes one thing, with its own spec and plan in `docs/superpowers/`.
 
 The sandbox runs Kubernetes 1.36 and only ever installs from scratch, so it does not prove these:
 
+- The Gateway API CRDs are installed by `metal/` before Cilium; on an existing cluster, `cilium-operator` must restart after they are installed (`metal/` restarts Cilium whenever its Helm release changes).
+- Major chart upgrades in sub-project 2 were only rendered, never run in production: app-template 2/3 → 5 (blog, jellyfin, ollama, paperless, cloudflared; PVC names kept with `suffix: data`), gitea 10 → 12 (`postgresql-ha`, `valkey-cluster`), woodpecker 1 → 3, dendrite 0.13 → 0.14.
+- The public path is untested: Gateway `homelab-public`, cloudflared `matchSNItoHost` to `cilium-gateway-homelab-public.gateway`, external-dns 1.23 with `gateway-httproute` and the `external-dns.kubernetes.io/` annotation prefix.
 - Cilium jumped 1.16 → 1.20; upgrade an existing cluster one minor at a time, and only on a Kubernetes version Cilium 1.20 supports (1.33–1.36). The current k3s 1.30 is too old.
 - Charts with changed workload selectors (app-template 2 → 5 for excalidraw) cannot be upgraded in place: delete the Deployment once or sync with `Replace=true`.
 - Run `make configure` to replace upstream's domain (`khuedoan.com`), seed repo, timezone and IP ranges. Until then, prod values still carry upstream's settings; the sandbox overrides them in `values-dev.yaml`.

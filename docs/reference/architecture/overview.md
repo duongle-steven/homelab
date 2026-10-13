@@ -19,7 +19,7 @@
 Main components:
 
 - `./metal`: bare metal management, install Linux and Kubernetes
-- `./system`: critical system components for the cluster (load balancer, storage, ingress, operation tools...)
+- `./system`: critical system components for the cluster (load balancer, storage, Gateway API gateways, operation tools...)
 - `./platform`: essential components for service hosting platform (git, build runners, dashboards...)
 - `./apps`: user facing applications
 - `./external` (optional): externally managed services
