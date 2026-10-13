@@ -83,12 +83,21 @@ Group membership in the sandbox is declared in `platform/kanidm/values-dev.yaml`
 
 ## Make changes
 
-ArgoCD in the sandbox syncs from the `dev` branch on GitHub:
+Work on a feature branch created from `dev`, and run the basic checks before opening a pull request into `dev`:
 
 ```sh
-git commit -m "feat: harness the power of the sun"
-git push origin dev
+git switch dev && git pull
+git switch -c feat/harness-the-sun
+# ...edit, then for every changed chart:
+scripts/render-chart platform/dex
+scripts/render-chart platform/dex dev
+# offline unit tests (the other tests need a cluster)
+(cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep)' ./...)
+mkdocs build --strict
+git push -u origin feat/harness-the-sun   # then open a PR into dev
 ```
+
+ArgoCD in the sandbox syncs from the `dev` branch on GitHub, so a change reaches the sandbox once its PR is merged. Then run `make dev` to run the smoke, identity and SSO tests against it. `dev` is merged into `master` through periodic pull requests.
 
 Only the components listed in `system/argocd/values-dev.yaml` are synced. A component that needs sandbox-specific settings gets a `values-dev.yaml` next to its `values.yaml`. Check how ArgoCD will render it with:
 
