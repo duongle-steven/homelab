@@ -16,5 +16,14 @@ secrets:
   - name: paperless.admin
     key: PAPERLESS_ADMIN_PASSWORD
     special: true
+  - name: dex.argocd
+    key: client_secret
+  - name: dex.zot
+    key: client_secret
+  - name: grafana.admin
+    key: password
+    special: true
+  - name: registry.ci
+    key: password
 # Environment-specific additions, so the list above does not have to be restated
 extraSecrets: []

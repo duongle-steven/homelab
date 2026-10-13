@@ -30,6 +30,16 @@ dex:
         redirectURIs:
           - 'https://grafana.127-0-0-1.nip.io/login/generic_oauth'
         secretEnv: GRAFANA_SSO_CLIENT_SECRET
+      - id: argocd
+        name: Argo CD
+        redirectURIs:
+          - 'https://argocd.127-0-0-1.nip.io/auth/callback'
+        secretEnv: ARGOCD_CLIENT_SECRET
+      - id: zot
+        name: Registry
+        redirectURIs:
+          - 'https://registry.127-0-0-1.nip.io/zot/auth/callback/oidc'
+        secretEnv: ZOT_CLIENT_SECRET
       - id: smoke
         name: Smoke test
         redirectURIs:
