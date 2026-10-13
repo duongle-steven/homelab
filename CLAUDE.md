@@ -14,7 +14,8 @@ Each step changes one thing, with its own spec and plan in `docs/superpowers/`.
 ## Rules
 
 - Use the current stable release of every tool and chart, pinned exactly. The versions in this repo are not a reference; check upstream when touching something.
-- Branch `dev` is the integration branch: changes land there, are tested in the sandbox, then merged into `master`.
+- Branches: create feature branches from `dev` and open PRs into `dev`; `dev` is merged into `master` through periodic PRs. Never commit straight to `dev` or `master`.
+- The sandbox only syncs `dev`. On a feature branch run the basic checks (`scripts/render-chart <dir>` and `scripts/render-chart <dir> dev` for every changed chart, `cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep)' ./...` (the other tests need a cluster), `mkdocs build --strict`); the full sandbox tests (`make dev`) run after the PR is merged into `dev`. If `dev` breaks, fix it with a new PR right away.
 - Sandbox config lives next to production config and is selected with `env=dev`. Never fork config into a separate branch or directory.
 
 ## Sandbox
