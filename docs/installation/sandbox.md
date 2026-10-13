@@ -4,6 +4,7 @@ The sandbox is a local kind cluster for testing changes on the `dev` branch befo
 
 ## Prerequisites
 
+- Linux, or Windows with WSL 2 (NAT or mirrored networking). macOS does not work: the development shell includes Linux-only packages, and Docker runs in a VM there, so the host cannot reach the kind network.
 - Docker and Nix (see [development shell](../concepts/development-shell.md))
 - About 8 GiB of free RAM for Docker (the sandbox uses about 6 GiB, see [resource usage](#resource-usage))
 - Ports `80` and `443` free on the host
