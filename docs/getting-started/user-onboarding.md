@@ -33,3 +33,5 @@
 
     The script prints the `idm_admin` password for the login prompt and ends with a credential reset link.
     Let the user scan the QR code or follow the link to set up a passkey or password + TOTP (Kanidm requires MFA).
+
+    The group decides access everywhere: `admins` administer Grafana, Argo CD and the registry; `editors` edit Grafana dashboards, sync Argo CD apps and push images; `users` view and pull.

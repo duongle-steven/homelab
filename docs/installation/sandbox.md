@@ -5,7 +5,7 @@ The sandbox is a local kind cluster for testing changes on the `dev` branch befo
 ## Prerequisites
 
 - Docker and Nix (see [development shell](../concepts/development-shell.md))
-- About 7 GiB of free RAM for Docker (the sandbox uses about 5 GiB, see [resource usage](#resource-usage))
+- About 8 GiB of free RAM for Docker (the sandbox uses about 6 GiB, see [resource usage](#resource-usage))
 - Ports `80` and `443` free on the host
 
 ## Build
@@ -32,6 +32,8 @@ export KUBECONFIG=$PWD/metal/kubeconfig.yaml  # from the repository root
 
 - <https://argocd.127-0-0-1.nip.io> (user `admin`, password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`)
 - <https://draw.127-0-0-1.nip.io>
+- <https://grafana.127-0-0-1.nip.io> ("Sign in with Dex", or user `admin` with `kubectl -n grafana get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`)
+- <https://registry.127-0-0-1.nip.io> (zot; log in with Kanidm, then create an API key under your user menu and `docker login registry.127-0-0-1.nip.io -u <username> -p <key>`)
 
 On Windows with WSL, open these from the Windows browser.
 
@@ -57,6 +59,16 @@ The identity tests give each test account a password and TOTP the first time the
 ```sh
 kubectl -n kanidm get secret identity-test-credentials -o jsonpath='{.data.dev-admin}' | base64 -d
 ```
+
+What each group may do:
+
+| Group | Grafana | Argo CD | zot |
+|---|---|---|---|
+| `homelab-admins` | Admin, server admin | admin | read, push, delete |
+| `homelab-editors` | Editor | view, sync, actions, logs, exec | read, push |
+| `homelab-users` | Viewer | read-only | read |
+
+Argo CD and Grafana keep their local `admin` account; zot has a `ci` account for automation (password in `global-secrets/registry.ci`).
 
 Use the `totpSecret` there in any authenticator app to log in by hand. Kanidm asks for the TOTP code before the password.
 
@@ -90,17 +102,19 @@ Measured with all sandbox components running (RAM per namespace):
 
 | Namespace | RAM |
 |---|---|
-| kube-system (Kubernetes, Cilium, CoreDNS) | 1944 MiB |
-| argocd | 580 MiB |
-| monitoring-system | 488 MiB |
-| ingress-nginx | 207 MiB |
-| kanidm | 117 MiB |
-| cert-manager | 106 MiB |
-| external-secrets | 103 MiB |
-| local-path-storage | 26 MiB |
+| kube-system (Kubernetes, Cilium, CoreDNS) | 1895 MiB |
+| grafana | 874 MiB |
+| argocd | 628 MiB |
+| monitoring-system | 619 MiB |
+| ingress-nginx | 231 MiB |
+| cert-manager | 150 MiB |
+| kanidm | 144 MiB |
+| external-secrets | 139 MiB |
+| zot | 95 MiB |
+| local-path-storage | 24 MiB |
+| dex | 21 MiB |
 | excalidraw | 12 MiB |
-| dex | 11 MiB |
-| **Node total** | **4.95 GiB** |
+| **Node total** | **6.16 GiB** |
 
 ## Clean up
 
@@ -112,4 +126,4 @@ make dev-clean
 
 - Certificates come from a local CA instead of Let's Encrypt
 - Only accessible from the host machine
-- No Alertmanager, Loki, backups, Grafana, zot or the other platform services (yet)
+- No Alertmanager, Loki, backups, or the Gitea/Woodpecker/Renovate platform services
