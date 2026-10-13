@@ -57,7 +57,7 @@ type credentials struct {
 	Period     uint   `json:"period"`
 }
 
-// sandboxIngress is the ingress LoadBalancer IP. The tests connect to it directly instead of through
+// sandboxIngress is the homelab Gateway's LoadBalancer IP. The tests connect to it directly instead of through
 // the localhost socat proxy, whose connects to :443 occasionally stall for ~4.5 s and hang the browser.
 const sandboxIngress = "172.30.255.200"
 
