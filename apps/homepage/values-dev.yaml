@@ -1,4 +1,10 @@
 app-template:
+  controllers:
+    main:
+      containers:
+        main:
+          env:
+            HOMEPAGE_ALLOWED_HOSTS: home.127-0-0-1.nip.io
   route:
     main:
       hostnames:

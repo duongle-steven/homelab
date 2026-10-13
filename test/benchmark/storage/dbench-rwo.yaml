@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: dbench
-          image: zayashv/dbench:latest
+          image: zayashv/dbench:latest@sha256:5186d2e2acca33d98b0f50a2fba3463bf0ebe30864c8dbd529f234651c462db4
           imagePullPolicy: Always
           env:
             - name: DBENCH_MOUNTPOINT
