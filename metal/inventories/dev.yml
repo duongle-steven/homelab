@@ -5,7 +5,7 @@ all:
     load_balancer_ip_pool:
       - 172.30.255.200/29
     # Pods would otherwise resolve sandbox hostnames to their own loopback
-    coredns_rewrite_rule: 'rewrite name regex (.*)\.127-0-0-1\.nip\.io ingress-nginx-controller.ingress-nginx.svc.cluster.local answer auto'
+    coredns_rewrite_rule: 'rewrite name regex (.*)\.127-0-0-1\.nip\.io cilium-gateway-homelab.gateway.svc.cluster.local answer auto'
 # The kind node is not managed over SSH, so the metal plays have no hosts
 metal:
   children:

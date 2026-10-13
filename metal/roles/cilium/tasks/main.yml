@@ -1,3 +1,10 @@
+- name: Install the Gateway API CRDs
+  kubernetes.core.k8s:
+    definition: "{{ lookup('ansible.builtin.url', 'https://github.com/kubernetes-sigs/gateway-api/releases/download/' ~ gateway_api_version ~ '/standard-install.yaml', split_lines=false) | from_yaml_all | list }}"
+    apply: true
+    server_side_apply:
+      field_manager: ansible
+
 - name: Install Cilium
   kubernetes.core.helm:
     name: cilium
@@ -6,6 +13,27 @@
     chart_version: "{{ cilium_version }}"
     release_namespace: "{{ cilium_namespace }}"
     values: "{{ cilium_values }}"
+  register: cilium_release
+
+# Neither a values change nor new CRDs restart Cilium; the operator reads both only at start
+- name: Restart Cilium after a change
+  when: cilium_release is changed
+  kubernetes.core.k8s:
+    state: patched
+    kind: "{{ item.kind }}"
+    namespace: "{{ cilium_namespace }}"
+    name: "{{ item.name }}"
+    definition:
+      spec:
+        template:
+          metadata:
+            annotations:
+              homelab/cilium-restarted: "{{ now(utc=true).isoformat() }}"
+    wait: true
+    wait_timeout: 600
+  loop:
+    - { kind: Deployment, name: cilium-operator }
+    - { kind: DaemonSet, name: cilium }
 
 - name: Wait for Cilium CRDs
   kubernetes.core.k8s_info:

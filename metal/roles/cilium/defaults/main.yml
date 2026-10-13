@@ -1,11 +1,15 @@
 cilium_repo_url: https://helm.cilium.io
 cilium_version: 1.20.2
 cilium_namespace: kube-system
+# Gateway API CRDs (standard channel). Cilium enables its Gateway controller only when they exist at start.
+gateway_api_version: v1.6.3
 cilium_values:
   operator:
     replicas: 1
   kubeProxyReplacement: true
   l2announcements:
+    enabled: true
+  gatewayAPI:
     enabled: true
   k8sServiceHost: "{{ cilium_k8s_service_host }}"
   k8sServicePort: "{{ cilium_k8s_service_port }}"
