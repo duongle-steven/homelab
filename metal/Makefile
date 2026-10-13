@@ -39,6 +39,12 @@ kind:
 	kind get clusters | grep -qx ${kind_cluster} \
 		|| kind create cluster --config kind-dev.yaml
 	kind get kubeconfig --name ${kind_cluster} > kubeconfig.yaml
+	@# WSL mirrored networking routes 127.0.0.1 through loopback0, where Docker
+	@# drops traffic to ports published on 127.0.0.1, so use the node IP instead
+	@if ip link show loopback0 >/dev/null 2>&1; then \
+		ip="$$(docker inspect -f '{{.NetworkSettings.Networks.kind.IPAddress}}' ${kind_cluster}-control-plane)"; \
+		sed -i "s#server: https://127.0.0.1:[0-9]*#server: https://$$ip:6443#" kubeconfig.yaml; \
+	fi
 
 proxy_name = homelab-dev-proxy
 proxy_bind = 127.0.0.1
