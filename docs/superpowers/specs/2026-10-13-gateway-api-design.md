@@ -128,6 +128,8 @@ removed. The sandbox proves the result, now with five more apps, including gitea
   pushes are not limited, and verify with a 200 MB layer.
 - **gitea:** `TCPRoute` to the SSH service on listener `ssh`. Sandbox `values-dev.yaml` uses SQLite
   and an in-memory cache, disables `postgresql-ha` and `valkey-cluster`, and configures no Dex login.
+  Its config job (upstream repositories migrated from GitHub) gets a `configJob.enabled` flag, off in
+  the sandbox. The chart's own `tcpRoute` is still `v1alpha2`, so the wrapper chart has its own `TCPRoute`.
 - **Public apps (excalidraw, blog, matrix):** `parentRefs` to `gateway/homelab-public`; the route
   keeps only `external-dns.kubernetes.io/cloudflare-proxied: "true"` (the target comes from the
   Gateway). excalidraw's `values-dev.yaml` points `parentRefs` at `gateway/homelab` and clears the
