@@ -48,7 +48,8 @@ kind:
 
 proxy_name = homelab-dev-proxy
 proxy_bind = 127.0.0.1
-ingress_ip = 172.30.255.200
+# The homelab Gateway (system/gateway/values-dev.yaml)
+gateway_ip = 172.30.255.200
 
 proxy:
 	@if docker ps --format '{{.Names}}' | grep -qx ${proxy_name}; then exit 0; fi; \
@@ -58,8 +59,8 @@ proxy:
 	fi; \
 	docker run -d --name ${proxy_name} --network host --restart unless-stopped \
 		--entrypoint sh alpine/socat:1.8.1.3 -c '\
-			socat TCP-LISTEN:80,bind=${proxy_bind},fork,reuseaddr TCP:${ingress_ip}:80 & \
-			exec socat TCP-LISTEN:443,bind=${proxy_bind},fork,reuseaddr TCP:${ingress_ip}:443'
+			socat TCP-LISTEN:80,bind=${proxy_bind},fork,reuseaddr TCP:${gateway_ip}:80 & \
+			exec socat TCP-LISTEN:443,bind=${proxy_bind},fork,reuseaddr TCP:${gateway_ip}:443'
 
 clean:
 	docker rm -f ${proxy_name} >/dev/null 2>&1 || true

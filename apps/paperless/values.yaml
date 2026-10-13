@@ -22,26 +22,18 @@ app-template:
         http:
           port: 8000
           protocol: HTTP
-  ingress:
+  route:
     main:
-      enabled: true
-      className: nginx
-      annotations:
-        cert-manager.io/cluster-issuer: letsencrypt-prod
-      hosts:
-        - host: &host paperless.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: main
-                port: http
-      tls:
-        - hosts:
-            - *host
-          secretName: paperless-tls-certificate
+      hostnames:
+        - paperless.khuedoan.com
+      parentRefs:
+        - name: homelab
+          namespace: gateway
+          sectionName: https
   persistence:
     data:
+      # Keep the PVC name paperless-data
+      suffix: data
       accessMode: ReadWriteOnce
       size: 10Gi
       advancedMounts:

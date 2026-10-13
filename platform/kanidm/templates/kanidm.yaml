@@ -17,12 +17,24 @@ spec:
         resources:
           requests:
             storage: {{ .Values.kanidm.storage }}
-  # cert-manager issues the ingress certificate; Kanidm serves the same secret (kanidm-tls)
-  ingress:
-    ingressClassName: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+  # Kanidm serves TLS itself (templates/certificate.yaml); the Gateway re-encrypts to it
+  tlsSecretName: kanidm-tls
+  gateway:
+    parentRefs:
+      - name: homelab
+        namespace: gateway
+        sectionName: https
+    backendTlsPolicy:
+      validation:
+        hostname: {{ .Values.kanidm.domain }}
+        {{- with .Values.kanidm.backendCA }}
+        caCertificateRefs:
+          - group: ""
+            kind: ConfigMap
+            name: {{ . }}
+        {{- else }}
+        wellKnownCaCertificates: System
+        {{- end }}
   # Dex owns its OAuth2 client in its own namespace
   oauth2ClientNamespaceSelector:
     matchLabels:

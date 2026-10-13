@@ -16,6 +16,10 @@ app-template:
             OLLAMA_BASE_URL: http://ollama:11434
   service:
     main:
+      # Two controllers: name the one this Service selects
+      controller: main
+      # The UI calls http://ollama:11434
+      forceRename: ollama
       ports:
         http:
           port: 11434
@@ -26,34 +30,30 @@ app-template:
         http:
           port: 8080
           protocol: HTTP
-  ingress:
+  route:
     main:
-      enabled: true
-      className: nginx
-      annotations:
-        cert-manager.io/cluster-issuer: letsencrypt-prod
-      hosts:
-        - host: &ollamaHost ollama.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: main
-                port: http
-        - host: &uiHost ai.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: ui
-                port: http
-      tls:
-        - hosts:
-            - *ollamaHost
-            - *uiHost
-          secretName: ollama-tls-certificate
+      hostnames:
+        - ollama.khuedoan.com
+      parentRefs: &parentRefs
+        - name: homelab
+          namespace: gateway
+          sectionName: https
+      rules:
+        - backendRefs:
+            - identifier: main
+              port: http
+    ai:
+      hostnames:
+        - ai.khuedoan.com
+      parentRefs: *parentRefs
+      rules:
+        - backendRefs:
+            - identifier: ui
+              port: http
   persistence:
     data:
+      # Keep the PVC name ollama-data
+      suffix: data
       accessMode: ReadWriteOnce
       size: 10Gi
       advancedMounts:

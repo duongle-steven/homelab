@@ -16,18 +16,18 @@ argo-cd:
           - email
           - groups
   server:
+    httproute:
+      hostnames:
+        - argocd.127-0-0-1.nip.io
     # Trust the sandbox CA for calls to Dex
     env:
       - name: SSL_CERT_DIR
         value: /etc/ssl/certs:/etc/homelab-dev-ca
     volumes:
       - name: dev-ca
-        secret:
-          secretName: argocd-server-tls
+        configMap:
+          name: homelab-dev-ca
           optional: true
-          items:
-            - key: ca.crt
-              path: ca.crt
     volumeMounts:
       - name: dev-ca
         mountPath: /etc/homelab-dev-ca
@@ -41,16 +41,21 @@ argocd-apps:
             revision: &revision dev
             directories:
               - path: system/argocd
-              - path: system/ingress-nginx
+              - path: system/gateway
               - path: system/cert-manager
               - path: system/monitoring-system
               - path: apps/excalidraw
+              - path: apps/actualbudget
+              - path: apps/homepage
+              - path: apps/pairdrop
+              - path: apps/speedtest
               - path: platform/external-secrets
               - path: platform/global-secrets
               - path: platform/kanidm
               - path: platform/dex
               - path: platform/grafana
               - path: platform/zot
+              - path: platform/gitea
       template:
         spec:
           source:

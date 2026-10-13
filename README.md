@@ -128,7 +128,7 @@ They can't capture all the project's features, but they are sufficient to get a 
     <tr>
         <td><img width="32" src="https://avatars.githubusercontent.com/u/21054566?s=200&v=4"></td>
         <td><a href="https://cilium.io">Cilium</a></td>
-        <td>eBPF-based Networking, Observability and Security (CNI, LB, Network Policy, etc.)</td>
+        <td>eBPF-based Networking, Observability and Security (CNI, LB, Gateway API, Network Policy, etc.)</td>
     </tr>
     <tr>
         <td><img width="32" src="https://avatars.githubusercontent.com/u/314135?s=200&v=4"></td>
@@ -143,7 +143,7 @@ They can't capture all the project's features, but they are sufficient to get a 
     <tr>
         <td><img width="32" src="https://github.com/kubernetes-sigs/external-dns/raw/master/docs/img/external-dns.png"></td>
         <td><a href="https://github.com/kubernetes-sigs/external-dns">ExternalDNS</a></td>
-        <td>Synchronizes exposed Kubernetes Services and Ingresses with DNS providers</td>
+        <td>Synchronizes Gateway API routes with DNS providers</td>
     </tr>
     <tr>
         <td><img width="32" src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Fedora_logo.svg/267px-Fedora_logo.svg.png"></td>
@@ -184,11 +184,6 @@ They can't capture all the project's features, but they are sufficient to get a 
         <td><img width="32" src="https://github.com/grafana/loki/blob/main/docs/sources/logo.png?raw=true"></td>
         <td><a href="https://grafana.com/oss/loki">Loki</a></td>
         <td>Log aggregation system</td>
-    </tr>
-    <tr>
-        <td><img width="32" src="https://avatars.githubusercontent.com/u/1412239?s=200&v=4"></td>
-        <td><a href="https://www.nginx.com">NGINX</a></td>
-        <td>Kubernetes Ingress Controller</td>
     </tr>
     <tr>
         <td><img width="32" src="https://raw.githubusercontent.com/NixOS/nixos-artwork/refs/heads/master/logo/nix-snowflake-colours.svg"></td>

@@ -1,11 +1,8 @@
 grafana:
-  ingress:
-    hosts:
-      - &host grafana.127-0-0-1.nip.io
-    tls:
-      - secretName: grafana-general-tls
-        hosts:
-          - *host
+  route:
+    main:
+      hostnames:
+        - grafana.127-0-0-1.nip.io
   grafana.ini:
     server:
       root_url: https://grafana.127-0-0-1.nip.io
@@ -16,11 +13,9 @@ grafana:
   # Trust the sandbox CA for calls to Dex
   env:
     SSL_CERT_DIR: /etc/ssl/certs:/etc/homelab-dev-ca
-  extraSecretMounts:
+  # Not optional: the pod waits until trust-manager has copied the CA here
+  extraConfigmapMounts:
     - name: dev-ca
-      secretName: grafana-general-tls
+      configMap: homelab-dev-ca
       mountPath: /etc/homelab-dev-ca
       readOnly: true
-      items:
-        - key: ca.crt
-          path: ca.crt

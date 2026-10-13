@@ -1,18 +1,20 @@
 zot:
-  ingress:
+  httproute:
     enabled: true
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-      nginx.ingress.kubernetes.io/proxy-body-size: "0"
-    className: nginx
-    hosts:
-      - host: &host registry.khuedoan.com
-        paths:
-          - path: /
-    tls:
-      - secretName: zot-tls-certificate
-        hosts:
-          - *host
+    parentRefs:
+      - name: homelab
+        namespace: gateway
+        sectionName: https
+    hostnames:
+      - registry.khuedoan.com
+    # Image pushes upload large blobs: no request timeout
+    rules:
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /
+        timeouts:
+          request: 0s
   persistence: true
   pvc:
     create: true

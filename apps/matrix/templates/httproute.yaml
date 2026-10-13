@@ -1,0 +1,36 @@
+# Neither chart supports Gateway API
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: elementweb
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    external-dns.kubernetes.io/cloudflare-proxied: "true"
+spec:
+  parentRefs:
+    - name: homelab-public
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - {{ .Values.route.elementHostname }}
+  rules:
+    - backendRefs:
+        - name: {{ .Release.Name }}-elementweb
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dendrite
+  namespace: {{ .Release.Namespace }}
+spec:
+  parentRefs:
+    - name: homelab
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - {{ .Values.route.dendriteHostname }}
+  rules:
+    - backendRefs:
+        - name: {{ .Release.Name }}-dendrite
+          port: 8008

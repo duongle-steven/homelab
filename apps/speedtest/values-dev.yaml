@@ -1,0 +1,5 @@
+app-template:
+  route:
+    main:
+      hostnames:
+        - speedtest.127-0-0-1.nip.io

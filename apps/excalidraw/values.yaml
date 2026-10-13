@@ -12,23 +12,13 @@ app-template:
         http:
           port: 80
           protocol: HTTP
-  ingress:
+  route:
     main:
-      enabled: true
-      className: nginx
       annotations:
-        cert-manager.io/cluster-issuer: letsencrypt-prod
-        external-dns.alpha.kubernetes.io/target: homelab-tunnel.khuedoan.com
-        external-dns.alpha.kubernetes.io/cloudflare-proxied: 'true'
-      hosts:
-        - host: &host draw.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                identifier: main
-                port: http
-      tls:
-        - hosts:
-            - *host
-          secretName: excalidraw-tls-certificate
+        external-dns.kubernetes.io/cloudflare-proxied: "true"
+      hostnames:
+        - draw.khuedoan.com
+      parentRefs:
+        - name: homelab-public
+          namespace: gateway
+          sectionName: https

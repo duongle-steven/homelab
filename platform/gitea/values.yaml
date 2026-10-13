@@ -1,18 +1,17 @@
 gitea:
-  ingress:
+  gatewayAPI:
     enabled: true
-    className: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-    hosts:
-      - host: &host git.khuedoan.com
-        paths:
-          - path: /
-            pathType: Prefix
-    tls:
-      - secretName: gitea-tls-certificate
-        hosts:
-          - *host
+    core:
+      httpRoute:
+        enabled: true
+        # The Gateway terminates TLS, so ROOT_URL uses https
+        tls: true
+        parentRefs:
+          - name: homelab
+            namespace: gateway
+            sectionName: https
+        hostnames:
+          - git.khuedoan.com
   gitea:
     admin:
       existingSecret: gitea-admin-secret
@@ -37,3 +36,6 @@ gitea:
         ENABLED: false
       webhook:
         ALLOWED_HOST_LIST: private
+# Creates organizations and migrates repositories (files/config/config.yaml)
+configJob:
+  enabled: true

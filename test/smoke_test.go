@@ -8,7 +8,6 @@ import (
 	"time"
 
 	http_helper "github.com/gruntwork-io/terratest/modules/http-helper"
-	"github.com/gruntwork-io/terratest/modules/k8s"
 )
 
 type smokeApp struct {
@@ -16,7 +15,7 @@ type smokeApp struct {
 	namespace string
 }
 
-// smokeApps returns the apps whose ingress is checked; the sandbox only runs a subset.
+// smokeApps returns the apps whose HTTPRoute is checked; the sandbox only runs a subset.
 func smokeApps(env string) []smokeApp {
 	if env == "dev" {
 		return []smokeApp{
@@ -26,6 +25,11 @@ func smokeApps(env string) []smokeApp {
 			{"dex", "dex"},
 			{"grafana", "grafana"},
 			{"zot", "zot"},
+			{"actualbudget", "actualbudget"},
+			{"homepage", "homepage"},
+			{"pairdrop", "pairdrop"},
+			{"speedtest", "speedtest"},
+			{"gitea", "gitea"},
 		}
 	}
 
@@ -47,13 +51,8 @@ func TestSmoke(t *testing.T) {
 		t.Run(app.name, func(t *testing.T) {
 			t.Parallel()
 
-			options := k8s.NewKubectlOptions("", "", app.namespace)
-
-			// Wait the service to become available to ensure that we can access it
-			k8s.WaitUntilIngressAvailable(t, options, app.name, 30, 60*time.Second)
-
-			// Now we verify that the service will successfully boot and start serving requests
-			ingress := k8s.GetIngress(t, options, app.name)
+			// Wait until the Gateway accepted the route with a resolved backend
+			host := routeHost(t, app.namespace, app.name)
 
 			// Setup a TLS configuration, ignore the certificate because we may not use cert-manager (like the sandbox environment)
 			tlsConfig := tls.Config{
@@ -63,7 +62,7 @@ func TestSmoke(t *testing.T) {
 			// Test the endpoint, this will only fail if we timeout waiting for the service to return a 200 response
 			http_helper.HttpGetWithRetryWithCustomValidation(
 				t,
-				fmt.Sprintf("https://%s", ingress.Spec.Rules[0].Host),
+				fmt.Sprintf("https://%s", host),
 				&tlsConfig,
 				30,
 				60*time.Second,

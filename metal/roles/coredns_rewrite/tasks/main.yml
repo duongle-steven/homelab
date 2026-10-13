@@ -5,7 +5,7 @@
     name: coredns
   register: coredns
 
-- name: Add the rewrite rule
+- name: Add the rewrite rule, replacing an older one
   vars:
     corefile: "{{ coredns.resources[0].data.Corefile }}"
   when: coredns_rewrite_rule not in corefile
@@ -16,7 +16,7 @@
     name: coredns
     definition:
       data:
-        Corefile: "{{ corefile | replace('    ready\n', '    ready\n    ' ~ coredns_rewrite_rule ~ '\n') }}"
+        Corefile: "{{ corefile.split('\n') | reject('search', '^\\s*rewrite name regex ') | join('\n') | replace('    ready\n', '    ready\n    ' ~ coredns_rewrite_rule ~ '\n') }}"
   register: corefile_patch
 
 - name: Restart CoreDNS to apply the rule now
