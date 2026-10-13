@@ -65,7 +65,7 @@ What each group may do:
 | Group | Grafana | Argo CD | zot |
 |---|---|---|---|
 | `homelab-admins` | Admin, server admin | admin | read, push, delete |
-| `homelab-editors` | Editor | view, sync, actions, logs, exec | read, push |
+| `homelab-editors` | Editor | view, sync, actions, logs, exec into `apps/*` | read, push |
 | `homelab-users` | Viewer | read-only | read |
 
 Argo CD and Grafana keep their local `admin` account; zot has a `ci` account for automation (password in `global-secrets/registry.ci`).

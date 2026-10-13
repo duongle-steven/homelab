@@ -44,6 +44,10 @@ The sandbox runs Kubernetes 1.36 and only ever installs from scratch, so it does
 - `scripts/hacks` is gone (sub-project 1b). It used to create Gitea access tokens and OAuth apps that `platform/renovate` (`gitea.renovate`) and `platform/woodpecker` (`gitea.woodpecker`) read, and Gitea's Dex login. Recreate that setup (ideally as kaniop/Gitea config in git) before deploying those apps.
 - Argo CD has `exec.enabled: "true"` (needed for the editor role), so admins and editors can open terminals in pods.
 - The Grafana chart now comes from `https://grafana-community.github.io/helm-charts`.
+- zot refuses anonymous pulls: `apps/blog` (`registry.khuedoan.com/blog`) needs pull credentials (a read-only htpasswd account plus an `imagePullSecret`) or an anonymous `read` policy for its repository. `registry-admin-secret` (`admin`) no longer works: `admin` is not in zot's htpasswd.
+- zot exits at start when Dex is unreachable (OIDC discovery), so a Dex or Kanidm outage plus a zot restart also stops `ci` and API-key pulls and pushes.
+- Removing someone from Kanidm or a group does not revoke their zot API keys (zot keeps the groups from their last login); delete their keys in zot when offboarding.
+- Argo CD editors may exec only into apps listed in `system/argocd/values.yaml` (`apps/*`); add new apps there.
 
 ## Ideas (not planned)
 

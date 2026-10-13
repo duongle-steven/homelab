@@ -35,3 +35,5 @@
     Let the user scan the QR code or follow the link to set up a passkey or password + TOTP (Kanidm requires MFA).
 
     The group decides access everywhere: `admins` administer Grafana, Argo CD and the registry; `editors` edit Grafana dashboards, sync Argo CD apps and push images; `users` view and pull.
+
+    To offboard someone, remove them from their group (or delete the person) in Kanidm **and** delete their API keys in the registry: zot keeps the groups from their last login for existing keys.
