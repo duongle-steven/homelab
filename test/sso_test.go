@@ -135,13 +135,15 @@ func TestSSOZot(t *testing.T) {
 	}
 	for account, want := range expectedUpload {
 		t.Run(account, func(t *testing.T) {
-			cookies := appLogin(t, account, ensureCredentials(t, account), base+"/zot/auth/login?provider=oidc", registryHost)
+			cookies := appLogin(t, account, ensureCredentials(t, account), base+"/zot/auth/login?provider=oidc&callback_ui=/", registryHost)
 
 			var key struct {
 				APIKey string `json:"apiKey"`
 			}
 			label := fmt.Sprintf("sso-test-%d", time.Now().UnixNano())
-			require.Equal(t, http.StatusCreated, getJSON(t, "POST", base+"/zot/auth/apikey", cookies, "", "", map[string]any{"label": label, "scopes": []string{}}, &key))
+			require.Equal(t, http.StatusCreated, getJSON(t, "POST", base+"/zot/auth/apikey", cookies, "", "", map[string]any{"label": label, "scopes": []string{}}, &key,
+				// zot only accepts its session cookie from its UI client
+				"X-ZOT-API-CLIENT", "zot-ui"))
 			require.NotEmpty(t, key.APIKey)
 
 			assert.Equal(t, want, getJSON(t, "POST", upload, nil, account, key.APIKey, nil, nil))

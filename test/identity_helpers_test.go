@@ -25,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -345,14 +346,19 @@ func appLogin(t *testing.T, account string, c credentials, startURL, appHost str
 	browserStep(t, ctx, "open", account, chromedp.Navigate(startURL), chromedp.WaitVisible(`input#username`))
 	kanidmLogin(t, ctx, account, c, c.Password)
 
-	require.Eventually(t, func() bool {
-		var location string
+	var location string
+	returned := assert.Eventually(t, func() bool {
 		if chromedp.Run(ctx, chromedp.Location(&location)) != nil {
 			return false
 		}
 		u, err := url.Parse(location)
 		return err == nil && u.Host == appHost && !strings.Contains(u.Path, "callback") && !strings.Contains(u.Path, "/login")
-	}, 30*time.Second, 500*time.Millisecond, "%s did not return to %s", account, appHost)
+	}, 30*time.Second, 500*time.Millisecond)
+	if !returned {
+		var text string
+		_ = chromedp.Run(ctx, chromedp.Evaluate(`document.body ? document.body.innerText.slice(0, 500) : ""`, &text))
+		require.FailNow(t, "did not return to app", "%s did not return to %s; last at %s:\n%s", account, appHost, location, text)
+	}
 
 	var cookies []*http.Cookie
 	require.NoError(t, chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
@@ -366,8 +372,9 @@ func appLogin(t *testing.T, account string, c credentials, startURL, appHost str
 	return cookies
 }
 
-// getJSON sends a request with cookies or basic auth, decodes a JSON body into out (if not nil) and returns the status.
-func getJSON(t *testing.T, method, target string, cookies []*http.Cookie, user, pass string, body any, out any) int {
+// getJSON sends a request with cookies or basic auth and optional header name/value pairs, decodes a
+// JSON body into out (if not nil) and returns the status.
+func getJSON(t *testing.T, method, target string, cookies []*http.Cookie, user, pass string, body any, out any, headers ...string) int {
 	var reader io.Reader
 	if body != nil {
 		payload, err := json.Marshal(body)
@@ -384,6 +391,9 @@ func getJSON(t *testing.T, method, target string, cookies []*http.Cookie, user, 
 	}
 	if user != "" {
 		req.SetBasicAuth(user, pass)
+	}
+	for i := 0; i+1 < len(headers); i += 2 {
+		req.Header.Set(headers[i], headers[i+1])
 	}
 	resp, err := insecureClient.Do(req)
 	require.NoError(t, err)
