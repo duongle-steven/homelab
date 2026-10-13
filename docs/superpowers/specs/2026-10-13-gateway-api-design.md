@@ -71,7 +71,8 @@ removed. The sandbox proves the result, now with five more apps, including gitea
 | Chart versions | Upgrade every touched chart to its latest stable and use its native route support; write `templates/httproute.yaml` only where a chart has none (woodpecker, matrix) |
 | Major upgrades | app-template 2/3 → 5, gitea 10 → 12, woodpecker 1 → 3; each listed in the CLAUDE.md production checklist |
 | Sandbox apps | Add `pairdrop`, `speedtest`, `actualbudget`, `homepage` and `gitea` (SQLite, in-memory cache, no Dex login) |
-| Kanidm backend TLS | `HTTPRoute` plus `BackendTLSPolicy` from the kaniop `Kanidm` CR; Kanidm gets its own `Certificate` |
+| Kanidm backend TLS | `HTTPRoute` plus `BackendTLSPolicy` from the kaniop `Kanidm` CR; Kanidm gets its own `Certificate` (`tlsSecretName: kanidm-tls`). Production validates with `wellKnownCACertificates: System`, the sandbox with the dev CA ConfigMap (Cilium 1.20.2 accepts only one ConfigMap with key `ca.crt`, no Secret) |
+| Dev CA distribution | trust-manager v0.25.0, sandbox only (conditional dependency of `system/cert-manager`), copies `homelab-dev-ca` into a ConfigMap `homelab-dev-ca` (key `ca.crt`) in every namespace. Used by Kanidm's `BackendTLSPolicy` and by the dev CA mounts of dex, grafana, zot and argocd, which today read `ca.crt` from their own ingress certificate secrets |
 | gitea SSH | `TCPRoute` on the Gateway listener `ssh` (port 22) |
 | Versions | Re-check and pin exactly while planning (Gateway API CRDs, Cilium, every chart) |
 
@@ -119,6 +120,8 @@ removed. The sandbox proves the result, now with five more apps, including gitea
 - **kanidm:** kaniop 0.19 `Kanidm` CR `gateway` with `parentRefs`, hostname and `backendTlsPolicy`
   (validation hostname `auth.<domain>`; CA: system trust in production, the sandbox CA in the
   sandbox). A `Certificate` for `auth.<domain>` replaces the ingress certificate Kanidm serves today.
+- **Dev CA trust (sandbox):** dex, grafana, zot and argocd mount the ConfigMap `homelab-dev-ca`
+  instead of their former ingress certificate secrets; paths and `SSL_CERT_DIR` stay the same.
 - **Own templates:** woodpecker and matrix (`elementweb`, `dendrite`) add `templates/httproute.yaml`
   to their wrapper charts.
 - **zot:** large blob pushes must not be cut by a gateway timeout; set the route's `timeouts` so
@@ -141,7 +144,7 @@ removed. The sandbox proves the result, now with five more apps, including gitea
 | CoreDNS rewrite | target `cilium-gateway-homelab.gateway.svc.cluster.local`; the role replaces an existing `*.127-0-0-1.nip.io` rewrite rule instead of only adding when missing | yes, through the identity and SSO tests |
 | cloudflared | service `https://cilium-gateway-homelab-public.gateway` with `matchSNItoHost: true` (the wildcard listener needs a matching SNI); only public apps are reachable through the tunnel | no |
 | external-dns | chart 1.23.0, source `gateway-httproute`, `policy: upsert-only` set explicitly (the old chart default; now required), `--annotation-filter=external-dns.kubernetes.io/exclude notin (true)` | no |
-| cert-manager | wildcard and Kanidm certificates only | yes |
+| cert-manager | wildcard and Kanidm certificates only; trust-manager and a `Bundle` `homelab-dev-ca` in the sandbox | yes |
 
 The two untested rows are checked against upstream documentation while planning and listed in the
 CLAUDE.md production checklist.
