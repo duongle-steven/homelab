@@ -4,7 +4,8 @@ Status: design approved in chat 2026-10-13, written spec awaiting review. Branch
 
 ## Goal
 
-Every component is reached through one shared Gateway API `Gateway` served by Cilium, with a wildcard
+Every component is reached through Gateway API `Gateway`s served by Cilium: `homelab` for the LAN and
+`homelab-public` for the apps published through the Cloudflare Tunnel, sharing one wildcard
 certificate. ingress-nginx (retired, no security fixes since 2026-03) and every `Ingress` object are
 removed. The sandbox proves the result, now with five more apps, including gitea and its SSH over
 `TCPRoute`.
@@ -33,7 +34,12 @@ removed. The sandbox proves the result, now with five more apps, including gitea
     that exact text is missing
   - cloudflared (production) forwards `*.khuedoan.com` to `https://ingress-nginx-controller.ingress-nginx`
     with `noTLSVerify`
-  - external-dns (production) uses the default sources (`service`, `ingress`)
+  - external-dns (production, chart 1.14.3) uses the default sources (`service`, `ingress`)
+  - three apps are public today (excalidraw, blog, matrix): their Ingress annotation
+    `external-dns.alpha.kubernetes.io/target: homelab-tunnel.khuedoan.com` makes external-dns point
+    their DNS at the tunnel; every other host points at the LAN ingress IP
+  - external-dns reads `target` only from a `Gateway`, never from a route (gateway sources docs), and
+    since v0.22 uses the annotation prefix `external-dns.kubernetes.io/` (the `alpha` prefix is legacy)
 - **Tests:** `TestSmoke` and `integration_test.go` read hosts from `Ingress` objects
   (`k8s.GetIngress`).
 - **Charts and route support** (latest versions checked 2026-10-13):
@@ -58,7 +64,9 @@ removed. The sandbox proves the result, now with five more apps, including gitea
 | Topic | Decision |
 |---|---|
 | Scope | Migrate every component, including the ones that run only in production; delete `system/ingress-nginx` |
-| Topology | One shared `Gateway` named `homelab` in namespace `gateway`, one wildcard certificate; apps attach `HTTPRoute`s |
+| Topology | Two `Gateway`s in namespace `gateway`: `homelab` (LAN, DNS → its LB IP) and `homelab-public` (DNS → Cloudflare Tunnel, cloudflared → its Service); one shared wildcard certificate; apps attach `HTTPRoute`s to one of them |
+| Public apps | excalidraw, blog and matrix attach to `homelab-public`; every other app to `homelab`. In the sandbox, excalidraw attaches to `homelab` (no tunnel) |
+| external-dns | Chart 1.23.0, source `gateway-httproute`, annotation prefix `external-dns.kubernetes.io/` everywhere (including the exclude filter) |
 | Delivery | Gateway API CRDs and the Cilium `gatewayAPI` setting in `metal/` (Ansible, before Cilium); the `Gateway` in a new ArgoCD component `system/gateway`; routes in each app's own values |
 | Chart versions | Upgrade every touched chart to its latest stable and use its native route support; write `templates/httproute.yaml` only where a chart has none (woodpecker, matrix) |
 | Major upgrades | app-template 2/3 → 5, gitea 10 → 12, woodpecker 1 → 3; each listed in the CLAUDE.md production checklist |
@@ -78,6 +86,11 @@ removed. The sandbox proves the result, now with five more apps, including gitea
     the CRDs.
   - `metal/roles/cilium` adds `gatewayAPI.enabled: true`.
 - **`system/gateway`** (new ArgoCD component, wrapper chart with templates only):
+  - `Gateway` `homelab-public`, `gatewayClassName: cilium`, annotation
+    `external-dns.kubernetes.io/target: homelab-tunnel.<domain>`, one listener `https` (port 443,
+    hostname `*.<domain>`, same wildcard secret, routes from all namespaces). No HTTP or SSH listener:
+    Cloudflare and cloudflared only speak HTTPS to it. Its address comes from the LB pool, also in the
+    sandbox.
   - `Gateway` `homelab`, `gatewayClassName: cilium`, listeners:
     - `http`, port 80, routes from namespace `gateway` only
     - `https`, port 443, hostname `*.<domain>`, TLS terminate with secret `homelab-wildcard-tls`,
@@ -112,8 +125,10 @@ removed. The sandbox proves the result, now with five more apps, including gitea
   pushes are not limited, and verify with a 200 MB layer.
 - **gitea:** `TCPRoute` to the SSH service on listener `ssh`. Sandbox `values-dev.yaml` uses SQLite
   and an in-memory cache, disables `postgresql-ha` and `valkey-cluster`, and configures no Dex login.
-- **excalidraw:** the external-dns annotations (`target`, `cloudflare-proxied`) move to the
-  `HTTPRoute`; check while planning that external-dns reads them there.
+- **Public apps (excalidraw, blog, matrix):** `parentRefs` to `gateway/homelab-public`; the route
+  keeps only `external-dns.kubernetes.io/cloudflare-proxied: "true"` (the target comes from the
+  Gateway). excalidraw's `values-dev.yaml` points `parentRefs` at `gateway/homelab` and clears the
+  annotation.
 - **ArgoCD CLI:** document `argocd --grpc-web`; plain gRPC through the Gateway is not tested.
 - **Sandbox additions:** `apps/pairdrop`, `apps/speedtest`, `apps/actualbudget`, `apps/homepage`,
   `platform/gitea` join the allowlist.
@@ -124,8 +139,8 @@ removed. The sandbox proves the result, now with five more apps, including gitea
 |---|---|---|
 | socat proxy | none: the Gateway holds `172.30.255.200` | yes |
 | CoreDNS rewrite | target `cilium-gateway-homelab.gateway.svc.cluster.local`; the role replaces an existing `*.127-0-0-1.nip.io` rewrite rule instead of only adding when missing | yes, through the identity and SSO tests |
-| cloudflared | service `https://cilium-gateway-homelab.gateway` with `matchSNItoHost: true` (the wildcard listener needs a matching SNI) | no |
-| external-dns | source `gateway-httproute` | no |
+| cloudflared | service `https://cilium-gateway-homelab-public.gateway` with `matchSNItoHost: true` (the wildcard listener needs a matching SNI); only public apps are reachable through the tunnel | no |
+| external-dns | chart 1.23.0, source `gateway-httproute`, `policy: upsert-only` set explicitly (the old chart default; now required), `--annotation-filter=external-dns.kubernetes.io/exclude notin (true)` | no |
 | cert-manager | wildcard and Kanidm certificates only | yes |
 
 The two untested rows are checked against upstream documentation while planning and listed in the
@@ -142,7 +157,8 @@ CLAUDE.md production checklist.
     `BackendTLSPolicy`.
 - **New sandbox tests** (run by `make dev`):
   - `http://` requests get a 301 to `https://`
-  - `Gateway/homelab` is `Programmed` with address `172.30.255.200`
+  - `Gateway/homelab` is `Programmed` with address `172.30.255.200`; `Gateway/homelab-public` is
+    `Programmed`
   - no `Ingress` objects and no `ingress-nginx` namespace remain
   - TCP to `172.30.255.200:22` returns gitea's SSH banner
   - a 200 MB layer pushes to zot through the Gateway
@@ -158,8 +174,9 @@ CLAUDE.md production checklist.
   - `docs/installation/sandbox.md`: app list, `--grpc-web`, Gateway instead of ingress-nginx.
   - Other pages under `docs/` that mention ingress-nginx or `Ingress`.
   - `CLAUDE.md` Sandbox section: Gateway instead of ingress-nginx.
-  - `CLAUDE.md` production checklist: the major chart upgrades; cloudflared `matchSNItoHost` and
-    external-dns `gateway-httproute` untested; install the Gateway API CRDs before Cilium.
+  - `CLAUDE.md` production checklist: the major chart upgrades; the public path (`homelab-public`,
+    cloudflared `matchSNItoHost`, external-dns 1.23 with `gateway-httproute` and the new annotation
+    prefix) is untested; install the Gateway API CRDs before Cilium.
 
 ## Acceptance criteria (on branch `dev`)
 
