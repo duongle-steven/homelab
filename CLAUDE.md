@@ -8,7 +8,7 @@ Each step changes one thing, with its own spec and plan in `docs/superpowers/`.
 
 0. Workstation: NixOS-WSL (done, outside this repo)
 1. Sandbox: 1a kind + Cilium foundation (done), 1b identity: secrets, Kanidm via kaniop, Dex (done), 1c SSO for Grafana, ArgoCD and zot (done)
-2. Replace ingress-nginx and `Ingress` objects with Gateway API (Cilium Gateway), tested in the sandbox
+2. Replace ingress-nginx and `Ingress` objects with Gateway API (Cilium Gateway), tested in the sandbox (done)
 3. Production: kubeadm instead of k3s, Ubuntu LTS instead of Fedora (rewrite `metal/`)
 
 ## Rules

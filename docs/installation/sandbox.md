@@ -6,7 +6,7 @@ The sandbox is a local kind cluster for testing changes on the `dev` branch befo
 
 - Linux, or Windows with WSL 2 (NAT or mirrored networking). macOS does not work: the development shell includes Linux-only packages, and Docker runs in a VM there, so the host cannot reach the kind network.
 - Docker and Nix (see [development shell](../concepts/development-shell.md))
-- About 8 GiB of free RAM for Docker (the sandbox uses about 6 GiB, see [resource usage](#resource-usage))
+- About 8 GiB of free RAM for Docker (the sandbox uses about 7 GiB, see [resource usage](#resource-usage))
 - Ports `80` and `443` free on the host
 
 ## Build
@@ -112,22 +112,27 @@ scripts/render-chart apps/excalidraw dev
 
 ## Resource usage
 
-Measured with all sandbox components running (RAM per namespace), before the Gateway API migration and the Gitea, Actual Budget, Homepage, PairDrop and speedtest additions:
+Measured on a fresh sandbox with all components running (working-set memory per namespace from Prometheus; the node total from `docker stats`):
 
 | Namespace | RAM |
 |---|---|
-| kube-system (Kubernetes, Cilium, CoreDNS) | 1895 MiB |
-| grafana | 874 MiB |
-| argocd | 628 MiB |
-| monitoring-system | 619 MiB |
-| cert-manager | 150 MiB |
-| kanidm | 144 MiB |
-| external-secrets | 139 MiB |
-| zot | 95 MiB |
-| local-path-storage | 24 MiB |
-| dex | 21 MiB |
+| kube-system (Kubernetes, Cilium and its Gateway Envoy, CoreDNS) | 2102 MiB |
+| argocd | 613 MiB |
+| monitoring-system | 601 MiB |
+| grafana | 569 MiB |
+| cert-manager (with trust-manager) | 170 MiB |
+| external-secrets | 146 MiB |
+| kanidm | 119 MiB |
+| zot | 110 MiB |
+| gitea | 103 MiB |
+| homepage | 96 MiB |
+| actualbudget | 58 MiB |
+| pairdrop | 44 MiB |
+| local-path-storage | 29 MiB |
+| speedtest | 21 MiB |
+| dex | 13 MiB |
 | excalidraw | 12 MiB |
-| **Node total** | **6.16 GiB** |
+| **Node total** | **6.95 GiB** |
 
 ## Clean up
 
