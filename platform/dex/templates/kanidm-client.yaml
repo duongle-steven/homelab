@@ -13,6 +13,18 @@ spec:
     - https://{{ .Values.kanidmClient.dexHost }}/callback
   # First-party client managed by us
   disableConsentPrompt: true
+  # Short usernames (dev-admin rather than dev-admin@<domain>)
+  preferShortUsername: true
+  # Short, domain-free group names for every app, mapped to `groups` by Dex
+  claimMap:
+    - name: homelab_groups
+      joinStrategy: array
+      valuesMap:
+        {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+        - group: {{ . }}
+          values:
+            - {{ . }}
+        {{- end }}
   scopeMap:
     {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
     - group: {{ . }}

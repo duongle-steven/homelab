@@ -13,6 +13,9 @@ dex:
           pkceChallenge: S256
           insecureEnableGroups: true
           getUserInfo: true
+          overrideClaimMapping: true
+          claimMapping:
+            groups: homelab_groups
           # The sandbox CA, from Dex's own CA-issued certificate
           rootCAs:
             - /etc/dex/dev-ca/ca.crt

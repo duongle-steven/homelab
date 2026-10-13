@@ -19,6 +19,9 @@ dex:
           pkceChallenge: S256
           insecureEnableGroups: true
           getUserInfo: true
+          overrideClaimMapping: true
+          claimMapping:
+            groups: homelab_groups
           scopes:
             - openid
             - profile

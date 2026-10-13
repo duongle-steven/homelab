@@ -55,7 +55,8 @@ func TestIdentityLogin(t *testing.T) {
 			claims := exchangeCode(t, code, secret)
 			t.Logf("groups claim for %s: %v", account.name, claims["groups"])
 			assert.Equal(t, account.name+"@example.com", claims["email"])
-			assert.True(t, hasGroup(claims, account.group), "groups %v lack %s", claims["groups"], account.group)
+			assert.Equal(t, []any{account.group}, claims["groups"])
+			assert.Equal(t, account.name, claims["preferred_username"])
 		})
 	}
 }
