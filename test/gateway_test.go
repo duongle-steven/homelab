@@ -58,17 +58,17 @@ type gateway struct {
 
 func TestGatewayProgrammed(t *testing.T) {
 	gatewaySandboxOnly(t)
-	for _, name := range []string{"homelab", "homelab-public"} {
+	// Both are pinned (system/gateway/values-dev.yaml); the localhost proxy forwards to homelab
+	addresses := map[string]string{"homelab": sandboxIngress, "homelab-public": "172.30.255.201"}
+	for name, address := range addresses {
 		t.Run(name, func(t *testing.T) {
 			var gw gateway
 			require.Eventually(t, func() bool {
 				gw = gateway{}
 				return getResource(t, "gateway", &gw, "gateway", name) && conditionsMet(gw.Status.Conditions, "Accepted", "Programmed")
 			}, 20*time.Minute, 15*time.Second, "Gateway %s is not programmed", name)
-			if name == "homelab" {
-				require.NotEmpty(t, gw.Status.Addresses)
-				assert.Equal(t, sandboxIngress, gw.Status.Addresses[0].Value, "the localhost proxy forwards to this address")
-			}
+			require.NotEmpty(t, gw.Status.Addresses)
+			assert.Equal(t, address, gw.Status.Addresses[0].Value)
 		})
 	}
 }

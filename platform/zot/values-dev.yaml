@@ -16,9 +16,9 @@ zot:
       value: /etc/ssl/certs:/etc/homelab-dev-ca
   extraVolumes:
     - name: dev-ca
+      # Not optional: the pod waits until trust-manager has copied the CA here
       configMap:
         name: homelab-dev-ca
-        optional: true
   extraVolumeMounts:
     - name: dev-ca
       mountPath: /etc/homelab-dev-ca

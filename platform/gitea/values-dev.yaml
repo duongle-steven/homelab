@@ -17,6 +17,11 @@ gitea:
         PROVIDER: memory
       queue:
         TYPE: level
+  # One pod at a time: the new pod cannot open SQLite and the queue while the old one holds them
+  strategy:
+    type: Recreate
+    # null removes the chart default; Kubernetes rejects rollingUpdate with Recreate
+    rollingUpdate: null
   postgresql-ha:
     enabled: false
   valkey-cluster:

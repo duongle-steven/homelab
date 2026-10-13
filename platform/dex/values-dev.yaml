@@ -47,9 +47,9 @@ dex:
         secretEnv: SMOKE_CLIENT_SECRET
   volumes:
     - name: dev-ca
+      # Not optional: the pod waits until trust-manager has copied the CA here
       configMap:
         name: homelab-dev-ca
-        optional: true
   volumeMounts:
     - name: dev-ca
       mountPath: /etc/dex/dev-ca

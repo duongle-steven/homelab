@@ -26,7 +26,7 @@ Each step changes one thing, with its own spec and plan in `docs/superpowers/`.
 - A component that needs different settings in the sandbox gets a `values-dev.yaml` next to its `values.yaml`. It is loaded only in the sandbox.
 - Helm merges values files but cannot delete a key set in `values.yaml` (`null` only removes chart defaults); override with an inert value instead.
 - `scripts/render-chart <dir> [dev]` renders a component the way ArgoCD does.
-- Fixed addresses: Docker network `kind` 172.30.0.0/16, LB pool 172.30.255.200/29, Gateway `homelab` 172.30.255.200.
+- Fixed addresses: Docker network `kind` 172.30.0.0/16, LB pool 172.30.255.200/29, Gateways `homelab` 172.30.255.200 and `homelab-public` 172.30.255.201.
 - Certificates come from a local CA (`homelab-dev-ca` in namespace `cert-manager`), issued under the production issuer name `letsencrypt-prod`.
 - Identity config is in git: groups and OAuth2 clients are kaniop resources (`platform/kanidm`, `platform/dex/templates/kanidm-client.yaml`). People are created with `scripts/onboard-user`; never put personal data in the repo. Production `KanidmGroup`s must not set `members` (it replaces the whole membership).
 - In the sandbox, CoreDNS rewrites `*.127-0-0-1.nip.io` to the `homelab` Gateway (`cilium-gateway-homelab.gateway`) so pods can reach Kanidm and Dex.
@@ -44,7 +44,7 @@ The sandbox runs Kubernetes 1.36 and only ever installs from scratch, so it does
 - Major chart upgrades in sub-project 2 were only rendered, never run in production: app-template 2/3 → 5 (blog, jellyfin, ollama, paperless, cloudflared; PVC names kept with `suffix: data`), gitea 10 → 12 (`postgresql-ha`, `valkey-cluster`), woodpecker 1 → 3, dendrite 0.13 → 0.14.
 - The public path is untested: Gateway `homelab-public`, cloudflared `matchSNItoHost` to `cilium-gateway-homelab-public.gateway`, external-dns 1.23 with `gateway-httproute` and the `external-dns.kubernetes.io/` annotation prefix.
 - Cilium jumped 1.16 → 1.20; upgrade an existing cluster one minor at a time, and only on a Kubernetes version Cilium 1.20 supports (1.33–1.36). The current k3s 1.30 is too old.
-- Charts with changed workload selectors (app-template 2 → 5 for excalidraw) cannot be upgraded in place: delete the Deployment once or sync with `Replace=true`.
+- Charts with changed workload selectors cannot be upgraded in place: delete the Deployment once or sync with `Replace=true`. This covers every app-template 2/3 → 5 upgrade (excalidraw, actualbudget, blog, homepage, jellyfin, ollama, pairdrop, paperless, speedtest, cloudflared; selector `component` → `controller`). ollama's Deployment is also renamed `ollama` → `ollama-main` and only starts once the old pod releases the `ollama-data` volume.
 - Run `make configure` to replace upstream's domain (`khuedoan.com`), seed repo, timezone and IP ranges. Until then, prod values still carry upstream's settings; the sandbox overrides them in `values-dev.yaml`.
 - `scripts/hacks` is gone (sub-project 1b). It used to create Gitea access tokens and OAuth apps that `platform/renovate` (`gitea.renovate`) and `platform/woodpecker` (`gitea.woodpecker`) read, and Gitea's Dex login. Recreate that setup (ideally as kaniop/Gitea config in git) before deploying those apps.
 - Argo CD has `exec.enabled: "true"` (needed for the editor role), so admins and editors can open terminals in pods.

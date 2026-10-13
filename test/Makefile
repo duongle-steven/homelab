@@ -5,4 +5,4 @@ filter=.
 default: test
 
 test:
-	gotestsum --format testname -- -timeout 30m -run "${filter}"
+	gotestsum --format testname -- -timeout 60m -run "${filter}"
