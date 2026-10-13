@@ -93,7 +93,7 @@ Work on a feature branch created from `dev`, and run the basic checks before ope
 ```sh
 git switch dev && git pull
 git switch -c feat/harness-the-sun
-# ...edit, then for every changed chart:
+# ...edit, then for every changed chart or app file:
 scripts/render-chart platform/dex
 scripts/render-chart platform/dex dev
 # offline unit tests (the other tests need a cluster)
@@ -104,10 +104,16 @@ git push -u origin feat/harness-the-sun   # then open a PR into dev
 
 ArgoCD in the sandbox syncs from the `dev` branch on GitHub, so a change reaches the sandbox once its PR is merged. Then run `make dev` to run the smoke, identity, SSO and Gateway tests against it. `dev` is merged into `master` through periodic pull requests.
 
-Only the components listed in `system/argocd/values-dev.yaml` are synced. A component that needs sandbox-specific settings gets a `values-dev.yaml` next to its `values.yaml`. Check how ArgoCD will render it with:
+Only the components listed in `system/argocd/values-dev.yaml` are synced: system and platform charts in the `root` ApplicationSet, apps in the `apps` ApplicationSet.
+
+- **Apps** are app-template values files, `apps/<name>.yaml`. The `apps` ApplicationSet pins the app-template version and passes the environment: write hosts as `<host>.{{ .Values.global.domain }}`, and attach public apps to `{{ .Values.global.publicGateway }}` (the Cloudflare Tunnel Gateway in production, the LAN Gateway in the sandbox). `apps/matrix/` is the only app that is still a chart.
+- **System and platform components** are wrapper charts; one that needs sandbox-specific settings gets a `values-dev.yaml` next to its `values.yaml`.
+
+Check how ArgoCD will render something with:
 
 ```sh
-scripts/render-chart apps/excalidraw dev
+scripts/render-chart apps/excalidraw.yaml dev
+scripts/render-chart platform/dex dev
 ```
 
 ## Resource usage

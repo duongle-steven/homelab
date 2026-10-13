@@ -82,7 +82,7 @@ make external
 ```
 
 I use `172.16.0.0/12` as the private IP range for WireGuard, but you can choose
-any private IP address range you prefer in `./apps/wireguard/values.yaml`. I
+any private IP address range you prefer in `./apps/wireguard.yaml`. I
 also recommend removing my peers and adding your own.
 
 ### Add a new device to the server
@@ -103,7 +103,7 @@ This will generate a private key and a public key, in that order. The private
 key must be saved in a secure password manager, and save the public key for the
 next step.
 
-Update the list of peers in `./apps/wireguard/values.yaml`, make sure you
+Update the list of peers in `./apps/wireguard.yaml`, make sure you
 replace all of my peers with yours.
 
 !!! example

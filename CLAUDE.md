@@ -23,17 +23,18 @@ Each step changes one thing, with its own spec and plan in `docs/superpowers/`.
 
 - Use the latest stable release of every tool, chart and container image, pinned exactly (no `latest`; pin a digest when an image has no version tags). The versions in this repo are not a reference; check upstream when touching something. Hold a version back only for a compatibility constraint, and say which one next to the pin.
 - Branches: create feature branches from `dev` and open PRs into `dev`; `dev` is merged into `master` through periodic PRs. Never commit straight to `dev` or `master`.
-- The sandbox only syncs `dev`. On a feature branch run the basic checks (`scripts/render-chart <dir>` and `scripts/render-chart <dir> dev` for every changed chart, `cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep)|TestGatewayRouteReady' ./...` (the other tests need a cluster), `mkdocs build --strict`); the full sandbox tests (`make dev`) run after the PR is merged into `dev`. If `dev` breaks, fix it with a new PR right away.
+- The sandbox only syncs `dev`. On a feature branch run the basic checks (`scripts/render-chart <dir>` and `scripts/render-chart <dir> dev` for every changed chart or `apps/<name>.yaml`, `cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep)|TestGatewayRouteReady' ./...` (the other tests need a cluster), `mkdocs build --strict`); the full sandbox tests (`make dev`) run after the PR is merged into `dev`. If `dev` breaks, fix it with a new PR right away.
 - Sandbox config lives next to production config and is selected with `env=dev`. Never fork config into a separate branch or directory.
 
 ## Sandbox
 
 - `make dev` builds it, `make dev-clean` removes it. Pages: `https://<app>.127-0-0-1.nip.io`.
 - ArgoCD in the sandbox syncs from `github.com/duongle-steven/homelab` branch `dev`; push to see changes.
-- Components synced in the sandbox are listed in `system/argocd/values-dev.yaml`.
-- A component that needs different settings in the sandbox gets a `values-dev.yaml` next to its `values.yaml`. It is loaded only in the sandbox.
+- Components synced in the sandbox are listed in `system/argocd/values-dev.yaml` (the `root` and `apps` ApplicationSets).
+- Apps are app-template values files `apps/<name>.yaml`, deployed by the ApplicationSet `apps`, which pins app-template once and passes `global.domain` and `global.publicGateway` (`homelab-public` in production, `homelab` in the sandbox). Write hosts as `<host>.{{ .Values.global.domain }}`. `apps/matrix/` is the only app chart.
+- A system or platform component that needs different settings in the sandbox gets a `values-dev.yaml` next to its `values.yaml`. It is loaded only in the sandbox.
 - Helm merges values files but cannot delete a key set in `values.yaml` (`null` only removes chart defaults); override with an inert value instead.
-- `scripts/render-chart <dir> [dev]` renders a component the way ArgoCD does.
+- `scripts/render-chart <dir|apps/<name>.yaml> [dev]` renders a component or app the way ArgoCD does.
 - Fixed addresses: Docker network `kind` 172.30.0.0/16, LB pool 172.30.255.200/29, Gateways `homelab` 172.30.255.200 and `homelab-public` 172.30.255.201.
 - Certificates come from a local CA (`homelab-dev-ca` in namespace `cert-manager`), issued under the production issuer name `letsencrypt-prod`.
 - Identity config is in git: groups and OAuth2 clients are kaniop resources (`platform/kanidm`, `platform/dex/templates/kanidm-client.yaml`). People are created with `scripts/onboard-user`; never put personal data in the repo. Production `KanidmGroup`s must not set `members` (it replaces the whole membership).
