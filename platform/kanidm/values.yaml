@@ -3,6 +3,8 @@ kanidm:
   domain: auth.khuedoan.com
   image: docker.io/kanidm/server:1.11.2
   storage: 1Gi
+  # ConfigMap (key ca.crt) that signs Kanidm's certificate; empty trusts the system CAs (Let's Encrypt)
+  backendCA: ""
 # Only the sandbox sets members: KanidmGroup.members replaces the whole membership,
 # and people are added with scripts/onboard-user.
 groupMembers: {}
