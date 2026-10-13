@@ -9,4 +9,9 @@ set --
 [ -f "$dir/values.yaml" ] && set -- -f "$dir/values.yaml"
 [ "$env" != prod ] && [ -f "$dir/values-$env.yaml" ] && set -- "$@" -f "$dir/values-$env.yaml"
 helm dependency update "$dir" >/dev/null
+# ArgoCD passes the cluster's API versions; charts pick Gateway API versions from them
+set -- "$@" --api-versions gateway.networking.k8s.io/v1
+for kind in Gateway HTTPRoute TCPRoute BackendTLSPolicy ReferenceGrant; do
+  set -- "$@" --api-versions "gateway.networking.k8s.io/v1/$kind"
+done
 helm template "$name" "$dir" --namespace "$name" --include-crds "$@"
