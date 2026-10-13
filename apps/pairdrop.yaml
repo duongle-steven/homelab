@@ -1,0 +1,21 @@
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          repository: lscr.io/linuxserver/pairdrop
+          tag: 1.11.2
+service:
+  main:
+    ports:
+      http:
+        port: 3000
+        protocol: HTTP
+route:
+  main:
+    hostnames:
+      - drop.{{ .Values.global.domain }}
+    parentRefs:
+      - name: homelab
+        namespace: gateway
+        sectionName: https
