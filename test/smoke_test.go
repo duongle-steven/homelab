@@ -24,6 +24,8 @@ func smokeApps(env string) []smokeApp {
 			{"excalidraw", "excalidraw"},
 			{"kanidm", "kanidm"},
 			{"dex", "dex"},
+			{"grafana", "grafana"},
+			{"zot", "zot"},
 		}
 	}
 

@@ -11,6 +11,8 @@ func TestSmokeAppsForEnv(t *testing.T) {
 		{"excalidraw", "excalidraw"},
 		{"kanidm", "kanidm"},
 		{"dex", "dex"},
+		{"grafana", "grafana"},
+		{"zot", "zot"},
 	}
 	if got := smokeApps("dev"); !reflect.DeepEqual(got, dev) {
 		t.Errorf("smokeApps(dev) = %v, want %v", got, dev)
