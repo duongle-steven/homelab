@@ -31,7 +31,19 @@ argo-cd:
         p, role:editor, applications, sync, */*, allow
         p, role:editor, applications, action/*, */*, allow
         p, role:editor, logs, get, */*, allow
-        p, role:editor, exec, create, */*, allow
+        # Exec only into workloads under apps/: platform pods hold cluster-wide credentials
+        p, role:editor, exec, create, default/actualbudget, allow
+        p, role:editor, exec, create, default/blog, allow
+        p, role:editor, exec, create, default/excalidraw, allow
+        p, role:editor, exec, create, default/homepage, allow
+        p, role:editor, exec, create, default/jellyfin, allow
+        p, role:editor, exec, create, default/matrix, allow
+        p, role:editor, exec, create, default/ollama, allow
+        p, role:editor, exec, create, default/pairdrop, allow
+        p, role:editor, exec, create, default/paperless, allow
+        p, role:editor, exec, create, default/speedtest, allow
+        p, role:editor, exec, create, default/tailscale, allow
+        p, role:editor, exec, create, default/wireguard, allow
         p, role:editor, projects, get, *, allow
         p, role:editor, clusters, get, *, allow
         p, role:editor, repositories, get, *, allow

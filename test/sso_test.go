@@ -94,10 +94,12 @@ func TestSSOArgoCD(t *testing.T) {
 	sync := check{"applications", "sync", "default/excalidraw"}
 	del := check{"applications", "delete", "default/excalidraw"}
 	exec := check{"exec", "create", "default/excalidraw"}
+	// Exec into platform pods (the controller's service account is cluster-admin) must stay admin-only
+	execSystem := check{"exec", "create", "default/argocd"}
 	expected := map[string]map[check]string{
-		"dev-admin":  {sync: "yes", del: "yes", exec: "yes"},
-		"dev-editor": {sync: "yes", del: "no", exec: "yes"},
-		"dev-viewer": {sync: "no", del: "no", exec: "no"},
+		"dev-admin":  {sync: "yes", del: "yes", exec: "yes", execSystem: "yes"},
+		"dev-editor": {sync: "yes", del: "no", exec: "yes", execSystem: "no"},
+		"dev-viewer": {sync: "no", del: "no", exec: "no", execSystem: "no"},
 	}
 	for account, checks := range expected {
 		t.Run(account, func(t *testing.T) {
