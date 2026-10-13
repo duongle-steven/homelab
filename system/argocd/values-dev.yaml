@@ -55,6 +55,7 @@ argocd-apps:
               - path: platform/dex
               - path: platform/grafana
               - path: platform/zot
+              - path: platform/gitea
       template:
         spec:
           source:
