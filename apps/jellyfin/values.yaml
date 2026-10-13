@@ -50,66 +50,63 @@ app-template:
         jellyseerr:
           port: 5055
           protocol: HTTP
-  ingress:
+  # One route per host: a route's hostnames apply to all its rules
+  route:
     main:
-      enabled: true
-      className: nginx
-      annotations:
-        cert-manager.io/cluster-issuer: letsencrypt-prod
-      hosts:
-        - host: &jellyfinHost jellyfin.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: main
-                port: http
-        - host: &transmissionHost transmission.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: main
-                port: transmission
-        - host: &prowlarrHost prowlarr.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: main
-                port: prowlarr
-        - host: &radarrHost radarr.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: main
-                port: radarr
-        - host: &sonarrHost sonarr.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: main
-                port: sonarr
-        - host: &jellyseerrHost jellyseerr.khuedoan.com
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: main
-                port: jellyseerr
-      tls:
-        - secretName: jellyfin-tls-certificate
-          hosts:
-            - *jellyfinHost
-            - *transmissionHost
-            - *prowlarrHost
-            - *radarrHost
-            - *sonarrHost
-            - *jellyseerrHost
+      hostnames:
+        - jellyfin.khuedoan.com
+      parentRefs: &parentRefs
+        - name: homelab
+          namespace: gateway
+          sectionName: https
+      rules:
+        - backendRefs:
+            - identifier: main
+              port: http
+    transmission:
+      hostnames:
+        - transmission.khuedoan.com
+      parentRefs: *parentRefs
+      rules:
+        - backendRefs:
+            - identifier: main
+              port: transmission
+    prowlarr:
+      hostnames:
+        - prowlarr.khuedoan.com
+      parentRefs: *parentRefs
+      rules:
+        - backendRefs:
+            - identifier: main
+              port: prowlarr
+    radarr:
+      hostnames:
+        - radarr.khuedoan.com
+      parentRefs: *parentRefs
+      rules:
+        - backendRefs:
+            - identifier: main
+              port: radarr
+    sonarr:
+      hostnames:
+        - sonarr.khuedoan.com
+      parentRefs: *parentRefs
+      rules:
+        - backendRefs:
+            - identifier: main
+              port: sonarr
+    jellyseerr:
+      hostnames:
+        - jellyseerr.khuedoan.com
+      parentRefs: *parentRefs
+      rules:
+        - backendRefs:
+            - identifier: main
+              port: jellyseerr
   persistence:
     data:
+      # Keep the PVC name jellyfin-data
+      suffix: data
       accessMode: ReadWriteOnce
       size: 50Gi
       advancedMounts:
