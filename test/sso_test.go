@@ -1,0 +1,85 @@
+package test
+
+import (
+	"net/http"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/gruntwork-io/terratest/modules/k8s"
+	"github.com/gruntwork-io/terratest/modules/logger"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	grafanaHost  = "grafana.127-0-0-1.nip.io"
+	argocdHost   = "argocd.127-0-0-1.nip.io"
+	registryHost = "registry.127-0-0-1.nip.io"
+)
+
+func skipUnlessSandbox(t *testing.T) {
+	if os.Getenv("ENV") != "dev" {
+		t.Skip("SSO tests run against the sandbox only")
+	}
+	waitForIdentityStack(t)
+}
+
+// waitForApp blocks until the app answers on its sandbox host.
+func waitForApp(t *testing.T, target string) {
+	require.Eventually(t, func() bool {
+		resp, err := insecureClient.Get(target)
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode < 500 && resp.StatusCode != http.StatusNotFound
+	}, 20*time.Minute, 15*time.Second, "%s is not ready", target)
+}
+
+// secretValue reads one key of a Secret without logging it.
+func secretValue(t *testing.T, namespace, name, key string) string {
+	options := k8s.NewKubectlOptions("", "", namespace)
+	options.Logger = logger.Discard
+	return string(k8s.GetSecret(t, options, name).Data[key])
+}
+
+func TestSSOGrafana(t *testing.T) {
+	skipUnlessSandbox(t)
+	base := "https://" + grafanaHost
+	waitForApp(t, base+"/api/health")
+
+	expected := map[string]struct {
+		role         string
+		grafanaAdmin bool
+	}{
+		"dev-admin":  {"Admin", true},
+		"dev-editor": {"Editor", false},
+		"dev-viewer": {"Viewer", false},
+	}
+	for account, want := range expected {
+		t.Run(account, func(t *testing.T) {
+			cookies := appLogin(t, account, ensureCredentials(t, account), base+"/login/generic_oauth", grafanaHost)
+
+			var user struct {
+				Login          string `json:"login"`
+				IsGrafanaAdmin bool   `json:"isGrafanaAdmin"`
+			}
+			require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/user", cookies, "", "", nil, &user))
+			assert.Equal(t, account, user.Login)
+			assert.Equal(t, want.grafanaAdmin, user.IsGrafanaAdmin)
+
+			var orgs []struct {
+				Role string `json:"role"`
+			}
+			require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/user/orgs", cookies, "", "", nil, &orgs))
+			require.Len(t, orgs, 1)
+			assert.Equal(t, want.role, orgs[0].Role)
+		})
+	}
+
+	t.Run("local-admin", func(t *testing.T) {
+		password := secretValue(t, "grafana", "grafana-admin", "admin-password")
+		assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/user", nil, "admin", password, nil, nil))
+	})
+}

@@ -1,4 +1,6 @@
 grafana:
+  admin:
+    existingSecret: grafana-admin
   ingress:
     enabled: true
     ingressClassName: nginx
@@ -31,3 +33,7 @@ grafana:
       auth_url: https://dex.khuedoan.com/auth
       token_url: https://dex.khuedoan.com/token
       api_url: https://dex.khuedoan.com/userinfo
+      role_attribute_path: "contains(groups[*], 'homelab-admins') && 'Admin' || contains(groups[*], 'homelab-editors') && 'Editor' || contains(groups[*], 'homelab-users') && 'Viewer'"
+      role_attribute_strict: true
+      allow_assign_grafana_admin: true
+      login_attribute_path: preferred_username

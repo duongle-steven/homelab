@@ -20,6 +20,7 @@ argocd-apps:
               - path: platform/global-secrets
               - path: platform/kanidm
               - path: platform/dex
+              - path: platform/grafana
       template:
         spec:
           source:

@@ -1,0 +1,26 @@
+grafana:
+  ingress:
+    hosts:
+      - &host grafana.127-0-0-1.nip.io
+    tls:
+      - secretName: grafana-general-tls
+        hosts:
+          - *host
+  grafana.ini:
+    server:
+      root_url: https://grafana.127-0-0-1.nip.io
+    auth.generic_oauth:
+      auth_url: https://dex.127-0-0-1.nip.io/auth
+      token_url: https://dex.127-0-0-1.nip.io/token
+      api_url: https://dex.127-0-0-1.nip.io/userinfo
+  # Trust the sandbox CA for calls to Dex
+  env:
+    SSL_CERT_DIR: /etc/ssl/certs:/etc/homelab-dev-ca
+  extraSecretMounts:
+    - name: dev-ca
+      secretName: grafana-general-tls
+      mountPath: /etc/homelab-dev-ca
+      readOnly: true
+      items:
+        - key: ca.crt
+          path: ca.crt

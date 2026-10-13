@@ -263,9 +263,8 @@ func (k *totpClock) code(t *testing.T, account string, c credentials) string {
 	}
 }
 
-// browserAuthorize logs in through Dex and Kanidm with the given password. It returns the code sent to
-// the smoke client, or an empty code and the text of the page the browser ended on.
-func browserAuthorize(t *testing.T, account string, c credentials, password string) (string, string) {
+// newBrowser starts headless chromium that resolves sandbox hosts to the ingress LB IP.
+func newBrowser(t *testing.T) (context.Context, func()) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("ignore-certificate-errors", true),
 		chromedp.Flag("host-resolver-rules", "MAP *.127-0-0-1.nip.io "+sandboxIngress),
@@ -273,11 +272,37 @@ func browserAuthorize(t *testing.T, account string, c credentials, password stri
 		chromedp.Env("LD_LIBRARY_PATH="),
 	)
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(), opts...)
-	defer cancelAlloc()
 	ctx, cancelBrowser := chromedp.NewContext(allocCtx)
-	defer cancelBrowser()
 	ctx, cancelTimeout := context.WithTimeout(ctx, 3*time.Minute)
-	defer cancelTimeout()
+	// Start the browser on the long-lived context; the first Run owns the browser's lifetime
+	require.NoError(t, chromedp.Run(ctx, network.Enable()))
+	return ctx, func() { cancelTimeout(); cancelBrowser(); cancelAlloc() }
+}
+
+// browserStep runs actions with a 30 s timeout and reports the page on failure.
+func browserStep(t *testing.T, ctx context.Context, name, account string, actions ...chromedp.Action) {
+	stepCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if err := chromedp.Run(stepCtx, actions...); err != nil {
+		var location, text string
+		_ = chromedp.Run(ctx, chromedp.Location(&location), chromedp.Evaluate(`document.body ? document.body.innerText.slice(0, 500) : ""`, &text))
+		require.NoError(t, err, "login step %q for %s at %s:\n%s", name, account, location, text)
+	}
+}
+
+// kanidmLogin completes Kanidm's login form, which the browser must already show.
+// Kanidm asks for the TOTP code before the password.
+func kanidmLogin(t *testing.T, ctx context.Context, account string, c credentials, password string) {
+	browserStep(t, ctx, "username", account, chromedp.SendKeys(`input#username`, account+"\n"), chromedp.WaitVisible(`input#totp`))
+	browserStep(t, ctx, "totp", account, chromedp.SendKeys(`input#totp`, clock.code(t, account, c)+"\n"), chromedp.WaitVisible(`input#password`))
+	browserStep(t, ctx, "password", account, chromedp.SendKeys(`input#password`, password+"\n"))
+}
+
+// browserAuthorize logs in through Dex and Kanidm with the given password. It returns the code sent to
+// the smoke client, or an empty code and the text of the page the browser ended on.
+func browserAuthorize(t *testing.T, account string, c credentials, password string) (string, string) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
 
 	codes := make(chan string, 1)
 	chromedp.ListenTarget(ctx, func(ev any) {
@@ -298,23 +323,8 @@ func browserAuthorize(t *testing.T, account string, c credentials, password stri
 		"scope":         {"openid email profile groups"},
 		"state":         {"identity-test"},
 	}.Encode()
-
-	// Start the browser on the long-lived context; the first Run owns the browser's lifetime
-	require.NoError(t, chromedp.Run(ctx))
-	step := func(name string, actions ...chromedp.Action) {
-		stepCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		if err := chromedp.Run(stepCtx, actions...); err != nil {
-			var location, text string
-			_ = chromedp.Run(ctx, chromedp.Location(&location), chromedp.Evaluate(`document.body ? document.body.innerText.slice(0, 500) : ""`, &text))
-			require.NoError(t, err, "login step %q for %s at %s:\n%s", name, account, location, text)
-		}
-	}
-	step("open", network.Enable(), chromedp.Navigate(authURL), chromedp.WaitVisible(`input#username`))
-	// Kanidm asks for the TOTP code before the password
-	step("username", chromedp.SendKeys(`input#username`, account+"\n"), chromedp.WaitVisible(`input#totp`))
-	step("totp", chromedp.SendKeys(`input#totp`, clock.code(t, account, c)+"\n"), chromedp.WaitVisible(`input#password`))
-	step("password", chromedp.SendKeys(`input#password`, password+"\n"))
+	browserStep(t, ctx, "open", account, chromedp.Navigate(authURL), chromedp.WaitVisible(`input#username`))
+	kanidmLogin(t, ctx, account, c, password)
 
 	select {
 	case code := <-codes:
@@ -324,6 +334,66 @@ func browserAuthorize(t *testing.T, account string, c credentials, password stri
 		require.NoError(t, chromedp.Run(ctx, chromedp.Evaluate(`document.body ? document.body.innerText : ""`, &text)))
 		return "", text
 	}
+}
+
+// appLogin opens an app's SSO entry point, logs in through Dex and Kanidm, waits until the browser is back
+// on appHost (outside any callback or login path) and returns the cookies the app set.
+func appLogin(t *testing.T, account string, c credentials, startURL, appHost string) []*http.Cookie {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	browserStep(t, ctx, "open", account, chromedp.Navigate(startURL), chromedp.WaitVisible(`input#username`))
+	kanidmLogin(t, ctx, account, c, c.Password)
+
+	require.Eventually(t, func() bool {
+		var location string
+		if chromedp.Run(ctx, chromedp.Location(&location)) != nil {
+			return false
+		}
+		u, err := url.Parse(location)
+		return err == nil && u.Host == appHost && !strings.Contains(u.Path, "callback") && !strings.Contains(u.Path, "/login")
+	}, 30*time.Second, 500*time.Millisecond, "%s did not return to %s", account, appHost)
+
+	var cookies []*http.Cookie
+	require.NoError(t, chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		got, err := network.GetCookies().WithURLs([]string{"https://" + appHost + "/"}).Do(ctx)
+		for _, c := range got {
+			cookies = append(cookies, &http.Cookie{Name: c.Name, Value: c.Value})
+		}
+		return err
+	})))
+	require.NotEmpty(t, cookies, "no session cookies from %s", appHost)
+	return cookies
+}
+
+// getJSON sends a request with cookies or basic auth, decodes a JSON body into out (if not nil) and returns the status.
+func getJSON(t *testing.T, method, target string, cookies []*http.Cookie, user, pass string, body any, out any) int {
+	var reader io.Reader
+	if body != nil {
+		payload, err := json.Marshal(body)
+		require.NoError(t, err)
+		reader = bytes.NewReader(payload)
+	}
+	req, err := http.NewRequest(method, target, reader)
+	require.NoError(t, err)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	if user != "" {
+		req.SetBasicAuth(user, pass)
+	}
+	resp, err := insecureClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	if out != nil && resp.StatusCode < 300 {
+		require.NoError(t, json.Unmarshal(raw, out), "%s %s: %s", method, target, raw)
+	}
+	return resp.StatusCode
 }
 
 // waitForIdentityStack blocks until a fresh sandbox has synced Kanidm and Dex, because the identity
