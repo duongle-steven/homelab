@@ -80,16 +80,30 @@ func TestGatewayHTTPSRedirect(t *testing.T) {
 	require.NoError(t, err)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
-	assert.Equal(t, "https://"+host+"/some/path?x=1", resp.Header.Get("Location"))
+	location, err := resp.Location()
+	require.NoError(t, err)
+	assert.Equal(t, "https", location.Scheme)
+	assert.Equal(t, host, location.Hostname())
+	// Cilium writes the default port (:443) into Location; browsers treat both forms the same
+	assert.Contains(t, []string{"", "443"}, location.Port())
+	assert.Equal(t, "/some/path?x=1", location.RequestURI())
 }
 
 func TestGatewayNoIngress(t *testing.T) {
 	gatewaySandboxOnly(t)
+	// Operators remove the Ingresses they created earlier on their own schedule (kaniop waits for Kanidm)
 	var ingresses struct {
-		Items []any `json:"items"`
+		Items []struct {
+			Metadata struct {
+				Namespace string `json:"namespace"`
+				Name      string `json:"name"`
+			} `json:"metadata"`
+		} `json:"items"`
 	}
-	require.True(t, getResource(t, "default", &ingresses, "ingress", "--all-namespaces"))
-	assert.Empty(t, ingresses.Items, "every component uses Gateway API routes")
+	assert.Eventually(t, func() bool {
+		ingresses.Items = nil
+		return getResource(t, "default", &ingresses, "ingress", "--all-namespaces") && len(ingresses.Items) == 0
+	}, 10*time.Minute, 15*time.Second, "every component uses Gateway API routes, left: %+v", ingresses.Items)
 	var namespace struct{}
 	assert.False(t, getResource(t, "default", &namespace, "namespace", "ingress-nginx"), "ingress-nginx must be gone")
 }
