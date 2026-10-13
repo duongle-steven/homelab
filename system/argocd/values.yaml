@@ -10,6 +10,34 @@ argo-cd:
       resource.customizations.ignoreResourceUpdates.all: |
         jsonPointers:
           - /status
+      # Needed for the editor role; also lets admins open a terminal in the UI
+      exec.enabled: "true"
+      oidc.config: |
+        name: Kanidm
+        issuer: https://dex.khuedoan.com
+        clientID: argocd
+        clientSecret: $argocd-oidc:clientSecret
+        requestedScopes:
+          - openid
+          - profile
+          - email
+          - groups
+    rbac:
+      # No access unless a group grants it
+      policy.default: ''
+      scopes: '[groups]'
+      policy.csv: |
+        p, role:editor, applications, get, */*, allow
+        p, role:editor, applications, sync, */*, allow
+        p, role:editor, applications, action/*, */*, allow
+        p, role:editor, logs, get, */*, allow
+        p, role:editor, exec, create, */*, allow
+        p, role:editor, projects, get, *, allow
+        p, role:editor, clusters, get, *, allow
+        p, role:editor, repositories, get, *, allow
+        g, homelab-admins, role:admin
+        g, homelab-editors, role:editor
+        g, homelab-users, role:readonly
   server:
     ingress:
       enabled: true

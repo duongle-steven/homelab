@@ -83,3 +83,40 @@ func TestSSOGrafana(t *testing.T) {
 		assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/user", nil, "admin", password, nil, nil))
 	})
 }
+
+func TestSSOArgoCD(t *testing.T) {
+	skipUnlessSandbox(t)
+	base := "https://" + argocdHost
+	waitForApp(t, base+"/api/version")
+
+	type check struct{ resource, action, object string }
+	sync := check{"applications", "sync", "default/excalidraw"}
+	del := check{"applications", "delete", "default/excalidraw"}
+	exec := check{"exec", "create", "default/excalidraw"}
+	expected := map[string]map[check]string{
+		"dev-admin":  {sync: "yes", del: "yes", exec: "yes"},
+		"dev-editor": {sync: "yes", del: "no", exec: "yes"},
+		"dev-viewer": {sync: "no", del: "no", exec: "no"},
+	}
+	for account, checks := range expected {
+		t.Run(account, func(t *testing.T) {
+			cookies := appLogin(t, account, ensureCredentials(t, account), base+"/auth/login", argocdHost)
+			for c, want := range checks {
+				var answer struct {
+					Value string `json:"value"`
+				}
+				require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/v1/account/can-i/"+c.resource+"/"+c.action+"/"+c.object, cookies, "", "", nil, &answer))
+				assert.Equal(t, want, answer.Value, "%s %s %s", c.resource, c.action, c.object)
+			}
+		})
+	}
+
+	t.Run("local-admin", func(t *testing.T) {
+		password := secretValue(t, "argocd", "argocd-initial-admin-secret", "password")
+		var session struct {
+			Token string `json:"token"`
+		}
+		require.Equal(t, http.StatusOK, getJSON(t, "POST", base+"/api/v1/session", nil, "", "", map[string]string{"username": "admin", "password": password}, &session))
+		assert.NotEmpty(t, session.Token)
+	})
+}

@@ -3,6 +3,35 @@
 argo-cd:
   global:
     domain: argocd.127-0-0-1.nip.io
+  configs:
+    cm:
+      oidc.config: |
+        name: Kanidm
+        issuer: https://dex.127-0-0-1.nip.io
+        clientID: argocd
+        clientSecret: $argocd-oidc:clientSecret
+        requestedScopes:
+          - openid
+          - profile
+          - email
+          - groups
+  server:
+    # Trust the sandbox CA for calls to Dex
+    env:
+      - name: SSL_CERT_DIR
+        value: /etc/ssl/certs:/etc/homelab-dev-ca
+    volumes:
+      - name: dev-ca
+        secret:
+          secretName: argocd-server-tls
+          optional: true
+          items:
+            - key: ca.crt
+              path: ca.crt
+    volumeMounts:
+      - name: dev-ca
+        mountPath: /etc/homelab-dev-ca
+        readOnly: true
 argocd-apps:
   applicationsets:
     root:
