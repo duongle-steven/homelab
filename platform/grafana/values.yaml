@@ -1,17 +1,15 @@
 grafana:
   admin:
     existingSecret: grafana-admin
-  ingress:
-    enabled: true
-    ingressClassName: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-    hosts:
-      - &host grafana.khuedoan.com
-    tls:
-      - secretName: grafana-general-tls
-        hosts:
-          - *host
+  route:
+    main:
+      enabled: true
+      parentRefs:
+        - name: homelab
+          namespace: gateway
+          sectionName: https
+      hostnames:
+        - grafana.khuedoan.com
   sidecar:
     dashboards:
       enabled: true

@@ -16,7 +16,7 @@ dex:
           overrideClaimMapping: true
           claimMapping:
             groups: homelab_groups
-          # The sandbox CA, from Dex's own CA-issued certificate
+          # The sandbox CA, distributed by trust-manager
           rootCAs:
             - /etc/dex/dev-ca/ca.crt
           scopes:
@@ -47,25 +47,16 @@ dex:
         secretEnv: SMOKE_CLIENT_SECRET
   volumes:
     - name: dev-ca
-      secret:
-        secretName: dex-tls-certificate
-        items:
-          - key: ca.crt
-            path: ca.crt
+      configMap:
+        name: homelab-dev-ca
+        optional: true
   volumeMounts:
     - name: dev-ca
       mountPath: /etc/dex/dev-ca
       readOnly: true
-  ingress:
-    hosts:
-      - host: &host dex.127-0-0-1.nip.io
-        paths:
-          - path: /
-            pathType: ImplementationSpecific
-    tls:
-      - secretName: dex-tls-certificate
-        hosts:
-          - *host
+  httpRoute:
+    hostnames:
+      - dex.127-0-0-1.nip.io
 kanidmClient:
   dexHost: dex.127-0-0-1.nip.io
 smokeClient: true

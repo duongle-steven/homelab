@@ -49,20 +49,14 @@ dex:
     # Created by kaniop from templates/kanidm-client.yaml
     - secretRef:
         name: dex-kanidm-oauth2-credentials
-  ingress:
+  httpRoute:
     enabled: true
-    className: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-    hosts:
-      - host: &host dex.khuedoan.com
-        paths:
-          - path: /
-            pathType: ImplementationSpecific
-    tls:
-      - secretName: dex-tls-certificate
-        hosts:
-          - *host
+    parentRefs:
+      - name: homelab
+        namespace: gateway
+        sectionName: https
+    hostnames:
+      - dex.khuedoan.com
 kanidmClient:
   dexHost: dex.khuedoan.com
 # Sandbox-only client used by the identity tests
