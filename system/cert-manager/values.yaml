@@ -8,3 +8,5 @@ cert-manager:
 issuer:
   # Sandbox only: issue certificates from a local CA instead of Let's Encrypt
   dev: false
+trust-manager:
+  enabled: false

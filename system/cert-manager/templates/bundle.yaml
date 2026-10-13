@@ -1,0 +1,16 @@
+{{- if .Values.issuer.dev }}
+# Sandbox only: copy the dev CA into a ConfigMap homelab-dev-ca (key ca.crt) in every namespace,
+# for apps that call each other through the Gateway and for Kanidm's BackendTLSPolicy
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: homelab-dev-ca
+spec:
+  sources:
+    - secret:
+        name: homelab-dev-ca
+        key: ca.crt
+  target:
+    configMap:
+      key: ca.crt
+{{- end }}
