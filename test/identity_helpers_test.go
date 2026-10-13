@@ -327,13 +327,27 @@ func browserAuthorize(t *testing.T, account string, c credentials, password stri
 	browserStep(t, ctx, "open", account, chromedp.Navigate(authURL), chromedp.WaitVisible(`input#username`))
 	kanidmLogin(t, ctx, account, c, password)
 
-	select {
-	case code := <-codes:
-		return code, ""
-	case <-time.After(30 * time.Second):
+	// Stop at the code or at Kanidm's refusal or login failure page instead of always waiting 30 s
+	pageText := func() (string, error) {
 		var text string
-		require.NoError(t, chromedp.Run(ctx, chromedp.Evaluate(`document.body ? document.body.innerText : ""`, &text)))
-		return "", text
+		err := chromedp.Run(ctx, chromedp.Evaluate(`document.body ? document.body.innerText : ""`, &text))
+		return text, err
+	}
+	deadline := time.After(30 * time.Second)
+	for {
+		select {
+		case code := <-codes:
+			return code, ""
+		case <-deadline:
+			text, err := pageText()
+			require.NoError(t, err)
+			return "", text
+		case <-time.After(250 * time.Millisecond):
+			// Errors while the page is navigating are expected; try again on the next tick
+			if text, err := pageText(); err == nil && (strings.Contains(text, "Access Denied") || strings.Contains(text, "Login Failed")) {
+				return "", text
+			}
+		}
 	}
 }
 
