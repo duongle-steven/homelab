@@ -5,13 +5,13 @@ app-template:
         main:
           image:
             repository: docker.io/ollama/ollama
-            tag: 0.1.29
+            tag: 0.40.3
     ui:
       containers:
         main:
           image:
             repository: ghcr.io/open-webui/open-webui
-            tag: latest
+            tag: v0.12.0
           env:
             OLLAMA_BASE_URL: http://ollama:11434
   service:

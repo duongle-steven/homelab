@@ -1,6 +1,6 @@
 # Homelab (fork of khuedoan/homelab)
 
-This fork diverges from upstream. Selected upstream changes are still cherry-picked, so keep the `apps/<name>/{Chart.yaml,values.yaml}` layout.
+This fork diverges from upstream. It follows the direction of upstream's `nixos` rewrite (PR #197: NixOS + k3s nodes, Istio, OpenBao, Forgejo, `infra/` with OpenTofu/Terragrunt, `apps/*.yaml`) so its code can be reused; match that layout when a step restructures something.
 
 ## Roadmap
 
@@ -9,11 +9,19 @@ Each step changes one thing, with its own spec and plan in `docs/superpowers/`.
 0. Workstation: NixOS-WSL (done, outside this repo)
 1. Sandbox: 1a kind + Cilium foundation (done), 1b identity: secrets, Kanidm via kaniop, Dex (done), 1c SSO for Grafana, ArgoCD and zot (done)
 2. Replace ingress-nginx and `Ingress` objects with Gateway API (Cilium Gateway), tested in the sandbox (done)
-3. Production: kubeadm instead of k3s, Ubuntu LTS instead of Fedora (rewrite `metal/`)
+3. Bump every image to its latest stable release
+4. Apps: compact `apps/*.yaml` (app-template values + ApplicationSet, like upstream `nixos`), keep all apps, add opencloud
+5. Identity: drop Dex, apps use Kanidm OIDC directly; Forgejo replaces Gitea
+6. Network: sandbox on k3d with k3s defaults (Flannel, kube-proxy, ServiceLB, network policy); drop Cilium; Istio ambient (Gateway API, mesh, mTLS)
+7. Infra: `infra/` with OpenTofu + Terragrunt (environments sandbox, staging, production), absorbing `metal/` bootstrap and `external/`
+8. Secrets: OpenBao behind ESO (`PushSecret` for generated secrets, `ExternalSecret` to read), bootstrap secrets (unseal key, restic, Cloudflare) from OpenTofu, state on Cloudflare R2 with OpenTofu state encryption
+9. Git and CI: Forgejo is the source of truth (push mirror to GitHub), Woodpecker, Renovate in the cluster; their Forgejo credentials live in OpenBao
+10. Backups: VolSync declared per app, automatic restore on a fresh install (PVC `dataSourceRef`), plus an option for a truly fresh install that never prunes the old repository
+11. Nodes: NixOS + k3s + kube-vip + Istio (PXE with upstream's `nixie`, `nixos-anywhere`); staging on NixOS VMs in WSL (KVM; stop the sandbox first), then production hardware
 
 ## Rules
 
-- Use the current stable release of every tool and chart, pinned exactly. The versions in this repo are not a reference; check upstream when touching something.
+- Use the latest stable release of every tool, chart and container image, pinned exactly (no `latest`; pin a digest when an image has no version tags). The versions in this repo are not a reference; check upstream when touching something. Hold a version back only for a compatibility constraint, and say which one next to the pin.
 - Branches: create feature branches from `dev` and open PRs into `dev`; `dev` is merged into `master` through periodic PRs. Never commit straight to `dev` or `master`.
 - The sandbox only syncs `dev`. On a feature branch run the basic checks (`scripts/render-chart <dir>` and `scripts/render-chart <dir> dev` for every changed chart, `cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep)|TestGatewayRouteReady' ./...` (the other tests need a cluster), `mkdocs build --strict`); the full sandbox tests (`make dev`) run after the PR is merged into `dev`. If `dev` breaks, fix it with a new PR right away.
 - Sandbox config lives next to production config and is selected with `env=dev`. Never fork config into a separate branch or directory.
@@ -42,6 +50,7 @@ The sandbox runs Kubernetes 1.36 and only ever installs from scratch, so it does
 
 - The Gateway API CRDs are installed by `metal/` before Cilium; on an existing cluster, `cilium-operator` must restart after they are installed (`metal/` restarts Cilium whenever its Helm release changes).
 - Major chart upgrades in sub-project 2 were only rendered, never run in production: app-template 2/3 → 5 (blog, jellyfin, ollama, paperless, cloudflared; PVC names kept with `suffix: data`), gitea 10 → 12 (`postgresql-ha`, `valkey-cluster`), woodpecker 1 → 3, dendrite 0.13 → 0.14.
+- App images jumped several majors (step 3) and only the sandbox apps ran: paperless-ngx 2 → 3 (consume script arguments and advanced DB settings changed), homepage 0.8 → 2 (`HOMEPAGE_ALLOWED_HOSTS` required; v2 adds optional homepage auth), Jellyseerr replaced by its successor Seerr (`ghcr.io/seerr-team/seerr`), jellyfin 10.8 → 10.11, ollama 0.1 → 0.40, redis 7 → 8.
 - The public path is untested: Gateway `homelab-public`, cloudflared `matchSNItoHost` to `cilium-gateway-homelab-public.gateway`, external-dns 1.23 with `gateway-httproute` and the `external-dns.kubernetes.io/` annotation prefix.
 - Cilium jumped 1.16 → 1.20; upgrade an existing cluster one minor at a time, and only on a Kubernetes version Cilium 1.20 supports (1.33–1.36). The current k3s 1.30 is too old.
 - Charts with changed workload selectors cannot be upgraded in place: delete the Deployment once or sync with `Replace=true`. This covers every app-template 2/3 → 5 upgrade (excalidraw, actualbudget, blog, homepage, jellyfin, ollama, pairdrop, paperless, speedtest, cloudflared; selector `component` → `controller`). ollama's Deployment is also renamed `ollama` → `ollama-main` and only starts once the old pod releases the `ollama-data` volume.

@@ -5,7 +5,10 @@ app-template:
         main:
           image:
             repository: ghcr.io/gethomepage/homepage
-            tag: v0.8.8
+            tag: v2.5.0
+          env:
+            # Required since v1: requests for other hosts are refused
+            HOMEPAGE_ALLOWED_HOSTS: home.khuedoan.com
   service:
     main:
       ports:
