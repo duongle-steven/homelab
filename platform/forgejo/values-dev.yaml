@@ -2,6 +2,8 @@ host: git.127-0-0-1.nip.io
 database:
   cnpg:
     enabled: false
+seed:
+  repository: https://github.com/duongle-steven/homelab
 forgejo:
   persistence:
     size: 1Gi

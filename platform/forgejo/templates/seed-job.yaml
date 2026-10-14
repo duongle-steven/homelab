@@ -1,0 +1,49 @@
+{{- $script := .Files.Get "files/seed.sh" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forgejo-seed
+  namespace: {{ .Release.Namespace }}
+data:
+  seed.sh: {{ $script | quote }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # A new name when the script or the source changes, so Argo CD runs it again
+  name: forgejo-seed-{{ print $script .Values.seed.repository | sha256sum | trunc 7 }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # After the Deployment is healthy
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: seed
+          # The Forgejo image (already on the node) has curl
+          image: {{ with .Values.forgejo.image }}{{ .registry }}/{{ .repository }}:{{ .tag }}-rootless{{ end }}
+          command: [sh, /seed/seed.sh]
+          env:
+            - name: SEED_REPOSITORY
+              value: {{ .Values.seed.repository | quote }}
+            - name: FORGEJO_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: forgejo-admin
+                  key: username
+            - name: FORGEJO_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: forgejo-admin
+                  key: password
+          volumeMounts:
+            - name: seed
+              mountPath: /seed
+              readOnly: true
+      volumes:
+        - name: seed
+          configMap:
+            name: forgejo-seed
