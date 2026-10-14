@@ -35,7 +35,9 @@ spec:
         {{- else }}
         wellKnownCaCertificates: System
         {{- end }}
-  # Dex owns its OAuth2 client in its own namespace
+  # Each app declares its own OAuth2 client in its namespace
   oauth2ClientNamespaceSelector:
-    matchLabels:
-      kubernetes.io/metadata.name: dex
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: In
+        values: {{- toYaml .Values.oauth2ClientNamespaces | nindent 10 }}

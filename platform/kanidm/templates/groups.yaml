@@ -1,4 +1,4 @@
-{{- range $group := list "homelab-admins" "homelab-editors" "homelab-users" }}
+{{- range $group := list "homelab-admins" "homelab-editors" "homelab-users" "homelab-budget" "homelab-documents" }}
 ---
 apiVersion: kaniop.rs/v1beta1
 kind: KanidmGroup
