@@ -19,6 +19,20 @@ controllers:
           ACTUAL_USER_CREATION_MODE: login
           # The sandbox CA (global.devCA); empty in production
           NODE_EXTRA_CA_CERTS: '{{ if .Values.global.devCA }}/etc/homelab-dev-ca/ca.crt{{ end }}'
+        probes:
+          # Actual sets up OpenID only at start; if Kanidm (or the sandbox CA) is not ready then, it runs
+          # with no login method and anyone could claim the server. Restart until OpenID is configured.
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - wget -qO- http://127.0.0.1:5006/account/login-methods | grep -q '"method":"openid"'
+              periodSeconds: 10
+              failureThreshold: 30
 service:
   main:
     ports:
