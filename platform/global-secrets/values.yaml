@@ -1,7 +1,7 @@
 # Random secrets generated once per cluster and shared through the global-secrets ClusterSecretStore.
 # They are never rotated automatically; see docs/concepts/secrets-management.md.
 secrets:
-  - name: gitea.admin
+  - name: forgejo.admin
     key: password
     special: true
   - name: registry.admin

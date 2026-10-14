@@ -2,7 +2,7 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: TCPRoute
 metadata:
-  name: gitea-ssh
+  name: forgejo-ssh
   namespace: {{ .Release.Namespace }}
 spec:
   parentRefs:
@@ -11,5 +11,5 @@ spec:
       sectionName: ssh
   rules:
     - backendRefs:
-        - name: gitea-ssh
+        - name: forgejo-ssh
           port: 22

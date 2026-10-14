@@ -1,0 +1,102 @@
+host: git.khuedoan.com
+database:
+  # CloudNativePG cluster forgejo-db (templates/database.yaml); the sandbox uses SQLite
+  cnpg:
+    enabled: true
+    instances: 3
+    image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
+    size: 10Gi
+forgejo:
+  fullnameOverride: forgejo
+  image:
+    # Chart defaults, restated for templates/seed-job.yaml
+    registry: code.forgejo.org
+    repository: forgejo/forgejo
+    # The chart defaults to the LTS release; the rootless image gets the -rootless suffix
+    tag: 16.0.6
+  # The chart's test pod uses an unpinned busybox
+  test:
+    enabled: false
+  # One pod: SQLite (sandbox), the repositories volume and the in-memory session cannot be shared
+  strategy:
+    type: Recreate
+    # null removes the chart default; Kubernetes rejects rollingUpdate with Recreate
+    rollingUpdate: null
+  persistence:
+    claimName: forgejo-data
+    size: 10Gi
+  httpRoute:
+    enabled: true
+    parentRefs:
+      - name: homelab
+        namespace: gateway
+        sectionName: https
+    hostnames:
+      - git.khuedoan.com
+  deployment:
+    # Also set in the init container that registers the login source (gitea.oauth below)
+    env:
+      - name: CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: forgejo-kanidm-oauth2-credentials
+            key: CLIENT_SECRET
+  # `gitea:` is the Forgejo chart's own key for the app's settings
+  gitea:
+    admin:
+      existingSecret: forgejo-admin
+      email: forgejo@local.domain
+    oauth:
+      - name: Kanidm
+        provider: openidConnect
+        key: forgejo
+        # Expanded by the init script's shell from deployment.env
+        secret: ${CLIENT_SECRET}
+        autoDiscoverUrl: https://auth.khuedoan.com/oauth2/openid/forgejo/.well-known/openid-configuration
+        scopes: openid,profile,email,groups
+        # Short group names from the client's claimMap (templates/kanidm-client.yaml)
+        groupClaimName: homelab_groups
+        adminGroup: homelab-admins
+    config:
+      server:
+        DOMAIN: git.khuedoan.com
+        ROOT_URL: https://git.khuedoan.com
+        SSH_DOMAIN: git.khuedoan.com
+        LANDING_PAGE: explore
+        OFFLINE_MODE: true
+      service:
+        # Accounts come only from Kanidm
+        ALLOW_ONLY_EXTERNAL_REGISTRATION: true
+        SHOW_REGISTRATION_BUTTON: false
+      oauth2_client:
+        ENABLE_AUTO_REGISTRATION: true
+        USERNAME: preferred_username
+        ACCOUNT_LINKING: disabled
+      repository:
+        DISABLED_REPO_UNITS: repo.wiki,repo.projects,repo.packages
+        DISABLE_STARS: true
+        DEFAULT_BRANCH: master
+      service.explore:
+        DISABLE_USERS_PAGE: true
+      actions:
+        ENABLED: false
+      webhook:
+        ALLOWED_HOST_LIST: private
+      database:
+        DB_TYPE: postgres
+        HOST: forgejo-db-rw:5432
+        NAME: forgejo
+        USER: forgejo
+      cache:
+        ADAPTER: memory
+      session:
+        PROVIDER: memory
+      queue:
+        TYPE: level
+    # GITEA__<section>__<key> is the chart's naming for app.ini settings from env variables
+    additionalConfigFromEnvs:
+      - name: GITEA__DATABASE__PASSWD
+        valueFrom:
+          secretKeyRef:
+            name: forgejo-db-app
+            key: password

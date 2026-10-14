@@ -50,7 +50,7 @@ argocd-apps:
               - path: platform/kanidm
               - path: platform/grafana
               - path: platform/zot
-              - path: platform/gitea
+              - path: platform/forgejo
       template:
         spec:
           source:
