@@ -35,7 +35,7 @@ export KUBECONFIG=$PWD/metal/kubeconfig.yaml  # from the repository root
 - <https://draw.127-0-0-1.nip.io>
 - <https://grafana.127-0-0-1.nip.io> ("Sign in with Kanidm", or user `admin` with `kubectl -n grafana get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`)
 - <https://registry.127-0-0-1.nip.io> (zot; log in with Kanidm, then create an API key under your user menu and `docker login registry.127-0-0-1.nip.io -u <username> -p <key>`)
-- <https://git.127-0-0-1.nip.io> (Gitea; user `gitea_admin`, password: `kubectl -n gitea get secret gitea-admin-secret -o jsonpath='{.data.password}' | base64 -d`; SSH on `172.30.255.200:22` from WSL)
+- <https://git.127-0-0-1.nip.io> (Forgejo; "Sign in with Kanidm", or user `forgejo_admin` with `kubectl -n forgejo get secret forgejo-admin -o jsonpath='{.data.password}' | base64 -d`; the seed Job copies this repository into `ops/homelab`; SSH on `172.30.255.200:22` from WSL)
 - <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io>: log in with Kanidm (paperless also has a local `admin`, password in `global-secrets/paperless.admin`)
 - <https://home.127-0-0-1.nip.io>, <https://drop.127-0-0-1.nip.io>, <https://speedtest.127-0-0-1.nip.io>
 
@@ -70,15 +70,15 @@ kubectl -n kanidm get secret identity-test-credentials -o jsonpath='{.data.dev-a
 
 What each group may do:
 
-| Group | Grafana | Argo CD | zot |
-|---|---|---|---|
-| `homelab-admins` | Admin, server admin | admin | read, push, delete |
-| `homelab-editors` | Editor | view, sync, actions, logs, exec into `apps/*` | read, push |
-| `homelab-users` | Viewer | read-only | read |
+| Group | Grafana | Argo CD | zot | Forgejo |
+|---|---|---|---|---|
+| `homelab-admins` | Admin, server admin | admin | read, push, delete | site admin |
+| `homelab-editors` | Editor | view, sync, actions, logs, exec into `apps/*` | read, push | user |
+| `homelab-users` | Viewer | read-only | read | user |
 
 Actual Budget admits only `homelab-budget`, paperless only `homelab-documents` (members of `homelab-admins` become paperless superusers).
 
-Argo CD and Grafana keep their local `admin` account; zot has a `ci` account for automation (password in `global-secrets/registry.ci`).
+Argo CD and Grafana keep their local `admin` account, Forgejo its `forgejo_admin`; zot has a `ci` account for automation (password in `global-secrets/registry.ci`).
 
 Use the `totpSecret` there in any authenticator app to log in by hand. Kanidm asks for the TOTP code before the password.
 
@@ -107,7 +107,7 @@ mkdocs build --strict
 git push -u origin feat/harness-the-sun   # then open a PR into dev
 ```
 
-ArgoCD in the sandbox syncs from the `dev` branch on GitHub, so a change reaches the sandbox once its PR is merged. Then run `make dev` to run the smoke, identity, SSO and Gateway tests against it. `dev` is merged into `master` through periodic pull requests.
+ArgoCD in the sandbox syncs from the `dev` branch on GitHub, so a change reaches the sandbox once its PR is merged. Then run `make dev` to run the smoke, identity, SSO, Gateway and Forgejo tests against it. `dev` is merged into `master` through periodic pull requests.
 
 Only the components listed in `system/argocd/values-dev.yaml` are synced: system and platform charts in the `root` ApplicationSet, apps in the `apps` ApplicationSet.
 
@@ -136,7 +136,7 @@ Measured on a fresh sandbox with all components running (working-set memory per 
 | external-secrets | 156 MiB |
 | homepage | 141 MiB |
 | zot | 139 MiB |
-| gitea | 125 MiB |
+| forgejo | 125 MiB |
 | kanidm | 96 MiB |
 | actualbudget | 76 MiB |
 | pairdrop | 69 MiB |
@@ -156,5 +156,5 @@ make dev-clean
 - Certificates come from a local CA instead of Let's Encrypt
 - Only accessible from the host machine
 - No Alertmanager, Loki, backups, Woodpecker or Renovate
-- Gitea runs on SQLite with an in-memory cache, without SSO and without its repository import job
+- Forgejo runs on SQLite instead of PostgreSQL (CloudNativePG); Argo CD still syncs GitHub branch `dev`, not Forgejo
 - No Cloudflare Tunnel: excalidraw uses the LAN Gateway `homelab` instead of `homelab-public`

@@ -15,8 +15,8 @@ Save the following files to a safe location like a password manager (if you're u
 - ArgoCD:
     - Username: `admin`
     - Password: run `./scripts/argocd-admin-password`
-- Gitea:
-    - Username: `gitea_admin`
+- Forgejo (people log in with Kanidm; `forgejo_admin` is for when Kanidm is down):
+    - Username: `forgejo_admin`
     - Password: get from `global-secrets` namespace
 - Kanidm:
     - Usernames: `admin` and `idm_admin`

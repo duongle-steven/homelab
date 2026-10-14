@@ -108,7 +108,7 @@ func TestGatewayNoIngress(t *testing.T) {
 	assert.False(t, getResource(t, "default", &namespace, "namespace", "ingress-nginx"), "ingress-nginx must be gone")
 }
 
-func TestGatewayGiteaSSH(t *testing.T) {
+func TestGatewayForgejoSSH(t *testing.T) {
 	gatewaySandboxOnly(t)
 	require.Eventually(t, func() bool {
 		conn, err := net.DialTimeout("tcp", net.JoinHostPort(sandboxIngress, "22"), 10*time.Second)
@@ -119,7 +119,7 @@ func TestGatewayGiteaSSH(t *testing.T) {
 		_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		banner, err := bufio.NewReader(conn).ReadString('\n')
 		return err == nil && strings.HasPrefix(banner, "SSH-2.0-")
-	}, 20*time.Minute, 15*time.Second, "no SSH banner from gitea on %s:22", sandboxIngress)
+	}, 20*time.Minute, 15*time.Second, "no SSH banner from forgejo on %s:22", sandboxIngress)
 }
 
 // TestGatewayZotLargePush uploads one 200 MiB blob through the Gateway, as an image push would.

@@ -1,9 +1,0 @@
-{{- if .Values.configJob.enabled }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: gitea-config-source
-  namespace: {{ .Release.Namespace }}
-data:
-{{ (.Files.Glob "files/config/*").AsConfig | indent 2 }}
-{{- end }}

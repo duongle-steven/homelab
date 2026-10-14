@@ -29,13 +29,13 @@ func smokeApps(env string) []smokeApp {
 			{"homepage", "homepage"},
 			{"pairdrop", "pairdrop"},
 			{"speedtest", "speedtest"},
-			{"gitea", "gitea"},
+			{"forgejo", "forgejo"},
 		}
 	}
 
 	return []smokeApp{
 		{"argocd-server", "argocd"},
-		{"gitea", "gitea"},
+		{"forgejo", "forgejo"},
 		{"grafana", "grafana"},
 		{"homepage", "homepage"},
 		{"kanidm", "kanidm"},

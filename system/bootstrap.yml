@@ -12,7 +12,7 @@
       kubernetes.core.k8s_info:
         kind: Pod
         label_selectors:
-          - app.kubernetes.io/instance=gitea
+          - app.kubernetes.io/instance=forgejo
         field_selectors:
           - status.phase=Running
       register: first_install

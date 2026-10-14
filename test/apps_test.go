@@ -17,7 +17,7 @@ func TestSmokeAppsForEnv(t *testing.T) {
 		{"homepage", "homepage"},
 		{"pairdrop", "pairdrop"},
 		{"speedtest", "speedtest"},
-		{"gitea", "gitea"},
+		{"forgejo", "forgejo"},
 	}
 	if got := smokeApps("dev"); !reflect.DeepEqual(got, dev) {
 		t.Errorf("smokeApps(dev) = %v, want %v", got, dev)

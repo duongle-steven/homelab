@@ -90,10 +90,10 @@ configMaps:
               description: Identity management
               icon: https://auth.{{ .Values.global.domain }}/pkg/img/logo-square.svg
         - Development:
-          - Gitea:
+          - Forgejo:
               href: https://git.{{ .Values.global.domain }}
               description: Git forge
-              icon: gitea.svg
+              icon: forgejo.svg
           - Woodpecker:
               href: https://ci.{{ .Values.global.domain }}
               description: Continuous integration

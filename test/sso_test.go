@@ -19,6 +19,7 @@ const (
 	registryHost  = "registry.127-0-0-1.nip.io"
 	budgetHost    = "budget.127-0-0-1.nip.io"
 	paperlessHost = "paperless.127-0-0-1.nip.io"
+	forgejoHost   = "git.127-0-0-1.nip.io"
 )
 
 func skipUnlessSandbox(t *testing.T) {
@@ -230,6 +231,37 @@ func TestSSOPaperless(t *testing.T) {
 			assert.Equal(t, c.superuser, settings.User.IsSuperuser)
 			// Regular users get document permissions from the paperless group homelab-documents
 			assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/documents/", cookies, "", "", nil, nil))
+		})
+	}
+}
+
+func TestSSOForgejo(t *testing.T) {
+	skipUnlessSandbox(t)
+	base := "https://" + forgejoHost
+	waitForApp(t, base+"/api/healthz")
+	start := base + "/user/oauth2/Kanidm"
+
+	for _, c := range []struct {
+		account string
+		allowed bool
+		admin   bool
+	}{{"dev-admin", true, true}, {"dev-editor", true, false}, {"dev-viewer", true, false}, {"dev-outsider", false, false}} {
+		t.Run(c.account, func(t *testing.T) {
+			if !c.allowed {
+				assert.Contains(t, browserDenied(t, c.account, ensureCredentials(t, c.account), start), "Access Denied")
+				return
+			}
+			// Twice: the second login must reuse the account and keep the admin flag
+			for range 2 {
+				cookies := appLogin(t, c.account, ensureCredentials(t, c.account), start, forgejoHost)
+				var user struct {
+					Login   string `json:"login"`
+					IsAdmin bool   `json:"is_admin"`
+				}
+				require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/v1/user", cookies, "", "", nil, &user))
+				assert.Equal(t, c.account, user.Login)
+				assert.Equal(t, c.admin, user.IsAdmin)
+			}
 		})
 	}
 }

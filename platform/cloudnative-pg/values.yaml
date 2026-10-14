@@ -1,0 +1,4 @@
+# PostgreSQL operator for production databases (Forgejo); the sandbox uses SQLite and does not sync it
+cloudnative-pg:
+  monitoring:
+    podMonitorEnabled: true

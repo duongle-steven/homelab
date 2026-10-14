@@ -1,0 +1,19 @@
+{{- with .Values.database.cnpg }}
+{{- if .enabled }}
+# CloudNativePG generates the Secret forgejo-db-app (password for the owner forgejo)
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: forgejo-db
+  namespace: {{ $.Release.Namespace }}
+spec:
+  instances: {{ .instances }}
+  imageName: {{ .image }}
+  bootstrap:
+    initdb:
+      database: forgejo
+      owner: forgejo
+  storage:
+    size: {{ .size }}
+{{- end }}
+{{- end }}

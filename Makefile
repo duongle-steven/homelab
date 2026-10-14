@@ -9,7 +9,7 @@ smoke_filter ?= Smoke
 default: metal system external smoke-test clean
 
 dev:
-	$(MAKE) env=dev ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity|SSO|Gateway' metal system smoke-test
+	$(MAKE) env=dev ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity|SSO|Gateway|Forgejo' metal system smoke-test
 
 dev-clean:
 	$(MAKE) -C metal env=dev clean
