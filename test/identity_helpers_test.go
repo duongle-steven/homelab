@@ -392,15 +392,7 @@ func appLogin(t *testing.T, account string, c credentials, startURL, appHost str
 		if chromedp.Run(ctx, chromedp.Location(&location)) != nil {
 			return false
 		}
-		// Public clients (zot) cannot skip Kanidm's consent page; accept it like a user would
-		var consented bool
-		_ = chromedp.Run(ctx, chromedp.Evaluate(`(() => {
-			if (!document.body || !document.body.innerText.includes("Consent to Proceed")) return false;
-			const b = [...document.querySelectorAll("button")].find(b => b.innerText.trim() === "Proceed");
-			if (b) b.click();
-			return !!b;
-		})()`, &consented))
-		if consented {
+		if acceptConsent(ctx) {
 			return false
 		}
 		u, err := url.Parse(location)
@@ -422,6 +414,19 @@ func appLogin(t *testing.T, account string, c credentials, startURL, appHost str
 	})))
 	require.NotEmpty(t, cookies, "no session cookies from %s", appHost)
 	return cookies
+}
+
+// acceptConsent clicks "Proceed" on Kanidm's consent page, which public clients (zot, OpenCloud) cannot skip,
+// like a user would; it reports whether the page was there.
+func acceptConsent(ctx context.Context) bool {
+	var consented bool
+	_ = chromedp.Run(ctx, chromedp.Evaluate(`(() => {
+		if (!document.body || !document.body.innerText.includes("Consent to Proceed")) return false;
+		const b = [...document.querySelectorAll("button")].find(b => b.innerText.trim() === "Proceed");
+		if (b) b.click();
+		return !!b;
+	})()`, &consented))
+	return consented
 }
 
 // waitForPage polls the page text until it contains one of the markers (30 s) and returns it.
@@ -483,6 +488,72 @@ func actualOpenIDLogin(t *testing.T, account string, c credentials, idpURL, appB
 			}
 		}
 	}
+}
+
+// openCloudLogin opens OpenCloud's web UI, logs in through Kanidm (accepting the consent page of the public
+// client) and returns the bearer token the web UI then sends to the Graph API. The web UI keeps its tokens in
+// the browser, so there are no session cookies to reuse.
+func openCloudLogin(t *testing.T, account string, c credentials, appBase string) string {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+	tokens := make(chan string, 1)
+	chromedp.ListenTarget(ctx, func(ev any) {
+		e, ok := ev.(*network.EventRequestWillBeSent)
+		if !ok || !strings.HasPrefix(e.Request.URL, appBase+"/graph/") {
+			return
+		}
+		for name, value := range e.Request.Headers {
+			if s, ok := value.(string); ok && strings.EqualFold(name, "Authorization") && strings.HasPrefix(s, "Bearer ") {
+				select {
+				case tokens <- strings.TrimPrefix(s, "Bearer "):
+				default:
+				}
+			}
+		}
+	})
+
+	browserStep(t, ctx, "open", account, chromedp.Navigate(appBase+"/"))
+	// The web UI either redirects to Kanidm or first shows its own login button
+	require.Eventually(t, func() bool {
+		var ready bool
+		_ = chromedp.Run(ctx, chromedp.Evaluate(`(() => {
+			if (document.querySelector("input#username")) return true;
+			const b = [...document.querySelectorAll("button, a")].find(b => /^(log ?in|sign in)$/i.test(b.innerText.trim()));
+			if (b) b.click();
+			return false;
+		})()`, &ready))
+		return ready
+	}, 60*time.Second, 500*time.Millisecond, "%s: Kanidm's login form never showed", account)
+	kanidmLogin(t, ctx, account, c, c.Password)
+
+	deadline := time.After(60 * time.Second)
+	for {
+		select {
+		case token := <-tokens:
+			return token
+		case <-deadline:
+			var location, text string
+			_ = chromedp.Run(ctx, chromedp.Location(&location), chromedp.Evaluate(`document.body ? document.body.innerText.slice(0, 500) : ""`, &text))
+			require.FailNow(t, "no OpenCloud token", "%s: the web UI sent no bearer token to /graph; last at %s:\n%s", account, location, text)
+		case <-time.After(500 * time.Millisecond):
+			acceptConsent(ctx)
+		}
+	}
+}
+
+// openCloudAuthorizeURL is the authorization request OpenCloud's web UI sends to Kanidm, with a throwaway
+// PKCE challenge: Kanidm refuses accounts outside homelab-files before redirecting back.
+func openCloudAuthorizeURL(appBase string) string {
+	_, challenge := pkcePair()
+	return kanidmURL + "/ui/oauth2?" + url.Values{
+		"client_id":             {"opencloud"},
+		"redirect_uri":          {appBase + "/oidc-callback.html"},
+		"response_type":         {"code"},
+		"scope":                 {"openid profile email groups"},
+		"state":                 {"denied-test"},
+		"code_challenge":        {challenge},
+		"code_challenge_method": {"S256"},
+	}.Encode()
 }
 
 // getJSON sends a request with cookies or basic auth and optional header name/value pairs, decodes a

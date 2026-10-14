@@ -70,6 +70,7 @@ argocd-apps:
               - path: apps/actualbudget.yaml
               - path: apps/excalidraw.yaml
               - path: apps/homepage.yaml
+              - path: apps/opencloud.yaml
               - path: apps/paperless.yaml
               - path: apps/pairdrop.yaml
               - path: apps/speedtest.yaml

@@ -68,6 +68,10 @@ configMaps:
               href: https://paperless.{{ .Values.global.domain }}
               description: Document management system
               icon: paperless.svg
+          - OpenCloud:
+              href: https://drive.{{ .Values.global.domain }}
+              description: File storage and sharing
+              icon: open-cloud.svg
         - Management:
           - Transmission:
               href: https://transmission.{{ .Values.global.domain }}

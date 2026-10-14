@@ -1,0 +1,174 @@
+# Adapted from upstream nixos apps/opencloud.yaml (52c32ab): Cilium Gateway, Kanidm client and role mapping
+controllers:
+  main:
+    strategy: Recreate
+    pod:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+    defaultContainerOptions:
+      image:
+        repository: docker.io/opencloudeu/opencloud-rolling
+        tag: 8.1.0
+    initContainers:
+      config:
+        # Generates opencloud.yaml with OpenCloud's internal secrets once; they live on the config PVC
+        command: [/bin/sh, -ec]
+        args:
+          - |
+            if [ ! -s /etc/opencloud/opencloud.yaml ]; then
+              exec opencloud init --quiet --insecure=false
+            fi
+        env:
+          OC_URL: 'https://drive.{{ .Values.global.domain }}'
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+    containers:
+      main:
+        env:
+          OC_URL: 'https://drive.{{ .Values.global.domain }}'
+          OC_EXCLUDE_RUN_SERVICES: idp
+          OC_OIDC_ISSUER: 'https://auth.{{ .Values.global.domain }}/oauth2/openid/opencloud'
+          OC_OIDC_CLIENT_ID: opencloud
+          OC_LDAP_SERVER_WRITE_ENABLED: 'true'
+          PROXY_TLS: 'false'
+          PROXY_OIDC_AUDIENCES: opencloud
+          PROXY_OIDC_REWRITE_WELLKNOWN: 'true'
+          PROXY_AUTOPROVISION_ACCOUNTS: 'true'
+          PROXY_USER_OIDC_CLAIM: sub
+          PROXY_AUTOPROVISION_CLAIM_USERNAME: sub
+          GRAPH_USERNAME_MATCH: none
+          PROXY_CSP_CONFIG_FILE_LOCATION: /etc/opencloud/csp.yaml
+          # Roles from the Kanidm claim homelab_groups (read from userinfo); the mapping is in proxy.yaml
+          PROXY_ROLE_ASSIGNMENT_DRIVER: oidc
+          PROXY_ROLE_ASSIGNMENT_OIDC_CLAIM: homelab_groups
+          # The sandbox CA (global.devCA); empty in production, where Go uses the system store
+          SSL_CERT_DIR: '{{ if .Values.global.devCA }}/etc/ssl/certs:/etc/homelab-dev-ca{{ end }}'
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            memory: 1536Mi
+        probes:
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 9200
+              periodSeconds: 5
+              failureThreshold: 60
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              exec:
+                command: [curl, -fsS, http://127.0.0.1:9205/readyz]
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 9200
+        protocol: HTTP
+route:
+  main:
+    hostnames:
+      - drive.{{ .Values.global.domain }}
+    parentRefs:
+      - name: homelab
+        namespace: gateway
+        sectionName: https
+persistence:
+  config:
+    suffix: config
+    accessMode: ReadWriteOnce
+    size: 1Gi
+    globalMounts:
+      - path: /etc/opencloud
+  data:
+    suffix: data
+    accessMode: ReadWriteOnce
+    size: 20Gi
+    globalMounts:
+      - path: /var/lib/opencloud
+  settings:
+    # Over the config PVC: OpenCloud reads <service>.yaml from /etc/opencloud
+    type: configMap
+    identifier: settings
+    advancedMounts:
+      main:
+        main:
+          - path: /etc/opencloud/csp.yaml
+            subPath: csp.yaml
+            readOnly: true
+          - path: /etc/opencloud/proxy.yaml
+            subPath: proxy.yaml
+            readOnly: true
+  dev-ca:
+    # The sandbox CA from trust-manager; absent in production, so the volume is optional
+    type: custom
+    volumeSpec:
+      configMap:
+        name: homelab-dev-ca
+        optional: true
+    advancedMounts:
+      main:
+        main:
+          - path: /etc/homelab-dev-ca
+            readOnly: true
+configMaps:
+  settings:
+    data:
+      csp.yaml: |
+        directives:
+          connect-src:
+            - 'https://auth.{{ .Values.global.domain }}/'
+      proxy.yaml: |
+        # Only the config file can map claim values to roles; the first matching entry wins
+        role_assignment:
+          driver: oidc
+          oidc_role_mapper:
+            role_claim: homelab_groups
+            role_mapping:
+              - role_name: admin
+                claim_value: homelab-admins
+              - role_name: user
+                claim_value: homelab-files
+rawResources:
+  kanidm-client:
+    forceRename: opencloud
+    manifest:
+      apiVersion: kaniop.rs/v1beta1
+      kind: KanidmOAuth2Client
+      spec:
+        kanidmRef:
+          name: kanidm
+          namespace: kanidm
+        displayname: OpenCloud
+        # No client secret: the web UI runs the code flow in the browser with PKCE
+        public: true
+        origin: 'https://drive.{{ .Values.global.domain }}'
+        redirectUrl:
+          - 'https://drive.{{ .Values.global.domain }}/'
+          - 'https://drive.{{ .Values.global.domain }}/oidc-callback.html'
+          - 'https://drive.{{ .Values.global.domain }}/oidc-silent-redirect.html'
+        # Kanidm does not allow disabling the consent prompt on public clients: users confirm once
+        preferShortUsername: true
+        strictRedirectUrl: true
+        claimMap:
+          - name: homelab_groups
+            joinStrategy: array
+            valuesMap:
+              - group: homelab-admins
+                values: [homelab-admins]
+              - group: homelab-files
+                values: [homelab-files]
+        scopeMap:
+          - group: homelab-files
+            scopes: [openid, profile, email, groups]

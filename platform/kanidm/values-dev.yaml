@@ -8,8 +8,9 @@ groupMembers:
   homelab-users: [dev-viewer]
   homelab-budget: [dev-admin, dev-viewer]
   homelab-documents: [dev-admin, dev-editor]
+  homelab-files: [dev-admin, dev-editor]
 # Restated (lists are replaced): the sandbox client smoke lives in kanidm
-oauth2ClientNamespaces: [argocd, grafana, zot, actualbudget, paperless, forgejo, kanidm]
+oauth2ClientNamespaces: [argocd, grafana, zot, actualbudget, paperless, forgejo, opencloud, kanidm]
 smokeClient: true
 testAccounts:
   - dev-admin

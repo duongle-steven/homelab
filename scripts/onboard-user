@@ -1,5 +1,5 @@
 #!/bin/sh
-# Usage: scripts/onboard-user <username> <fullname> <mail> <admins|editors|users> [budget] [documents]
+# Usage: scripts/onboard-user <username> <fullname> <mail> <admins|editors|users> [budget] [documents] [files]
 
 set -eu
 
@@ -16,8 +16,8 @@ esac
 # Optional access groups for apps with personal data
 for access in "$@"; do
     case "${access}" in
-        budget|documents) ;;
-        *) echo "access group must be one of: budget, documents" >&2; exit 1 ;;
+        budget|documents|files) ;;
+        *) echo "access group must be one of: budget, documents, files" >&2; exit 1 ;;
     esac
 done
 

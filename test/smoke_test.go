@@ -30,6 +30,7 @@ func smokeApps(env string) []smokeApp {
 			{"pairdrop", "pairdrop"},
 			{"speedtest", "speedtest"},
 			{"forgejo", "forgejo"},
+			{"opencloud", "opencloud"},
 		}
 	}
 
