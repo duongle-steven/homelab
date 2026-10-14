@@ -12,6 +12,10 @@ secrets:
   - name: paperless.admin
     key: PAPERLESS_ADMIN_PASSWORD
     special: true
+  # paperless 3 refuses to start without it
+  - name: paperless.secret-key
+    key: PAPERLESS_SECRET_KEY
+    length: 64
   - name: grafana.admin
     key: password
     special: true

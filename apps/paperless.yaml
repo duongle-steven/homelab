@@ -74,6 +74,32 @@ persistence:
         main:
           - path: /etc/homelab-dev-ca
             readOnly: true
+  init:
+    # Run by the image at every start, after migrations (the file must be owned by root, hence subPath)
+    type: configMap
+    identifier: init
+    advancedMounts:
+      main:
+        main:
+          - path: /custom-cont-init.d/homelab-groups.sh
+            subPath: homelab-groups.sh
+            readOnly: true
+configMaps:
+  init:
+    data:
+      homelab-groups.sh: |
+        #!/bin/bash
+        # Kanidm groups sync to paperless groups of the same name (PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS), so the
+        # group homelab-documents must exist here with the permissions of a regular user: everything in the
+        # documents and mail apps (paperless still limits each object to its owner and the people it is shared with)
+        cd "${PAPERLESS_SRC_DIR}"
+        run() { if [[ -n "${USER_IS_NON_ROOT}" ]]; then "$@"; else s6-setuidgid paperless "$@"; fi; }
+        run python3 manage.py shell --command '
+        from django.contrib.auth.models import Group, Permission
+        group, _ = Group.objects.get_or_create(name="homelab-documents")
+        group.permissions.set(Permission.objects.filter(content_type__app_label__in=["documents", "paperless_mail"]))
+        print(f"homelab-documents: {group.permissions.count()} permissions")
+        '
 externalSecrets:
   secret:
     forceRename: paperless-secret
@@ -83,6 +109,8 @@ externalSecrets:
     dataFrom:
       - extract:
           key: paperless.admin
+      - extract:
+          key: paperless.secret-key
     target:
       deletionPolicy: Retain
 rawResources:

@@ -228,6 +228,8 @@ func TestSSOPaperless(t *testing.T) {
 			require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/ui_settings/", cookies, "", "", nil, &settings))
 			assert.Equal(t, c.account, settings.User.Username)
 			assert.Equal(t, c.superuser, settings.User.IsSuperuser)
+			// Regular users get document permissions from the paperless group homelab-documents
+			assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/documents/", cookies, "", "", nil, nil))
 		})
 	}
 }

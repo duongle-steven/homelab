@@ -41,7 +41,7 @@
     | Kanidm group | App | Access |
     |---|---|---|
     | `homelab-budget` | Actual Budget | an account on first login (the first one becomes the server owner) |
-    | `homelab-documents` | paperless | a regular account on first login; members of `homelab-admins` also become superusers |
+    | `homelab-documents` | paperless | an account on first login with the permissions of the paperless group `homelab-documents` (documents, tags, mail rules…, created at every start; groups set in the paperless UI are replaced at each login); members of `homelab-admins` also become superusers |
 
     To grant access to an existing person later: `kanidm group add-members homelab-budget johndoe --name idm_admin`.
 
