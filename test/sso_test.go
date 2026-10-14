@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"testing"
@@ -254,14 +255,30 @@ func TestSSOForgejo(t *testing.T) {
 			// Twice: the second login must reuse the account and keep the admin flag
 			for range 2 {
 				cookies := appLogin(t, c.account, ensureCredentials(t, c.account), start, forgejoHost)
-				var user struct {
-					Login   string `json:"login"`
-					IsAdmin bool   `json:"is_admin"`
-				}
-				require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/v1/user", cookies, "", "", nil, &user))
-				assert.Equal(t, c.account, user.Login)
-				assert.Equal(t, c.admin, user.IsAdmin)
+				// The web pages, not the API: Forgejo's API does not accept the session cookie
+				code, path, body := forgejoPage(t, base+"/user/settings", cookies)
+				require.Equal(t, http.StatusOK, code)
+				require.Equal(t, "/user/settings", path, "the session is not signed in")
+				assert.Contains(t, body, `value="`+c.account+`"`)
+				code, _, _ = forgejoPage(t, base+"/admin", cookies)
+				assert.Equal(t, map[bool]int{true: http.StatusOK, false: http.StatusForbidden}[c.admin], code)
 			}
 		})
 	}
+}
+
+// forgejoPage gets a Forgejo web page with the session cookies and returns the status, the final path
+// (after redirects, for example to /user/login) and the body.
+func forgejoPage(t *testing.T, target string, cookies []*http.Cookie) (int, string, string) {
+	req, err := http.NewRequest("GET", target, nil)
+	require.NoError(t, err)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := insecureClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return resp.StatusCode, resp.Request.URL.Path, string(body)
 }

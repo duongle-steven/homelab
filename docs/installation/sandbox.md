@@ -127,23 +127,23 @@ Measured on a fresh sandbox with all components running (working-set memory per 
 
 | Namespace | RAM |
 |---|---|
-| kube-system (Kubernetes, Cilium and its Gateway Envoy, CoreDNS) | 2134 MiB |
-| paperless (with Redis) | 870 MiB |
-| grafana | 762 MiB |
-| argocd | 586 MiB |
-| monitoring-system | 548 MiB |
-| cert-manager (with trust-manager) | 163 MiB |
-| external-secrets | 156 MiB |
-| homepage | 141 MiB |
-| zot | 139 MiB |
-| forgejo | 125 MiB |
-| kanidm | 96 MiB |
-| actualbudget | 76 MiB |
-| pairdrop | 69 MiB |
-| local-path-storage | 28 MiB |
-| speedtest | 22 MiB |
+| kube-system (Kubernetes, Cilium and its Gateway Envoy, CoreDNS) | 2040 MiB |
+| paperless (with Redis) | 793 MiB |
+| grafana | 764 MiB |
+| argocd | 674 MiB |
+| monitoring-system | 575 MiB |
+| cert-manager (with trust-manager) | 180 MiB |
+| external-secrets | 159 MiB |
+| forgejo | 153 MiB |
+| homepage | 132 MiB |
+| kanidm | 124 MiB |
+| zot | 97 MiB |
+| pairdrop | 58 MiB |
+| actualbudget | 56 MiB |
+| local-path-storage | 29 MiB |
+| speedtest | 21 MiB |
 | excalidraw | 13 MiB |
-| **Node total** | **7.56 GiB** |
+| **Node total** | **7.06 GiB** |
 
 ## Clean up
 
