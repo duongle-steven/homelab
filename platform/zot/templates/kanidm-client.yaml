@@ -13,7 +13,7 @@ spec:
   origin: https://{{ .Values.host }}
   redirectUrl:
     - https://{{ .Values.host }}/zot/auth/callback/oidc
-  disableConsentPrompt: true
+  # Kanidm does not allow disabling the consent prompt on public clients: users confirm once
   preferShortUsername: true
   strictRedirectUrl: true
   # Short, domain-free group names for the access control policies

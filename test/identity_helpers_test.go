@@ -392,6 +392,17 @@ func appLogin(t *testing.T, account string, c credentials, startURL, appHost str
 		if chromedp.Run(ctx, chromedp.Location(&location)) != nil {
 			return false
 		}
+		// Public clients (zot) cannot skip Kanidm's consent page; accept it like a user would
+		var consented bool
+		_ = chromedp.Run(ctx, chromedp.Evaluate(`(() => {
+			if (!document.body || !document.body.innerText.includes("Consent to Proceed")) return false;
+			const b = [...document.querySelectorAll("button")].find(b => b.innerText.trim() === "Proceed");
+			if (b) b.click();
+			return !!b;
+		})()`, &consented))
+		if consented {
+			return false
+		}
 		u, err := url.Parse(location)
 		return err == nil && u.Host == appHost && !strings.Contains(u.Path, "callback") && !strings.Contains(u.Path, "/login")
 	}, 30*time.Second, 500*time.Millisecond)
