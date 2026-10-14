@@ -23,9 +23,12 @@ scratch; there is no data migration.
   on the first install; `system/bootstrap.yml` picks between them by looking for a running Gitea pod.
 - Forgejo chart 17.3.0 (`oci://code.forgejo.org/forgejo-helm/forgejo`) defaults to Forgejo 15.0.10 (LTS);
   the latest stable Forgejo is 16.0.6. The chart bundles no database or cache.
-- The chart keeps Gitea's names for its own interface: the `gitea:` values key, the init container
-  `configure-gitea`, `GITEA_*` env variables, `/data/gitea/conf/app.ini`. They cannot change without
-  forking the chart.
+- The chart and image keep Gitea's names for their own interface; they cannot change without forking
+  the chart or the image (Helm's dependency `alias` only renames the outer key `forgejo:`):
+  - chart: the values key `gitea:` (`forgejo.gitea.config`, `forgejo.gitea.oauth`,
+    `forgejo.gitea.admin` in the wrapper), the init container `configure-gitea`, the template names
+    `gitea.*`, the env variables `GITEA_*` (including `GITEA__<section>__<key>`), `/data/gitea/conf/app.ini`
+  - image: `/var/lib/gitea`, `/etc/gitea`
 - The chart's `gitea.oauth[]` entries become flags of `forgejo admin auth add-oauth`/`update-oauth`,
   run by `configure-gitea` at every pod start; `existingSecret` must have the keys `key` and `secret`,
   and `deployment.env` reaches the init container too.
@@ -81,10 +84,11 @@ scratch; there is no data migration.
   Ceph block storage class. CloudNativePG generates the Secret `forgejo-db-app`.
 - `seed-job.yaml` and its script (see below).
 
-Values (`values.yaml`, production):
+Values (`values.yaml`, production). The dependency's values sit under `forgejo:`; `forgejo.gitea:` is
+the Forgejo chart's own key for the app's settings, and the file says so in a comment where it starts:
 
-- `gitea.image`: registry `code.forgejo.org`, repository `forgejo/forgejo`, tag `16.0.6`; rootless.
-- `gitea.config`:
+- `forgejo.image`: registry `code.forgejo.org`, repository `forgejo/forgejo`, tag `16.0.6`; rootless.
+- `forgejo.gitea.config`:
   - `server`: `ROOT_URL https://git.<domain>`, `SSH_DOMAIN git.<domain>`, `LANDING_PAGE explore`,
     `OFFLINE_MODE true`
   - `service`: `DISABLE_REGISTRATION true`, `ALLOW_ONLY_EXTERNAL_REGISTRATION true`
@@ -92,18 +96,18 @@ Values (`values.yaml`, production):
     `ACCOUNT_LINKING disabled`
   - `repository`, `service.explore`, `webhook`: as Gitea today; `actions.ENABLED false`
   - `database`: `DB_TYPE postgres`, `HOST forgejo-db-rw:5432`, `NAME forgejo`, `USER forgejo`; the
-    password comes from `forgejo-db-app` through `gitea.additionalConfigFromEnvs`
+    password comes from `forgejo-db-app` through `forgejo.gitea.additionalConfigFromEnvs`
     (`GITEA__DATABASE__PASSWD`)
   - `cache` `memory`, `session` `memory`, `queue` `level`, `indexer` default (bleve on the volume)
-- `gitea.oauth`: one entry `Kanidm`, provider `openidConnect`, `key: forgejo`,
+- `forgejo.gitea.oauth`: one entry `Kanidm`, provider `openidConnect`, `key: forgejo`,
   `secret: ${CLIENT_SECRET}` (expanded by the init script's shell),
   `autoDiscoverUrl https://auth.<domain>/oauth2/openid/forgejo/.well-known/openid-configuration`,
   `scopes openid profile email groups`, `groupClaimName homelab_groups`, `adminGroup homelab-admins`.
-- `deployment.env`: `CLIENT_SECRET` from `forgejo-kanidm-oauth2-credentials`.
-- `strategy: Recreate`, `persistence` claim `forgejo-data`.
-- `httpRoute` on `gateway/homelab` section `https`, host `git.<domain>`.
-- `service.ssh` port 22.
-- `database.cnpg.enabled: true`; `seed.repository: https://github.com/khuedoan/homelab` (replaced by
+- `forgejo.deployment.env`: `CLIENT_SECRET` from `forgejo-kanidm-oauth2-credentials`.
+- `forgejo.strategy: Recreate`, `forgejo.persistence` claim `forgejo-data`.
+- `forgejo.httpRoute` on `gateway/homelab` section `https`, host `git.<domain>`.
+- `forgejo.service.ssh` port 22.
+- Wrapper keys: `database.cnpg.enabled: true`; `seed.repository: https://github.com/khuedoan/homelab` (replaced by
   `make configure`).
 
 `values-dev.yaml` (sandbox):
@@ -113,7 +117,7 @@ Values (`values.yaml`, production):
 - the optional `homelab-dev-ca` volume and `SSL_CERT_DIR`, as Grafana and zot
 - `seed.repository: https://github.com/duongle-steven/homelab`
 
-Comments mark the chart-imposed `gitea` names wherever they appear.
+A comment marks each chart-imposed `gitea` name where it appears.
 
 ### Seed Job
 
@@ -183,7 +187,9 @@ Sandbox (`make dev`; the basic-checks regex does not change because the new test
 - `TestForgejoSeed`: as `forgejo_admin` (password from Secret `forgejo-admin`),
   `GET /api/v1/repos/ops/homelab` returns 200 and the repository is private; `git ls-remote` over HTTPS
   lists `master`.
-- Rename check: `grep -rni gitea` finds only chart-imposed names and history.
+- Rename check: `grep -rni gitea --exclude-dir=charts` outside history (past specs and plans in
+  `docs/superpowers/`, `docs/reference/changelog.md`, `docs/reference/architecture/decision-records.md`)
+  finds only the chart- and image-imposed names listed in Context, plus this spec and its plan.
 
 Basic checks on the branch: `scripts/render-chart` for `platform/forgejo`, `platform/cloudnative-pg`,
 `system/argocd`, `system/gateway`, `platform/global-secrets`, `platform/kanidm`, `platform/woodpecker`,
