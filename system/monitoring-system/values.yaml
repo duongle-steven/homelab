@@ -1,4 +1,22 @@
 kube-prometheus-stack:
+  # k3s runs the control plane and kube-proxy inside its own process, so the chart's pod selectors find
+  # nothing: scrape the nodes instead (keep in sync with metal/inventories/prod.yml)
+  kubeControllerManager:
+    endpoints: &controlPlane [192.168.1.110, 192.168.1.111, 192.168.1.112]
+    serviceMonitor: &oneComponent
+      # Every port of the k3s process serves all components' metrics: keep only this component's
+      metricRelabelings:
+        - action: drop
+          sourceLabels: [__name__]
+          regex: (apiserver|etcd|kubelet|container)_.+
+  kubeScheduler:
+    endpoints: *controlPlane
+    serviceMonitor: *oneComponent
+  kubeEtcd:
+    endpoints: *controlPlane
+  kubeProxy:
+    endpoints: [192.168.1.110, 192.168.1.111, 192.168.1.112, 192.168.1.113]
+    serviceMonitor: *oneComponent
   grafana:
     enabled: false
     forceDeployDatasources: true

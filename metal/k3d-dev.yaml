@@ -19,7 +19,7 @@ options:
       # Embedded etcd, like production
       - arg: --cluster-init
         nodeFilters: [server:*]
-      # Control plane metrics for kube-prometheus-stack
+      # Control plane metrics like production (the sandbox does not scrape them: no fixed node address)
       - arg: --etcd-expose-metrics
         nodeFilters: [server:*]
       - arg: --kube-controller-manager-arg=bind-address=0.0.0.0
