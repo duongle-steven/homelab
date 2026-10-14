@@ -9,14 +9,17 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -57,9 +60,31 @@ type credentials struct {
 	Period     uint   `json:"period"`
 }
 
-// sandboxIngress is the homelab Gateway's LoadBalancer IP. The tests connect to it directly instead of through
-// the localhost socat proxy, whose connects to :443 occasionally stall for ~4.5 s and hang the browser.
-const sandboxIngress = "172.30.255.200"
+// k3dNode is the sandbox's k3s node (metal/k3d-dev.yaml). ServiceLB publishes the Gateway on its IP; the tests
+// connect there directly instead of through the localhost socat proxy, whose connects to :443 occasionally
+// stall for ~4.5 s and hang the browser.
+const k3dNode = "k3d-homelab-dev-server-0"
+
+var sandboxAddress = sync.OnceValue(func() string {
+	out, err := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", k3dNode).Output()
+	if err != nil {
+		panic(fmt.Sprintf("docker inspect %s: %v (is the sandbox running?)", k3dNode, err))
+	}
+	addr, err := nodeAddressFromInspect(string(out))
+	if err != nil {
+		panic(err)
+	}
+	return addr
+})
+
+// nodeAddressFromInspect parses docker inspect's IP address output.
+func nodeAddressFromInspect(out string) (string, error) {
+	addr := strings.TrimSpace(out)
+	if net.ParseIP(addr) == nil {
+		return "", fmt.Errorf("no IP address for %s in %q", k3dNode, out)
+	}
+	return addr, nil
+}
 
 // The sandbox uses a local CA; these tests only ever run against it.
 var insecureClient = &http.Client{
@@ -68,7 +93,7 @@ var insecureClient = &http.Client{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			if host, port, err := net.SplitHostPort(addr); err == nil && strings.HasSuffix(host, ".127-0-0-1.nip.io") {
-				addr = net.JoinHostPort(sandboxIngress, port)
+				addr = net.JoinHostPort(sandboxAddress(), port)
 			}
 			return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, addr)
 		},
@@ -268,7 +293,7 @@ func (k *totpClock) code(t *testing.T, account string, c credentials) string {
 func newBrowser(t *testing.T) (context.Context, func()) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("ignore-certificate-errors", true),
-		chromedp.Flag("host-resolver-rules", "MAP *.127-0-0-1.nip.io "+sandboxIngress),
+		chromedp.Flag("host-resolver-rules", "MAP *.127-0-0-1.nip.io "+sandboxAddress()),
 		// NixOS-WSL exports an LD_LIBRARY_PATH built for a newer glibc than the dev shell's chromium
 		chromedp.Env("LD_LIBRARY_PATH="),
 	)
