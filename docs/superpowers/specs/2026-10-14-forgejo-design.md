@@ -27,7 +27,8 @@ scratch; there is no data migration.
   the chart or the image (Helm's dependency `alias` only renames the outer key `forgejo:`):
   - chart: the values key `gitea:` (`forgejo.gitea.config`, `forgejo.gitea.oauth`,
     `forgejo.gitea.admin` in the wrapper), the init container `configure-gitea`, the template names
-    `gitea.*`, the env variables `GITEA_*` (including `GITEA__<section>__<key>`), `/data/gitea/conf/app.ini`
+    `gitea.*`, the env variables `GITEA_*` the init scripts use, `/data/gitea/conf/app.ini`
+    (app.ini settings from env variables use `FORGEJO__<section>__<key>`)
   - image: `/var/lib/gitea`, `/etc/gitea`
 - The chart's `gitea.oauth[]` entries become flags of `forgejo admin auth add-oauth`/`update-oauth`,
   run by `configure-gitea` at every pod start; `existingSecret` must have the keys `key` and `secret`,
@@ -99,7 +100,7 @@ the Forgejo chart's own key for the app's settings, and the file says so in a co
   - `repository`, `service.explore`, `webhook`: as Gitea today; `actions.ENABLED false`
   - `database`: `DB_TYPE postgres`, `HOST forgejo-db-rw:5432`, `NAME forgejo`, `USER forgejo`; the
     password comes from `forgejo-db-app` through `forgejo.gitea.additionalConfigFromEnvs`
-    (`GITEA__DATABASE__PASSWD`)
+    (`FORGEJO__DATABASE__PASSWD`)
   - `cache` `memory`, `session` `memory`, `queue` `level`, `indexer` default (bleve on the volume)
 - `forgejo.gitea.oauth`: one entry `Kanidm`, provider `openidConnect`, `key: forgejo`,
   `secret: ${CLIENT_SECRET}` (expanded by the init script's shell),
@@ -166,13 +167,16 @@ A comment marks each chart-imposed `gitea` name where it appears.
 
 ## Error handling
 
-- Kanidm unreachable when Forgejo starts: Forgejo registers the provider again at the next login
-  (`ResetOAuth2`), so no startup probe is needed; the SSO test covers a fresh install, where Kanidm and
-  Forgejo start together.
+- Kanidm unreachable when Forgejo starts: the chart's init container registers the login source at every
+  start (`admin auth add-oauth`/`update-oauth`), which fetches Kanidm's discovery document and fails without
+  it, so the pod restarts until Kanidm answers (found in the final review; Forgejo's own `ResetOAuth2`
+  only covers a provider that fails after the server started). Kanidm restarts from its existing objects
+  without Argo CD, so this delays Forgejo rather than deadlocking it; it is recorded in `CLAUDE.md`.
 - The login source follows git: `update-oauth` at every start overwrites changes made in the UI.
 - Admin rights follow `homelab-admins` at every login.
 - Seed failures (GitHub or Forgejo unreachable) retry up to 10 times, then Argo CD shows the Job as
-  failed; changing the script renames the Job and runs it again.
+  failed; changing the script, the source or the image renames the Job (its template is immutable) and runs it
+  again.
 - PostgreSQL: CloudNativePG fails over to a replica; Forgejo reconnects through `forgejo-db-rw`.
 - Offboarding: removing someone from Kanidm keeps their Forgejo access tokens and SSH keys; the
   onboarding docs say to disable the user in Forgejo too.

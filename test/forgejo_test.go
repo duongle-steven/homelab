@@ -3,10 +3,13 @@ package test
 import (
 	"net/http"
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terratest/modules/k8s"
+	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,23 +41,33 @@ func TestForgejoSeed(t *testing.T) {
 	assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/v1/repos/ops/homelab/branches/master", nil, user, pass, nil, nil))
 }
 
-// TestForgejoSeedIsIdempotent runs the seed script again against the seeded repository: it must succeed
-// without touching it.
+// TestForgejoSeedIsIdempotent runs the seed script again, inside the Forgejo pod, against the seeded
+// repository: it must succeed without touching it.
 func TestForgejoSeedIsIdempotent(t *testing.T) {
 	if os.Getenv("ENV") != "dev" {
 		t.Skip("Forgejo tests run against the sandbox only")
 	}
+	waitForApp(t, "https://"+forgejoHost+"/api/healthz")
 	options := k8s.NewKubectlOptions("", "", "forgejo")
-	job, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "jobs", "-o", "jsonpath={.items[0].metadata.name}")
+	options.Logger = logger.Discard
+	script, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "configmap", "forgejo-seed", "-o", `jsonpath={.data.seed\.sh}`)
 	require.NoError(t, err)
-	require.NotEmpty(t, job)
-	rerun := job + "-rerun"
-	_, err = k8s.RunKubectlAndGetOutputE(t, options, "create", "job", "--from=job/"+job, rerun)
-	require.NoError(t, err)
-	defer k8s.RunKubectlE(t, options, "delete", "job", rerun)
-	_, err = k8s.RunKubectlAndGetOutputE(t, options, "wait", "--for=condition=complete", "--timeout=5m", "job/"+rerun)
-	require.NoError(t, err)
-	logs, err := k8s.RunKubectlAndGetOutputE(t, options, "logs", "job/"+rerun)
-	require.NoError(t, err)
-	assert.Contains(t, logs, "ops/homelab exists")
+	require.Contains(t, script, "ops/homelab exists")
+
+	// The admin credentials go through stdin, not the command line
+	quote := func(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+	stdin := "export FORGEJO_ADMIN_USERNAME=" + quote(secretValue(t, "forgejo", "forgejo-admin", "username")) + "\n" +
+		"export FORGEJO_ADMIN_PASSWORD=" + quote(secretValue(t, "forgejo", "forgejo-admin", "password")) + "\n" +
+		// Only used if the repository were missing, which fails the assertion below anyway
+		"export SEED_REPOSITORY=https://example.invalid/homelab\n" + script
+
+	var out []byte
+	require.Eventually(t, func() bool {
+		cmd := exec.Command("kubectl", "--namespace", "forgejo", "exec", "-i", "deploy/forgejo", "--container", "forgejo", "--", "sh", "-s")
+		cmd.Stdin = strings.NewReader(stdin)
+		out, err = cmd.CombinedOutput()
+		return err == nil
+	}, 20*time.Minute, 15*time.Second, "seed script failed on its second run")
+	assert.Contains(t, string(out), "ops/homelab exists")
+	assert.NotContains(t, string(out), "copied")
 }

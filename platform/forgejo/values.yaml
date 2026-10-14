@@ -96,9 +96,9 @@ forgejo:
         PROVIDER: memory
       queue:
         TYPE: level
-    # GITEA__<section>__<key> is the chart's naming for app.ini settings from env variables
+    # FORGEJO__<section>__<key> sets an app.ini setting from an env variable
     additionalConfigFromEnvs:
-      - name: GITEA__DATABASE__PASSWD
+      - name: FORGEJO__DATABASE__PASSWD
         valueFrom:
           secretKeyRef:
             name: forgejo-db-app
