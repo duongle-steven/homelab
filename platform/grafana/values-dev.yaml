@@ -1,3 +1,4 @@
+host: grafana.127-0-0-1.nip.io
 grafana:
   route:
     main:
@@ -7,10 +8,10 @@ grafana:
     server:
       root_url: https://grafana.127-0-0-1.nip.io
     auth.generic_oauth:
-      auth_url: https://dex.127-0-0-1.nip.io/auth
-      token_url: https://dex.127-0-0-1.nip.io/token
-      api_url: https://dex.127-0-0-1.nip.io/userinfo
-  # Trust the sandbox CA for calls to Dex
+      auth_url: https://auth.127-0-0-1.nip.io/ui/oauth2
+      token_url: https://auth.127-0-0-1.nip.io/oauth2/token
+      api_url: https://auth.127-0-0-1.nip.io/oauth2/openid/grafana/userinfo
+  # Trust the sandbox CA for calls to Kanidm
   env:
     SSL_CERT_DIR: /etc/ssl/certs:/etc/homelab-dev-ca
   # Not optional: the pod waits until trust-manager has copied the CA here

@@ -1,0 +1,31 @@
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmOAuth2Client
+metadata:
+  name: grafana
+  namespace: {{ .Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+    namespace: kanidm
+  displayname: Grafana
+  origin: https://{{ .Values.host }}
+  redirectUrl:
+    - https://{{ .Values.host }}/login/generic_oauth
+  disableConsentPrompt: true
+  preferShortUsername: true
+  strictRedirectUrl: true
+  # Short, domain-free group names for the role mapping
+  claimMap:
+    - name: homelab_groups
+      joinStrategy: array
+      valuesMap:
+        {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+        - group: {{ . }}
+          values:
+            - {{ . }}
+        {{- end }}
+  scopeMap:
+    {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+    - group: {{ . }}
+      scopes: [openid, profile, email, groups]
+    {{- end }}
