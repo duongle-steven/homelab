@@ -11,7 +11,7 @@ Each step changes one thing, with its own spec and plan in `docs/superpowers/`.
 2. Replace ingress-nginx and `Ingress` objects with Gateway API (Cilium Gateway), tested in the sandbox (done)
 3. Bump every image to its latest stable release (done)
 4. Apps: compact `apps/*.yaml` (app-template values + ApplicationSet, like upstream `nixos`), keep all apps (done; opencloud moved to step 5)
-5. Identity: drop Dex, apps use Kanidm OIDC directly; Forgejo replaces Gitea; add opencloud (Kanidm OIDC, in the sandbox)
+5. Identity: 5a drop Dex, apps use Kanidm OIDC directly, SSO for Actual Budget and paperless (done); 5b Forgejo replaces Gitea; 5c add opencloud (Kanidm OIDC, in the sandbox)
 6. Network: sandbox on k3d with k3s defaults (Flannel, kube-proxy, ServiceLB, network policy); drop Cilium; Istio ambient (Gateway API, mesh, mTLS)
 7. Infra: `infra/` with OpenTofu + Terragrunt (environments sandbox, staging, production), absorbing `metal/` bootstrap and `external/`
 8. Secrets: OpenBao behind ESO (`PushSecret` for generated secrets, `ExternalSecret` to read), bootstrap secrets (unseal key, restic, Cloudflare) from OpenTofu, state on Cloudflare R2 with OpenTofu state encryption
