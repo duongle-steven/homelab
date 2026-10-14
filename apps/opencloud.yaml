@@ -169,6 +169,8 @@ rawResources:
                 values: [homelab-admins]
               - group: homelab-files
                 values: [homelab-files]
+        # No groups scope: the web UI does not ask for it, and with it OpenCloud would sync every Kanidm group
+        # (PROXY_AUTOPROVISION_CLAIM_GROUPS defaults to groups); homelab_groups comes through claimMap regardless
         scopeMap:
           - group: homelab-files
-            scopes: [openid, profile, email, groups]
+            scopes: [openid, profile, email]

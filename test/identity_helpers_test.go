@@ -558,7 +558,7 @@ func openCloudAuthorizeURL(appBase string) string {
 		"client_id":             {"opencloud"},
 		"redirect_uri":          {appBase + "/oidc-callback.html"},
 		"response_type":         {"code"},
-		"scope":                 {"openid profile email groups"},
+		"scope":                 {"openid profile email"},
 		"state":                 {"denied-test"},
 		"code_challenge":        {challenge},
 		"code_challenge_method": {"S256"},
