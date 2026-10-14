@@ -22,7 +22,7 @@ func smokeApps(env string) []smokeApp {
 			{"argocd-server", "argocd"},
 			{"excalidraw", "excalidraw"},
 			{"kanidm", "kanidm"},
-			{"dex", "dex"},
+			{"paperless", "paperless"},
 			{"grafana", "grafana"},
 			{"zot", "zot"},
 			{"actualbudget", "actualbudget"},
