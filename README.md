@@ -71,8 +71,6 @@ They can't capture all the project's features, but they are sufficient to get a 
 | Deploy with a single command (after updating the configuration files)                                           |
 | [![][pxe-demo]](https://www.youtube.com/watch?v=y-d7btNNAT8)                                                    |
 | PXE boot                                                                                                        |
-| [![][hubble-demo]][hubble-demo]                                                                                 |
-| Observe network traffic with Hubble, built on top of [Cilium](https://cilium.io) and eBPF                       |
 | [![][homepage-demo]][homepage-demo]                                                                             |
 | Homepage powered by... [Homepage](https://gethomepage.dev)                                                      |
 | [![][grafana-demo]][grafana-demo]                                                                               |
@@ -90,7 +88,6 @@ They can't capture all the project's features, but they are sufficient to get a 
 
 [deploy-demo]: https://asciinema.org/a/xkBRkwC6e9RAzVuMDXH3nGHp7.svg
 [pxe-demo]: https://user-images.githubusercontent.com/27996771/157303477-df2e7410-8f02-4648-a86c-71e6b7e89e35.png
-[hubble-demo]: https://github.com/khuedoan/homelab/assets/27996771/9c6677d0-3564-47c0-852b-24b6a554b4a3
 [homepage-demo]: https://github.com/khuedoan/homelab/assets/27996771/d0eaf620-be08-48d8-8420-40bcaa86093b
 [grafana-demo]: https://github.com/khuedoan/homelab/assets/27996771/ad937b26-e9bc-4761-83ae-1c7f512ea97f
 [matrix-demo]: https://user-images.githubusercontent.com/27996771/149448510-7163310c-2049-4ccd-901d-f11f605bfc32.png
@@ -123,9 +120,9 @@ They can't capture all the project's features, but they are sufficient to get a 
         <td>Cloud native certificate management</td>
     </tr>
     <tr>
-        <td><img width="32" src="https://avatars.githubusercontent.com/u/21054566?s=200&v=4"></td>
-        <td><a href="https://cilium.io">Cilium</a></td>
-        <td>eBPF-based Networking, Observability and Security (CNI, LB, Gateway API, Network Policy, etc.)</td>
+        <td><img width="32" src="https://avatars.githubusercontent.com/u/23534644?s=200&v=4"></td>
+        <td><a href="https://istio.io">Istio</a></td>
+        <td>Gateway API implementation</td>
     </tr>
     <tr>
         <td><img width="32" src="https://avatars.githubusercontent.com/u/314135?s=200&v=4"></td>
