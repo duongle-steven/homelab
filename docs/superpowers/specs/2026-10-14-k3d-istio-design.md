@@ -86,7 +86,7 @@ Step 6 is split: **6a** (this spec) and **6b** Istio ambient mesh (`istio-cni`, 
 
 ### `system/istio-system` (replaces `system/gateway`)
 
-- Dependencies `base` and `istiod` 1.31.1 (`https://istio-release.storage.googleapis.com/charts`); istiod
+- Dependencies `base` and `istiod` 1.31.1 (`https://blob.istio.io/istio-release/charts`); istiod
   with `PILOT_ENABLE_ALPHA_GATEWAY_API=true` (`TCPRoute`) and requests cpu 100m, memory 128Mi; the
   ApplicationSet ignores the validating webhooks' `failurePolicy` and `caBundle`, as upstream.
 - Gateway `gateway` (class `istio`): listeners `http` 80 (only the redirect route), `https` 443
