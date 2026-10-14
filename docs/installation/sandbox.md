@@ -102,7 +102,7 @@ git switch -c feat/harness-the-sun
 scripts/render-chart platform/kanidm
 scripts/render-chart platform/kanidm dev
 # offline unit tests (the other tests need a cluster)
-(cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep)|TestGatewayRouteReady' ./...)
+(cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady' ./...)
 mkdocs build --strict
 git push -u origin feat/harness-the-sun   # then open a PR into dev
 ```
