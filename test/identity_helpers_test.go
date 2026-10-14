@@ -375,7 +375,16 @@ func openLogin(t *testing.T, ctx context.Context, account, startURL string) {
 	if chromedp.Run(waitCtx, chromedp.WaitVisible(`input#username`)) == nil {
 		return
 	}
-	browserStep(t, ctx, "confirm", account, chromedp.Click(`button[type=submit]`), chromedp.WaitVisible(`input#username`))
+	// The click navigates without waiting for the load event: a node found before Kanidm's page has loaded
+	// is gone when the document is replaced ("Could not find node with given id"), so wait for the load first
+	browserStep(t, ctx, "confirm", account, chromedp.Click(`button[type=submit]`))
+	require.Eventually(t, func() bool {
+		var loaded bool
+		// Errors while the page is navigating are expected; try again on the next tick
+		err := chromedp.Run(ctx, chromedp.Evaluate(`location.origin === "`+kanidmURL+`" && document.readyState === "complete"`, &loaded))
+		return err == nil && loaded
+	}, 30*time.Second, 100*time.Millisecond, "%s: Kanidm's login page never loaded", account)
+	browserStep(t, ctx, "login form", account, chromedp.WaitVisible(`input#username`))
 }
 
 // appLogin opens an app's SSO entry point, logs in through Kanidm, waits until the browser is back
