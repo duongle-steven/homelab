@@ -48,7 +48,7 @@ Step 6 is split: **6a** (this spec) and **6b** Istio ambient mesh (`istio-cni`, 
 | Production `metal/` | Changed too: k3s defaults, Cilium role removed (rendered and syntax-checked only) |
 | Sandbox nodes | One k3s server (HA is tested on staging in step 11) |
 | Gateway names | Like upstream: `istio-system/gateway` (LAN), `istio-system/public` (Tunnel) |
-| Host access | k3d port mapping (80, 443, 22) to its load balancer; no socat; spike first, socat to the node IP as fallback |
+| Host access | Spike result (2026-10-14): Windows cannot reach ports k3d/Docker publishes under WSL mirrored networking, so the fallback applies: a localhost socat proxy (`127.0.0.1:80/443/22` → k3d node IP) for the browser and SSH; the tests dial the node IP |
 | Gateway LB in production | kube-vip `svc_enable` for Services of class `kube-vip.io/kube-vip-class`: Gateway `gateway` on `192.168.1.224` (Forgejo SSH keeps port 22, one VIP for HA), wireguard on `192.168.1.225`; ServiceLB stays for everything else |
 | Versions | k3d 5.9.0, k3s v1.37.1+k3s1, Istio 1.31.1, kube-vip v1.2.4 |
 
@@ -57,18 +57,21 @@ Step 6 is split: **6a** (this spec) and **6b** Istio ambient mesh (`istio-cni`, 
 ### Sandbox cluster (`metal/`)
 
 - `metal/k3d-dev.yaml` replaces `kind-dev.yaml`: cluster `homelab-dev`, one server, image
-  `rancher/k3s:v1.37.1-k3s1`, ports `80`, `443` and `22` mapped to the k3d load balancer, k3s args
+  `rancher/k3s:v1.37.1-k3s1`, no host port mapping (see the spike below), k3s args
   `--disable=traefik`, `--cluster-init` (embedded etcd, like production), `--etcd-expose-metrics`,
   `--kube-controller-manager-arg=bind-address=0.0.0.0`, `--kube-scheduler-arg=bind-address=0.0.0.0`.
   Flannel, kube-proxy, ServiceLB, network policy and `local-storage` stay on.
-- The Gateway API CRDs (experimental channel, for `TCPRoute`) are mounted into k3s's auto-deploy manifest
+- The Gateway API CRDs (standard channel v1.6.3, which includes `TCPRoute`) are mounted into k3s's auto-deploy manifest
   directory, so they exist before Argo CD, as in production.
-- `metal/Makefile`: `dev` creates the cluster if missing and writes `kubeconfig.yaml` (keeping the WSL
-  mirrored fix only if the spike needs it); `clean` deletes it. The `kind` and `proxy` targets,
-  `inventories/dev.yml` and the role `coredns_rewrite` go away.
+- `metal/Makefile`: `dev` creates the cluster if missing, writes `kubeconfig.yaml` (k3d's API address works
+  from WSL as is) and recreates the socat proxy `homelab-dev-proxy` (`127.0.0.1:80/443/22` → node IP);
+  `clean` deletes both. The `kind` target, `inventories/dev.yml` and the role `coredns_rewrite` go away.
 - Spike before anything else: an empty k3d cluster with the port mapping and an nginx `LoadBalancer`
   Service, reached with curl at `127.0.0.1` from WSL and from the Windows browser. If it fails, the tests
   dial the k3d node IP (from `docker inspect`) and the browser goes through a socat container to it.
+  Result (2026-10-14, during planning): WSL reached the published port, Windows (`curl.exe`, PowerShell)
+  timed out; a host-network socat on `127.0.0.1` forwarding to the node IP worked from Windows. The
+  fallback applies.
 
 ### Production (`metal/`, rendered only)
 
@@ -128,9 +131,9 @@ Step 6 is split: **6a** (this spec) and **6b** Istio ambient mesh (`istio-cni`, 
   `platform/grafana`, `platform/zot`, `platform/woodpecker`, `apps/matrix` and every changed `apps/*.yaml`;
   a grep that no `cilium`, `homelab-public` or `gateway/homelab` reference is left; `ansible-playbook
   --syntax-check` for `metal/cluster.yml`; `go vet` and the offline test regex; `mkdocs build --strict`.
-- Test changes: `sandboxIngress` goes (tests and chromium resolve `*.127-0-0-1.nip.io` to the address the
-  spike chose); `test/gateway_test.go` checks `istio-system/gateway` and `gateway-istio`;
-  `TestGatewayForgejoSSH` goes through port 22 of the k3d load balancer.
+- Test changes: the constant `sandboxIngress` becomes `sandboxAddress()`, the k3d node IP from
+  `docker inspect` (tests and chromium resolve `*.127-0-0-1.nip.io` there); `test/gateway_test.go` checks `istio-system/gateway` and `gateway-istio`;
+  `TestGatewayForgejoSSH` dials port 22 on the node.
 - After the merge: `make dev-clean && make dev` from scratch, 72/72; measured RAM in `sandbox.md`.
 
 ## Docs
