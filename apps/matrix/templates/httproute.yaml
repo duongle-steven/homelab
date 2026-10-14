@@ -8,8 +8,8 @@ metadata:
     external-dns.kubernetes.io/cloudflare-proxied: "true"
 spec:
   parentRefs:
-    - name: homelab-public
-      namespace: gateway
+    - name: public
+      namespace: istio-system
       sectionName: https
   hostnames:
     - {{ .Values.route.elementHostname }}
@@ -25,8 +25,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   parentRefs:
-    - name: homelab
-      namespace: gateway
+    - name: gateway
+      namespace: istio-system
       sectionName: https
   hostnames:
     - {{ .Values.route.dendriteHostname }}

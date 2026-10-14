@@ -1,13 +1,13 @@
 # Development sandbox
 
-The sandbox is a local kind cluster for testing changes on the `dev` branch before they are merged into `master`.
+The sandbox is a local k3d cluster (one k3s server) for testing changes on the `dev` branch before they are merged into `master`.
 
 ## Prerequisites
 
-- Linux, or Windows with WSL 2 (NAT or mirrored networking). macOS does not work: the development shell includes Linux-only packages, and Docker runs in a VM there, so the host cannot reach the kind network.
+- Linux, or Windows with WSL 2 (NAT or mirrored networking). macOS does not work: the development shell includes Linux-only packages, and Docker runs in a VM there, so the host cannot reach the k3d network.
 - Docker and Nix (see [development shell](../concepts/development-shell.md))
 - About 8 GiB of free RAM for Docker (the sandbox uses about 7 GiB, see [resource usage](#resource-usage))
-- Ports `80` and `443` free on the host
+- Ports `80`, `443` and `22` free on the host's `127.0.0.1`
 
 ## Build
 
@@ -17,7 +17,7 @@ nix develop
 make dev
 ```
 
-`make dev` creates the kind cluster with Cilium, bootstraps ArgoCD, waits for it, and runs the smoke test.
+`make dev` creates the k3d cluster with k3s's own networking (Flannel, kube-proxy, ServiceLB), bootstraps ArgoCD, waits for it, and runs the smoke test.
 
 !!! note
 
@@ -35,14 +35,14 @@ export KUBECONFIG=$PWD/metal/kubeconfig.yaml  # from the repository root
 - <https://draw.127-0-0-1.nip.io>
 - <https://grafana.127-0-0-1.nip.io> ("Sign in with Kanidm", or user `admin` with `kubectl -n grafana get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`)
 - <https://registry.127-0-0-1.nip.io> (zot; log in with Kanidm, then create an API key under your user menu and `docker login registry.127-0-0-1.nip.io -u <username> -p <key>`)
-- <https://git.127-0-0-1.nip.io> (Forgejo; "Sign in with Kanidm", or user `forgejo_admin` with `kubectl -n forgejo get secret forgejo-admin -o jsonpath='{.data.password}' | base64 -d`; the seed Job copies this repository into `ops/homelab`; SSH on `172.30.255.200:22` from WSL)
+- <https://git.127-0-0-1.nip.io> (Forgejo; "Sign in with Kanidm", or user `forgejo_admin` with `kubectl -n forgejo get secret forgejo-admin -o jsonpath='{.data.password}' | base64 -d`; the seed Job copies this repository into `ops/homelab`; SSH on `127.0.0.1:22`)
 - <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io>: log in with Kanidm (paperless also has a local `admin`, password in `global-secrets/paperless.admin`)
 - <https://drive.127-0-0-1.nip.io> (OpenCloud): log in with Kanidm and accept the consent page once
 - <https://home.127-0-0-1.nip.io>, <https://drop.127-0-0-1.nip.io>, <https://speedtest.127-0-0-1.nip.io>
 
 On Windows with WSL, open these from the Windows browser.
 
-Everything goes through the Gateway API `Gateway` `homelab` (Cilium) at `172.30.255.200`; a localhost proxy forwards `127.0.0.1:80/443` to it. The Argo CD CLI works through it with `--grpc-web`.
+Everything goes through the Gateway `istio-system/gateway` (Istio), which ServiceLB serves on the k3d node; a localhost proxy (`homelab-dev-proxy`, recreated by `make dev`) forwards `127.0.0.1:80/443/22` to it, because Windows cannot reach ports Docker publishes under WSL mirrored networking. The tests connect to the node directly. The Argo CD CLI works through it with `--grpc-web`.
 
 Certificates are issued by a local CA that is recreated with the cluster. To remove the browser warning, export it and import it into your trust store (on Windows: double-click `homelab-dev-ca.crt` → Install Certificate → Local Machine → Trusted Root Certification Authorities):
 
@@ -103,7 +103,7 @@ git switch -c feat/harness-the-sun
 scripts/render-chart platform/kanidm
 scripts/render-chart platform/kanidm dev
 # offline unit tests (the other tests need a cluster)
-(cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady' ./...)
+(cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect' ./...)
 mkdocs build --strict
 git push -u origin feat/harness-the-sun   # then open a PR into dev
 ```
@@ -159,4 +159,5 @@ make dev-clean
 - Only accessible from the host machine
 - No Alertmanager, Loki, backups, Woodpecker or Renovate
 - Forgejo runs on SQLite instead of PostgreSQL (CloudNativePG); Argo CD still syncs GitHub branch `dev`, not Forgejo
-- No Cloudflare Tunnel: excalidraw uses the LAN Gateway `homelab` instead of `homelab-public`
+- No Cloudflare Tunnel: excalidraw uses the LAN Gateway `gateway` instead of `public`
+- No kube-vip: ServiceLB serves the Gateway on the k3d node instead of a kube-vip address

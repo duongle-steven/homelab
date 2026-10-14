@@ -25,6 +25,7 @@
     - /etc/rancher/k3s
     - /etc/rancher/node
     - "{{ k3s_data_dir }}/agent/pod-manifests"
+    - "{{ k3s_data_dir }}/server/manifests"
 
 - name: Check if k3s token file exists on the first node
   run_once: true
@@ -72,6 +73,13 @@
   loop:
     - src: kube-vip.yaml.j2
       dest: "{{ k3s_data_dir }}/agent/pod-manifests/kube-vip.yaml"
+
+- name: Install the Gateway API CRDs through k3s's auto-deploy manifests
+  when: "'masters' in group_names"
+  ansible.builtin.get_url:
+    url: https://github.com/kubernetes-sigs/gateway-api/releases/download/{{ gateway_api_version }}/standard-install.yaml
+    dest: "{{ k3s_data_dir }}/server/manifests/gateway-api.yaml"
+    mode: 0644
 
 - name: Enable k3s service
   ansible.builtin.systemd:

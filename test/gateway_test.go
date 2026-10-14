@@ -40,6 +40,16 @@ func TestGatewayRouteReady(t *testing.T) {
 	}
 }
 
+func TestGatewayNodeAddressFromInspect(t *testing.T) {
+	addr, err := nodeAddressFromInspect("172.18.0.2\n")
+	require.NoError(t, err)
+	assert.Equal(t, "172.18.0.2", addr)
+	_, err = nodeAddressFromInspect("\n")
+	assert.Error(t, err, "no address: the k3d node is not running")
+	_, err = nodeAddressFromInspect("not-an-ip")
+	assert.Error(t, err)
+}
+
 func gatewaySandboxOnly(t *testing.T) {
 	if os.Getenv("ENV") != "dev" {
 		t.Skip("Gateway tests run against the sandbox only")
@@ -58,17 +68,15 @@ type gateway struct {
 
 func TestGatewayProgrammed(t *testing.T) {
 	gatewaySandboxOnly(t)
-	// Both are pinned (system/gateway/values-dev.yaml); the localhost proxy forwards to homelab
-	addresses := map[string]string{"homelab": sandboxIngress, "homelab-public": "172.30.255.201"}
-	for name, address := range addresses {
+	// Both get an address: gateway from ServiceLB (the k3d node), public its ClusterIP
+	for _, name := range []string{"gateway", "public"} {
 		t.Run(name, func(t *testing.T) {
 			var gw gateway
 			require.Eventually(t, func() bool {
 				gw = gateway{}
-				return getResource(t, "gateway", &gw, "gateway", name) && conditionsMet(gw.Status.Conditions, "Accepted", "Programmed")
+				return getResource(t, "istio-system", &gw, "gateway", name) && conditionsMet(gw.Status.Conditions, "Accepted", "Programmed")
 			}, 20*time.Minute, 15*time.Second, "Gateway %s is not programmed", name)
 			require.NotEmpty(t, gw.Status.Addresses)
-			assert.Equal(t, address, gw.Status.Addresses[0].Value)
 		})
 	}
 }
@@ -84,7 +92,7 @@ func TestGatewayHTTPSRedirect(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "https", location.Scheme)
 	assert.Equal(t, host, location.Hostname())
-	// Cilium writes the default port (:443) into Location; browsers treat both forms the same
+	// Some Gateways write the default port (:443) into Location; browsers treat both forms the same
 	assert.Contains(t, []string{"", "443"}, location.Port())
 	assert.Equal(t, "/some/path?x=1", location.RequestURI())
 }
@@ -111,7 +119,7 @@ func TestGatewayNoIngress(t *testing.T) {
 func TestGatewayForgejoSSH(t *testing.T) {
 	gatewaySandboxOnly(t)
 	require.Eventually(t, func() bool {
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(sandboxIngress, "22"), 10*time.Second)
+		conn, err := net.DialTimeout("tcp", net.JoinHostPort(sandboxAddress(), "22"), 10*time.Second)
 		if err != nil {
 			return false
 		}
@@ -119,7 +127,7 @@ func TestGatewayForgejoSSH(t *testing.T) {
 		_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		banner, err := bufio.NewReader(conn).ReadString('\n')
 		return err == nil && strings.HasPrefix(banner, "SSH-2.0-")
-	}, 20*time.Minute, 15*time.Second, "no SSH banner from forgejo on %s:22", sandboxIngress)
+	}, 20*time.Minute, 15*time.Second, "no SSH banner from forgejo on %s:22", sandboxAddress())
 }
 
 // TestGatewayZotLargePush uploads one 200 MiB blob through the Gateway, as an image push would.

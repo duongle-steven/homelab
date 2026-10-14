@@ -2,12 +2,22 @@ kube-prometheus-stack:
   # The ntfy relay would send real notifications from the sandbox
   alertmanager:
     enabled: false
-  # Cilium replaces kube-proxy
+  # k3s runs them inside its own process and the k3d node has no fixed address to scrape
+  kubeControllerManager:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeEtcd:
+    enabled: false
   kubeProxy:
     enabled: false
   defaultRules:
     rules:
+      etcd: false
+      kubeControllerManager: false
       kubeProxy: false
+      kubeSchedulerAlerting: false
+      kubeSchedulerRecording: false
   # No Loki in the sandbox
   grafana:
     additionalDataSources: []

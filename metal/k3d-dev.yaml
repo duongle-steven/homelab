@@ -1,0 +1,31 @@
+# Sandbox cluster: one k3s server with k3s's own networking (Flannel, kube-proxy, ServiceLB, network policy),
+# like production; Istio serves the Gateways (system/istio-system). No host port mapping: under WSL mirrored
+# networking Windows cannot reach ports Docker publishes, so metal/Makefile runs a localhost proxy instead.
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: homelab-dev
+servers: 1
+agents: 0
+image: rancher/k3s:v1.37.1-k3s1
+options:
+  k3s:
+    extraArgs:
+      - arg: --disable=traefik
+        nodeFilters: [server:*]
+      # k3s 1.37 packages Gateway API v1.6.1 CRDs; ours (metal/Makefile) are the latest release
+      - arg: --disable=gateway-api-crd
+        nodeFilters: [server:*]
+      # Embedded etcd, like production
+      - arg: --cluster-init
+        nodeFilters: [server:*]
+      # Control plane metrics like production (the sandbox does not scrape them: no fixed node address)
+      - arg: --etcd-expose-metrics
+        nodeFilters: [server:*]
+      - arg: --kube-controller-manager-arg=bind-address=0.0.0.0
+        nodeFilters: [server:*]
+      - arg: --kube-scheduler-arg=bind-address=0.0.0.0
+        nodeFilters: [server:*]
+  kubeconfig:
+    updateDefaultKubeconfig: false
+    switchCurrentContext: false

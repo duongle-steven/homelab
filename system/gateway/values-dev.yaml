@@ -1,6 +1,0 @@
-domain: 127-0-0-1.nip.io
-# Both pinned: LB IPAM hands out the first free pool address, which could otherwise go to homelab-public
-addresses:
-  # The localhost proxy (metal/Makefile) forwards 127.0.0.1:80/443 here
-  homelab: 172.30.255.200
-  homelab-public: 172.30.255.201

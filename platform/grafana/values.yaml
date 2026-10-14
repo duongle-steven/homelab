@@ -6,8 +6,8 @@ grafana:
     main:
       enabled: true
       parentRefs:
-        - name: homelab
-          namespace: gateway
+        - name: gateway
+          namespace: istio-system
           sectionName: https
       hostnames:
         - grafana.khuedoan.com

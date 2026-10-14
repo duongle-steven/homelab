@@ -7,3 +7,4 @@ book/
 *.tgz
 *kubeconfig.yaml
 Chart.lock
+metal/gateway-api-*.yaml

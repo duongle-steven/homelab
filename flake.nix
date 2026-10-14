@@ -45,8 +45,7 @@
             pre-commit
             qrencode
             shellcheck
-            unstable.cilium-cli
-            unstable.kind
+            unstable.k3d
             wireguard-tools
             yamllint
             yq-go

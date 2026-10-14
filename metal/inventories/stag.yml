@@ -1,9 +1,3 @@
-all:
-  vars:
-    # k3s-specific API endpoint, generic solution is in progress
-    # https://github.com/cilium/cilium/issues/19038
-    cilium_k8s_service_host: 127.0.0.1
-    cilium_k8s_service_port: 6444
 metal:
   children:
     masters:

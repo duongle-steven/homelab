@@ -47,7 +47,7 @@ argocd-apps:
                   - name: global.domain
                     value: khuedoan.com
                   - name: global.publicGateway
-                    value: homelab-public
+                    value: public
                   - name: global.devCA
                     value: ""
             - repoURL: *repoURL

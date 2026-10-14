@@ -6,8 +6,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   parentRefs:
-    - name: homelab
-      namespace: gateway
+    - name: gateway
+      namespace: istio-system
       sectionName: ssh
   rules:
     - backendRefs:
