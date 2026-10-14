@@ -1,0 +1,23 @@
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          repository: registry.khuedoan.com/blog
+          tag: latest
+service:
+  main:
+    ports:
+      http:
+        port: 3000
+        protocol: HTTP
+route:
+  main:
+    annotations:
+      external-dns.kubernetes.io/cloudflare-proxied: "true"
+    hostnames:
+      - www.{{ .Values.global.domain }}
+    parentRefs:
+      - name: '{{ .Values.global.publicGateway }}'
+        namespace: gateway
+        sectionName: https

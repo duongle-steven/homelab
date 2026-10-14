@@ -1,0 +1,21 @@
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          repository: docker.io/openspeedtest/latest
+          tag: v2.0.6
+service:
+  main:
+    ports:
+      http:
+        port: 3000
+        protocol: HTTP
+route:
+  main:
+    hostnames:
+      - speedtest.{{ .Values.global.domain }}
+    parentRefs:
+      - name: homelab
+        namespace: gateway
+        sectionName: https

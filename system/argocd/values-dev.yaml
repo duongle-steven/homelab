@@ -44,11 +44,6 @@ argocd-apps:
               - path: system/gateway
               - path: system/cert-manager
               - path: system/monitoring-system
-              - path: apps/excalidraw
-              - path: apps/actualbudget
-              - path: apps/homepage
-              - path: apps/pairdrop
-              - path: apps/speedtest
               - path: platform/external-secrets
               - path: platform/global-secrets
               - path: platform/kanidm
@@ -66,3 +61,33 @@ argocd-apps:
                 - values.yaml
                 - values-dev.yaml
               ignoreMissingValueFiles: true
+    apps:
+      generators:
+        - git:
+            repoURL: *repoURL
+            revision: *revision
+            files:
+              - path: apps/actualbudget.yaml
+              - path: apps/excalidraw.yaml
+              - path: apps/homepage.yaml
+              - path: apps/pairdrop.yaml
+              - path: apps/speedtest.yaml
+      template:
+        spec:
+          sources:
+            - repoURL: https://bjw-s-labs.github.io/helm-charts
+              chart: app-template
+              targetRevision: 5.3.0
+              helm:
+                releaseName: '{{ .path.filename | trimSuffix ".yaml" }}'
+                valueFiles:
+                  - '$values/apps/{{ .path.filename }}'
+                parameters:
+                  - name: global.domain
+                    value: 127-0-0-1.nip.io
+                  # No Cloudflare Tunnel in the sandbox: public apps use the LAN Gateway
+                  - name: global.publicGateway
+                    value: homelab
+            - repoURL: *repoURL
+              targetRevision: *revision
+              ref: values

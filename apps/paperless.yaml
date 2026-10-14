@@ -1,0 +1,55 @@
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          repository: ghcr.io/paperless-ngx/paperless-ngx
+          tag: 3.3.1
+        env:
+          PAPERLESS_PORT: 8000
+          PAPERLESS_ADMIN_USER: admin
+          PAPERLESS_URL: https://paperless.{{ .Values.global.domain }}
+        envFrom:
+          - secret: "{{ .Release.Name }}-secret"
+      redis:
+        image:
+          repository: docker.io/library/redis
+          tag: 8.10.2
+service:
+  main:
+    ports:
+      http:
+        port: 8000
+        protocol: HTTP
+route:
+  main:
+    hostnames:
+      - paperless.{{ .Values.global.domain }}
+    parentRefs:
+      - name: homelab
+        namespace: gateway
+        sectionName: https
+persistence:
+  data:
+    # Keep the PVC name paperless-data
+    suffix: data
+    accessMode: ReadWriteOnce
+    size: 10Gi
+    advancedMounts:
+      main:
+        main:
+          - path: /usr/src/paperless/data
+            subPath: data
+          - path: /usr/src/paperless/media
+            subPath: media
+externalSecrets:
+  secret:
+    forceRename: paperless-secret
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: global-secrets
+    dataFrom:
+      - extract:
+          key: paperless.admin
+    target:
+      deletionPolicy: Retain

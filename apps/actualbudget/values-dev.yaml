@@ -1,5 +1,0 @@
-app-template:
-  route:
-    main:
-      hostnames:
-        - budget.127-0-0-1.nip.io

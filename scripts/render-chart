@@ -1,17 +1,38 @@
 #!/bin/sh
-# Render a wrapper chart the same way ArgoCD does: values.yaml, then values-<env>.yaml if it exists.
-# Usage: scripts/render-chart <chart-dir> [env]
+# Render a component the same way ArgoCD does.
+# Usage: scripts/render-chart <chart-dir> [env]      wrapper chart: values.yaml, then values-<env>.yaml if it exists
+#        scripts/render-chart apps/<name>.yaml [env]  app file: app-template with the ApplicationSet "apps" parameters
 set -eu
-dir="$1"
+target="$1"
 env="${2:-prod}"
-name="$(basename "$dir")"
+argocd=system/argocd
 set --
-[ -f "$dir/values.yaml" ] && set -- -f "$dir/values.yaml"
-[ "$env" != prod ] && [ -f "$dir/values-$env.yaml" ] && set -- "$@" -f "$dir/values-$env.yaml"
-helm dependency update "$dir" >/dev/null
 # ArgoCD passes the cluster's API versions; charts pick Gateway API versions from them
 set -- "$@" --api-versions gateway.networking.k8s.io/v1
 for kind in Gateway HTTPRoute TCPRoute BackendTLSPolicy ReferenceGrant; do
   set -- "$@" --api-versions "gateway.networking.k8s.io/v1/$kind"
 done
-helm template "$name" "$dir" --namespace "$name" --include-crds "$@"
+
+if [ -f "$target" ]; then
+  name="$(basename "$target" .yaml)"
+  # The sandbox restates the ApplicationSet source in values-dev.yaml
+  source_of() {
+    query=".argocd-apps.applicationsets.apps.template.spec.sources[0]$1"
+    if [ "$env" != prod ] && [ "$(yq "$query" "$argocd/values-$env.yaml" 2>/dev/null)" != null ]; then
+      yq "$query" "$argocd/values-$env.yaml"
+    else
+      yq "$query" "$argocd/values.yaml"
+    fi
+  }
+  for parameter in $(source_of '.helm.parameters[] | .name + "=" + .value'); do
+    set -- "$@" --set-string "$parameter"
+  done
+  exec helm template "$name" "$(source_of .chart)" --repo "$(source_of .repoURL)" \
+    --version "$(source_of .targetRevision)" --namespace "$name" --include-crds -f "$target" "$@"
+fi
+
+name="$(basename "$target")"
+[ -f "$target/values.yaml" ] && set -- "$@" -f "$target/values.yaml"
+[ "$env" != prod ] && [ -f "$target/values-$env.yaml" ] && set -- "$@" -f "$target/values-$env.yaml"
+helm dependency update "$target" >/dev/null
+helm template "$name" "$target" --namespace "$name" --include-crds "$@"

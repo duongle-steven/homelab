@@ -1,0 +1,61 @@
+controllers:
+  tailscale:
+    # tailscale stores its state in the Secret tailscale (TS_KUBE_SECRET); app-template 5 disables the token by default
+    pod:
+      automountServiceAccountToken: true
+    serviceAccount:
+      identifier: tailscale
+    containers:
+      app:
+        image:
+          repository: ghcr.io/tailscale/tailscale
+          tag: v1.102.5
+        env:
+          TS_HOSTNAME: homelab-router
+          TS_USERSPACE: false
+          TS_KUBE_SECRET: tailscale
+          TS_ROUTES: 192.168.1.224/27
+          TS_AUTHKEY:
+            valueFrom:
+              secretKeyRef:
+                name: tailscale-auth
+                key: TS_AUTHKEY
+        securityContext:
+          capabilities:
+            add:
+              - NET_ADMIN
+serviceAccount:
+  tailscale: {}
+rbac:
+  # https://github.com/tailscale/tailscale/blob/main/docs/k8s/role.yaml
+  roles:
+    tailscale:
+      type: Role
+      rules:
+        - apiGroups: [""]
+          resources: ["secrets"]
+          verbs: ["create"]
+        - apiGroups: [""]
+          resourceNames: ["tailscale"]
+          resources: ["secrets"]
+          verbs: ["get", "update", "patch"]
+  bindings:
+    tailscale:
+      type: RoleBinding
+      roleRef:
+        identifier: tailscale
+      subjects:
+        - identifier: tailscale
+externalSecrets:
+  auth:
+    forceRename: tailscale-auth
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: global-secrets
+    data:
+      - secretKey: TS_AUTHKEY
+        remoteRef:
+          key: external
+          property: tailscale-auth-key
+    target:
+      deletionPolicy: Retain
