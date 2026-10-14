@@ -89,6 +89,9 @@ argocd-apps:
                   # No Cloudflare Tunnel in the sandbox: public apps use the LAN Gateway
                   - name: global.publicGateway
                     value: homelab
+                  # App files trust the sandbox CA ConfigMap homelab-dev-ca when set
+                  - name: global.devCA
+                    value: "true"
             - repoURL: *repoURL
               targetRevision: *revision
               ref: values

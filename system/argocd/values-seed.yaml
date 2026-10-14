@@ -48,6 +48,8 @@ argocd-apps:
                     value: khuedoan.com
                   - name: global.publicGateway
                     value: homelab-public
+                  - name: global.devCA
+                    value: ""
             - repoURL: *repoURL
               targetRevision: *revision
               ref: values
