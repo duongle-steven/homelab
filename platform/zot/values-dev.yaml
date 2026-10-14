@@ -1,3 +1,4 @@
+host: registry.127-0-0-1.nip.io
 zot:
   httproute:
     hostnames:
@@ -9,8 +10,8 @@ zot:
         openid:
           providers:
             oidc:
-              issuer: https://dex.127-0-0-1.nip.io
-  # Trust the sandbox CA for calls to Dex
+              issuer: https://auth.127-0-0-1.nip.io/oauth2/openid/zot
+  # Trust the sandbox CA for calls to Kanidm
   env:
     - name: SSL_CERT_DIR
       value: /etc/ssl/certs:/etc/homelab-dev-ca

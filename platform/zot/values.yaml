@@ -1,3 +1,4 @@
+host: registry.khuedoan.com
 zot:
   httproute:
     enabled: true
@@ -34,14 +35,15 @@ zot:
         # Machine account for CI
         htpasswd:
           path: /secret/zot-auth/htpasswd
-        # People log in to the UI through Dex and create API keys for docker/crane
+        # People log in to the UI through Kanidm and create API keys for docker/crane
         apikey: true
         openid:
           providers:
             oidc:
               name: Kanidm
-              issuer: https://dex.khuedoan.com
-              credentialsFile: /secret/zot-auth/oidc-credentials.json
+              issuer: https://auth.khuedoan.com/oauth2/openid/zot
+              # Public client: no secret, zot uses PKCE
+              clientid: zot
               scopes:
                 - openid
                 - profile
@@ -49,7 +51,7 @@ zot:
                 - groups
               claimMapping:
                 username: preferred_username
-                groups: groups
+                groups: homelab_groups
       accessControl:
         repositories:
           "**":
