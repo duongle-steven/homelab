@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -301,8 +302,10 @@ func TestSSOOpenCloud(t *testing.T) {
 			}
 			// Twice: the second login must reuse the account (keyed by Kanidm's sub) and keep the role
 			var ids []string
+			var token string
 			for range 2 {
-				auth := []string{"Authorization", "Bearer " + openCloudLogin(t, c.account, ensureCredentials(t, c.account), base)}
+				token = openCloudLogin(t, c.account, ensureCredentials(t, c.account), base)
+				auth := []string{"Authorization", "Bearer " + token}
 				var me struct {
 					ID                 string `json:"id"`
 					DisplayName        string `json:"displayName"`
@@ -337,16 +340,26 @@ func TestSSOOpenCloud(t *testing.T) {
 			}
 			assert.Equal(t, ids[0], ids[1], "the second login created another account")
 
-			// Files: a WebDAV round trip in the personal drive, which OpenCloud creates on first login
-			token := openCloudLogin(t, c.account, ensureCredentials(t, c.account), base)
-			auth := []string{"Authorization", "Bearer " + token}
+			// Files: a WebDAV round trip in the personal drive (with the last login's token), which OpenCloud
+			// creates on first login
 			var drive struct {
 				Root struct {
 					WebDavURL string `json:"webDavUrl"`
 				} `json:"root"`
 			}
+			// Not getJSON: its require calls cannot run inside the condition, and transport errors must retry
 			require.Eventually(t, func() bool {
-				return getJSON(t, "GET", base+"/graph/v1.0/me/drive", nil, "", "", nil, &drive, auth...) == http.StatusOK && drive.Root.WebDavURL != ""
+				req, err := http.NewRequest(http.MethodGet, base+"/graph/v1.0/me/drive", nil)
+				if err != nil {
+					return false
+				}
+				req.Header.Set("Authorization", "Bearer "+token)
+				resp, err := insecureClient.Do(req)
+				if err != nil {
+					return false
+				}
+				defer resp.Body.Close()
+				return resp.StatusCode == http.StatusOK && json.NewDecoder(resp.Body).Decode(&drive) == nil && drive.Root.WebDavURL != ""
 			}, time.Minute, 2*time.Second, "no personal drive for %s", c.account)
 			file := fmt.Sprintf("%s/homelab-test-%d.txt", strings.TrimSuffix(drive.Root.WebDavURL, "/"), time.Now().UnixNano())
 			content := fmt.Sprintf("homelab test %s %d", c.account, time.Now().UnixNano())
