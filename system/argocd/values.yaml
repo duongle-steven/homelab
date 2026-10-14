@@ -10,6 +10,11 @@ argo-cd:
       resource.customizations.ignoreResourceUpdates.all: |
         jsonPointers:
           - /status
+      # istiod patches its validating webhooks (CA bundle, failure policy once it is ready)
+      resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
+        jqPathExpressions:
+          - .webhooks[]?.clientConfig.caBundle
+          - .webhooks[]?.failurePolicy
       # Needed for the editor role; also lets admins open a terminal in the UI
       exec.enabled: "true"
       oidc.config: |
@@ -112,6 +117,8 @@ argocd-apps:
               - CreateNamespace=true
               - ApplyOutOfSyncOnly=true
               - ServerSideApply=true
+              # Keep the ignored webhook fields when a sync applies the rest
+              - RespectIgnoreDifferences=true
             managedNamespaceMetadata:
               annotations:
                 # Enable privileged VolSync movers by default for all namespaces

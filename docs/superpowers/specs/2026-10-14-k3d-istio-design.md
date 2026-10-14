@@ -78,7 +78,7 @@ Step 6 is split: **6a** (this spec) and **6b** Istio ambient mesh (`istio-cni`, 
 - Role `k3s`: `k3s_version: v1.37.1+k3s1`; `k3s_server_config` keeps `tls-san`, `secrets-encryption`,
   `disable-helm-controller` and `disable: [local-storage, traefik]`, and drops `servicelb`,
   `disable-kube-proxy`, `disable-network-policy` and `flannel-backend: none`; same metrics flags as the
-  sandbox; Gateway API CRDs (experimental channel) through the auto-deploy manifests.
+  sandbox; Gateway API CRDs (standard channel v1.6.3) through the auto-deploy manifests.
 - kube-vip v1.2.4: `cp_enable` for `192.168.1.100` as before, plus `svc_enable`, `lb_class_only` and the
   class `kube-vip.io/kube-vip-class`, so it only serves Services that ask for it.
 - `cluster.yml` drops the role `cilium` (deleted); inventories drop `cilium_*`; `load_balancer_ip_pool`
@@ -90,12 +90,12 @@ Step 6 is split: **6a** (this spec) and **6b** Istio ambient mesh (`istio-cni`, 
 ### `system/istio-system` (replaces `system/gateway`)
 
 - Dependencies `base` and `istiod` 1.31.1 (`https://blob.istio.io/istio-release/charts`); istiod
-  with `PILOT_ENABLE_ALPHA_GATEWAY_API=true` (`TCPRoute`) and requests cpu 100m, memory 128Mi; the
+  (Istio 1.31 serves `TCPRoute` and `BackendTLSPolicy` without the alpha flag) with requests cpu 100m, memory 128Mi; the
   ApplicationSet ignores the validating webhooks' `failurePolicy` and `caBundle`, as upstream.
 - Gateway `gateway` (class `istio`): listeners `http` 80 (only the redirect route), `https` 443
   `*.<domain>` (`wildcard-tls`, all namespaces), `ssh` 22 (`TCPRoute` from namespace `forgejo` only).
   Production: `infrastructure.parametersRef` to a ConfigMap that gives the Service
-  `loadBalancerClass: kube-vip.io/kube-vip-class`, and `addresses` `192.168.1.224`. Sandbox
+  `loadBalancerClass: kube-vip.io/kube-vip-class`, and the kube-vip annotation `kube-vip.io/loadbalancerIPs: 192.168.1.224`. Sandbox
   (`values-dev.yaml`): neither, so ServiceLB publishes `gateway-istio` on the node.
 - Gateway `public`: listener `https` only, the external-dns target annotation as today, Service
   `public-istio` of type `ClusterIP` through `infrastructure.parametersRef`.

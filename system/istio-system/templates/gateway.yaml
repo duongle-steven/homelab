@@ -1,13 +1,30 @@
+{{- with .Values.gateway.loadBalancer }}
+# Merged into the Service Istio generates for the Gateway (spec.infrastructure.parametersRef)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-options
+data:
+  service: |
+    metadata:
+      annotations:
+        kube-vip.io/loadbalancerIPs: {{ .ip }}
+    spec:
+      loadBalancerClass: {{ .class }}
+---
+{{- end }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: homelab
+  name: gateway
 spec:
-  gatewayClassName: cilium
-  {{- with .Values.addresses.homelab }}
-  addresses:
-    - type: IPAddress
-      value: {{ . }}
+  gatewayClassName: istio
+  {{- if .Values.gateway.loadBalancer }}
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: gateway-options
   {{- end }}
   listeners:
     # Only the HTTPS redirect (templates/https-redirect.yaml)
@@ -24,7 +41,7 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: homelab-wildcard-tls
+          - name: wildcard-tls
       allowedRoutes:
         namespaces:
           from: All
@@ -41,21 +58,31 @@ spec:
         kinds:
           - kind: TCPRoute
 ---
+# cloudflared forwards to it in the cluster, so it needs no external address
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: public-options
+data:
+  service: |
+    spec:
+      type: ClusterIP
+---
 # Published through the Cloudflare Tunnel: external-dns points public hosts at the tunnel,
 # and cloudflared forwards to this Gateway only
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: homelab-public
+  name: public
   annotations:
     external-dns.kubernetes.io/target: homelab-tunnel.{{ .Values.domain }}
 spec:
-  gatewayClassName: cilium
-  {{- with index .Values.addresses "homelab-public" }}
-  addresses:
-    - type: IPAddress
-      value: {{ . }}
-  {{- end }}
+  gatewayClassName: istio
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: public-options
   listeners:
     - name: https
       protocol: HTTPS
@@ -64,7 +91,7 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: homelab-wildcard-tls
+          - name: wildcard-tls
       allowedRoutes:
         namespaces:
           from: All

@@ -4,7 +4,7 @@ metadata:
   name: https-redirect
 spec:
   parentRefs:
-    - name: homelab
+    - name: gateway
       sectionName: http
   rules:
     - filters:

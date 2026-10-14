@@ -42,7 +42,7 @@ argocd-apps:
             revision: &revision dev
             directories:
               - path: system/argocd
-              - path: system/gateway
+              - path: system/istio-system
               - path: system/cert-manager
               - path: system/monitoring-system
               - path: platform/external-secrets
