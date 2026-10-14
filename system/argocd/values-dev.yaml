@@ -89,7 +89,7 @@ argocd-apps:
                     value: 127-0-0-1.nip.io
                   # No Cloudflare Tunnel in the sandbox: public apps use the LAN Gateway
                   - name: global.publicGateway
-                    value: homelab
+                    value: gateway
                   # App files trust the sandbox CA ConfigMap homelab-dev-ca when set
                   - name: global.devCA
                     value: "true"

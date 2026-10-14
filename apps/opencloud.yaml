@@ -1,4 +1,4 @@
-# Adapted from upstream nixos apps/opencloud.yaml (52c32ab): Cilium Gateway, Kanidm client and role mapping
+# Adapted from upstream nixos apps/opencloud.yaml (52c32ab): Kanidm client and role mapping
 controllers:
   main:
     strategy: Recreate
@@ -81,8 +81,8 @@ route:
     hostnames:
       - drive.{{ .Values.global.domain }}
     parentRefs:
-      - name: homelab
-        namespace: gateway
+      - name: gateway
+        namespace: istio-system
         sectionName: https
 persistence:
   config:

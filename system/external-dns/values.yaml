@@ -1,8 +1,8 @@
 external-dns:
   provider:
     name: cloudflare
-  # Routes attached to a Gateway; the DNS target comes from the Gateway (homelab: its LB IP,
-  # homelab-public: the Cloudflare Tunnel)
+  # Routes attached to a Gateway; the DNS target comes from the Gateway (gateway: its kube-vip address,
+  # public: the Cloudflare Tunnel)
   sources:
     - gateway-httproute
   # Never delete records (the previous chart default; the chart now requires it)

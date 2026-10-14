@@ -3,8 +3,8 @@ zot:
   httproute:
     enabled: true
     parentRefs:
-      - name: homelab
-        namespace: gateway
+      - name: gateway
+        namespace: istio-system
         sectionName: https
     hostnames:
       - registry.khuedoan.com

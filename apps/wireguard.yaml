@@ -16,6 +16,10 @@ service:
   wireguard:
     controller: wireguard
     type: LoadBalancer
+    # Its own kube-vip address (metal/inventories/prod.yml), like the LAN Gateway
+    loadBalancerClass: kube-vip.io/kube-vip-class
+    annotations:
+      kube-vip.io/loadbalancerIPs: 192.168.1.225
     ports:
       http:
         port: 51820

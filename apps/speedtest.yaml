@@ -16,6 +16,6 @@ route:
     hostnames:
       - speedtest.{{ .Values.global.domain }}
     parentRefs:
-      - name: homelab
-        namespace: gateway
+      - name: gateway
+        namespace: istio-system
         sectionName: https

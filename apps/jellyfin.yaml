@@ -56,8 +56,8 @@ route:
     hostnames:
       - jellyfin.{{ .Values.global.domain }}
     parentRefs: &parentRefs
-      - name: homelab
-        namespace: gateway
+      - name: gateway
+        namespace: istio-system
         sectionName: https
     rules:
       - backendRefs:

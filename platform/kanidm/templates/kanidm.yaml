@@ -21,8 +21,8 @@ spec:
   tlsSecretName: kanidm-tls
   gateway:
     parentRefs:
-      - name: homelab
-        namespace: gateway
+      - name: gateway
+        namespace: istio-system
         sectionName: https
     backendTlsPolicy:
       validation:

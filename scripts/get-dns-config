@@ -2,7 +2,7 @@
 
 export KUBECONFIG=./metal/kubeconfig.yaml
 # One line per route hostname: the address of the Gateway the route is attached to
-# (public DNS points homelab-public hosts at the Cloudflare Tunnel instead)
+# (public DNS points hosts on the Gateway public at the Cloudflare Tunnel instead)
 kubectl get gateways,httproutes --all-namespaces --output json | jq -r '
   (.items | map(select(.kind == "Gateway")) | map({key: (.metadata.namespace + "/" + .metadata.name), value: (.status.addresses[0].value // "pending")}) | from_entries) as $addr
   | .items[] | select(.kind == "HTTPRoute") | . as $r

@@ -23,7 +23,7 @@ app-template:
           ingress:
             # Only the public Gateway: apps on the LAN Gateway stay off the internet
             - hostname: '*.khuedoan.com'
-              service: https://cilium-gateway-homelab-public.gateway
+              service: https://public-istio.istio-system
               originRequest:
                 noTLSVerify: true
                 # The Gateway's listener needs the requested host as SNI

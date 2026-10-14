@@ -61,8 +61,8 @@ argo-cd:
     httproute:
       enabled: true
       parentRefs:
-        - name: homelab
-          namespace: gateway
+        - name: gateway
+          namespace: istio-system
           sectionName: https
       # The chart does not derive it from global.domain
       hostnames:
@@ -159,7 +159,7 @@ argocd-apps:
                   - name: global.domain
                     value: khuedoan.com
                   - name: global.publicGateway
-                    value: homelab-public
+                    value: public
                   - name: global.devCA
                     value: ""
             - repoURL: *repoURL

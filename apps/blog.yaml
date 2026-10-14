@@ -19,5 +19,5 @@ route:
       - www.{{ .Values.global.domain }}
     parentRefs:
       - name: '{{ .Values.global.publicGateway }}'
-        namespace: gateway
+        namespace: istio-system
         sectionName: https
