@@ -127,8 +127,9 @@ Sandbox tests:
 - `sso_test.go`, `TestSSOOpenCloud` (host `drive.127-0-0-1.nip.io`):
   - `dev-admin` (Admin) and `dev-editor` (User): a helper `openCloudLogin` opens the web UI, logs in through
     Kanidm (accepting the consent page) and captures the `Authorization: Bearer` header the web UI sends to
-    `/graph`. With it: `GET /graph/v1.0/me?$expand=appRoleAssignments` (username, and the role name resolved
-    through `/graph/v1.0/applications`); the personal drive's `webDavUrl` from `/graph/v1.0/me/drives`; PUT a
+    `/graph`. With it: `GET /graph/v1.0/me?$expand=appRoleAssignments` (the display name matches the Kanidm
+    account; the username is the Kanidm `sub` UUID, as upstream; the role name is resolved through
+    `/graph/v1.0/applications`); the personal drive's `webDavUrl` from `/graph/v1.0/me/drives`; PUT a
     file with random content, GET it back and compare, DELETE it.
   - `dev-viewer` and `dev-outsider`: `browserDenied` returns "Access Denied".
 - The `make dev` filter already matches (`SSO`).
