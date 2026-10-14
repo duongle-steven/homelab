@@ -60,7 +60,8 @@ scratch; there is no data migration.
 ### `platform/cloudnative-pg` (production only)
 
 - Wrapper chart depending on `cloudnative-pg` 0.29.1 from `https://cloudnative-pg.github.io/charts`,
-  namespace `cnpg-system`, CRDs installed by the chart, monitoring with the Prometheus Operator
+  namespace `cloudnative-pg` (the `root` ApplicationSet names namespaces after the directory), CRDs installed by
+  the chart (Argo CD already applies server side, so their size is fine), monitoring with the Prometheus Operator
   (`PodMonitor`).
 - Not in the sandbox allowlist: the sandbox runs no PostgreSQL. Production picks it up through the
   `platform/*` generator.
@@ -143,7 +144,8 @@ A comment marks each chart-imposed `gitea` name where it appears.
 - Argo CD reads the private repository with a repository credential: ExternalSecret
   `argocd-repo-forgejo` in `argocd` (label `argocd.argoproj.io/secret-type: repository`, `url` of the
   repository, `username forgejo_admin`, `password` from `forgejo.admin`). Step 9 replaces it with a
-  read-only token in OpenBao.
+  read-only token in OpenBao. It is rendered in the sandbox too (harmless: the sandbox Argo CD reads
+  GitHub), so the tests can prove the credential reads the seeded repository.
 - `values-seed.yaml` keeps syncing GitHub for the first install.
 - `system/bootstrap.yml` detects a running pod with `app.kubernetes.io/instance=forgejo`.
 - The sandbox keeps syncing GitHub branch `dev`, so the switch itself is only rendered.
@@ -185,11 +187,15 @@ Sandbox (`make dev`; the basic-checks regex does not change because the new test
   `preferred_username`, and `is_admin` is true only for `dev-admin`. `dev-outsider` gets Kanidm's
   "Access Denied".
 - `TestForgejoSeed`: as `forgejo_admin` (password from Secret `forgejo-admin`),
-  `GET /api/v1/repos/ops/homelab` returns 200 and the repository is private; `git ls-remote` over HTTPS
-  lists `master`.
+  `GET /api/v1/repos/ops/homelab` returns 200, the repository is private and not empty; with the
+  username and password of Argo CD's repository Secret `argocd-repo-forgejo`,
+  `GET /api/v1/repos/ops/homelab/branches/master` returns 200 (the credential production Argo CD uses
+  reads the seeded repository).
 - Rename check: `grep -rni gitea --exclude-dir=charts` outside history (past specs and plans in
   `docs/superpowers/`, `docs/reference/changelog.md`, `docs/reference/architecture/decision-records.md`)
-  finds only the chart- and image-imposed names listed in Context, plus this spec and its plan.
+  finds only the chart- and image-imposed names listed in Context, plus this spec and its plan. History
+  also covers `docs/reference/roadmap.md` (upstream's completed items) and the title of an external
+  tutorial cited in `README.md`.
 
 Basic checks on the branch: `scripts/render-chart` for `platform/forgejo`, `platform/cloudnative-pg`,
 `system/argocd`, `system/gateway`, `platform/global-secrets`, `platform/kanidm`, `platform/woodpecker`,
@@ -206,8 +212,8 @@ PostgreSQL through CloudNativePG, the Argo CD switch to Forgejo with its reposit
   (Forgejo is the source of truth; push to GitHub when needed; the push mirror comes in step 9) and
   update `mkdocs.yml`.
 - Update `README.md`, `docs/reference/architecture/overview.md`, `networking.md`,
-  `docs/installation/post-installation.md`, `docs/concepts/secrets-management.md`,
-  `docs/reference/roadmap.md`.
+  `docs/installation/post-installation.md`, `docs/concepts/secrets-management.md`. In `README.md` the
+  Gitea demo screenshot (upstream's asset) is dropped and the tech stack lists Forgejo.
 - `docs/installation/sandbox.md`: Forgejo in the identity table; RAM measured after `make dev`.
 - `docs/getting-started/user-onboarding.md`: role groups also set Forgejo access (admins are site
   admins); offboarding disables the Forgejo user.
