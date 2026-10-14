@@ -1,4 +1,4 @@
-# Sandbox: sync an allowlist from GitHub instead of in-cluster Gitea.
+# Sandbox: sync an allowlist from GitHub instead of in-cluster Forgejo.
 # Helm replaces lists and anchors do not cross files, so generator and source are restated in full.
 argo-cd:
   global:
