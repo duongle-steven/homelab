@@ -30,7 +30,11 @@ stored and read back.
   the claim-value-to-role map exists only in the proxy config file
   (`role_assignment.oidc_role_mapper.role_mapping`, a list of `role_name`/`claim_value`; the first matching
   entry wins, unmapped values are ignored). OpenCloud requires the claim in the access token or the userinfo
-  endpoint, independent of the requested scopes. Whether Kanidm's `claimMap` claims reach either is unproven.
+  endpoint, independent of the requested scopes. Probed on the sandbox (client `smoke`, 2026-10-14): Kanidm's
+  access token is a JWT (ES256, `typ: at+jwt`) without `claimMap` claims, and its userinfo endpoint returns
+  `homelab_groups`. OpenCloud 8.1.0's proxy verifies the access token, then reads the claims from userinfo
+  (`services/proxy/pkg/middleware/oidc_auth.go`, unless `PROXY_OIDC_SKIP_USER_INFO`), so the role mapping
+  works with Kanidm. The proxy fetches the discovery document on first use (`pkg/oidc/client.go`).
 - `test/identity_helpers_test.go` already accepts Kanidm's consent page in `appLogin` (zot is public) and has
   `browserDenied` for accounts Kanidm refuses.
 
@@ -107,13 +111,13 @@ login, so leaving `homelab-admins` demotes someone to User on their next login. 
 
 ## Error handling
 
-- `homelab_groups` not readable by OpenCloud (the open risk): the first plan task proves it against the
-  sandbox before anything else is built on it. If it fails, stop and ask; the fallback is the `default`
-  driver (everyone User, admins assigned by hand).
+- `homelab_groups` reaches OpenCloud through userinfo (see Context); `TestSSOOpenCloud` proves the mapping
+  end to end. If it fails there, stop and ask; the fallback is the `default` driver (everyone User, admins
+  assigned by hand).
 - `opencloud-config` holds the secrets `opencloud init` generated; losing the PVC loses them (and the
   internal LDAP's users and shares). Backups come in step 10.
-- Kanidm unreachable: new logins fail. Whether the pod still starts is not known yet; the plan checks it
-  in the sandbox and `CLAUDE.md` records the result (as for Forgejo and zot).
+- Kanidm unreachable: new logins fail; the proxy looks up discovery on first use, so OpenCloud still starts
+  (from the source; not exercised in the sandbox).
 
 ## Testing
 
