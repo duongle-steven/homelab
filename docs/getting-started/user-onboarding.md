@@ -25,15 +25,24 @@
 
 === "For admin"
 
-    Add the person to one of the three groups (`admins`, `editors` or `users`):
+    Add the person to one of the three role groups (`admins`, `editors` or `users`), and optionally to the access groups `budget` and `documents`:
 
     ```sh
-    ./scripts/onboard-user johndoe "John Doe" "johndoe@example.com" users
+    ./scripts/onboard-user johndoe "John Doe" "johndoe@example.com" users budget
     ```
 
     The script prints the `idm_admin` password for the login prompt and ends with a credential reset link.
     Let the user scan the QR code or follow the link to set up a passkey or password + TOTP (Kanidm requires MFA).
 
-    The group decides access everywhere: `admins` administer Grafana, Argo CD and the registry; `editors` edit Grafana dashboards, sync Argo CD apps and push images; `users` view and pull.
+    The role group decides access to the admin tools: `admins` administer Grafana, Argo CD and the registry; `editors` edit Grafana dashboards, sync Argo CD apps and push images; `users` view and pull.
 
-    To offboard someone, remove them from their group (or delete the person) in Kanidm **and** delete their API keys in the registry: zot keeps the groups from their last login for existing keys.
+    Apps with personal data only admit their access group, whatever the role group:
+
+    | Kanidm group | App | Access |
+    |---|---|---|
+    | `homelab-budget` | Actual Budget | an account on first login (the first one becomes the server owner) |
+    | `homelab-documents` | paperless | a regular account on first login; members of `homelab-admins` also become superusers |
+
+    To grant access to an existing person later: `kanidm group add-members homelab-budget johndoe --name idm_admin`.
+
+    To offboard someone, remove them from their groups (or delete the person) in Kanidm **and** delete their API keys in the registry: zot keeps the groups from their last login for existing keys.

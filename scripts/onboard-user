@@ -1,5 +1,5 @@
 #!/bin/sh
-# Usage: scripts/onboard-user <username> <fullname> <mail> <admins|editors|users>
+# Usage: scripts/onboard-user <username> <fullname> <mail> <admins|editors|users> [budget] [documents]
 
 set -eu
 
@@ -7,11 +7,19 @@ username="${1}"
 fullname="${2}"
 mail="${3}"
 group="${4}"
+shift 4
 
 case "${group}" in
     admins|editors|users) ;;
     *) echo "group must be one of: admins, editors, users" >&2; exit 1 ;;
 esac
+# Optional access groups for apps with personal data
+for access in "$@"; do
+    case "${access}" in
+        budget|documents) ;;
+        *) echo "access group must be one of: budget, documents" >&2; exit 1 ;;
+    esac
+done
 
 export KUBECONFIG="${KUBECONFIG:-./metal/kubeconfig.yaml}"
 host="$(kubectl get kanidm --namespace kanidm kanidm --output jsonpath='{.spec.domain}')"
@@ -33,4 +41,7 @@ kanidm login --url "${url}" --name idm_admin
 kanidm person create "${username}" "${fullname}" --url "${url}" --name idm_admin
 kanidm person update "${username}" --url "${url}" --name idm_admin --mail "${mail}"
 kanidm group add-members "homelab-${group}" "${username}" --url "${url}" --name idm_admin
+for access in "$@"; do
+    kanidm group add-members "homelab-${access}" "${username}" --url "${url}" --name idm_admin
+done
 kanidm person credential create-reset-token "${username}" --url "${url}" --name idm_admin

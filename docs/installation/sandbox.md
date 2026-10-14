@@ -33,10 +33,11 @@ export KUBECONFIG=$PWD/metal/kubeconfig.yaml  # from the repository root
 
 - <https://argocd.127-0-0-1.nip.io> (user `admin`, password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`)
 - <https://draw.127-0-0-1.nip.io>
-- <https://grafana.127-0-0-1.nip.io> ("Sign in with Dex", or user `admin` with `kubectl -n grafana get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`)
+- <https://grafana.127-0-0-1.nip.io> ("Sign in with Kanidm", or user `admin` with `kubectl -n grafana get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`)
 - <https://registry.127-0-0-1.nip.io> (zot; log in with Kanidm, then create an API key under your user menu and `docker login registry.127-0-0-1.nip.io -u <username> -p <key>`)
 - <https://git.127-0-0-1.nip.io> (Gitea; user `gitea_admin`, password: `kubectl -n gitea get secret gitea-admin-secret -o jsonpath='{.data.password}' | base64 -d`; SSH on `172.30.255.200:22` from WSL)
-- <https://budget.127-0-0-1.nip.io>, <https://home.127-0-0-1.nip.io>, <https://drop.127-0-0-1.nip.io>, <https://speedtest.127-0-0-1.nip.io>
+- <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io>: log in with Kanidm (paperless also has a local `admin`, password in `global-secrets/paperless.admin`)
+- <https://home.127-0-0-1.nip.io>, <https://drop.127-0-0-1.nip.io>, <https://speedtest.127-0-0-1.nip.io>
 
 On Windows with WSL, open these from the Windows browser.
 
@@ -50,14 +51,16 @@ kubectl -n cert-manager get secret homelab-dev-ca -o jsonpath='{.data.ca\.crt}' 
 
 ### Identity
 
-Kanidm (<https://auth.127-0-0-1.nip.io>) and Dex (<https://dex.127-0-0-1.nip.io>) run in the sandbox with three groups:
+Kanidm (<https://auth.127-0-0-1.nip.io>) runs in the sandbox, and every app logs in to it directly with its own OAuth2 client. The test accounts and their groups:
 
-| Group | Test account |
-|---|---|
-| `homelab-admins` | `dev-admin` |
-| `homelab-editors` | `dev-editor` |
-| `homelab-users` | `dev-viewer` |
-| (none, refused) | `dev-outsider` |
+| Test account | Role group | Access groups |
+|---|---|---|
+| `dev-admin` | `homelab-admins` | `homelab-budget`, `homelab-documents` |
+| `dev-editor` | `homelab-editors` | `homelab-documents` |
+| `dev-viewer` | `homelab-users` | `homelab-budget` |
+| `dev-outsider` | (none, refused) | (none) |
+
+The identity tests use the sandbox-only client `smoke` (`platform/kanidm`).
 
 The identity tests give each test account a password and TOTP the first time they run, and store them in the `identity-test-credentials` Secret in namespace `kanidm`:
 
@@ -72,6 +75,8 @@ What each group may do:
 | `homelab-admins` | Admin, server admin | admin | read, push, delete |
 | `homelab-editors` | Editor | view, sync, actions, logs, exec into `apps/*` | read, push |
 | `homelab-users` | Viewer | read-only | read |
+
+Actual Budget admits only `homelab-budget`, paperless only `homelab-documents` (members of `homelab-admins` become paperless superusers).
 
 Argo CD and Grafana keep their local `admin` account; zot has a `ci` account for automation (password in `global-secrets/registry.ci`).
 
@@ -94,8 +99,8 @@ Work on a feature branch created from `dev`, and run the basic checks before ope
 git switch dev && git pull
 git switch -c feat/harness-the-sun
 # ...edit, then for every changed chart or app file:
-scripts/render-chart platform/dex
-scripts/render-chart platform/dex dev
+scripts/render-chart platform/kanidm
+scripts/render-chart platform/kanidm dev
 # offline unit tests (the other tests need a cluster)
 (cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep)|TestGatewayRouteReady' ./...)
 mkdocs build --strict
@@ -113,7 +118,7 @@ Check how ArgoCD will render something with:
 
 ```sh
 scripts/render-chart apps/excalidraw.yaml dev
-scripts/render-chart platform/dex dev
+scripts/render-chart platform/kanidm dev
 ```
 
 ## Resource usage
@@ -136,7 +141,6 @@ Measured on a fresh sandbox with all components running (working-set memory per 
 | pairdrop | 44 MiB |
 | local-path-storage | 29 MiB |
 | speedtest | 21 MiB |
-| dex | 13 MiB |
 | excalidraw | 12 MiB |
 | **Node total** | **6.95 GiB** |
 
