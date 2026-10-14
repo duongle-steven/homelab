@@ -37,6 +37,7 @@ export KUBECONFIG=$PWD/metal/kubeconfig.yaml  # from the repository root
 - <https://registry.127-0-0-1.nip.io> (zot; log in with Kanidm, then create an API key under your user menu and `docker login registry.127-0-0-1.nip.io -u <username> -p <key>`)
 - <https://git.127-0-0-1.nip.io> (Forgejo; "Sign in with Kanidm", or user `forgejo_admin` with `kubectl -n forgejo get secret forgejo-admin -o jsonpath='{.data.password}' | base64 -d`; the seed Job copies this repository into `ops/homelab`; SSH on `172.30.255.200:22` from WSL)
 - <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io>: log in with Kanidm (paperless also has a local `admin`, password in `global-secrets/paperless.admin`)
+- <https://drive.127-0-0-1.nip.io> (OpenCloud): log in with Kanidm and accept the consent page once
 - <https://home.127-0-0-1.nip.io>, <https://drop.127-0-0-1.nip.io>, <https://speedtest.127-0-0-1.nip.io>
 
 On Windows with WSL, open these from the Windows browser.
@@ -55,8 +56,8 @@ Kanidm (<https://auth.127-0-0-1.nip.io>) runs in the sandbox, and every app logs
 
 | Test account | Role group | Access groups |
 |---|---|---|
-| `dev-admin` | `homelab-admins` | `homelab-budget`, `homelab-documents` |
-| `dev-editor` | `homelab-editors` | `homelab-documents` |
+| `dev-admin` | `homelab-admins` | `homelab-budget`, `homelab-documents`, `homelab-files` |
+| `dev-editor` | `homelab-editors` | `homelab-documents`, `homelab-files` |
 | `dev-viewer` | `homelab-users` | `homelab-budget` |
 | `dev-outsider` | (none, refused) | (none) |
 
@@ -76,7 +77,7 @@ What each group may do:
 | `homelab-editors` | Editor | view, sync, actions, logs, exec into `apps/*` | read, push | user |
 | `homelab-users` | Viewer | read-only | read | user |
 
-Actual Budget admits only `homelab-budget`, paperless only `homelab-documents` (members of `homelab-admins` become paperless superusers).
+Actual Budget admits only `homelab-budget`, paperless only `homelab-documents` (members of `homelab-admins` become paperless superusers), OpenCloud only `homelab-files` (members of `homelab-admins` get the Admin role, the others User).
 
 Argo CD and Grafana keep their local `admin` account, Forgejo its `forgejo_admin`; zot has a `ci` account for automation (password in `global-secrets/registry.ci`).
 
@@ -107,7 +108,7 @@ mkdocs build --strict
 git push -u origin feat/harness-the-sun   # then open a PR into dev
 ```
 
-ArgoCD in the sandbox syncs from the `dev` branch on GitHub, so a change reaches the sandbox once its PR is merged. Then run `make dev` to run the smoke, identity, SSO, Gateway and Forgejo tests against it. `dev` is merged into `master` through periodic pull requests.
+ArgoCD in the sandbox syncs from the `dev` branch on GitHub, so a change reaches the sandbox once its PR is merged. Then run `make dev` to run the smoke, identity, SSO (including OpenCloud), Gateway and Forgejo tests against it. `dev` is merged into `master` through periodic pull requests.
 
 Only the components listed in `system/argocd/values-dev.yaml` are synced: system and platform charts in the `root` ApplicationSet, apps in the `apps` ApplicationSet.
 
