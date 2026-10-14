@@ -48,7 +48,6 @@ argocd-apps:
               - path: platform/external-secrets
               - path: platform/global-secrets
               - path: platform/kanidm
-              - path: platform/dex
               - path: platform/grafana
               - path: platform/zot
               - path: platform/gitea
