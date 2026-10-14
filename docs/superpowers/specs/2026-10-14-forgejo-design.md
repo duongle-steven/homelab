@@ -92,7 +92,8 @@ the Forgejo chart's own key for the app's settings, and the file says so in a co
 - `forgejo.gitea.config`:
   - `server`: `ROOT_URL https://git.<domain>`, `SSH_DOMAIN git.<domain>`, `LANDING_PAGE explore`,
     `OFFLINE_MODE true`
-  - `service`: `DISABLE_REGISTRATION true`, `ALLOW_ONLY_EXTERNAL_REGISTRATION true`
+  - `service`: `ALLOW_ONLY_EXTERNAL_REGISTRATION true` (accounts come only from Kanidm; not
+    `DISABLE_REGISTRATION`, which may also block auto-registration), `SHOW_REGISTRATION_BUTTON false`
   - `oauth2_client`: `ENABLE_AUTO_REGISTRATION true`, `USERNAME preferred_username`,
     `ACCOUNT_LINKING disabled`
   - `repository`, `service.explore`, `webhook`: as Gitea today; `actions.ENABLED false`
@@ -178,7 +179,8 @@ A comment marks each chart-imposed `gitea` name where it appears.
 
 ## Testing
 
-Sandbox (`make dev`; the basic-checks regex does not change because the new tests need a cluster):
+Sandbox (`make dev`, whose filter gains `Forgejo`; the basic-checks regex does not change because the new
+tests need a cluster):
 
 - `smoke_test.go`, `apps_test.go`: `{"forgejo", "forgejo"}` replaces Gitea.
 - `TestGatewayForgejoSSH` (renamed): an `SSH-2.0-` banner on port 22.
