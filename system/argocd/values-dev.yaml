@@ -7,9 +7,10 @@ argo-cd:
     cm:
       oidc.config: |
         name: Kanidm
-        issuer: https://dex.127-0-0-1.nip.io
+        issuer: https://auth.127-0-0-1.nip.io/oauth2/openid/argocd
         clientID: argocd
-        clientSecret: $argocd-oidc:clientSecret
+        clientSecret: $argocd-kanidm-oauth2-credentials:CLIENT_SECRET
+        enablePKCEAuthentication: true
         requestedScopes:
           - openid
           - profile
@@ -19,7 +20,7 @@ argo-cd:
     httproute:
       hostnames:
         - argocd.127-0-0-1.nip.io
-    # Trust the sandbox CA for calls to Dex
+    # Trust the sandbox CA for calls to Kanidm
     env:
       - name: SSL_CERT_DIR
         value: /etc/ssl/certs:/etc/homelab-dev-ca

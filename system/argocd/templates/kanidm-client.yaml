@@ -1,0 +1,38 @@
+{{- /* Skipped by the offline bootstrap render, when kaniop does not exist yet */}}
+{{- if .Capabilities.APIVersions.Has "kaniop.rs/v1beta1/KanidmOAuth2Client" }}
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmOAuth2Client
+metadata:
+  name: argocd
+  namespace: {{ .Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+    namespace: kanidm
+  displayname: Argo CD
+  origin: https://{{ index .Values "argo-cd" "global" "domain" }}
+  redirectUrl:
+    - https://{{ index .Values "argo-cd" "global" "domain" }}/auth/callback
+  disableConsentPrompt: true
+  preferShortUsername: true
+  strictRedirectUrl: true
+  # Short, domain-free group names for the RBAC policy
+  claimMap:
+    - name: homelab_groups
+      joinStrategy: array
+      valuesMap:
+        {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+        - group: {{ . }}
+          values:
+            - {{ . }}
+        {{- end }}
+  scopeMap:
+    {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+    - group: {{ . }}
+      scopes: [openid, profile, email, groups]
+    {{- end }}
+  secretTemplate:
+    labels:
+      # Argo CD only resolves $secret:key references in Secrets with this label
+      app.kubernetes.io/part-of: argocd
+{{- end }}
