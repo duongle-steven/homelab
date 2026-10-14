@@ -7,9 +7,10 @@ argo-cd:
     cm:
       oidc.config: |
         name: Kanidm
-        issuer: https://dex.127-0-0-1.nip.io
+        issuer: https://auth.127-0-0-1.nip.io/oauth2/openid/argocd
         clientID: argocd
-        clientSecret: $argocd-oidc:clientSecret
+        clientSecret: $argocd-kanidm-oauth2-credentials:CLIENT_SECRET
+        enablePKCEAuthentication: true
         requestedScopes:
           - openid
           - profile
@@ -19,7 +20,7 @@ argo-cd:
     httproute:
       hostnames:
         - argocd.127-0-0-1.nip.io
-    # Trust the sandbox CA for calls to Dex
+    # Trust the sandbox CA for calls to Kanidm
     env:
       - name: SSL_CERT_DIR
         value: /etc/ssl/certs:/etc/homelab-dev-ca
@@ -47,7 +48,6 @@ argocd-apps:
               - path: platform/external-secrets
               - path: platform/global-secrets
               - path: platform/kanidm
-              - path: platform/dex
               - path: platform/grafana
               - path: platform/zot
               - path: platform/gitea
@@ -70,6 +70,7 @@ argocd-apps:
               - path: apps/actualbudget.yaml
               - path: apps/excalidraw.yaml
               - path: apps/homepage.yaml
+              - path: apps/paperless.yaml
               - path: apps/pairdrop.yaml
               - path: apps/speedtest.yaml
       template:
@@ -88,6 +89,9 @@ argocd-apps:
                   # No Cloudflare Tunnel in the sandbox: public apps use the LAN Gateway
                   - name: global.publicGateway
                     value: homelab
+                  # App files trust the sandbox CA ConfigMap homelab-dev-ca when set
+                  - name: global.devCA
+                    value: "true"
             - repoURL: *repoURL
               targetRevision: *revision
               ref: values

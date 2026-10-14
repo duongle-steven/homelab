@@ -9,6 +9,26 @@ controllers:
           PAPERLESS_PORT: 8000
           PAPERLESS_ADMIN_USER: admin
           PAPERLESS_URL: https://paperless.{{ .Values.global.domain }}
+          # Kanidm login; the provider id kanidm sets the callback path
+          PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
+          # Expanded into PAPERLESS_SOCIALACCOUNT_PROVIDERS (env renders alphabetically, so it comes first)
+          CLIENT_SECRET:
+            valueFrom:
+              secretKeyRef:
+                name: paperless-kanidm-oauth2-credentials
+                key: CLIENT_SECRET
+          PAPERLESS_SOCIALACCOUNT_PROVIDERS: >-
+            {"openid_connect": {"OAUTH_PKCE_ENABLED": true, "SCOPE": ["openid", "profile", "email", "groups"],
+            "APPS": [{"provider_id": "kanidm", "name": "Kanidm", "client_id": "paperless",
+            "secret": "$(CLIENT_SECRET)",
+            "settings": {"server_url": "https://auth.{{ .Values.global.domain }}/oauth2/openid/paperless"}}]}}
+          # Members of homelab-documents get an account on first login; homelab-admins become superusers
+          PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+          PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS: "true"
+          PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS_CLAIM: homelab_groups
+          PAPERLESS_SOCIAL_ACCOUNT_SYNC_SUPERUSER_GROUP: homelab-admins
+          # The sandbox CA (global.devCA); empty in production
+          REQUESTS_CA_BUNDLE: '{{ if .Values.global.devCA }}/etc/homelab-dev-ca/ca.crt{{ end }}'
         envFrom:
           - secret: "{{ .Release.Name }}-secret"
       redis:
@@ -42,6 +62,44 @@ persistence:
             subPath: data
           - path: /usr/src/paperless/media
             subPath: media
+  dev-ca:
+    # The sandbox CA from trust-manager; absent in production, so the volume is optional
+    type: custom
+    volumeSpec:
+      configMap:
+        name: homelab-dev-ca
+        optional: true
+    advancedMounts:
+      main:
+        main:
+          - path: /etc/homelab-dev-ca
+            readOnly: true
+  init:
+    # Run by the image at every start, after migrations (the file must be owned by root, hence subPath)
+    type: configMap
+    identifier: init
+    advancedMounts:
+      main:
+        main:
+          - path: /custom-cont-init.d/homelab-groups.sh
+            subPath: homelab-groups.sh
+            readOnly: true
+configMaps:
+  init:
+    data:
+      homelab-groups.sh: |
+        #!/bin/bash
+        # Kanidm groups sync to paperless groups of the same name (PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS), so the
+        # group homelab-documents must exist here with the permissions of a regular user: everything in the
+        # documents and mail apps (paperless still limits each object to its owner and the people it is shared with)
+        cd "${PAPERLESS_SRC_DIR}"
+        run() { if [[ -n "${USER_IS_NON_ROOT}" ]]; then "$@"; else s6-setuidgid paperless "$@"; fi; }
+        run python3 manage.py shell --command '
+        from django.contrib.auth.models import Group, Permission
+        group, _ = Group.objects.get_or_create(name="homelab-documents")
+        group.permissions.set(Permission.objects.filter(content_type__app_label__in=["documents", "paperless_mail"]))
+        print(f"homelab-documents: {group.permissions.count()} permissions")
+        '
 externalSecrets:
   secret:
     forceRename: paperless-secret
@@ -51,5 +109,35 @@ externalSecrets:
     dataFrom:
       - extract:
           key: paperless.admin
+      - extract:
+          key: paperless.secret-key
     target:
       deletionPolicy: Retain
+rawResources:
+  kanidm-client:
+    forceRename: paperless
+    manifest:
+      apiVersion: kaniop.rs/v1beta1
+      kind: KanidmOAuth2Client
+      spec:
+        kanidmRef:
+          name: kanidm
+          namespace: kanidm
+        displayname: Paperless
+        origin: 'https://paperless.{{ .Values.global.domain }}'
+        redirectUrl:
+          - 'https://paperless.{{ .Values.global.domain }}/accounts/oidc/kanidm/login/callback/'
+        disableConsentPrompt: true
+        preferShortUsername: true
+        strictRedirectUrl: true
+        claimMap:
+          - name: homelab_groups
+            joinStrategy: array
+            valuesMap:
+              - group: homelab-admins
+                values: [homelab-admins]
+              - group: homelab-documents
+                values: [homelab-documents]
+        scopeMap:
+          - group: homelab-documents
+            scopes: [openid, profile, email, groups]

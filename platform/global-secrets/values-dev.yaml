@@ -1,3 +1,1 @@
-extraSecrets:
-  - name: dex.smoke
-    key: client_secret
+extraSecrets: []

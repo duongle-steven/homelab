@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base32"
 	"encoding/base64"
@@ -31,7 +32,6 @@ import (
 
 const (
 	kanidmURL         = "https://auth.127-0-0-1.nip.io"
-	dexURL            = "https://dex.127-0-0-1.nip.io"
 	smokeRedirect     = "https://smoke.127-0-0-1.nip.io/callback"
 	credentialsSecret = "identity-test-credentials"
 )
@@ -299,9 +299,21 @@ func kanidmLogin(t *testing.T, ctx context.Context, account string, c credential
 	browserStep(t, ctx, "password", account, chromedp.SendKeys(`input#password`, password+"\n"))
 }
 
-// browserAuthorize logs in through Dex and Kanidm with the given password. It returns the code sent to
-// the smoke client, or an empty code and the text of the page the browser ended on.
-func browserAuthorize(t *testing.T, account string, c credentials, password string) (string, string) {
+// pkcePair returns a random PKCE verifier and its S256 challenge; Kanidm requires PKCE for every client.
+func pkcePair() (string, string) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		panic(err)
+	}
+	verifier := base64.RawURLEncoding.EncodeToString(raw)
+	sum := sha256.Sum256([]byte(verifier))
+	return verifier, base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+// browserAuthorize logs in to Kanidm with the given password for the sandbox client smoke. It returns the
+// code sent to the smoke client and the PKCE verifier, or an empty code and the text of the page the browser
+// ended on.
+func browserAuthorize(t *testing.T, account string, c credentials, password string) (string, string, string) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -317,12 +329,15 @@ func browserAuthorize(t *testing.T, account string, c credentials, password stri
 		}
 	})
 
-	authURL := dexURL + "/auth?" + url.Values{
-		"client_id":     {"smoke"},
-		"redirect_uri":  {smokeRedirect},
-		"response_type": {"code"},
-		"scope":         {"openid email profile groups"},
-		"state":         {"identity-test"},
+	verifier, challenge := pkcePair()
+	authURL := kanidmURL + "/ui/oauth2?" + url.Values{
+		"client_id":             {"smoke"},
+		"redirect_uri":          {smokeRedirect},
+		"response_type":         {"code"},
+		"scope":                 {"openid email profile groups"},
+		"state":                 {"identity-test"},
+		"code_challenge":        {challenge},
+		"code_challenge_method": {"S256"},
 	}.Encode()
 	browserStep(t, ctx, "open", account, chromedp.Navigate(authURL), chromedp.WaitVisible(`input#username`))
 	kanidmLogin(t, ctx, account, c, password)
@@ -337,27 +352,39 @@ func browserAuthorize(t *testing.T, account string, c credentials, password stri
 	for {
 		select {
 		case code := <-codes:
-			return code, ""
+			return code, "", verifier
 		case <-deadline:
 			text, err := pageText()
 			require.NoError(t, err)
-			return "", text
+			return "", text, verifier
 		case <-time.After(250 * time.Millisecond):
 			// Errors while the page is navigating are expected; try again on the next tick
 			if text, err := pageText(); err == nil && (strings.Contains(text, "Access Denied") || strings.Contains(text, "Login Failed")) {
-				return "", text
+				return "", text, verifier
 			}
 		}
 	}
 }
 
-// appLogin opens an app's SSO entry point, logs in through Dex and Kanidm, waits until the browser is back
+// openLogin opens an app's SSO entry point and waits for Kanidm's login form. Some apps (paperless through
+// django-allauth) first show a confirmation page with a submit button; it is clicked when present.
+func openLogin(t *testing.T, ctx context.Context, account, startURL string) {
+	browserStep(t, ctx, "open", account, chromedp.Navigate(startURL))
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if chromedp.Run(waitCtx, chromedp.WaitVisible(`input#username`)) == nil {
+		return
+	}
+	browserStep(t, ctx, "confirm", account, chromedp.Click(`button[type=submit]`), chromedp.WaitVisible(`input#username`))
+}
+
+// appLogin opens an app's SSO entry point, logs in through Kanidm, waits until the browser is back
 // on appHost (outside any callback or login path) and returns the cookies the app set.
 func appLogin(t *testing.T, account string, c credentials, startURL, appHost string) []*http.Cookie {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	browserStep(t, ctx, "open", account, chromedp.Navigate(startURL), chromedp.WaitVisible(`input#username`))
+	openLogin(t, ctx, account, startURL)
 	kanidmLogin(t, ctx, account, c, c.Password)
 
 	var location string
@@ -384,6 +411,67 @@ func appLogin(t *testing.T, account string, c credentials, startURL, appHost str
 	})))
 	require.NotEmpty(t, cookies, "no session cookies from %s", appHost)
 	return cookies
+}
+
+// waitForPage polls the page text until it contains one of the markers (30 s) and returns it.
+func waitForPage(t *testing.T, ctx context.Context, markers ...string) string {
+	var text string
+	assert.Eventually(t, func() bool {
+		if chromedp.Run(ctx, chromedp.Evaluate(`document.body ? document.body.innerText : ""`, &text)) != nil {
+			return false
+		}
+		for _, m := range markers {
+			if strings.Contains(text, m) {
+				return true
+			}
+		}
+		return false
+	}, 30*time.Second, 250*time.Millisecond, "page never showed %v", markers)
+	return text
+}
+
+// browserDenied opens an app's SSO entry point, logs in to Kanidm and returns the page Kanidm ends on
+// (expected: "Access Denied" for an account outside the app's access group).
+func browserDenied(t *testing.T, account string, c credentials, startURL string) string {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+	openLogin(t, ctx, account, startURL)
+	kanidmLogin(t, ctx, account, c, c.Password)
+	return waitForPage(t, ctx, "Access Denied", "Login Failed")
+}
+
+// actualOpenIDLogin follows Actual Budget's OpenID login from the IdP URL that /account/login returned. It
+// returns the Actual session token from the /openid-cb redirect, or an empty token and Kanidm's page.
+func actualOpenIDLogin(t *testing.T, account string, c credentials, idpURL, appBase string) (string, string) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+	tokens := make(chan string, 1)
+	chromedp.ListenTarget(ctx, func(ev any) {
+		if e, ok := ev.(*network.EventRequestWillBeSent); ok && strings.HasPrefix(e.Request.URL, appBase+"/openid-cb") {
+			if u, err := url.Parse(e.Request.URL); err == nil && u.Query().Get("token") != "" {
+				select {
+				case tokens <- u.Query().Get("token"):
+				default:
+				}
+			}
+		}
+	})
+	openLogin(t, ctx, account, idpURL)
+	kanidmLogin(t, ctx, account, c, c.Password)
+	deadline := time.After(30 * time.Second)
+	for {
+		select {
+		case token := <-tokens:
+			return token, ""
+		case <-deadline:
+			return "", waitForPage(t, ctx, "")
+		case <-time.After(250 * time.Millisecond):
+			var text string
+			if chromedp.Run(ctx, chromedp.Evaluate(`document.body ? document.body.innerText : ""`, &text)) == nil && strings.Contains(text, "Access Denied") {
+				return "", text
+			}
+		}
+	}
 }
 
 // getJSON sends a request with cookies or basic auth and optional header name/value pairs, decodes a
@@ -420,8 +508,8 @@ func getJSON(t *testing.T, method, target string, cookies []*http.Cookie, user, 
 	return resp.StatusCode
 }
 
-// waitForIdentityStack blocks until a fresh sandbox has synced Kanidm and Dex, because the identity
-// tests run before the ingress smoke tests that would otherwise wait for them.
+// waitForIdentityStack blocks until a fresh sandbox has synced Kanidm and the smoke client, because the
+// identity tests run before the smoke tests that would otherwise wait for them.
 func waitForIdentityStack(t *testing.T) {
 	ok := func(u string) bool {
 		resp, err := insecureClient.Get(u)
@@ -432,22 +520,35 @@ func waitForIdentityStack(t *testing.T) {
 		return resp.StatusCode == http.StatusOK
 	}
 	require.Eventually(t, func() bool {
-		_, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", "global-secrets"), "get", "secret", "dex.smoke", "-o", "name")
-		return err == nil &&
-			ok(kanidmURL+"/oauth2/openid/dex/.well-known/openid-configuration") &&
-			ok(dexURL+"/.well-known/openid-configuration")
-	}, 20*time.Minute, 15*time.Second, "Kanidm and Dex are not ready")
+		_, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", "kanidm"), "get", "secret", "smoke-kanidm-oauth2-credentials", "-o", "name")
+		return err == nil && ok(kanidmURL+"/oauth2/openid/smoke/.well-known/openid-configuration")
+	}, 20*time.Minute, 15*time.Second, "Kanidm is not ready")
 }
 
 func smokeClientSecret(t *testing.T) string {
-	secret := k8s.GetSecret(t, k8s.NewKubectlOptions("", "", "global-secrets"), "dex.smoke")
-	return string(secret.Data["client_secret"])
+	return string(waitForSecret(t, "kanidm", "smoke-kanidm-oauth2-credentials")["CLIENT_SECRET"])
 }
 
-// exchangeCode trades the code for tokens at Dex and returns the ID token claims.
-func exchangeCode(t *testing.T, code, secret string) map[string]any {
-	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {smokeRedirect}}
-	req, err := http.NewRequest(http.MethodPost, dexURL+"/token", strings.NewReader(form.Encode()))
+// waitForSecret waits for a Secret that an operator creates (kaniop client credentials) and returns its data.
+func waitForSecret(t *testing.T, namespace, name string) map[string][]byte {
+	options := k8s.NewKubectlOptions("", "", namespace)
+	options.Logger = logger.Discard
+	var data map[string][]byte
+	require.Eventually(t, func() bool {
+		secret, err := k8s.GetSecretE(t, options, name)
+		if err != nil {
+			return false
+		}
+		data = secret.Data
+		return true
+	}, 20*time.Minute, 15*time.Second, "Secret %s/%s does not exist", namespace, name)
+	return data
+}
+
+// exchangeCode trades the code for tokens at Kanidm (with the PKCE verifier) and returns the ID token claims.
+func exchangeCode(t *testing.T, code, secret, verifier string) map[string]any {
+	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {smokeRedirect}, "code_verifier": {verifier}}
+	req, err := http.NewRequest(http.MethodPost, kanidmURL+"/oauth2/token", strings.NewReader(form.Encode()))
 	require.NoError(t, err)
 	req.SetBasicAuth("smoke", secret)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

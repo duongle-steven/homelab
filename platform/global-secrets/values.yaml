@@ -4,10 +4,6 @@ secrets:
   - name: gitea.admin
     key: password
     special: true
-  - name: dex.grafana
-    key: client_secret
-  - name: dex.gitea
-    key: client_secret
   - name: registry.admin
     key: password
     special: true
@@ -16,10 +12,10 @@ secrets:
   - name: paperless.admin
     key: PAPERLESS_ADMIN_PASSWORD
     special: true
-  - name: dex.argocd
-    key: client_secret
-  - name: dex.zot
-    key: client_secret
+  # paperless 3 refuses to start without it
+  - name: paperless.secret-key
+    key: PAPERLESS_SECRET_KEY
+    length: 64
   - name: grafana.admin
     key: password
     special: true

@@ -14,9 +14,11 @@ import (
 )
 
 const (
-	grafanaHost  = "grafana.127-0-0-1.nip.io"
-	argocdHost   = "argocd.127-0-0-1.nip.io"
-	registryHost = "registry.127-0-0-1.nip.io"
+	grafanaHost   = "grafana.127-0-0-1.nip.io"
+	argocdHost    = "argocd.127-0-0-1.nip.io"
+	registryHost  = "registry.127-0-0-1.nip.io"
+	budgetHost    = "budget.127-0-0-1.nip.io"
+	paperlessHost = "paperless.127-0-0-1.nip.io"
 )
 
 func skipUnlessSandbox(t *testing.T) {
@@ -161,4 +163,73 @@ func TestSSOZot(t *testing.T) {
 	t.Run("anonymous", func(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, getJSON(t, "GET", base+"/v2/_catalog", nil, "", "", nil, nil))
 	})
+}
+
+func TestSSOActualBudget(t *testing.T) {
+	skipUnlessSandbox(t)
+	base := "https://" + budgetHost
+	waitForApp(t, base+"/account/login-methods")
+
+	// dev-admin first: the first OpenID user becomes the server owner
+	for _, c := range []struct {
+		account string
+		allowed bool
+	}{{"dev-admin", true}, {"dev-viewer", true}, {"dev-editor", false}} {
+		t.Run(c.account, func(t *testing.T) {
+			var start struct {
+				Data struct {
+					ReturnURL string `json:"returnUrl"`
+				} `json:"data"`
+			}
+			require.Equal(t, http.StatusOK, getJSON(t, "POST", base+"/account/login", nil, "", "",
+				map[string]any{"loginMethod": "openid", "returnUrl": base}, &start))
+			require.NotEmpty(t, start.Data.ReturnURL)
+			token, page := actualOpenIDLogin(t, c.account, ensureCredentials(t, c.account), start.Data.ReturnURL, base)
+			if !c.allowed {
+				assert.Empty(t, token)
+				assert.Contains(t, page, "Access Denied")
+				return
+			}
+			require.NotEmpty(t, token, "no Actual token for %s; page:\n%s", c.account, page)
+			var me struct {
+				Data struct {
+					UserName string `json:"userName"`
+				} `json:"data"`
+			}
+			assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/account/validate", nil, "", "", nil, &me, "X-ACTUAL-TOKEN", token))
+			assert.Equal(t, c.account, me.Data.UserName)
+		})
+	}
+}
+
+func TestSSOPaperless(t *testing.T) {
+	skipUnlessSandbox(t)
+	base := "https://" + paperlessHost
+	waitForApp(t, base+"/accounts/login/")
+	start := base + "/accounts/oidc/kanidm/login/?process=login"
+
+	for _, c := range []struct {
+		account   string
+		allowed   bool
+		superuser bool
+	}{{"dev-admin", true, true}, {"dev-editor", true, false}, {"dev-viewer", false, false}} {
+		t.Run(c.account, func(t *testing.T) {
+			if !c.allowed {
+				assert.Contains(t, browserDenied(t, c.account, ensureCredentials(t, c.account), start), "Access Denied")
+				return
+			}
+			cookies := appLogin(t, c.account, ensureCredentials(t, c.account), start, paperlessHost)
+			var settings struct {
+				User struct {
+					Username    string `json:"username"`
+					IsSuperuser bool   `json:"is_superuser"`
+				} `json:"user"`
+			}
+			require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/ui_settings/", cookies, "", "", nil, &settings))
+			assert.Equal(t, c.account, settings.User.Username)
+			assert.Equal(t, c.superuser, settings.User.IsSuperuser)
+			// Regular users get document permissions from the paperless group homelab-documents
+			assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/documents/", cookies, "", "", nil, nil))
+		})
+	}
 }

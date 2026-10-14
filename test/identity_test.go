@@ -1,6 +1,8 @@
 package test
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"os"
 	"testing"
 	"time"
@@ -49,13 +51,13 @@ func TestIdentityLogin(t *testing.T) {
 		t.Run(account.name, func(t *testing.T) {
 			c := ensureCredentials(t, account.name)
 
-			code, page := browserAuthorize(t, account.name, c, c.Password)
+			code, page, verifier := browserAuthorize(t, account.name, c, c.Password)
 			require.NotEmpty(t, code, "no authorization code for %s; page:\n%s", account.name, page)
 
-			claims := exchangeCode(t, code, secret)
-			t.Logf("groups claim for %s: %v", account.name, claims["groups"])
+			claims := exchangeCode(t, code, secret, verifier)
+			t.Logf("homelab_groups claim for %s: %v", account.name, claims["homelab_groups"])
 			assert.Equal(t, account.name+"@example.com", claims["email"])
-			assert.Equal(t, []any{account.group}, claims["groups"])
+			assert.Equal(t, []any{account.group}, claims["homelab_groups"])
 			assert.Equal(t, account.name, claims["preferred_username"])
 		})
 	}
@@ -68,7 +70,7 @@ func TestIdentityDenied(t *testing.T) {
 	waitForIdentityStack(t)
 	c := ensureCredentials(t, "dev-outsider")
 
-	code, page := browserAuthorize(t, "dev-outsider", c, c.Password)
+	code, page, _ := browserAuthorize(t, "dev-outsider", c, c.Password)
 
 	// Refused after a successful login, not because the login itself failed
 	assert.Empty(t, code, "an account in no homelab group must not get an authorization code")
@@ -84,8 +86,17 @@ func TestIdentityDeniedNeedsLogin(t *testing.T) {
 	waitForIdentityStack(t)
 	c := ensureCredentials(t, "dev-outsider")
 
-	code, page := browserAuthorize(t, "dev-outsider", c, "wrong-"+c.Password)
+	code, page, _ := browserAuthorize(t, "dev-outsider", c, "wrong-"+c.Password)
 
 	assert.Empty(t, code)
 	assert.NotContains(t, page, "Access Denied")
+}
+
+func TestIdentityPKCE(t *testing.T) {
+	verifier, challenge := pkcePair()
+	assert.Regexp(t, `^[A-Za-z0-9_-]{43,128}$`, verifier)
+	sum := sha256.Sum256([]byte(verifier))
+	assert.Equal(t, base64.RawURLEncoding.EncodeToString(sum[:]), challenge)
+	other, _ := pkcePair()
+	assert.NotEqual(t, verifier, other)
 }
