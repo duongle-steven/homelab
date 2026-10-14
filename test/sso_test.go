@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ const (
 	budgetHost    = "budget.127-0-0-1.nip.io"
 	paperlessHost = "paperless.127-0-0-1.nip.io"
 	forgejoHost   = "git.127-0-0-1.nip.io"
+	opencloudHost = "drive.127-0-0-1.nip.io"
 )
 
 func skipUnlessSandbox(t *testing.T) {
@@ -281,4 +283,93 @@ func forgejoPage(t *testing.T, target string, cookies []*http.Cookie) (int, stri
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	return resp.StatusCode, resp.Request.URL.Path, string(body)
+}
+
+func TestSSOOpenCloud(t *testing.T) {
+	skipUnlessSandbox(t)
+	base := "https://" + opencloudHost
+	waitForApp(t, base+"/")
+
+	for _, c := range []struct {
+		account string
+		role    string // OpenCloud role; empty: Kanidm refuses the account (not in homelab-files)
+	}{{"dev-admin", "Admin"}, {"dev-editor", "User"}, {"dev-viewer", ""}, {"dev-outsider", ""}} {
+		t.Run(c.account, func(t *testing.T) {
+			if c.role == "" {
+				assert.Contains(t, browserDenied(t, c.account, ensureCredentials(t, c.account), openCloudAuthorizeURL(base)), "Access Denied")
+				return
+			}
+			// Twice: the second login must reuse the account (keyed by Kanidm's sub) and keep the role
+			var ids []string
+			for range 2 {
+				auth := []string{"Authorization", "Bearer " + openCloudLogin(t, c.account, ensureCredentials(t, c.account), base)}
+				var me struct {
+					ID                 string `json:"id"`
+					DisplayName        string `json:"displayName"`
+					AppRoleAssignments []struct {
+						AppRoleID string `json:"appRoleId"`
+					} `json:"appRoleAssignments"`
+				}
+				require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/graph/v1.0/me?$expand=appRoleAssignments", nil, "", "", nil, &me, auth...))
+				assert.Equal(t, c.account, me.DisplayName)
+				ids = append(ids, me.ID)
+
+				var apps struct {
+					Value []struct {
+						AppRoles []struct {
+							ID          string `json:"id"`
+							DisplayName string `json:"displayName"`
+						} `json:"appRoles"`
+					} `json:"value"`
+				}
+				require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/graph/v1.0/applications", nil, "", "", nil, &apps, auth...))
+				names := map[string]string{}
+				for _, a := range apps.Value {
+					for _, r := range a.AppRoles {
+						names[r.ID] = r.DisplayName
+					}
+				}
+				var roles []string
+				for _, a := range me.AppRoleAssignments {
+					roles = append(roles, names[a.AppRoleID])
+				}
+				assert.Equal(t, []string{c.role}, roles)
+			}
+			assert.Equal(t, ids[0], ids[1], "the second login created another account")
+
+			// Files: a WebDAV round trip in the personal drive, which OpenCloud creates on first login
+			token := openCloudLogin(t, c.account, ensureCredentials(t, c.account), base)
+			auth := []string{"Authorization", "Bearer " + token}
+			var drive struct {
+				Root struct {
+					WebDavURL string `json:"webDavUrl"`
+				} `json:"root"`
+			}
+			require.Eventually(t, func() bool {
+				return getJSON(t, "GET", base+"/graph/v1.0/me/drive", nil, "", "", nil, &drive, auth...) == http.StatusOK && drive.Root.WebDavURL != ""
+			}, time.Minute, 2*time.Second, "no personal drive for %s", c.account)
+			file := fmt.Sprintf("%s/homelab-test-%d.txt", strings.TrimSuffix(drive.Root.WebDavURL, "/"), time.Now().UnixNano())
+			content := fmt.Sprintf("homelab test %s %d", c.account, time.Now().UnixNano())
+			code, _ := davRequest(t, http.MethodPut, file, token, content)
+			require.Equal(t, http.StatusCreated, code)
+			code, got := davRequest(t, http.MethodGet, file, token, "")
+			require.Equal(t, http.StatusOK, code)
+			assert.Equal(t, content, got)
+			code, _ = davRequest(t, http.MethodDelete, file, token, "")
+			assert.Equal(t, http.StatusNoContent, code)
+		})
+	}
+}
+
+// davRequest sends a WebDAV request with a bearer token and returns the status and the body.
+func davRequest(t *testing.T, method, target, token, body string) (int, string) {
+	req, err := http.NewRequest(method, target, strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := insecureClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return resp.StatusCode, string(raw)
 }
