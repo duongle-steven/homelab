@@ -261,9 +261,13 @@ def main():
         for env in ("prod", "dev"):
             docs = render(target, env)
             ns_of = lambda d: (d.get("metadata") or {}).get("namespace") or namespace
-            # In the mesh, pods receive traffic on ztunnel's HBONE port, which a chart's NetworkPolicies must let in
+            # In the mesh, pods receive traffic on ztunnel's HBONE port, which a chart's NetworkPolicies must let in;
+            # policies that select only pods outside the mesh (webhooks, VPN routers) do not touch meshed pods
+            meshed_pods = [w for w in docs if w.get("kind") in WORKLOADS and not outside(w, ns_of)]
             policies = [d for d in docs if d.get("kind") == "NetworkPolicy" and ns_of(d) not in OUTSIDE
-                        and "Ingress" in ((d.get("spec") or {}).get("policyTypes") or ["Ingress"])]
+                        and "Ingress" in ((d.get("spec") or {}).get("policyTypes") or ["Ingress"])
+                        and ((d.get("spec") or {}).get("podSelector") in ({}, None)
+                             or any(ns_of(w) == ns_of(d) and selects(d["spec"]["podSelector"], labels_of(w)) for w in meshed_pods))]
             for ns in sorted({ns_of(d) for d in policies}):
                 if any(allows_hbone(d) for d in policies if ns_of(d) == ns):
                     print(f"ok   {target} ({env}): NetworkPolicies in {ns} let HBONE (15008) in")

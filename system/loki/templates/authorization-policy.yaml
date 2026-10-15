@@ -1,0 +1,27 @@
+# Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow
+  namespace: {{ .Release.Namespace }}
+spec:
+  action: ALLOW
+  rules:
+    # Pods in this namespace call each other freely
+    - from:
+        - source:
+            namespaces: ["{{ .Release.Namespace }}"]
+    # Grafana's Loki data source
+    - from:
+        - source:
+            principals: ["cluster.local/ns/grafana/sa/grafana"]
+      to:
+        - operation:
+            ports: ["3100"]
+    # Prometheus: Loki's metrics
+    - from:
+        - source:
+            principals: ["cluster.local/ns/monitoring-system/sa/monitoring-system-kube-pro-prometheus"]
+      to:
+        - operation:
+            ports: ["3100"]
