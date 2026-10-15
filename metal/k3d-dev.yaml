@@ -19,12 +19,14 @@ options:
       # Embedded etcd, like production
       - arg: --cluster-init
         nodeFilters: [server:*]
-      # Control plane metrics like production (the sandbox does not scrape them: no fixed node address)
+      # Control plane metrics like production (system/monitoring-system scrapes them by node discovery)
       - arg: --etcd-expose-metrics
         nodeFilters: [server:*]
       - arg: --kube-controller-manager-arg=bind-address=0.0.0.0
         nodeFilters: [server:*]
       - arg: --kube-scheduler-arg=bind-address=0.0.0.0
+        nodeFilters: [server:*]
+      - arg: --kube-proxy-arg=metrics-bind-address=0.0.0.0
         nodeFilters: [server:*]
   kubeconfig:
     updateDefaultKubeconfig: false

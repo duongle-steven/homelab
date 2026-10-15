@@ -10,7 +10,7 @@ default: metal system external smoke-test clean
 
 # The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on
 dev: sandbox-push
-	$(MAKE) env=dev ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity|SSO|Gateway|Forgejo|Mesh' metal system sandbox-refresh smoke-test
+	$(MAKE) env=dev ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring' metal system sandbox-refresh smoke-test
 
 sandbox-push:
 	@if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \

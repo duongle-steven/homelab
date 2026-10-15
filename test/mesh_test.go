@@ -1,7 +1,6 @@
 package test
 
 import (
-	"encoding/json"
 	"os"
 	"regexp"
 	"testing"
@@ -176,27 +175,14 @@ func TestMeshAllowsSameNamespace(t *testing.T) {
 // TestMeshPrometheusTargetsUp proves the allows for Prometheus: no scrape target is down.
 func TestMeshPrometheusTargetsUp(t *testing.T) {
 	meshSandboxOnly(t)
-	options := k8s.NewKubectlOptions("", "", "monitoring-system")
-	options.Logger = logger.Discard
-	query := "/api/v1/namespaces/monitoring-system/services/monitoring-system-kube-pro-prometheus:9090/proxy/api/v1/query?query=up%3D%3D0"
 	assert.Eventually(t, func() bool {
-		out, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "--raw", query)
+		metrics, err := prometheusQuery(t, "up == 0")
 		if err != nil {
 			return false
 		}
-		var res struct {
-			Data struct {
-				Result []struct {
-					Metric map[string]string `json:"metric"`
-				} `json:"result"`
-			} `json:"data"`
+		for _, m := range metrics {
+			t.Logf("target down: %v", m)
 		}
-		if json.Unmarshal([]byte(out), &res) != nil {
-			return false
-		}
-		for _, r := range res.Data.Result {
-			t.Logf("target down: %v", r.Metric)
-		}
-		return len(res.Data.Result) == 0
+		return len(metrics) == 0
 	}, 5*time.Minute, 30*time.Second, "Prometheus has targets down")
 }
