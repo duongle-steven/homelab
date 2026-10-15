@@ -20,10 +20,10 @@ service:
   wireguard:
     controller: wireguard
     type: LoadBalancer
-    # Its own kube-vip address (metal/inventories/prod.yml), like the LAN Gateway
+    # Its own kube-vip address (global.addresses.wireguardVIP, from infra/<env>/cluster/config.json), like the LAN Gateway
     loadBalancerClass: kube-vip.io/kube-vip-class
     annotations:
-      kube-vip.io/loadbalancerIPs: 192.168.1.225
+      kube-vip.io/loadbalancerIPs: '{{ .Values.global.addresses.wireguardVIP }}'
     ports:
       http:
         port: 51820
@@ -64,10 +64,11 @@ externalSecrets:
 
             # Servers
 
+            # Clients also route the API and Gateway VIPs (infra/<env>/cluster/config.json) through this peer
             [Peer]
             # homelab
             PublicKey = sSAZS1Z3vB7Wx8e2yVqXfeHjgWTa80wnSYoma3mZkiU=
-            AllowedIPs = 172.16.0.1/32, 192.168.1.100/32, 192.168.1.224/27
+            AllowedIPs = 172.16.0.1/32
 
             [Peer]
             # horus

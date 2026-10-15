@@ -1,0 +1,30 @@
+#!/bin/sh
+# Print the values Argo CD passes from the environment's config file (infra/<env>/cluster/config.json) through the
+# ApplicationSet <appset>'s helm.valuesObject, as name=value lines, so offline renders match the cluster's.
+# Usage: scripts/env-values <prod|dev> <root|apps>
+set -eu
+env="$1"
+appset="$2"
+argocd=system/argocd
+# The sandbox restates generators and the apps source in values-<env>.yaml
+pick() {
+  if [ "$env" != prod ] && [ "$(yq "explode(.) | $1" "$argocd/values-$env.yaml")" != null ]; then
+    yq "explode(.) | $1" "$argocd/values-$env.yaml"
+  else
+    yq "explode(.) | $1" "$argocd/values.yaml"
+  fi
+}
+base=".argocd-apps.applicationsets.$appset"
+config=$(pick "$base.generators[0].matrix.generators[1].git.files[0].path")
+case "$appset" in
+  root) object="$base.template.spec.source.helm.valuesObject" ;;
+  apps) object="$base.template.spec.sources[0].helm.valuesObject" ;;
+esac
+pick "$object" | yq '.. | select(tag == "!!str") | (path | join(".")) + "=" + .' | while IFS='=' read -r name value; do
+  field=$(printf '%s' "$value" | sed -n 's/^{{ *\(\.[A-Za-z_.]*\) *}}$/\1/p')
+  if [ -n "$field" ]; then
+    value=$(yq -p json -o yaml "$field" "$config")
+    [ "$value" != null ] || { echo "$config has no $field" >&2; exit 1; }
+  fi
+  printf '%s=%s\n' "$name" "$value"
+done

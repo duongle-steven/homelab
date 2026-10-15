@@ -87,13 +87,24 @@ argocd-apps:
       goTemplateOptions:
         - missingkey=error
       generators:
-        - git:
-            repoURL: &repoURL http://forgejo-http.forgejo:3000/ops/homelab
-            revision: &revision master
-            directories:
-              - path: system/*
-              - path: platform/*
-              - path: apps/*
+        # Every component, crossed with the environment's addresses (infra/<env>/cluster/config.json, upstream's
+        # format; OpenTofu reads the same file in step 7)
+        - matrix:
+            generators:
+              - git:
+                  repoURL: &repoURL http://forgejo-http.forgejo:3000/ops/homelab
+                  revision: &revision master
+                  directories:
+                    - path: system/*
+                    - path: platform/*
+                    - path: apps/*
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: infra/production/cluster/config.json
+                  # Its own .path would replace the directory's
+                  pathParamPrefix: config
       template:
         metadata:
           name: '{{ .path.basename }}'
@@ -106,6 +117,15 @@ argocd-apps:
             repoURL: *repoURL
             path: '{{ .path.path }}'
             targetRevision: *revision
+            helm:
+              # scripts/env-values resolves these offline for scripts/render-chart
+              valuesObject:
+                global:
+                  addresses: &addresses
+                    apiVIP: '{{ .vip }}'
+                    router: '{{ .network.gateway }}'
+                    gatewayVIP: '{{ .service_vips.gateway }}'
+                    wireguardVIP: '{{ .service_vips.wireguard }}'
           syncPolicy: &syncPolicy
             automated:
               prune: true
@@ -152,11 +172,19 @@ argocd-apps:
       goTemplateOptions:
         - missingkey=error
       generators:
-        - git:
-            repoURL: *repoURL
-            revision: *revision
-            files:
-              - path: apps/*.yaml
+        - matrix:
+            generators:
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: apps/*.yaml
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: infra/production/cluster/config.json
+                  pathParamPrefix: config
       template:
         metadata:
           name: '{{ .path.filename | trimSuffix ".yaml" }}'
@@ -182,6 +210,9 @@ argocd-apps:
                     value: public
                   - name: global.devCA
                     value: ""
+                valuesObject:
+                  global:
+                    addresses: *addresses
             - repoURL: *repoURL
               targetRevision: *revision
               ref: values

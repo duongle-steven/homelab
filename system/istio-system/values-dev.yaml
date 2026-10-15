@@ -1,5 +1,2 @@
 domain: 127-0-0-1.nip.io
-gateway:
-  # No kube-vip in the sandbox: ServiceLB publishes the Gateway on the k3d node (host ports 80/443/22)
-  loadBalancer: null
 corednsRewrite: true

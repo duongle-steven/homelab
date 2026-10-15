@@ -37,21 +37,29 @@ argocd-apps:
   applicationsets:
     root:
       generators:
-        - git:
-            repoURL: &repoURL https://github.com/duongle-steven/homelab
-            # make dev force-pushes the current commit here, so a branch is tested before its merge
-            revision: &revision sandbox
-            directories:
-              - path: system/argocd
-              - path: system/istio-system
-              - path: system/cert-manager
-              - path: system/monitoring-system
-              - path: platform/external-secrets
-              - path: platform/global-secrets
-              - path: platform/kanidm
-              - path: platform/grafana
-              - path: platform/zot
-              - path: platform/forgejo
+        - matrix:
+            generators:
+              - git:
+                  repoURL: &repoURL https://github.com/duongle-steven/homelab
+                  # make dev force-pushes the current commit here, so a branch is tested before its merge
+                  revision: &revision sandbox
+                  directories:
+                    - path: system/argocd
+                    - path: system/istio-system
+                    - path: system/cert-manager
+                    - path: system/monitoring-system
+                    - path: platform/external-secrets
+                    - path: platform/global-secrets
+                    - path: platform/kanidm
+                    - path: platform/grafana
+                    - path: platform/zot
+                    - path: platform/forgejo
+              - git: &config
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: infra/sandbox/cluster/config.json
+                  pathParamPrefix: config
       template:
         spec:
           source:
@@ -64,17 +72,20 @@ argocd-apps:
               ignoreMissingValueFiles: true
     apps:
       generators:
-        - git:
-            repoURL: *repoURL
-            revision: *revision
-            files:
-              - path: apps/actualbudget.yaml
-              - path: apps/excalidraw.yaml
-              - path: apps/homepage.yaml
-              - path: apps/opencloud.yaml
-              - path: apps/paperless.yaml
-              - path: apps/pairdrop.yaml
-              - path: apps/speedtest.yaml
+        - matrix:
+            generators:
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: apps/actualbudget.yaml
+                    - path: apps/excalidraw.yaml
+                    - path: apps/homepage.yaml
+                    - path: apps/opencloud.yaml
+                    - path: apps/paperless.yaml
+                    - path: apps/pairdrop.yaml
+                    - path: apps/speedtest.yaml
+              - git: *config
       template:
         spec:
           sources:
@@ -94,6 +105,13 @@ argocd-apps:
                   # App files trust the sandbox CA ConfigMap homelab-dev-ca when set
                   - name: global.devCA
                     value: "true"
+                valuesObject:
+                  global:
+                    addresses:
+                      apiVIP: '{{ .vip }}'
+                      router: '{{ .network.gateway }}'
+                      gatewayVIP: '{{ .service_vips.gateway }}'
+                      wireguardVIP: '{{ .service_vips.wireguard }}'
             - repoURL: *repoURL
               targetRevision: *revision
               ref: values

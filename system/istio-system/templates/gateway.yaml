@@ -1,4 +1,4 @@
-{{- with .Values.gateway.loadBalancer }}
+{{- with .Values.global.addresses.gatewayVIP }}
 # Merged into the Service Istio generates for the Gateway (spec.infrastructure.parametersRef)
 apiVersion: v1
 kind: ConfigMap
@@ -8,9 +8,9 @@ data:
   service: |
     metadata:
       annotations:
-        kube-vip.io/loadbalancerIPs: {{ .ip }}
+        kube-vip.io/loadbalancerIPs: {{ . }}
     spec:
-      loadBalancerClass: {{ .class }}
+      loadBalancerClass: {{ $.Values.gateway.loadBalancerClass }}
 ---
 {{- end }}
 apiVersion: gateway.networking.k8s.io/v1
@@ -19,7 +19,7 @@ metadata:
   name: gateway
 spec:
   gatewayClassName: istio
-  {{- if .Values.gateway.loadBalancer }}
+  {{- if .Values.global.addresses.gatewayVIP }}
   infrastructure:
     parametersRef:
       group: ""

@@ -34,11 +34,21 @@ if [ -f "$target" ]; then
   for parameter in $(source_of '.helm.parameters[] | .name + "=" + .value'); do
     set -- "$@" --set-string "$parameter"
   done
+  # Captured first: set -e ignores a failing command substitution in a for list
+  values=$(scripts/env-values "$env" apps)
+  for value in $values; do
+    set -- "$@" --set-string "$value"
+  done
   exec helm template "$name" "$(source_of .chart)" --repo "$(source_of .repoURL)" \
     --version "$(source_of .targetRevision)" --namespace "$name" --include-crds -f "$target" "$@"
 fi
 
 name="$(basename "$target")"
+# Argo CD passes the environment's addresses to every component (scripts/env-values)
+values=$(scripts/env-values "$env" root)
+for value in $values; do
+  set -- "$@" --set-string "$value"
+done
 [ -f "$target/values.yaml" ] && set -- "$@" -f "$target/values.yaml"
 [ "$env" != prod ] && [ -f "$target/values-$env.yaml" ] && set -- "$@" -f "$target/values-$env.yaml"
 helm dependency update "$target" >/dev/null

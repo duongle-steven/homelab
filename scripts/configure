@@ -18,9 +18,6 @@ upstream_config = {
     "domain": "khuedoan.com",
     "timezone": "Asia/Ho_Chi_Minh",
     "terraform_workspace": "khuedoan",
-    # kube-vip addresses on the LAN (metal/roles/k3s): the Gateway and wireguard
-    "gateway_ip": "192.168.1.224",
-    "wireguard_ip": "192.168.1.225",
 }
 
 
@@ -51,8 +48,6 @@ def main() -> None:
     domain = Prompt.ask("Enter your domain", default=upstream_config['domain'])
     seed_repo = Prompt.ask("Enter seed repo", default=upstream_config['seed_repo'])
     timezone = Prompt.ask("Enter time zone", default=upstream_config['timezone'])
-    gateway_ip = Prompt.ask("Enter the LAN address for the Gateway", default=upstream_config['gateway_ip'])
-    wireguard_ip = Prompt.ask("Enter the LAN address for WireGuard", default=upstream_config['wireguard_ip'])
 
     find_and_replace(
         pattern=upstream_config['domain'],
@@ -85,29 +80,16 @@ def main() -> None:
         ]
     )
 
-    find_and_replace(
-        pattern=upstream_config['gateway_ip'],
-        replacement=gateway_ip,
-        paths=[
-            "metal/inventories/prod.yml",
-            "system/istio-system/values.yaml",
-        ]
-    )
-
-    find_and_replace(
-        pattern=upstream_config['wireguard_ip'],
-        replacement=wireguard_ip,
-        paths=[
-            "metal/inventories/prod.yml",
-            "apps/wireguard.yaml",
-        ]
-    )
+    # Addresses are settings, not code: charts read them from this file (scripts/check-network-config)
+    if Confirm.ask("Update network addresses (API, Gateway and wireguard VIPs, router)?", default=True):
+        subprocess.run(
+            [editor, 'infra/production/cluster/config.json']
+        )
 
     if Confirm.ask("Update server list?", default=True):
         subprocess.run(
             [editor, 'metal/inventories/prod.yml']
         )
-        print("Also update the node addresses in system/monitoring-system/values.yaml")
 
 
     if Confirm.ask("Do you want to use managed services?"):

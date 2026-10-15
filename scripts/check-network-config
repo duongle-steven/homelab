@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""No chart or app file holds an IP address.
+
+Renders every component and app file in production and the sandbox (scripts/render-chart, which passes the
+environment's addresses like Argo CD) and fails on any IPv4 address that does not come from the environment's
+infra/<env>/cluster/config.json, apart from addresses that are the same everywhere (FIXED). In production it also
+checks that each address reaches the component that uses it (USES).
+"""
+
+import glob
+import ipaddress
+import json
+import re
+import subprocess
+import sys
+import time
+
+import yaml
+
+CONFIG = {"prod": "infra/production/cluster/config.json", "dev": "infra/sandbox/cluster/config.json"}
+# Any address, loopback, k3s's pod and Service ranges, the wireguard tunnel
+FIXED = [ipaddress.ip_network(n) for n in ("0.0.0.0/32", "127.0.0.0/8", "10.42.0.0/16", "10.43.0.0/16", "172.16.0.0/24")]
+# Production: the object that must carry each config.json field (Istio also copies all values into its ConfigMaps,
+# so a match anywhere in the render proves nothing)
+USES = [
+    ("service_vips.gateway", "system/istio-system", "ConfigMap", "gateway-options"),
+    ("service_vips.gateway", "apps/tailscale.yaml", "Deployment", "tailscale"),
+    ("service_vips.wireguard", "apps/wireguard.yaml", "Service", "wireguard"),
+    ("network.gateway", "apps/homepage.yaml", "ConfigMap", "homepage"),
+]
+
+
+class Loader(yaml.SafeLoader):
+    """SafeLoader that reads a bare `=` (YAML 1.1's value tag, used by some charts) as a string."""
+
+
+Loader.add_constructor("tag:yaml.org,2002:value", lambda loader, node: loader.construct_scalar(node))
+IPV4 = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(?![\d.])")
+
+
+def render(target, env):
+    # Chart downloads sometimes reset the connection: try three times
+    for attempt in range(3):
+        out = subprocess.run(["scripts/render-chart", target, env], capture_output=True, text=True)
+        if out.returncode == 0:
+            return [d for d in yaml.load_all(out.stdout, Loader=Loader) if d]
+        time.sleep(5)
+    sys.exit(f"render failed: {target} {env}\n{out.stderr}")
+
+
+def targets():
+    dirs = sorted(glob.glob("system/*/") + glob.glob("platform/*/") + glob.glob("apps/*/"))
+    return [d.rstrip("/") for d in dirs if glob.glob(d + "Chart.yaml")] + sorted(glob.glob("apps/*.yaml"))
+
+
+def field(config, path):
+    for key in path.split("."):
+        config = config[key]
+    return config
+
+
+def addresses(value):
+    if isinstance(value, dict):
+        return set().union(*map(addresses, value.values())) if value else set()
+    return {value} if isinstance(value, str) and value else set()
+
+
+def main():
+    failures = []
+    for env, path in CONFIG.items():
+        with open(path) as f:
+            config = json.load(f)
+        allowed = addresses(config)
+        for target in targets():
+            objects = {}
+            for doc in render(target, env):
+                if doc.get("kind") == "CustomResourceDefinition":
+                    continue
+                dumped = yaml.safe_dump(doc)
+                objects[(doc.get("kind"), doc.get("metadata", {}).get("name"))] = dumped
+                for match in IPV4.findall(dumped):
+                    try:
+                        address = ipaddress.ip_address(match)
+                    except ValueError:
+                        continue
+                    if match in allowed or any(address in n for n in FIXED):
+                        continue
+                    failures.append(f"{target} ({env}): {doc.get('kind')}/{doc.get('metadata', {}).get('name')}: {match}")
+            # Istio has its own global.network (a network name): our values must not take its keys
+            for (kind, name), dumped in objects.items():
+                values = yaml.safe_load(dumped).get("data", {}).get("values") if kind == "ConfigMap" else None
+                if values and values.lstrip().startswith("{"):
+                    network = json.loads(values).get("global", {}).get("network")
+                    if network is not None and not isinstance(network, str):
+                        failures.append(f"{target} ({env}): ConfigMap/{name}: global.network is not Istio's string")
+            if env == "prod":
+                for key, user, kind, name in USES:
+                    if user == target and field(config, key) not in objects.get((kind, name), ""):
+                        failures.append(f"{target} (prod): {kind}/{name} does not use {key} ({field(config, key)})")
+    # Every way the argocd chart is rendered (system/bootstrap.yml uses values-seed.yaml on a first install) must read
+    # the environment's config.json: Helm replaces the generator and source lists each values file restates
+    for env, path in {"prod": CONFIG["prod"], "dev": CONFIG["dev"], "seed": CONFIG["prod"]}.items():
+        for doc in render("system/argocd", env):
+            if doc.get("kind") != "ApplicationSet":
+                continue
+            spec = doc["spec"]
+            generators = spec["generators"][0].get("matrix", {}).get("generators", [{}, {}])
+            files = generators[-1].get("git", {})
+            if [f.get("path") for f in files.get("files", [])] != [path] or files.get("pathParamPrefix") != "config":
+                failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not read {path}")
+            source = spec["template"]["spec"].get("source") or spec["template"]["spec"]["sources"][0]
+            if "addresses" not in source.get("helm", {}).get("valuesObject", {}).get("global", {}):
+                failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not pass global.addresses")
+    for failure in failures:
+        print(failure)
+    print(f"check-network-config: {len(failures)} failures")
+    sys.exit(1 if failures else 0)
+
+
+if __name__ == "__main__":
+    main()
