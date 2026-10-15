@@ -17,7 +17,7 @@ controllers:
           TS_HOSTNAME: homelab-router
           TS_USERSPACE: false
           TS_KUBE_SECRET: tailscale
-          TS_ROUTES: 192.168.1.224/27
+          TS_ROUTES: '{{ .Values.global.network.gatewayVIP }}/32'
           TS_AUTHKEY:
             valueFrom:
               secretKeyRef:

@@ -139,9 +139,11 @@ configMaps:
             - href: https://app.terraform.io
               icon: terraform.svg
         - Infrastructure:
+          {{- with .Values.global.network.router }}
           - Router:
-            - href: https://192.168.1.1
+            - href: https://{{ . }}
               icon: router.svg
+          {{- end }}
           - Proxmox:
             - href: https://proxmox:8006
               icon: proxmox.svg
