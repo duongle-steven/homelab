@@ -130,6 +130,12 @@ def main():
                 if any(d.get("path") in ("system/*", "system/egress") for d in dirs) and not any(
                         d.get("path") == "system/egress" and d.get("exclude") for d in dirs):
                     failures.append(f"system/argocd ({env}): the root generator would deploy system/egress on its own")
+    # Argo CD reaches the internet on port 443 only (system/egress): chart repositories must be https or oci
+    for chart in sorted(glob.glob("system/*/Chart.yaml") + glob.glob("platform/*/Chart.yaml") + glob.glob("apps/*/Chart.yaml")):
+        with open(chart) as f:
+            for dependency in (yaml.safe_load(f) or {}).get("dependencies") or []:
+                if dependency.get("repository", "").startswith("http://"):
+                    failures.append(f"{chart}: {dependency['name']} comes from {dependency['repository']} (Argo CD reaches only port 443)")
     # The egress table names only namespaces something deploys into
     with open("system/egress/values.yaml") as f:
         egress_values = yaml.safe_load(f)

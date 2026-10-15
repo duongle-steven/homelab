@@ -20,6 +20,7 @@ internet:
   matrix: [{port: 443}, {port: 8448}]  # federation
   jellyfin: [{}]  # torrents, indexers, Seerr: every port
   tailscale: [{port: 443}, {protocol: UDP}]  # DERP; STUN and direct connections on any UDP port
+  wireguard: [{port: 51820, protocol: UDP}]  # handshakes and keepalives to server peers (apps/wireguard.yaml)
 
 # Node ports a namespace reaches besides the API server
 nodes:
