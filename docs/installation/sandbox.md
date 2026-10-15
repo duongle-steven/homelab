@@ -110,7 +110,7 @@ make dev   # pushes this commit to the branch sandbox and runs every sandbox tes
 git push -u origin feat/harness-the-sun   # then open a PR into dev
 ```
 
-ArgoCD in the sandbox syncs the GitHub branch `sandbox`. `make dev` force-pushes the commit you are on to it (so commit first) and runs the smoke, identity, SSO (including OpenCloud), Gateway, Forgejo, mesh and monitoring tests against it, so a branch is tested before its pull request. After the merge, run `make dev` on `dev` once more. `dev` is merged into `master` through periodic pull requests.
+ArgoCD in the sandbox syncs the GitHub branch `sandbox`. `make dev` force-pushes the commit you are on to it (so commit first) and runs the smoke, identity, SSO (including OpenCloud), Gateway, Forgejo, mesh, monitoring and egress tests against it, so a branch is tested before its pull request. After the merge, run `make dev` on `dev` once more. `dev` is merged into `master` through periodic pull requests.
 
 Only the components listed in `system/argocd/values-dev.yaml` are synced: system and platform charts in the `root` ApplicationSet, apps in the `apps` ApplicationSet.
 
