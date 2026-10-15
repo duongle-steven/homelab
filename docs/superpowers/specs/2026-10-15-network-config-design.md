@@ -83,7 +83,7 @@ Both ApplicationSets wrap their generator in a `matrix` with a git files generat
 |---|---|---|
 | `system/istio-system` Gateway Service | `gateway.loadBalancer.ip: 192.168.1.224` | `global.network.gatewayVIP`; the kube-vip class and address apply only when it is set |
 | `apps/wireguard.yaml` Service | `192.168.1.225` | `{{ .Values.global.network.wireguardVIP }}` |
-| `apps/wireguard.yaml` peer `AllowedIPs` | `192.168.1.100/32, 192.168.1.224/27` | `apiVIP/32, gatewayVIP/32` |
+| `apps/wireguard.yaml` peer `AllowedIPs` | `172.16.0.1/32, 192.168.1.100/32, 192.168.1.224/27` | `172.16.0.1/32`: the list is an ESO template (no Helm values) and the server ignores its own peer; clients add the VIPs from `config.json` (VPN docs) |
 | `apps/tailscale.yaml` `TS_ROUTES` | `192.168.1.224/27` | `gatewayVIP/32` |
 | `apps/homepage.yaml` router link | `https://192.168.1.1` | `https://{{ .Values.global.network.router }}` |
 
@@ -102,8 +102,8 @@ drops its opt-outs and the sandbox tests prove the scrape.
 
 ### Leftovers
 
-- `metal/inventories/prod.yml`: `control_plane_endpoint` `192.168.0.10`, nodes `192.168.0.11-13`; `gateway_ip`
-  and `wireguard_ip` are removed if nothing in `metal/` reads them, otherwise point at `config.json` in a comment.
+- `metal/inventories/prod.yml`: `control_plane_endpoint` read from `config.json`'s `vip` (Ansible `lookup`), nodes
+  `192.168.0.11-13`; `gateway_ip` and `wireguard_ip` are removed (nothing in `metal/` reads them).
   MAC, disk and interface are placeholders marked "fill in before the first deploy" (Ansible is replaced in step
   11).
 - `scripts/configure`: drops the Gateway and wireguard questions (domain, seed repo and timezone stay until
