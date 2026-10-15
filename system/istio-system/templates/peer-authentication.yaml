@@ -1,0 +1,8 @@
+# Mesh-wide (the root namespace): meshed pods accept only mTLS from other mesh workloads
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+spec:
+  mtls:
+    mode: STRICT

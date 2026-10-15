@@ -1,5 +1,9 @@
 controllers:
   wireguard:
+    # A router: ambient would send the VPN clients' forwarded TCP to ztunnel, and strict mTLS refuses it
+    pod:
+      labels:
+        istio.io/dataplane-mode: none
     containers:
       app:
         image:

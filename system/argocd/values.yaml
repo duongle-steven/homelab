@@ -83,6 +83,9 @@ argocd-apps:
   applicationsets:
     root:
       namespace: argocd
+      goTemplate: true
+      goTemplateOptions:
+        - missingkey=error
       generators:
         - git:
             repoURL: &repoURL http://forgejo-http.forgejo:3000/ops/homelab
@@ -93,15 +96,15 @@ argocd-apps:
               - path: apps/*
       template:
         metadata:
-          name: '{{path.basename}}'
+          name: '{{ .path.basename }}'
         spec:
           destination:
             name: in-cluster
-            namespace: '{{path.basename}}'
+            namespace: '{{ .path.basename }}'
           project: default  # TODO
           source:
             repoURL: *repoURL
-            path: '{{path}}'
+            path: '{{ .path.path }}'
             targetRevision: *revision
           syncPolicy: &syncPolicy
             automated:
@@ -120,11 +123,23 @@ argocd-apps:
               # Keep the ignored webhook fields when a sync applies the rest
               - RespectIgnoreDifferences=true
             managedNamespaceMetadata:
+              labels:
+                # Every namespace joins Istio's ambient mesh (system/istio-system); exceptions: templatePatch below
+                istio.io/dataplane-mode: ambient
               annotations:
                 # Enable privileged VolSync movers by default for all namespaces
                 # TODO this may be refactored in the future for finer granularity
                 # See also https://volsync.readthedocs.io/en/stable/usage/permissionmodel.html
                 volsync.backube/privileged-movers: "true"
+      # The mesh itself and Ceph (host-network pods, its own encryption) stay out of the mesh
+      templatePatch: |
+        {{- if has .path.basename (list "istio-system" "rook-ceph") }}
+        spec:
+          syncPolicy:
+            managedNamespaceMetadata:
+              labels:
+                istio.io/dataplane-mode: none
+        {{- end }}
     # One Application per app-template values file apps/<name>.yaml (apps/matrix/ is a chart, synced by root)
     apps:
       namespace: argocd
