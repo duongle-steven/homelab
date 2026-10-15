@@ -14,9 +14,9 @@ import (
 )
 
 // meshOptOuts are the pods labelled istio.io/dataplane-mode=none, as namespace/app.kubernetes.io/name: the
-// webhooks the API server calls (scripts/check-mesh-exclusions) and the VPN routers. Namespaces outside the mesh
+// webhooks the API server calls (scripts/check-mesh-policies) and the VPN routers. Namespaces outside the mesh
 // are listed in the root ApplicationSet's templatePatch (system/argocd/values.yaml), OUTSIDE in
-// scripts/check-mesh-exclusions and TestMeshEnrolled; keep the three in step.
+// scripts/check-mesh-policies and TestMeshEnrolled; keep the three in step.
 var meshOptOuts = []string{
 	"cert-manager/webhook",
 	"cert-manager/trust-manager",
@@ -90,7 +90,7 @@ func TestMeshEnrolled(t *testing.T) {
 				} `json:"metadata"`
 			}
 			require.True(t, getResource(t, "default", &namespace, "namespace", ns))
-			// Outside the mesh: keep in step with the root ApplicationSet's templatePatch and scripts/check-mesh-exclusions
+			// Outside the mesh: keep in step with the root ApplicationSet's templatePatch and scripts/check-mesh-policies
 			want := map[bool]string{true: "none", false: "ambient"}[ns == "istio-system"]
 			require.Equal(t, want, namespace.Metadata.Labels["istio.io/dataplane-mode"])
 			if want == "none" {
