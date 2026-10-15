@@ -47,11 +47,14 @@ proxy_bind = 127.0.0.1
 # ServiceLB publishes the Gateway (system/istio-system) on the node; Windows reaches WSL's 127.0.0.1 only
 # through a host process, so forward 80, 443 and 22 there. Recreated each time: the node IP can change.
 proxy:
-	@docker rm -f $(proxy_name) >/dev/null 2>&1; \
+	@node="$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(k3d_node) 2>/dev/null || true)"; \
+	if [ -z "$$node" ]; then \
+		echo "the k3d node $(k3d_node) is not running; start the sandbox with 'make dev'"; exit 1; \
+	fi; \
+	docker rm -f $(proxy_name) >/dev/null 2>&1; \
 	if ss -ltnH '( sport = :80 or sport = :443 or sport = :22 )' | grep -q .; then \
 		echo "ports 80/443/22 are already in use on this host:"; ss -ltnp '( sport = :80 or sport = :443 or sport = :22 )'; exit 1; \
 	fi; \
-	node="$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(k3d_node))"; \
 	docker run -d --name $(proxy_name) --network host --restart unless-stopped \
 		--entrypoint sh alpine/socat:1.8.1.3 -c "\
 			socat TCP-LISTEN:80,bind=$(proxy_bind),fork,reuseaddr TCP:$$node:80 & \
