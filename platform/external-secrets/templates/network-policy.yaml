@@ -1,0 +1,18 @@
+# Outside the mesh (the API server calls it): only its webhook port
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: external-secrets-webhook
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: external-secrets-webhook
+      app.kubernetes.io/instance: external-secrets
+  policyTypes:
+    - Ingress
+  ingress:
+    # From anywhere: the API server calls from the nodes' addresses
+    - ports:
+        - protocol: TCP
+          port: 10250

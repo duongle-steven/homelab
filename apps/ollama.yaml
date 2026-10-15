@@ -59,3 +59,24 @@ persistence:
       main:
         main:
           - path: /root/.ollama
+rawResources:
+  # Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
+  authorization-policy:
+    forceRename: allow
+    manifest:
+      apiVersion: security.istio.io/v1
+      kind: AuthorizationPolicy
+      spec:
+        action: ALLOW
+        rules:
+          # Pods in this namespace call each other freely
+          - from:
+              - source:
+                  namespaces: ['{{ .Release.Namespace }}']
+          # the LAN Gateway
+          - from:
+              - source:
+                  principals: ['cluster.local/ns/istio-system/sa/gateway-istio']
+            to:
+              - operation:
+                  ports: ["11434", "8080"]

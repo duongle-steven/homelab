@@ -14,6 +14,11 @@ for kind in Gateway HTTPRoute TCPRoute BackendTLSPolicy ReferenceGrant; do
 done
 # Charts that check for CronJob (renovate)
 set -- "$@" --api-versions batch/v1/CronJob
+# Charts that create Prometheus monitors only when the cluster serves them (kube-prometheus-stack's CRDs)
+set -- "$@" --api-versions monitoring.coreos.com/v1
+for kind in ServiceMonitor PodMonitor PrometheusRule; do
+  set -- "$@" --api-versions "monitoring.coreos.com/v1/$kind"
+done
 
 if [ -f "$target" ]; then
   name="$(basename "$target" .yaml)"

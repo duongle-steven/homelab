@@ -62,3 +62,20 @@ externalSecrets:
           property: tailscale-auth-key
     target:
       deletionPolicy: Retain
+rawResources:
+  # Outside the mesh (a router): only its direct-connection port (peers fall back to DERP relays without it)
+  network-policy:
+    forceRename: tailscale
+    manifest:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      spec:
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: tailscale
+        policyTypes:
+          - Ingress
+        ingress:
+          - ports:
+              - protocol: UDP
+                port: 41641

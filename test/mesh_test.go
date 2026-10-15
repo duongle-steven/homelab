@@ -1,9 +1,9 @@
 package test
 
 import (
+	"encoding/json"
 	"os"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -14,9 +14,9 @@ import (
 )
 
 // meshOptOuts are the pods labelled istio.io/dataplane-mode=none, as namespace/app.kubernetes.io/name: the
-// webhooks the API server calls (scripts/check-mesh-exclusions) and the VPN routers. Namespaces outside the mesh
+// webhooks the API server calls (scripts/check-mesh-policies) and the VPN routers. Namespaces outside the mesh
 // are listed in the root ApplicationSet's templatePatch (system/argocd/values.yaml), OUTSIDE in
-// scripts/check-mesh-exclusions and TestMeshEnrolled; keep the three in step.
+// scripts/check-mesh-policies and TestMeshEnrolled; keep the three in step.
 var meshOptOuts = []string{
 	"cert-manager/webhook",
 	"cert-manager/trust-manager",
@@ -90,7 +90,7 @@ func TestMeshEnrolled(t *testing.T) {
 				} `json:"metadata"`
 			}
 			require.True(t, getResource(t, "default", &namespace, "namespace", ns))
-			// Outside the mesh: keep in step with the root ApplicationSet's templatePatch and scripts/check-mesh-exclusions
+			// Outside the mesh: keep in step with the root ApplicationSet's templatePatch and scripts/check-mesh-policies
 			want := map[bool]string{true: "none", false: "ambient"}[ns == "istio-system"]
 			require.Equal(t, want, namespace.Metadata.Labels["istio.io/dataplane-mode"])
 			if want == "none" {
@@ -126,10 +126,10 @@ func TestMeshEnrolled(t *testing.T) {
 	}
 }
 
-// meshCurl runs curl from a temporary pod in namespace default (outside the mesh unless labels enroll the pod)
-// and returns the HTTP status it printed ("000" when the connection failed).
-func meshCurl(t *testing.T, name, target string, labels string) string {
-	options := k8s.NewKubectlOptions("", "", "default")
+// meshCurlIn runs curl from a temporary pod in a namespace (namespace default is outside the mesh unless labels
+// enroll the pod) and returns the HTTP status it printed ("000" when the connection failed).
+func meshCurlIn(t *testing.T, namespace, name, target string, labels string) string {
+	options := k8s.NewKubectlOptions("", "", namespace)
 	options.Logger = logger.Discard
 	// A pod left over from an interrupted run would make kubectl run fail with AlreadyExists
 	_, _ = k8s.RunKubectlAndGetOutputE(t, options, "delete", "pod", name, "--ignore-not-found", "--wait")
@@ -145,13 +145,14 @@ func meshCurl(t *testing.T, name, target string, labels string) string {
 	return status
 }
 
-// TestMeshRejectsPlaintext proves strict mTLS: a pod outside the mesh is refused, a pod in the mesh gets through,
-// and ztunnel records both identities of the mTLS connection.
+// TestMeshRejectsPlaintext proves strict mTLS and the default deny: a pod outside the mesh is refused, and so is a
+// pod in the mesh that no allow policy names, after ztunnel authenticated it.
 func TestMeshRejectsPlaintext(t *testing.T) {
 	meshSandboxOnly(t)
 	target := "http://excalidraw.excalidraw"
-	assert.Equal(t, "000", meshCurl(t, "mesh-plain", target, ""), "a pod outside the mesh reached a meshed service in plaintext")
-	assert.Equal(t, "200", meshCurl(t, "mesh-member", target, "istio.io/dataplane-mode=ambient"))
+	assert.Equal(t, "000", meshCurlIn(t, "default", "mesh-plain", target, ""), "a pod outside the mesh reached a meshed service in plaintext")
+	// In the mesh but not allowed into excalidraw (default deny): refused after the mTLS handshake
+	assert.Equal(t, "000", meshCurlIn(t, "default", "mesh-member", target, "istio.io/dataplane-mode=ambient"))
 
 	options := k8s.NewKubectlOptions("", "", "istio-system")
 	options.Logger = logger.Discard
@@ -159,7 +160,43 @@ func TestMeshRejectsPlaintext(t *testing.T) {
 	logs, err := k8s.RunKubectlAndGetOutputE(t, options, "logs", "--selector=app=ztunnel", "--prefix", "--since=5m", "--tail=-1")
 	require.NoError(t, err)
 	assert.Contains(t, logs, "policy rejection", "ztunnel did not log the refused plaintext connection")
-	assert.True(t, strings.Contains(logs, `src.identity="spiffe://cluster.local/ns/default/sa/default"`) &&
-		strings.Contains(logs, `dst.identity="spiffe://cluster.local/ns/excalidraw/sa/`),
-		"ztunnel did not log the mTLS connection from default to excalidraw")
+	assert.Contains(t, logs, `src.identity="spiffe://cluster.local/ns/default/sa/default"`,
+		"ztunnel did not authenticate the meshed pod (mTLS)")
+	assert.Regexp(t, `src.identity="spiffe://cluster.local/ns/default/sa/default"[^\n]*policy rejection|policy rejection[^\n]*src.identity="spiffe://cluster.local/ns/default/sa/default"`, logs,
+		"ztunnel did not refuse the meshed pod by policy")
+}
+
+// TestMeshAllowsSameNamespace proves the `allow` policies' same-namespace rule: a meshed pod inside excalidraw
+// reaches excalidraw.
+func TestMeshAllowsSameNamespace(t *testing.T) {
+	meshSandboxOnly(t)
+	assert.Equal(t, "200", meshCurlIn(t, "excalidraw", "mesh-neighbour", "http://excalidraw.excalidraw", ""))
+}
+
+// TestMeshPrometheusTargetsUp proves the allows for Prometheus: no scrape target is down.
+func TestMeshPrometheusTargetsUp(t *testing.T) {
+	meshSandboxOnly(t)
+	options := k8s.NewKubectlOptions("", "", "monitoring-system")
+	options.Logger = logger.Discard
+	query := "/api/v1/namespaces/monitoring-system/services/monitoring-system-kube-pro-prometheus:9090/proxy/api/v1/query?query=up%3D%3D0"
+	assert.Eventually(t, func() bool {
+		out, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "--raw", query)
+		if err != nil {
+			return false
+		}
+		var res struct {
+			Data struct {
+				Result []struct {
+					Metric map[string]string `json:"metric"`
+				} `json:"result"`
+			} `json:"data"`
+		}
+		if json.Unmarshal([]byte(out), &res) != nil {
+			return false
+		}
+		for _, r := range res.Data.Result {
+			t.Logf("target down: %v", r.Metric)
+		}
+		return len(res.Data.Result) == 0
+	}, 5*time.Minute, 30*time.Second, "Prometheus has targets down")
 }

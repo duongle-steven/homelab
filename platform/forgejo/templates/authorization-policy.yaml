@@ -1,0 +1,45 @@
+# Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow
+  namespace: {{ .Release.Namespace }}
+spec:
+  action: ALLOW
+  rules:
+    # Pods in this namespace call each other freely
+    - from:
+        - source:
+            namespaces: ["{{ .Release.Namespace }}"]
+    # Gateway: web (3000) and SSH (2222, the rootless image's port behind Service port 22)
+    - from:
+        - source:
+            principals: ["cluster.local/ns/istio-system/sa/gateway-istio"]
+      to:
+        - operation:
+            ports: ["3000", "2222"]
+    # Production Argo CD syncs ops/homelab from Forgejo
+    - from:
+        - source:
+            principals: ["cluster.local/ns/argocd/sa/argocd-repo-server"]
+      to:
+        - operation:
+            ports: ["3000"]
+{{- if and .Values.database.cnpg .Values.database.cnpg.enabled }}
+---
+# The CloudNativePG operator (outside the mesh, so no identity) polls each instance's status port
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-cnpg-status
+  namespace: {{ .Release.Namespace }}
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      cnpg.io/cluster: forgejo-db
+  rules:
+    - to:
+        - operation:
+            ports: ["8000"]
+{{- end }}
