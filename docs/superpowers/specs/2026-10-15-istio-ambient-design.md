@@ -86,8 +86,8 @@ Step 6 continues: **6c** adds default-deny `AuthorizationPolicy` and `NetworkPol
 - A missed webhook pod: the API server's calls are reset and Argo CD syncs fail; the render check catches it
   before the merge.
 - ztunnel down on a node: meshed pods on that node cannot open connections; documented.
-- Pods started before istio-cni on a node are not redirected until they restart: `TestMeshEnrolled` catches
-  it in the sandbox; `CLAUDE.md` records it for production.
+- Pods started before istio-cni on a node: istio-cni enrols running pods when their namespace is labelled and
+  re-applies its rules at startup (corrected after the final review; this line first said a restart was needed).
 - rook-ceph stays outside the mesh (Ceph encrypts itself; host-network pods).
 
 ## Testing
