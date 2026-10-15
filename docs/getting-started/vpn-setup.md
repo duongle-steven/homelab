@@ -54,7 +54,7 @@ Next, configure port forwarding in your router for the WireGuard service.
     - Protocol: `UDP`
     - Start Port: `51820`
     - End Port: `51820`
-    - Local IP Address: `192.168.1.226` (find it with `kubectl get service -n wireguard wireguard`)
+    - Local IP Address: `192.168.0.3`, the wireguard VIP (`service_vips.wireguard` in `infra/production/cluster/config.json`; check it with `kubectl get service -n wireguard wireguard`)
     - Start Port Local: `51820`
     - End Port Local: `51820`
 
@@ -149,8 +149,10 @@ Replace placeholders with actual values and save as `wg0.conf`.
     [Peer]
     PublicKey = sSAZS1Z3vB7Wx8e2yVqXfeHjgWTa80wnSYoma3mZkiU
     Endpoint = <HOME IP>:51820
-    AllowedIPs = 172.16.0.1/32, 192.168.1.224/27
+    AllowedIPs = 172.16.0.1/32, 192.168.0.10/32, 192.168.0.2/32
     ```
+
+Use the `vip` and `service_vips.gateway` of `infra/production/cluster/config.json` in `AllowedIPs`.
 
 The client can now import this configuration and connect to your WireGuard
 mesh. Make sure you clean up the `wg0.conf` file after importing it to the

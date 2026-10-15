@@ -22,7 +22,17 @@ make configure
     Enter your domain (khuedoan.com): example.com
     ```
 
-It will prompt you to edit the inventory:
+It will prompt you to edit your network's addresses in `infra/production/cluster/config.json`: the Kubernetes API VIP (`vip`), the router (`network.gateway`) and the LAN addresses of the Gateway and wireguard (`service_vips`), all outside your router's DHCP range. Charts read them from there; never write an address into a chart or app file.
+
+!!! example
+
+    ```json title="infra/production/cluster/config.json"
+    --8<--
+    infra/production/cluster/config.json
+    --8<--
+    ```
+
+Then it will prompt you to edit the inventory:
 
 - IP address: the desired one, not the current one, since your servers have no operating system installed yet
 - Disk: based on `/dev/$DISK`, in my case it's `sda`, but yours can be `sdb`, `nvme0n1`...
