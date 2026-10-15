@@ -18,3 +18,10 @@ spec:
       to:
         - operation:
             ports: ["8000"]
+    # Forgejo's webhooks (WOODPECKER_WEBHOOK_HOST is the in-cluster Service)
+    - from:
+        - source:
+            principals: ["cluster.local/ns/forgejo/sa/default"]
+      to:
+        - operation:
+            ports: ["8000"]

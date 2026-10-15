@@ -74,6 +74,9 @@ EXTRA = [
      "production Argo CD syncs from Forgejo"),
     ("platform/forgejo", None, 8000, "Cluster", "the CloudNativePG operator polls forgejo-db's status port"),
     ("system/monitoring-system", GRAFANA, 9090, None, "Grafana's Prometheus data source"),
+    ("system/monitoring-system", GRAFANA, 9093, "Alertmanager", "Grafana's Alertmanager data source"),
+    ("platform/woodpecker", "cluster.local/ns/forgejo/sa/default", 8000, None,
+     "Forgejo's webhooks to WOODPECKER_WEBHOOK_HOST (http://woodpecker-server.woodpecker)"),
     ("system/loki", GRAFANA, 3100, None, "Grafana's Loki data source"),
 ]
 
@@ -185,10 +188,11 @@ def outside(workload, ns_of):
     return ns_of(workload) in OUTSIDE or labels_of(workload).get("istio.io/dataplane-mode") == "none" or host_network(workload)
 
 
-def check_policies(target, env, namespace, docs, ns_of, failures):
+def check_policies(target, env, namespace, docs, ns_of, failures, all_policies):
     workloads = [d for d in docs if d.get("kind") in WORKLOADS]
     services = {(ns_of(d), d["metadata"]["name"]): d for d in docs if d.get("kind") == "Service"}
-    policies = [d for d in docs if d.get("kind") == "AuthorizationPolicy"]
+    # A namespace's policies may come from another component (Argo CD's lives in system/istio-system)
+    policies = all_policies
     netpols = [d for d in docs if d.get("kind") == "NetworkPolicy"]
     meshed = {ns_of(w) for w in workloads if not outside(w, ns_of)}
     for ns in sorted(meshed):
@@ -256,11 +260,20 @@ def check_policies(target, env, namespace, docs, ns_of, failures):
 
 def main():
     failures = []
+    renders = []
+    all_policies = {"prod": [], "dev": []}
     for target in targets():
         namespace = os.path.basename(target).removesuffix(".yaml")
         for env in ("prod", "dev"):
             docs = render(target, env)
-            ns_of = lambda d: (d.get("metadata") or {}).get("namespace") or namespace
+            renders.append((target, namespace, env, docs))
+            for d in docs:
+                if d.get("kind") == "AuthorizationPolicy":
+                    d.setdefault("metadata", {}).setdefault("namespace", namespace)
+                    all_policies[env].append(d)
+    for target, namespace, env, docs in renders:
+        if True:
+            ns_of = lambda d, namespace=namespace: (d.get("metadata") or {}).get("namespace") or namespace
             # In the mesh, pods receive traffic on ztunnel's HBONE port, which a chart's NetworkPolicies must let in;
             # policies that select only pods outside the mesh (webhooks, VPN routers) do not touch meshed pods
             meshed_pods = [w for w in docs if w.get("kind") in WORKLOADS and not outside(w, ns_of)]
@@ -273,7 +286,7 @@ def main():
                     print(f"ok   {target} ({env}): NetworkPolicies in {ns} let HBONE (15008) in")
                 else:
                     failures.append(f"{target} ({env}): NetworkPolicies in {ns} block ztunnel's HBONE port 15008")
-            check_policies(target, env, namespace, docs, ns_of, failures)
+            check_policies(target, env, namespace, docs, ns_of, failures, all_policies[env])
             for svc_ref in (s for d in docs for s in webhook_services(d)):
                 svc_ns, svc_name = svc_ref.get("namespace") or namespace, svc_ref["name"]
                 where = f"{target} ({env}): {svc_ns}/{svc_name}"
