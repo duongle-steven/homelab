@@ -77,6 +77,10 @@ func TestGatewayProgrammed(t *testing.T) {
 				return getResource(t, "istio-system", &gw, "gateway", name) && conditionsMet(gw.Status.Conditions, "Accepted", "Programmed")
 			}, 20*time.Minute, 15*time.Second, "Gateway %s is not programmed", name)
 			require.NotEmpty(t, gw.Status.Addresses)
+			if name == "gateway" {
+				// ServiceLB publishes it on the node the tests dial
+				assert.Equal(t, sandboxAddress(t), gw.Status.Addresses[0].Value)
+			}
 		})
 	}
 }
@@ -119,7 +123,7 @@ func TestGatewayNoIngress(t *testing.T) {
 func TestGatewayForgejoSSH(t *testing.T) {
 	gatewaySandboxOnly(t)
 	require.Eventually(t, func() bool {
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(sandboxAddress(), "22"), 10*time.Second)
+		conn, err := net.DialTimeout("tcp", net.JoinHostPort(sandboxAddress(t), "22"), 10*time.Second)
 		if err != nil {
 			return false
 		}
@@ -127,7 +131,7 @@ func TestGatewayForgejoSSH(t *testing.T) {
 		_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		banner, err := bufio.NewReader(conn).ReadString('\n')
 		return err == nil && strings.HasPrefix(banner, "SSH-2.0-")
-	}, 20*time.Minute, 15*time.Second, "no SSH banner from forgejo on %s:22", sandboxAddress())
+	}, 20*time.Minute, 15*time.Second, "no SSH banner from forgejo on %s:22", sandboxAddress(t))
 }
 
 // TestGatewayZotLargePush uploads one 200 MiB blob through the Gateway, as an image push would.

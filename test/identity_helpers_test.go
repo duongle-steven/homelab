@@ -65,17 +65,21 @@ type credentials struct {
 // stall for ~4.5 s and hang the browser.
 const k3dNode = "k3d-homelab-dev-server-0"
 
-var sandboxAddress = sync.OnceValue(func() string {
+// lookupSandboxAddress finds the node's IP once; an error fails the tests that need it, not the whole run.
+var lookupSandboxAddress = sync.OnceValues(func() (string, error) {
 	out, err := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", k3dNode).Output()
 	if err != nil {
-		panic(fmt.Sprintf("docker inspect %s: %v (is the sandbox running?)", k3dNode, err))
+		return "", fmt.Errorf("docker inspect %s: %w (is the sandbox running?)", k3dNode, err)
 	}
-	addr, err := nodeAddressFromInspect(string(out))
-	if err != nil {
-		panic(err)
-	}
-	return addr
+	return nodeAddressFromInspect(string(out))
 })
+
+// sandboxAddress is the node's IP, or fails the test.
+func sandboxAddress(t *testing.T) string {
+	addr, err := lookupSandboxAddress()
+	require.NoError(t, err)
+	return addr
+}
 
 // nodeAddressFromInspect parses docker inspect's IP address output.
 func nodeAddressFromInspect(out string) (string, error) {
@@ -93,7 +97,11 @@ var insecureClient = &http.Client{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			if host, port, err := net.SplitHostPort(addr); err == nil && strings.HasSuffix(host, ".127-0-0-1.nip.io") {
-				addr = net.JoinHostPort(sandboxAddress(), port)
+				node, err := lookupSandboxAddress()
+				if err != nil {
+					return nil, err
+				}
+				addr = net.JoinHostPort(node, port)
 			}
 			return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, addr)
 		},
@@ -289,11 +297,11 @@ func (k *totpClock) code(t *testing.T, account string, c credentials) string {
 	}
 }
 
-// newBrowser starts headless chromium that resolves sandbox hosts to the ingress LB IP.
+// newBrowser starts headless chromium that resolves sandbox hosts to the k3d node.
 func newBrowser(t *testing.T) (context.Context, func()) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("ignore-certificate-errors", true),
-		chromedp.Flag("host-resolver-rules", "MAP *.127-0-0-1.nip.io "+sandboxAddress()),
+		chromedp.Flag("host-resolver-rules", "MAP *.127-0-0-1.nip.io "+sandboxAddress(t)),
 		// NixOS-WSL exports an LD_LIBRARY_PATH built for a newer glibc than the dev shell's chromium
 		chromedp.Env("LD_LIBRARY_PATH="),
 	)
