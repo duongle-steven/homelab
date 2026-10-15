@@ -4,7 +4,7 @@
 
 **Goal:** Every environment-specific address comes from `infra/<env>/cluster/config.json`; no chart or app file holds an IP address.
 
-**Architecture:** Argo CD's `root` and `apps` ApplicationSets wrap their generator in a `matrix` with a git files generator that reads the environment's `config.json`, and pass `global.network.*` to every chart through `helm.valuesObject`. `scripts/env-values` resolves the same values offline for `scripts/render-chart`; `scripts/check-network-config` fails on any rendered address that does not come from `config.json`. Prometheus finds the control-plane nodes itself (`ScrapeConfig`, node discovery) instead of an address list.
+**Architecture:** Argo CD's `root` and `apps` ApplicationSets wrap their generator in a `matrix` with a git files generator that reads the environment's `config.json`, and pass `global.addresses.*` to every chart through `helm.valuesObject`. `scripts/env-values` resolves the same values offline for `scripts/render-chart`; `scripts/check-network-config` fails on any rendered address that does not come from `config.json`. Prometheus finds the control-plane nodes itself (`ScrapeConfig`, node discovery) instead of an address list.
 
 **Tech Stack:** Argo CD ApplicationSet (matrix, git files generator, goTemplate), Helm, app-template 5.3.0 (`tpl` on strings), kube-prometheus-stack 92.3.0 (`ScrapeConfig` v1alpha1), POSIX sh + yq, Python 3 + PyYAML, Go tests, Ansible inventory.
 
@@ -14,7 +14,7 @@
 
 - Production addresses: router `192.168.0.1`, Kubernetes API VIP `192.168.0.10`, Gateway VIP `192.168.0.2`, wireguard VIP `192.168.0.3`, nodes `192.168.0.11-13`, prefix length 24.
 - `config.json` keeps upstream `nixos`'s format (`vip`, `network.prefix_length`, `network.gateway`) plus `service_vips.gateway` and `service_vips.wireguard`.
-- Helm values: `global.network.apiVIP`, `global.network.router`, `global.network.gatewayVIP`, `global.network.wireguardVIP`; the sandbox sets them all to `""`.
+- Helm values: `global.addresses.apiVIP`, `global.addresses.router`, `global.addresses.gatewayVIP`, `global.addresses.wireguardVIP`; the sandbox sets them all to `""`.
 - Addresses allowed in renders without coming from `config.json`: `0.0.0.0`, `127.0.0.0/8`, `10.42.0.0/16`, `10.43.0.0/16` (k3s pod and Service ranges), `172.16.0.0/24` (wireguard tunnel); CustomResourceDefinitions are skipped (their descriptions cite RFC section numbers like `4.2.1.10`).
 - Control-plane job names stay `kube-controller-manager`, `kube-scheduler`, `kube-etcd`, `kube-proxy`.
 
@@ -35,7 +35,7 @@
 - Modify: `system/argocd/values.yaml` (`root` and `apps` ApplicationSets), `system/argocd/values-dev.yaml`, `scripts/render-chart`
 
 **Interfaces:**
-- Produces: `scripts/env-values <prod|dev> <root|apps>` prints `name=value` lines (`global.network.apiVIP=192.168.0.10` …); `scripts/render-chart` passes them as `--set-string` to charts (`root`) and app files (`apps`). Charts read `.Values.global.network.{apiVIP,router,gatewayVIP,wireguardVIP}`.
+- Produces: `scripts/env-values <prod|dev> <root|apps>` prints `name=value` lines (`global.addresses.apiVIP=192.168.0.10` …); `scripts/render-chart` passes them as `--set-string` to charts (`root`) and app files (`apps`). Charts read `.Values.global.addresses.{apiVIP,router,gatewayVIP,wireguardVIP}`.
 
 - [ ] **Step 1: Write the check**
 
@@ -45,14 +45,14 @@ Create `.superpowers/sdd/2026-10-15-network-config/check-task1.sh`:
 #!/bin/sh
 # config.json reaches the charts the way Argo CD passes it
 set -e
-expect_prod='global.network.apiVIP=192.168.0.10
-global.network.gatewayVIP=192.168.0.2
-global.network.router=192.168.0.1
-global.network.wireguardVIP=192.168.0.3'
-expect_dev='global.network.apiVIP=
-global.network.gatewayVIP=
-global.network.router=
-global.network.wireguardVIP='
+expect_prod='global.addresses.apiVIP=192.168.0.10
+global.addresses.gatewayVIP=192.168.0.2
+global.addresses.router=192.168.0.1
+global.addresses.wireguardVIP=192.168.0.3'
+expect_dev='global.addresses.apiVIP=
+global.addresses.gatewayVIP=
+global.addresses.router=
+global.addresses.wireguardVIP='
 for appset in root apps; do
   test "$(scripts/env-values prod $appset | sort)" = "$expect_prod"
   test "$(scripts/env-values dev $appset | sort)" = "$expect_dev"
@@ -64,7 +64,7 @@ for env in prod dev; do
   got=$(yq ea '[select(.kind == "ApplicationSet") | .spec.generators[0].matrix.generators[1].git | .files[0].path + " " + .pathParamPrefix] | unique | join(",")' "$f")
   echo "$env: $got"
   test "$got" = "$want config"
-  test "$(yq ea '[select(.kind == "ApplicationSet") | (.spec.template.spec.source.helm.valuesObject.global.network.apiVIP, .spec.template.spec.sources[0].helm.valuesObject.global.network.apiVIP) | select(. != null)] | unique | join(",")' "$f")" = '{{ .vip }}'
+  test "$(yq ea '[select(.kind == "ApplicationSet") | (.spec.template.spec.source.helm.valuesObject.global.addresses.apiVIP, .spec.template.spec.sources[0].helm.valuesObject.global.addresses.apiVIP) | select(. != null)] | unique | join(",")' "$f")" = '{{ .vip }}'
 done
 echo "task1: ok"
 ```
@@ -253,7 +253,7 @@ pick "$object" | yq '.. | select(tag == "!!str") | (path | join(".")) + "=" + .'
 done
 ```
 
-(yq prints an empty string as `""`: if Step 6 shows `global.network.router=""`, strip the quotes with `value=$(... | sed 's/^""$//')` and ledger it.)
+(yq prints an empty string as `""`: if Step 6 shows `global.addresses.router=""`, strip the quotes with `value=$(... | sed 's/^""$//')` and ledger it.)
 
 - [ ] **Step 6: `scripts/render-chart`**
 
@@ -293,7 +293,7 @@ git commit -m "feat: environment addresses from infra/<env>/cluster/config.json"
 - Modify: `system/istio-system/values.yaml`, `system/istio-system/values-dev.yaml`, `system/istio-system/templates/gateway.yaml`, `apps/wireguard.yaml`, `apps/tailscale.yaml`, `apps/homepage.yaml`
 
 **Interfaces:**
-- Consumes: `.Values.global.network.*` (Task 1).
+- Consumes: `.Values.global.addresses.*` (Task 1).
 - Produces: `scripts/check-network-config` (exit 0 when clean; prints one line per stray address).
 
 - [ ] **Step 1: Write the check script**
@@ -405,7 +405,7 @@ Expected: non-zero failures, including `192.168.1.224` (istio-system, tailscale,
 
 ```yaml
 gateway:
-  # kube-vip serves the LAN Gateway's Service on its own VIP (global.network.gatewayVIP, from
+  # kube-vip serves the LAN Gateway's Service on its own VIP (global.addresses.gatewayVIP, from
   # infra/<env>/cluster/config.json): Forgejo SSH keeps port 22 (node sshd owns it on the node IPs) and the address
   # moves to another node when one fails. Without a VIP (the sandbox), k3s ServiceLB serves it.
   loadBalancerClass: kube-vip.io/kube-vip-class
@@ -416,7 +416,7 @@ gateway:
 `system/istio-system/templates/gateway.yaml`: replace `{{- with .Values.gateway.loadBalancer }}` … `{{- end }}` (the ConfigMap) with
 
 ```yaml
-{{- with .Values.global.network.gatewayVIP }}
+{{- with .Values.global.addresses.gatewayVIP }}
 # Merged into the Service Istio generates for the Gateway (spec.infrastructure.parametersRef)
 apiVersion: v1
 kind: ConfigMap
@@ -433,15 +433,15 @@ data:
 {{- end }}
 ```
 
-and `{{- if .Values.gateway.loadBalancer }}` with `{{- if .Values.global.network.gatewayVIP }}`.
+and `{{- if .Values.gateway.loadBalancer }}` with `{{- if .Values.global.addresses.gatewayVIP }}`.
 
 - [ ] **Step 4: App files**
 
 `apps/wireguard.yaml`:
-- Service annotation: `kube-vip.io/loadbalancerIPs: 192.168.1.225` → `kube-vip.io/loadbalancerIPs: '{{ .Values.global.network.wireguardVIP }}'`; the comment above it → `# Its own kube-vip address (global.network.wireguardVIP, from infra/<env>/cluster/config.json), like the LAN Gateway`.
+- Service annotation: `kube-vip.io/loadbalancerIPs: 192.168.1.225` → `kube-vip.io/loadbalancerIPs: '{{ .Values.global.addresses.wireguardVIP }}'`; the comment above it → `# Its own kube-vip address (global.addresses.wireguardVIP, from infra/<env>/cluster/config.json), like the LAN Gateway`.
 - The `homelab` peer: `AllowedIPs = 172.16.0.1/32, 192.168.1.100/32, 192.168.1.224/27` → `AllowedIPs = 172.16.0.1/32`, and add above `[Peer]` of `homelab` the line `# Clients also route the API and Gateway VIPs (infra/<env>/cluster/config.json) through this peer`. (This ExternalSecret template is ESO's, not Helm's, so it cannot read Helm values; the server ignores the peer whose key is its own, so only clients copying the list used these addresses. docs/getting-started/vpn-setup.md shows the client config.)
 
-`apps/tailscale.yaml`: `TS_ROUTES: 192.168.1.224/27` → `TS_ROUTES: '{{ .Values.global.network.gatewayVIP }}/32'`.
+`apps/tailscale.yaml`: `TS_ROUTES: 192.168.1.224/27` → `TS_ROUTES: '{{ .Values.global.addresses.gatewayVIP }}/32'`.
 
 `apps/homepage.yaml`: replace
 
@@ -454,7 +454,7 @@ and `{{- if .Values.gateway.loadBalancer }}` with `{{- if .Values.global.network
 with
 
 ```yaml
-          {{- with .Values.global.network.router }}
+          {{- with .Values.global.addresses.router }}
           - Router:
             - href: https://{{ . }}
               icon: router.svg
@@ -727,7 +727,7 @@ Expected: no error; `0`.
 
 - [ ] **Step 3: Docs**
 
-- `docs/reference/architecture/networking.md`: `192.168.1.224` → `192.168.0.2`, `192.168.1.100` → `192.168.0.10`, and add after the paragraph on kube-vip: "These addresses are set in `infra/<env>/cluster/config.json` (upstream's format: `vip`, `network`, plus `service_vips`); Argo CD passes them to every chart as `global.network.*`, and `scripts/check-network-config` keeps addresses out of charts and app files."
+- `docs/reference/architecture/networking.md`: `192.168.1.224` → `192.168.0.2`, `192.168.1.100` → `192.168.0.10`, and add after the paragraph on kube-vip: "These addresses are set in `infra/<env>/cluster/config.json` (upstream's format: `vip`, `network`, plus `service_vips`); Argo CD passes them to every chart as `global.addresses.*`, and `scripts/check-network-config` keeps addresses out of charts and app files."
 - `docs/getting-started/vpn-setup.md`: `192.168.1.226` → `192.168.0.3` (the wireguard VIP; the old value was already off by one), `AllowedIPs = 172.16.0.1/32, 192.168.1.224/27` → `AllowedIPs = 172.16.0.1/32, 192.168.0.10/32, 192.168.0.2/32` with a sentence: "Use the `vip` and `service_vips.gateway` of `infra/production/cluster/config.json`."
 - The installation page that lists what a new user changes (`grep -rln "make configure" docs/installation docs/getting-started`): add "Set your network's addresses in `infra/production/cluster/config.json`."
 - `docs/how-to-guides/add-or-remove-nodes.md` uses example addresses in a diff; change `192.168.1.11x` to `192.168.0.1x` to match (`.110`→`.11`, `.111`→`.12`, `.112`→`.13`, `.113`→`.14`, `.114`→`.15`).
@@ -735,7 +735,7 @@ Expected: no error; `0`.
 - [ ] **Step 4: `CLAUDE.md`**
 
 - Roadmap 6: replace "; 6d egress" with "; 6d-1 network addresses from `infra/<env>/cluster/config.json` (done); 6d-2 egress".
-- Rules, after the version rule: "- Addresses that depend on where the homelab runs (VIPs, router) live only in `infra/<env>/cluster/config.json` (upstream `nixos`'s format plus `service_vips`); Argo CD passes them to every chart and app as `global.network.*` (`scripts/env-values` does the same offline). Charts and app files hold no IP address: `scripts/check-network-config` checks it."
+- Rules, after the version rule: "- Addresses that depend on where the homelab runs (VIPs, router) live only in `infra/<env>/cluster/config.json` (upstream `nixos`'s format plus `service_vips`); Argo CD passes them to every chart and app as `global.addresses.*` (`scripts/env-values` does the same offline). Charts and app files hold no IP address: `scripts/check-network-config` checks it."
 - Basic checks list: add `scripts/check-network-config` after `scripts/check-mesh-policies`, and the offline Go test list is unchanged.
 - Sandbox: `make dev` runs `Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring`.
 - Production checklist: replace `192.168.1.224` (Gateway) and `192.168.1.225` (wireguard) with `192.168.0.2` and `192.168.0.3`; replace "The node `metal3` is still a k3s agent (upstream makes every node a server)." with "`metal/inventories/prod.yml` has the node addresses `192.168.0.11-13` but placeholder MAC addresses (`FILL-ME`), disks and interfaces: fill them in first."; add "Wireguard's peer list (`apps/wireguard.yaml`: keys, the `horus` peer) is upstream's; replace it with your own peers." and "The control-plane scrape by node discovery ran only on the one-node sandbox."

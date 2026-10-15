@@ -20,10 +20,10 @@ service:
   wireguard:
     controller: wireguard
     type: LoadBalancer
-    # Its own kube-vip address (global.network.wireguardVIP, from infra/<env>/cluster/config.json), like the LAN Gateway
+    # Its own kube-vip address (global.addresses.wireguardVIP, from infra/<env>/cluster/config.json), like the LAN Gateway
     loadBalancerClass: kube-vip.io/kube-vip-class
     annotations:
-      kube-vip.io/loadbalancerIPs: '{{ .Values.global.network.wireguardVIP }}'
+      kube-vip.io/loadbalancerIPs: '{{ .Values.global.addresses.wireguardVIP }}'
     ports:
       http:
         port: 51820

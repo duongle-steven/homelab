@@ -32,7 +32,7 @@ Production gets this homelab's addresses (network `192.168.0.0/24`). Step 6d-2 (
 | Topic | Decision |
 |---|---|
 | Source of truth | `infra/<env>/cluster/config.json`, upstream's format plus `service_vips` |
-| Reader now | The `root` and `apps` ApplicationSets (matrix with a git files generator), passing Helm parameters `global.network.*` |
+| Reader now | The `root` and `apps` ApplicationSets (matrix with a git files generator), passing Helm parameters `global.addresses.*` |
 | Reader later | OpenTofu in step 7 reads the same file |
 | Service VIPs | Kept: Gateway and wireguard |
 | Control-plane scrape | Prometheus discovers the nodes (`ScrapeConfig`, Kubernetes node discovery), no address list |
@@ -69,10 +69,10 @@ Both ApplicationSets wrap their generator in a `matrix` with a git files generat
 
 | Parameter | From |
 |---|---|
-| `global.network.apiVIP` | `vip` |
-| `global.network.router` | `network.gateway` |
-| `global.network.gatewayVIP` | `service_vips.gateway` |
-| `global.network.wireguardVIP` | `service_vips.wireguard` |
+| `global.addresses.apiVIP` | `vip` |
+| `global.addresses.router` | `network.gateway` |
+| `global.addresses.gatewayVIP` | `service_vips.gateway` |
+| `global.addresses.wireguardVIP` | `service_vips.wireguard` |
 
 `root` Applications gain a `helm.parameters` list (they have none today); `apps` adds these to its existing
 `global.*` parameters.
@@ -81,11 +81,11 @@ Both ApplicationSets wrap their generator in a `matrix` with a git files generat
 
 | Where | Before | After |
 |---|---|---|
-| `system/istio-system` Gateway Service | `gateway.loadBalancer.ip: 192.168.1.224` | `global.network.gatewayVIP`; the kube-vip class and address apply only when it is set |
-| `apps/wireguard.yaml` Service | `192.168.1.225` | `{{ .Values.global.network.wireguardVIP }}` |
+| `system/istio-system` Gateway Service | `gateway.loadBalancer.ip: 192.168.1.224` | `global.addresses.gatewayVIP`; the kube-vip class and address apply only when it is set |
+| `apps/wireguard.yaml` Service | `192.168.1.225` | `{{ .Values.global.addresses.wireguardVIP }}` |
 | `apps/wireguard.yaml` peer `AllowedIPs` | `172.16.0.1/32, 192.168.1.100/32, 192.168.1.224/27` | `172.16.0.1/32`: the list is an ESO template (no Helm values) and the server ignores its own peer; clients add the VIPs from `config.json` (VPN docs) |
 | `apps/tailscale.yaml` `TS_ROUTES` | `192.168.1.224/27` | `gatewayVIP/32` |
-| `apps/homepage.yaml` router link | `https://192.168.1.1` | `https://{{ .Values.global.network.router }}` |
+| `apps/homepage.yaml` router link | `https://192.168.1.1` | `https://{{ .Values.global.addresses.router }}` |
 
 App files template these strings the way they template hosts; a value app-template does not template is moved
 to a field it does (checked by rendering).

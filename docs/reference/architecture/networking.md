@@ -25,7 +25,7 @@ The cluster uses k3s's own networking: Flannel, kube-proxy, the network policy c
 
 kube-vip also holds the Kubernetes API address (`192.168.0.10`) and serves only LoadBalancer Services of class `kube-vip.io/kube-vip-class`; ServiceLB serves the others.
 
-These addresses are set in `infra/<env>/cluster/config.json` (upstream's format: `vip`, `network`, plus `service_vips`); Argo CD passes them to every chart as `global.network.*`, and `scripts/check-network-config` keeps addresses out of charts and app files.
+These addresses are set in `infra/<env>/cluster/config.json` (upstream's format: `vip`, `network`, plus `service_vips`); Argo CD passes them to every chart as `global.addresses.*`, and `scripts/check-network-config` keeps addresses out of charts and app files.
 
 Both terminate TLS with one wildcard certificate. Apps attach an `HTTPRoute` to one of them; there are no `Ingress` objects.
 

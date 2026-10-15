@@ -34,7 +34,9 @@ if [ -f "$target" ]; then
   for parameter in $(source_of '.helm.parameters[] | .name + "=" + .value'); do
     set -- "$@" --set-string "$parameter"
   done
-  for value in $(scripts/env-values "$env" apps); do
+  # Captured first: set -e ignores a failing command substitution in a for list
+  values=$(scripts/env-values "$env" apps)
+  for value in $values; do
     set -- "$@" --set-string "$value"
   done
   exec helm template "$name" "$(source_of .chart)" --repo "$(source_of .repoURL)" \
@@ -43,7 +45,8 @@ fi
 
 name="$(basename "$target")"
 # Argo CD passes the environment's addresses to every component (scripts/env-values)
-for value in $(scripts/env-values "$env" root); do
+values=$(scripts/env-values "$env" root)
+for value in $values; do
   set -- "$@" --set-string "$value"
 done
 [ -f "$target/values.yaml" ] && set -- "$@" -f "$target/values.yaml"

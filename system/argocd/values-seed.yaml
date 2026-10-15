@@ -13,14 +13,23 @@ argo-cd:
 argocd-apps:
   applicationsets:
     root:
+      # Helm replaces lists: the matrix with the environment's addresses is restated (system/argocd/values.yaml)
       generators:
-        - git:
-            repoURL: &repoURL https://github.com/khuedoan/homelab
-            revision: &revision master
-            directories:
-              - path: system/*
-              - path: platform/*
-              - path: apps/*
+        - matrix:
+            generators:
+              - git:
+                  repoURL: &repoURL https://github.com/khuedoan/homelab
+                  revision: &revision master
+                  directories:
+                    - path: system/*
+                    - path: platform/*
+                    - path: apps/*
+              - git: &config
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: infra/production/cluster/config.json
+                  pathParamPrefix: config
       template:
         spec:
           source:
@@ -28,11 +37,14 @@ argocd-apps:
             targetRevision: *revision
     apps:
       generators:
-        - git:
-            repoURL: *repoURL
-            revision: *revision
-            files:
-              - path: apps/*.yaml
+        - matrix:
+            generators:
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: apps/*.yaml
+              - git: *config
       template:
         spec:
           sources:
@@ -50,6 +62,13 @@ argocd-apps:
                     value: public
                   - name: global.devCA
                     value: ""
+                valuesObject:
+                  global:
+                    addresses:
+                      apiVIP: '{{ .vip }}'
+                      router: '{{ .network.gateway }}'
+                      gatewayVIP: '{{ .service_vips.gateway }}'
+                      wireguardVIP: '{{ .service_vips.wireguard }}'
             - repoURL: *repoURL
               targetRevision: *revision
               ref: values

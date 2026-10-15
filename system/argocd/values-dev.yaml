@@ -107,7 +107,7 @@ argocd-apps:
                     value: "true"
                 valuesObject:
                   global:
-                    network:
+                    addresses:
                       apiVIP: '{{ .vip }}'
                       router: '{{ .network.gateway }}'
                       gatewayVIP: '{{ .service_vips.gateway }}'

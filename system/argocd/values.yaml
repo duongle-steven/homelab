@@ -121,7 +121,7 @@ argocd-apps:
               # scripts/env-values resolves these offline for scripts/render-chart
               valuesObject:
                 global:
-                  network: &network
+                  addresses: &addresses
                     apiVIP: '{{ .vip }}'
                     router: '{{ .network.gateway }}'
                     gatewayVIP: '{{ .service_vips.gateway }}'
@@ -212,7 +212,7 @@ argocd-apps:
                     value: ""
                 valuesObject:
                   global:
-                    network: *network
+                    addresses: *addresses
             - repoURL: *repoURL
               targetRevision: *revision
               ref: values

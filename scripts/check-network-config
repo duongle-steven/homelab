@@ -86,10 +86,31 @@ def main():
                     if match in allowed or any(address in n for n in FIXED):
                         continue
                     failures.append(f"{target} ({env}): {doc.get('kind')}/{doc.get('metadata', {}).get('name')}: {match}")
+            # Istio has its own global.network (a network name): our values must not take its keys
+            for (kind, name), dumped in objects.items():
+                values = yaml.safe_load(dumped).get("data", {}).get("values") if kind == "ConfigMap" else None
+                if values and values.lstrip().startswith("{"):
+                    network = json.loads(values).get("global", {}).get("network")
+                    if network is not None and not isinstance(network, str):
+                        failures.append(f"{target} ({env}): ConfigMap/{name}: global.network is not Istio's string")
             if env == "prod":
                 for key, user, kind, name in USES:
                     if user == target and field(config, key) not in objects.get((kind, name), ""):
                         failures.append(f"{target} (prod): {kind}/{name} does not use {key} ({field(config, key)})")
+    # Every way the argocd chart is rendered (system/bootstrap.yml uses values-seed.yaml on a first install) must read
+    # the environment's config.json: Helm replaces the generator and source lists each values file restates
+    for env, path in {"prod": CONFIG["prod"], "dev": CONFIG["dev"], "seed": CONFIG["prod"]}.items():
+        for doc in render("system/argocd", env):
+            if doc.get("kind") != "ApplicationSet":
+                continue
+            spec = doc["spec"]
+            generators = spec["generators"][0].get("matrix", {}).get("generators", [{}, {}])
+            files = generators[-1].get("git", {})
+            if [f.get("path") for f in files.get("files", [])] != [path] or files.get("pathParamPrefix") != "config":
+                failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not read {path}")
+            source = spec["template"]["spec"].get("source") or spec["template"]["spec"]["sources"][0]
+            if "addresses" not in source.get("helm", {}).get("valuesObject", {}).get("global", {}):
+                failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not pass global.addresses")
     for failure in failures:
         print(failure)
     print(f"check-network-config: {len(failures)} failures")
