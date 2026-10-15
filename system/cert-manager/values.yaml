@@ -1,6 +1,10 @@
 cert-manager:
   crds:
     enabled: true
+  webhook:
+    # The API server (outside the mesh) calls it: keep it out of the mesh's strict mTLS
+    podLabels:
+      istio.io/dataplane-mode: none
   prometheus:
     enabled: true
     servicemonitor:
@@ -10,3 +14,7 @@ issuer:
   dev: false
 trust-manager:
   enabled: false
+  app:
+    # The API server (outside the mesh) calls its webhook
+    podLabels:
+      istio.io/dataplane-mode: none

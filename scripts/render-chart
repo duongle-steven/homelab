@@ -12,6 +12,8 @@ set -- "$@" --api-versions gateway.networking.k8s.io/v1
 for kind in Gateway HTTPRoute TCPRoute BackendTLSPolicy ReferenceGrant; do
   set -- "$@" --api-versions "gateway.networking.k8s.io/v1/$kind"
 done
+# Charts that check for CronJob (renovate)
+set -- "$@" --api-versions batch/v1/CronJob
 
 if [ -f "$target" ]; then
   name="$(basename "$target" .yaml)"

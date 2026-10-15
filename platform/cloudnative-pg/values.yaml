@@ -1,4 +1,7 @@
 # PostgreSQL operator for production databases (Forgejo); the sandbox uses SQLite and does not sync it
 cloudnative-pg:
+  # The API server (outside the mesh) calls the operator's webhooks
+  podLabels:
+    istio.io/dataplane-mode: none
   monitoring:
     podMonitorEnabled: true

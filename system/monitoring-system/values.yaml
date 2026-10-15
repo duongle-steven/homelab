@@ -1,4 +1,8 @@
 kube-prometheus-stack:
+  prometheusOperator:
+    # The API server (outside the mesh) calls its admission webhook
+    podLabels:
+      istio.io/dataplane-mode: none
   # k3s runs the control plane and kube-proxy inside its own process, so the chart's pod selectors find
   # nothing: scrape the nodes instead (keep in sync with metal/inventories/prod.yml)
   kubeControllerManager:
