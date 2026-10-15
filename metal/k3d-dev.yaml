@@ -7,6 +7,9 @@ metadata:
   name: homelab-dev
 servers: 1
 agents: 0
+# A fixed Docker network: infra/sandbox/cluster/config.json names its router and prefix (system/egress opens the
+# API server on the node network)
+subnet: 172.28.0.0/16
 image: rancher/k3s:v1.37.1-k3s1
 options:
   k3s:
