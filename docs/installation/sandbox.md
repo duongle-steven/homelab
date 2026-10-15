@@ -105,10 +105,12 @@ scripts/render-chart platform/kanidm dev
 # offline unit tests (the other tests need a cluster)
 (cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect' ./...)
 mkdocs build --strict
+git commit -am "feat: harness the sun"
+make dev   # pushes this commit to the branch sandbox and runs every sandbox test on it
 git push -u origin feat/harness-the-sun   # then open a PR into dev
 ```
 
-ArgoCD in the sandbox syncs from the `dev` branch on GitHub, so a change reaches the sandbox once its PR is merged. Then run `make dev` to run the smoke, identity, SSO (including OpenCloud), Gateway and Forgejo tests against it. `dev` is merged into `master` through periodic pull requests.
+ArgoCD in the sandbox syncs the GitHub branch `sandbox`. `make dev` force-pushes the commit you are on to it (so commit first) and runs the smoke, identity, SSO (including OpenCloud), Gateway, Forgejo and mesh tests against it, so a branch is tested before its pull request. After the merge, run `make dev` on `dev` once more. `dev` is merged into `master` through periodic pull requests.
 
 Only the components listed in `system/argocd/values-dev.yaml` are synced: system and platform charts in the `root` ApplicationSet, apps in the `apps` ApplicationSet.
 
@@ -159,6 +161,6 @@ make dev-clean
 - Certificates come from a local CA instead of Let's Encrypt
 - Only accessible from the host machine
 - No Alertmanager, Loki, backups, Woodpecker or Renovate
-- Forgejo runs on SQLite instead of PostgreSQL (CloudNativePG); Argo CD still syncs GitHub branch `dev`, not Forgejo
+- Forgejo runs on SQLite instead of PostgreSQL (CloudNativePG); Argo CD syncs GitHub branch `sandbox` (Forgejo's seed still copies the default branch), not Forgejo
 - No Cloudflare Tunnel: excalidraw uses the LAN Gateway `gateway` instead of `public`
 - No kube-vip: ServiceLB serves the Gateway on the k3d node instead of a kube-vip address
