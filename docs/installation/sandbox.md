@@ -124,28 +124,29 @@ scripts/render-chart platform/kanidm dev
 
 ## Resource usage
 
-Measured on a fresh sandbox with all components running (working-set memory per namespace from Prometheus; the node total from `docker stats`):
+Measured on a fresh k3d sandbox with all components running (working-set memory per namespace from Prometheus; the node total from `docker stats` of `k3d-homelab-dev-server-0`; the k3d load balancer and the localhost proxy add about 25 MiB):
 
 | Namespace | RAM |
 |---|---|
-| kube-system (Kubernetes, Cilium and its Gateway Envoy, CoreDNS) | 2201 MiB |
-| paperless (with Redis) | 772 MiB |
-| argocd | 680 MiB |
-| grafana | 667 MiB |
-| monitoring-system | 625 MiB |
-| cert-manager (with trust-manager) | 176 MiB |
-| external-secrets | 163 MiB |
-| kanidm | 149 MiB |
-| opencloud | 139 MiB |
-| forgejo | 130 MiB |
-| homepage | 112 MiB |
-| zot | 73 MiB |
-| actualbudget | 55 MiB |
-| pairdrop | 47 MiB |
-| local-path-storage | 27 MiB |
+| paperless (with Redis) | 819 MiB |
+| grafana | 733 MiB |
+| monitoring-system | 683 MiB |
+| argocd | 615 MiB |
+| cert-manager (with trust-manager) | 178 MiB |
+| istio-system (istiod and the two Gateways) | 165 MiB |
+| opencloud | 152 MiB |
+| external-secrets | 142 MiB |
+| kanidm | 139 MiB |
+| homepage | 136 MiB |
+| forgejo | 136 MiB |
+| kube-system (CoreDNS, local-path, metrics-server, ServiceLB) | 102 MiB |
+| zot | 95 MiB |
+| pairdrop | 65 MiB |
+| actualbudget | 61 MiB |
 | speedtest | 22 MiB |
 | excalidraw | 13 MiB |
-| **Node total** | **6.90 GiB** |
+| k3s itself (API server, etcd, controllers, kubelet, containerd; outside any container: node total minus the rows above) | about 3.0 GiB |
+| **Node total** | **7.23 GiB** |
 
 ## Clean up
 

@@ -29,11 +29,12 @@ func TestForgejoSeed(t *testing.T) {
 		Private bool `json:"private"`
 		Empty   bool `json:"empty"`
 	}
+	// The repository exists (and is empty) while the migration still clones it, so wait until it has content
 	require.Eventually(t, func() bool {
-		return getJSON(t, "GET", base+"/api/v1/repos/ops/homelab", nil, admin, password, nil, &repo) == http.StatusOK
+		repo.Empty = true
+		return getJSON(t, "GET", base+"/api/v1/repos/ops/homelab", nil, admin, password, nil, &repo) == http.StatusOK && !repo.Empty
 	}, 20*time.Minute, 15*time.Second, "ops/homelab was not seeded")
 	assert.True(t, repo.Private)
-	assert.False(t, repo.Empty)
 
 	user := secretValue(t, "argocd", "argocd-repo-forgejo", "username")
 	pass := secretValue(t, "argocd", "argocd-repo-forgejo", "password")
