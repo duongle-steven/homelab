@@ -26,3 +26,15 @@ The cluster uses k3s's own networking: Flannel, kube-proxy, the network policy c
 kube-vip also holds the Kubernetes API address (`192.168.1.100`) and serves only LoadBalancer Services of class `kube-vip.io/kube-vip-class`; ServiceLB serves the others.
 
 Both terminate TLS with one wildcard certificate. Apps attach an `HTTPRoute` to one of them; there are no `Ingress` objects.
+
+## Service mesh
+
+Every namespace Argo CD manages joins Istio's ambient mesh (`istio.io/dataplane-mode: ambient`, set through Argo CD's `managedNamespaceMetadata`): istio-cni redirects each pod's traffic to the ztunnel on its node, which wraps it in mutual TLS with the workload's SPIFFE identity. A mesh-wide `PeerAuthentication` (`STRICT`) makes meshed pods refuse plaintext. There are no sidecars; apps need no changes.
+
+Outside the mesh:
+
+- `istio-system` (the mesh itself) and `rook-ceph` (host-network pods, Ceph's own encryption), labelled `none` by the `root` ApplicationSet's `templatePatch`
+- `kube-system`, which Argo CD does not manage
+- the pods the Kubernetes API server calls as webhooks (cert-manager, trust-manager, External Secrets, the Prometheus operator, CloudNativePG), labelled `none` on the pod; `scripts/check-mesh-exclusions` fails if a chart adds a webhook that is still meshed
+
+The Istio Gateways reach meshed pods over HBONE, so inbound traffic is unchanged. If ztunnel is down on a node, meshed pods there cannot open connections.
