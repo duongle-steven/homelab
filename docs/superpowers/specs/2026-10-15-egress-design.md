@@ -37,7 +37,7 @@ internet. Hostname allowlists (Istio egress waypoint) are a possible later step,
 |---|---|
 | Mechanism | `NetworkPolicy` (k3s's controller), by address and port |
 | Baseline | One chart, `system/egress`, added as an extra source to every Application the `root` and `apps` ApplicationSets generate, rendered into that Application's namespace |
-| Exceptions | `istio-system` and `rook-ceph` get no egress policies (the `root` `templatePatch`, like their mesh exclusion); `kube-system` is not managed |
+| Exceptions | `istio-system` and `rook-ceph` get no egress policies (the chart's `exclude` list, in step with the `root` `templatePatch` that keeps them out of the mesh); `kube-system` is not managed |
 | Internet allowances | One table in `system/egress/values.yaml`, keyed by namespace |
 | API server | The node network from `config.json` (`network.gateway`/`network.prefix_length`), port 6443 |
 | Sandbox node network | k3d's Docker network pinned to `172.28.0.0/16`, written into `infra/sandbox/cluster/config.json` |
@@ -99,7 +99,8 @@ TCP. The private ranges excluded from "internet": `10.0.0.0/8`, `172.16.0.0/12`,
   (`exclude: true`), in `values.yaml` and `values-seed.yaml` (the sandbox lists its directories explicitly).
   `values-dev.yaml` and `values-seed.yaml` restate `sources` (Helm replaces lists).
 - `apps`: a third source, `system/egress`, in `values.yaml`, `values-dev.yaml` and `values-seed.yaml`.
-- The `root` `templatePatch` drops the `system/egress` source for `istio-system` and `rook-ceph`.
+- `istio-system` and `rook-ceph` keep the source, but the chart renders nothing there (`exclude`): a `templatePatch`
+  would have to restate the whole `sources` list per environment.
 - `valuesObject` gains `prefixLength: '{{ .network.prefix_length }}'` (`scripts/env-values` resolves it too).
 
 ### Sandbox
@@ -116,7 +117,7 @@ TCP. The private ranges excluded from "internet": `10.0.0.0/8`, `172.16.0.0/12`,
 
 ## Testing
 
-- `scripts/check-mesh-policies` (offline) also fails when:
+- `scripts/check-network-config` (offline) also fails when:
   - an Application the ApplicationSets generate (other than `istio-system`, `rook-ceph`) lacks the `system/egress`
     source, in production, the sandbox and the seed;
   - the table names a namespace that no component or app file deploys into.
