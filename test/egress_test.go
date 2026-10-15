@@ -10,6 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// egressCurl probes from a new pod after the network policy controller has had time to apply the namespace's
+// policies to it (it does so asynchronously: a pod's first seconds are not yet restricted)
+func egressCurl(t *testing.T, namespace, target string) string {
+	return curlFrom(t, namespace, "egress-probe", target, "", 20)
+}
+
 // waitForEgressPolicies waits until Argo CD has synced system/egress into a namespace: these tests run before the
 // slower ones, while a fresh sandbox is still syncing
 func waitForEgressPolicies(t *testing.T, namespace string) {
@@ -25,20 +31,20 @@ func waitForEgressPolicies(t *testing.T, namespace string) {
 func TestEgressBlocksInternet(t *testing.T) {
 	meshSandboxOnly(t)
 	waitForEgressPolicies(t, "excalidraw")
-	assert.Equal(t, "000", meshCurlIn(t, "excalidraw", "egress-probe", "https://github.com", ""), "excalidraw reached the internet")
+	assert.Equal(t, "000", egressCurl(t, "excalidraw", "https://github.com"), "excalidraw reached the internet")
 }
 
 func TestEgressBlocksNodePorts(t *testing.T) {
 	meshSandboxOnly(t)
 	waitForEgressPolicies(t, "excalidraw")
 	node := sandboxAddress(t)
-	assert.Equal(t, "000", meshCurlIn(t, "excalidraw", "egress-probe", "https://"+node+":10250/", ""), "excalidraw reached the kubelet")
-	assert.NotEqual(t, "000", meshCurlIn(t, "excalidraw", "egress-probe", "https://kubernetes.default.svc/version", ""), "excalidraw lost the API server")
+	assert.Equal(t, "000", egressCurl(t, "excalidraw", "https://"+node+":10250/"), "excalidraw reached the kubelet")
+	assert.NotEqual(t, "000", egressCurl(t, "excalidraw", "https://kubernetes.default.svc/version"), "excalidraw lost the API server")
 }
 
 // A namespace in the table reaches the internet on its ports
 func TestEgressAllowsListedNamespaces(t *testing.T) {
 	meshSandboxOnly(t)
 	waitForEgressPolicies(t, "argocd")
-	assert.NotEqual(t, "000", meshCurlIn(t, "argocd", "egress-probe", "https://github.com", ""), "argocd lost the internet")
+	assert.NotEqual(t, "000", egressCurl(t, "argocd", "https://github.com"), "argocd lost the internet")
 }
