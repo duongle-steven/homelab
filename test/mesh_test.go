@@ -13,13 +13,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// meshOptOuts are the pods the API server calls as webhooks (scripts/check-mesh-exclusions), by
-// app.kubernetes.io/name; the mesh's strict mTLS would refuse the API server's plaintext calls.
-var meshOptOuts = []string{"webhook", "trust-manager", "external-secrets-webhook", "kube-prometheus-stack-prometheus-operator", "cloudnative-pg", "wireguard", "tailscale"}
+// meshOptOuts are the pods labelled istio.io/dataplane-mode=none, as namespace/app.kubernetes.io/name: the
+// webhooks the API server calls (scripts/check-mesh-exclusions) and the VPN routers. Namespaces outside the mesh
+// are listed in the root ApplicationSet's templatePatch (system/argocd/values.yaml), OUTSIDE in
+// scripts/check-mesh-exclusions and TestMeshEnrolled; keep the three in step.
+var meshOptOuts = []string{
+	"cert-manager/webhook",
+	"cert-manager/trust-manager",
+	"external-secrets/external-secrets-webhook",
+	"monitoring-system/kube-prometheus-stack-prometheus-operator",
+	"cloudnative-pg/cloudnative-pg",
+	"wireguard/wireguard",
+	"tailscale/tailscale",
+}
 
-func optOutAllowed(name string) bool {
+func optOutAllowed(namespace, name string) bool {
 	for _, n := range meshOptOuts {
-		if n == name {
+		if n == namespace+"/"+name {
 			return true
 		}
 	}
@@ -27,8 +37,9 @@ func optOutAllowed(name string) bool {
 }
 
 func TestMeshOptOutAllowed(t *testing.T) {
-	assert.True(t, optOutAllowed("trust-manager"))
-	assert.False(t, optOutAllowed("excalidraw"))
+	assert.True(t, optOutAllowed("cert-manager", "webhook"))
+	assert.False(t, optOutAllowed("forgejo", "webhook"), "a generic name must not opt out in another namespace")
+	assert.False(t, optOutAllowed("excalidraw", "excalidraw"))
 }
 
 func meshSandboxOnly(t *testing.T) {
@@ -79,12 +90,13 @@ func TestMeshEnrolled(t *testing.T) {
 				} `json:"metadata"`
 			}
 			require.True(t, getResource(t, "default", &namespace, "namespace", ns))
+			// Outside the mesh: keep in step with the root ApplicationSet's templatePatch and scripts/check-mesh-exclusions
 			want := map[bool]string{true: "none", false: "ambient"}[ns == "istio-system"]
 			require.Equal(t, want, namespace.Metadata.Labels["istio.io/dataplane-mode"])
 			if want == "none" {
 				return
 			}
-			// Pods created before the namespace got its label are redirected only after a restart
+			// istio-cni enrols running pods when their namespace gets the label; on a fresh cluster that can lag the sync
 			assert.Eventually(t, func() bool {
 				var pods struct {
 					Items []meshPod `json:"items"`
@@ -97,7 +109,7 @@ func TestMeshEnrolled(t *testing.T) {
 						continue
 					}
 					if p.Metadata.Labels["istio.io/dataplane-mode"] == "none" {
-						if !optOutAllowed(p.Metadata.Labels["app.kubernetes.io/name"]) {
+						if !optOutAllowed(ns, p.Metadata.Labels["app.kubernetes.io/name"]) {
 							t.Logf("%s/%s opts out of the mesh but is not a known webhook pod", ns, p.Metadata.Name)
 							return false
 						}
@@ -119,6 +131,8 @@ func TestMeshEnrolled(t *testing.T) {
 func meshCurl(t *testing.T, name, target string, labels string) string {
 	options := k8s.NewKubectlOptions("", "", "default")
 	options.Logger = logger.Discard
+	// A pod left over from an interrupted run would make kubectl run fail with AlreadyExists
+	_, _ = k8s.RunKubectlAndGetOutputE(t, options, "delete", "pod", name, "--ignore-not-found", "--wait")
 	args := []string{"run", name, "--rm", "-i", "--restart=Never", "--image=curlimages/curl:8.23.0"}
 	if labels != "" {
 		args = append(args, "--labels="+labels)
@@ -141,7 +155,8 @@ func TestMeshRejectsPlaintext(t *testing.T) {
 
 	options := k8s.NewKubectlOptions("", "", "istio-system")
 	options.Logger = logger.Discard
-	logs, err := k8s.RunKubectlAndGetOutputE(t, options, "logs", "daemonset/ztunnel", "--since=5m")
+	// Every node's ztunnel (the connections may have gone through any of them); a selector alone keeps only 10 lines
+	logs, err := k8s.RunKubectlAndGetOutputE(t, options, "logs", "--selector=app=ztunnel", "--prefix", "--since=5m", "--tail=-1")
 	require.NoError(t, err)
 	assert.Contains(t, logs, "policy rejection", "ztunnel did not log the refused plaintext connection")
 	assert.True(t, strings.Contains(logs, `src.identity="spiffe://cluster.local/ns/default/sa/default"`) &&

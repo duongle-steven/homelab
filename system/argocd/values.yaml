@@ -131,7 +131,8 @@ argocd-apps:
                 # TODO this may be refactored in the future for finer granularity
                 # See also https://volsync.readthedocs.io/en/stable/usage/permissionmodel.html
                 volsync.backube/privileged-movers: "true"
-      # The mesh itself and Ceph (host-network pods, its own encryption) stay out of the mesh
+      # The mesh itself and Ceph (some host-network pods, its own encryption) stay out of the mesh; keep in step with
+      # OUTSIDE in scripts/check-mesh-exclusions and test/mesh_test.go
       templatePatch: |
         {{- if has .path.basename (list "istio-system" "rook-ceph") }}
         spec:

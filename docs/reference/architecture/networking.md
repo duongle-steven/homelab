@@ -33,7 +33,7 @@ Every namespace Argo CD manages joins Istio's ambient mesh (`istio.io/dataplane-
 
 Outside the mesh:
 
-- `istio-system` (the mesh itself) and `rook-ceph` (host-network pods, Ceph's own encryption), labelled `none` by the `root` ApplicationSet's `templatePatch`
+- `istio-system` (the mesh itself) and `rook-ceph` (some host-network pods, Ceph's own encryption), labelled `none` by the `root` ApplicationSet's `templatePatch`
 - `kube-system`, which Argo CD does not manage
 - the pods the Kubernetes API server calls as webhooks (cert-manager, trust-manager, External Secrets, the Prometheus operator, CloudNativePG), labelled `none` on the pod; `scripts/check-mesh-exclusions` fails if a chart adds a webhook that is still meshed
 - the VPN routers (WireGuard, Tailscale), labelled `none` on the pod: ambient would hand the clients' forwarded TCP to ztunnel, which refuses it

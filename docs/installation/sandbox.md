@@ -6,7 +6,7 @@ The sandbox is a local k3d cluster (one k3s server) for testing changes on the `
 
 - Linux, or Windows with WSL 2 (NAT or mirrored networking). macOS does not work: the development shell includes Linux-only packages, and Docker runs in a VM there, so the host cannot reach the k3d network.
 - Docker and Nix (see [development shell](../concepts/development-shell.md))
-- About 8 GiB of free RAM for Docker (the sandbox uses about 7 GiB, see [resource usage](#resource-usage))
+- About 10 GiB of free RAM for Docker (the sandbox uses about 8 GiB, see [resource usage](#resource-usage))
 - Ports `80`, `443` and `22` free on the host's `127.0.0.1`
 
 ## Build
@@ -124,29 +124,29 @@ scripts/render-chart platform/kanidm dev
 
 ## Resource usage
 
-Measured on a fresh k3d sandbox with all components running (working-set memory per namespace from Prometheus; the node total from `docker stats` of `k3d-homelab-dev-server-0`; the k3d load balancer and the localhost proxy add about 25 MiB):
+Measured on a fresh k3d sandbox with all components running and every namespace in the ambient mesh (working-set memory per namespace from Prometheus; the node total from `docker stats` of `k3d-homelab-dev-server-0`; the k3d load balancer and the localhost proxy add about 25 MiB):
 
 | Namespace | RAM |
 |---|---|
-| paperless (with Redis) | 819 MiB |
-| grafana | 733 MiB |
-| monitoring-system | 683 MiB |
-| argocd | 615 MiB |
-| cert-manager (with trust-manager) | 178 MiB |
-| istio-system (istiod and the two Gateways) | 165 MiB |
-| opencloud | 152 MiB |
-| external-secrets | 142 MiB |
-| kanidm | 139 MiB |
-| homepage | 136 MiB |
-| forgejo | 136 MiB |
-| kube-system (CoreDNS, local-path, metrics-server, ServiceLB) | 102 MiB |
-| zot | 95 MiB |
-| pairdrop | 65 MiB |
-| actualbudget | 61 MiB |
+| paperless (with Redis) | 926 MiB |
+| grafana | 833 MiB |
+| monitoring-system | 790 MiB |
+| argocd | 637 MiB |
+| istio-system (istiod 103, Gateways 110, istio-cni 59, ztunnel 25) | 300 MiB |
+| cert-manager (with trust-manager) | 228 MiB |
+| opencloud | 205 MiB |
+| forgejo | 175 MiB |
+| external-secrets | 158 MiB |
+| homepage | 141 MiB |
+| kanidm | 122 MiB |
+| zot | 119 MiB |
+| kube-system (CoreDNS, local-path, metrics-server, ServiceLB) | 116 MiB |
+| actualbudget | 83 MiB |
+| pairdrop | 69 MiB |
 | speedtest | 22 MiB |
 | excalidraw | 13 MiB |
-| k3s itself (API server, etcd, controllers, kubelet, containerd; outside any container: node total minus the rows above) | about 3.0 GiB |
-| **Node total** | **7.23 GiB** |
+| k3s itself (API server, etcd, controllers, kubelet, containerd; outside any container: node total minus the rows above) | about 3.1 GiB |
+| **Node total** | **7.89 GiB** |
 
 ## Clean up
 

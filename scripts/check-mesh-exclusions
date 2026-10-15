@@ -13,6 +13,7 @@ import sys
 
 import yaml
 
+# Keep in step with the root ApplicationSet's templatePatch (system/argocd/values.yaml) and test/mesh_test.go
 OUTSIDE = {"istio-system", "rook-ceph", "kube-system"}
 
 
