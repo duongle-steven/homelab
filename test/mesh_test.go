@@ -15,7 +15,7 @@ import (
 
 // meshOptOuts are the pods the API server calls as webhooks (scripts/check-mesh-exclusions), by
 // app.kubernetes.io/name; the mesh's strict mTLS would refuse the API server's plaintext calls.
-var meshOptOuts = []string{"webhook", "trust-manager", "external-secrets-webhook", "kube-prometheus-stack-prometheus-operator", "cloudnative-pg"}
+var meshOptOuts = []string{"webhook", "trust-manager", "external-secrets-webhook", "kube-prometheus-stack-prometheus-operator", "cloudnative-pg", "wireguard", "tailscale"}
 
 func optOutAllowed(name string) bool {
 	for _, n := range meshOptOuts {

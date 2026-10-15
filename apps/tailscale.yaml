@@ -3,6 +3,9 @@ controllers:
     # tailscale stores its state in the Secret tailscale (TS_KUBE_SECRET); app-template 5 disables the token by default
     pod:
       automountServiceAccountToken: true
+      # A router: ambient would send the subnet route's forwarded TCP to ztunnel, and strict mTLS refuses it
+      labels:
+        istio.io/dataplane-mode: none
     serviceAccount:
       identifier: tailscale
     containers:
