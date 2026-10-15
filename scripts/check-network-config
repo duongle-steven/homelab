@@ -10,6 +10,7 @@ checks that each address reaches the component that uses it (USES).
 import glob
 import ipaddress
 import json
+import os
 import re
 import subprocess
 import sys
@@ -35,7 +36,9 @@ class Loader(yaml.SafeLoader):
 
 
 Loader.add_constructor("tag:yaml.org,2002:value", lambda loader, node: loader.construct_scalar(node))
-IPV4 = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(?![\d.])")
+# Ranges written as such in system/egress (the private ranges it excludes from "internet")
+LITERALS = {"0.0.0.0/0", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"}
+IPV4 = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(/\d{1,2})?(?![\d.])")
 
 
 def render(target, env):
@@ -71,6 +74,9 @@ def main():
         with open(path) as f:
             config = json.load(f)
         allowed = addresses(config)
+        # system/egress opens the API server on the node network, the router address masked to its prefix
+        if config["network"]["gateway"]:
+            allowed.add(str(ipaddress.ip_network(f"{config['network']['gateway']}/{config['network']['prefix_length']}", strict=False).network_address))
         for target in targets():
             objects = {}
             for doc in render(target, env):
@@ -78,7 +84,9 @@ def main():
                     continue
                 dumped = yaml.safe_dump(doc)
                 objects[(doc.get("kind"), doc.get("metadata", {}).get("name"))] = dumped
-                for match in IPV4.findall(dumped):
+                for match, prefix in IPV4.findall(dumped):
+                    if match + prefix in LITERALS:
+                        continue
                     try:
                         address = ipaddress.ip_address(match)
                     except ValueError:
@@ -111,6 +119,25 @@ def main():
             source = spec["template"]["spec"].get("source") or spec["template"]["spec"]["sources"][0]
             if "addresses" not in source.get("helm", {}).get("valuesObject", {}).get("global", {}):
                 failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not pass global.addresses")
+            # Every Application renders system/egress (default-deny egress) into its namespace
+            egress = [s for s in spec["template"]["spec"].get("sources") or [] if s.get("path") == "system/egress"]
+            if not egress:
+                failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} lacks the system/egress source")
+            elif "addresses" not in egress[0].get("helm", {}).get("valuesObject", {}).get("global", {}):
+                failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not pass global.addresses to system/egress")
+            if doc["metadata"]["name"] == "root":
+                dirs = generators[0].get("git", {}).get("directories", [])
+                if any(d.get("path") in ("system/*", "system/egress") for d in dirs) and not any(
+                        d.get("path") == "system/egress" and d.get("exclude") for d in dirs):
+                    failures.append(f"system/argocd ({env}): the root generator would deploy system/egress on its own")
+    # The egress table names only namespaces something deploys into
+    with open("system/egress/values.yaml") as f:
+        egress_values = yaml.safe_load(f)
+    namespaces = {os.path.basename(t).removesuffix(".yaml") for t in targets()}
+    for table in ("internet", "nodes"):
+        for ns in egress_values.get(table) or {}:
+            if ns not in namespaces:
+                failures.append(f"system/egress: {table} names {ns}, which nothing deploys into")
     for failure in failures:
         print(failure)
     print(f"check-network-config: {len(failures)} failures")
