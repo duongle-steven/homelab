@@ -39,7 +39,8 @@ argocd-apps:
       generators:
         - git:
             repoURL: &repoURL https://github.com/duongle-steven/homelab
-            revision: &revision dev
+            # make dev force-pushes the current commit here, so a branch is tested before its merge
+            revision: &revision sandbox
             directories:
               - path: system/argocd
               - path: system/istio-system
