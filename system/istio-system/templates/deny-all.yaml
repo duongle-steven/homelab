@@ -1,0 +1,20 @@
+# Mesh-wide default deny (root namespace): a meshed pod accepts a connection only when an AuthorizationPolicy
+# allows it (each namespace's `allow`). Kubelet probes are exempt in ambient.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+spec: {}
+---
+# The Gateways enforce root-namespace policies too: without this they would answer 403 to every client.
+# They stay reachable from anywhere; the backends' `allow` policies decide what passes through them.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-gateways
+spec:
+  selector:
+    matchLabels:
+      gateway.networking.k8s.io/gateway-class-name: istio
+  rules:
+    - {}

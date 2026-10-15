@@ -50,7 +50,9 @@ Egress (traffic to the internet) is out of scope: step **6d**.
 
 `system/istio-system/templates/deny-all.yaml`: `AuthorizationPolicy` `deny-all` in `istio-system` (the root
 namespace) with `spec: {}`: no meshed workload accepts anything unless an `allow` policy matches. Kubelet probes
-stay exempt in ambient.
+stay exempt in ambient. The Istio Gateway pods enforce root-namespace policies as well, so the same template adds
+`allow-gateways` (selector `gateway.networking.k8s.io/gateway-class-name: istio`, `rules: [{}]`); without it the
+Gateways answer 403 to every client (found while planning, 2026-10-15).
 
 ### `allow` per namespace
 
