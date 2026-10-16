@@ -1,0 +1,9 @@
+# Host names from the environment (global.baseDomain): the chart does not template server.env, so they reach the
+# server through server.extraSecretNamesForEnvFrom
+apiVersion: v1
+kind: Secret
+metadata:
+  name: woodpecker-environment
+stringData:
+  WOODPECKER_HOST: https://{{ .Values.host }}.{{ .Values.global.baseDomain }}
+  WOODPECKER_FORGEJO_URL: https://git.{{ .Values.global.baseDomain }}

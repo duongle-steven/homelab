@@ -40,6 +40,10 @@ Loader.add_constructor("tag:yaml.org,2002:value", lambda loader, node: loader.co
 EGRESS = "system/egress"
 # Domains that belong in infra/<env>/cluster/config.json, never in a chart or app file
 DOMAINS = {"prod": "khuedoan.com", "dev": "127-0-0-1.nip.io"}
+# Components that still name the production domain, and why (listed in CLAUDE.md's production checklist)
+EXEMPT = {
+    "apps/matrix": "dendrite and element-web neither template their config nor take an existing one (production only)",
+}
 # Globals we pass to every chart (system/argocd ApplicationSets): no subchart may define them in its own global
 OUR_GLOBALS = {"addresses", "baseDomain", "timezone", "seedRepository"}
 LITERALS = {"0.0.0.0/0", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"}
@@ -107,7 +111,7 @@ def main():
             # A render never carries the other environment's domain, nor an unrendered global
             text = "".join(objects.values())
             other = DOMAINS["dev" if env == "prod" else "prod"]
-            if other in text:
+            if other in text and target not in EXEMPT:
                 failures.append(f"{target} ({env}): renders {other}")
             # Istio's injector ConfigMap holds Go templates of its own: look only for ours
             if any(f"Values.global.{key}" in text for key in OUR_GLOBALS):
@@ -177,7 +181,7 @@ def main():
                           capture_output=True, text=True).stdout
     for line in grep.splitlines():
         path, _, text = line.split(":", 2)
-        if not text.lstrip().startswith("#"):
+        if not text.lstrip().startswith("#") and not any(path.startswith(e + "/") for e in EXEMPT):
             failures.append(f"{path}: names a domain: {text.strip()[:80]}")
     # Our globals must not collide with a subchart's own global values (argo-cd has global.domain, Istio global.network)
     for chart in sorted(glob.glob("system/*/charts/*.tgz") + glob.glob("platform/*/charts/*.tgz") + glob.glob("apps/*/charts/*.tgz")):

@@ -2,4 +2,5 @@ kured:
   configuration:
     annotateNodes: true
     rebootSentinelCommand: sh -c "! needs-restarting --reboothint"
+    # Keep in step with timezone in infra/<env>/cluster/config.json: the chart does not template it
     timeZone: Asia/Ho_Chi_Minh

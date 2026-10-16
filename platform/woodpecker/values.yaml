@@ -9,11 +9,12 @@ woodpecker:
       WOODPECKER_MAX_WORKFLOWS: 10
   server:
     env:
-      WOODPECKER_HOST: https://ci.khuedoan.com
       WOODPECKER_WEBHOOK_HOST: http://woodpecker-server.woodpecker
       WOODPECKER_FORGEJO: true
-      WOODPECKER_FORGEJO_URL: https://git.khuedoan.com
       WOODPECKER_OPEN: true
       WOODPECKER_ADMIN: forgejo_admin
-route:
-  hostname: ci.khuedoan.com
+    # WOODPECKER_HOST and WOODPECKER_FORGEJO_URL (templates/environment.yaml)
+    extraSecretNamesForEnvFrom:
+      - woodpecker-environment
+# Host label: ci.<global.baseDomain>
+host: ci
