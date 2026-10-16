@@ -35,7 +35,8 @@ if grep -q seed-repository.invalid "$manifests"; then
   echo "the seed repository placeholder was not replaced" >&2
   exit 1
 fi
-apply() { kubectl apply --server-side --field-manager argocd-controller --force-conflicts -f -; }
+# Objects without a namespace belong to argocd, as when Argo CD syncs this chart
+apply() { kubectl apply --namespace argocd --server-side --field-manager argocd-controller --force-conflicts -f -; }
 # The ApplicationSets need Argo CD's CRDs established first
 yq 'select(.kind == "CustomResourceDefinition")' "$manifests" | apply
 kubectl wait --for condition=Established crd --all --timeout=120s >/dev/null

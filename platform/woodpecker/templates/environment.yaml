@@ -4,6 +4,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: woodpecker-environment
+  namespace: {{ .Release.Namespace }}
 stringData:
   WOODPECKER_HOST: https://{{ .Values.host }}.{{ .Values.global.baseDomain }}
   WOODPECKER_FORGEJO_URL: https://git.{{ .Values.global.baseDomain }}
