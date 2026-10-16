@@ -41,6 +41,9 @@ argocd-apps:
               helm:
                 valuesObject: &values
                   global:
+                    baseDomain: '{{ .domain }}'
+                    timezone: '{{ .timezone }}'
+                    seedRepository: '{{ .seed_repository }}'
                     addresses: &addresses
                       apiVIP: '{{ .vip }}'
                       router: '{{ .network.gateway }}'
@@ -82,6 +85,9 @@ argocd-apps:
                     value: ""
                 valuesObject:
                   global:
+                    baseDomain: '{{ .domain }}'
+                    timezone: '{{ .timezone }}'
+                    seedRepository: '{{ .seed_repository }}'
                     addresses: *addresses
             - repoURL: *repoURL
               targetRevision: *revision

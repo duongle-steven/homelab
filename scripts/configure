@@ -80,7 +80,7 @@ def main() -> None:
         ]
     )
 
-    # Addresses are settings, not code: charts read them from this file (scripts/check-network-config)
+    # Addresses are settings, not code: charts read them from this file (scripts/check-env-config)
     if Confirm.ask("Update network addresses (API, Gateway and wireguard VIPs, router)?", default=True):
         subprocess.run(
             [editor, 'infra/production/cluster/config.json']

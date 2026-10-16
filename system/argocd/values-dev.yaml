@@ -73,6 +73,9 @@ argocd-apps:
                 ignoreMissingValueFiles: true
                 valuesObject: &values
                   global:
+                    baseDomain: '{{ .domain }}'
+                    timezone: '{{ .timezone }}'
+                    seedRepository: '{{ .seed_repository }}'
                     addresses: &addresses
                       apiVIP: '{{ .vip }}'
                       router: '{{ .network.gateway }}'
@@ -123,6 +126,9 @@ argocd-apps:
                     value: "true"
                 valuesObject:
                   global:
+                    baseDomain: '{{ .domain }}'
+                    timezone: '{{ .timezone }}'
+                    seedRepository: '{{ .seed_repository }}'
                     addresses: *addresses
             - repoURL: *repoURL
               targetRevision: *revision
