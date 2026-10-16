@@ -116,8 +116,6 @@ argocd-apps:
                 valueFiles:
                   - '$values/apps/{{ .path.filename }}'
                 parameters:
-                  - name: global.domain
-                    value: 127-0-0-1.nip.io
                   # No Cloudflare Tunnel in the sandbox: public apps use the LAN Gateway
                   - name: global.publicGateway
                     value: gateway

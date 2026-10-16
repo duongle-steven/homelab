@@ -7,7 +7,7 @@ controllers:
           tag: v2.5.0
         env:
           # Required since v1: requests for other hosts are refused
-          HOMEPAGE_ALLOWED_HOSTS: home.{{ .Values.global.domain }}
+          HOMEPAGE_ALLOWED_HOSTS: home.{{ .Values.global.baseDomain }}
 service:
   main:
     ports:
@@ -17,7 +17,7 @@ service:
 route:
   main:
     hostnames:
-      - home.{{ .Values.global.domain }}
+      - home.{{ .Values.global.baseDomain }}
     parentRefs:
       - name: gateway
         namespace: istio-system
@@ -53,80 +53,80 @@ configMaps:
       services.yaml: |
         - Popular:
           - Matrix:
-              href: https://chat.{{ .Values.global.domain }}
+              href: https://chat.{{ .Values.global.baseDomain }}
               description: Chat client
               icon: element.svg
           - Jellyfin:
-              href: https://jellyfin.{{ .Values.global.domain }}
+              href: https://jellyfin.{{ .Values.global.baseDomain }}
               description: Media system (movies, music, etc.)
               icon: jellyfin.svg
           - Jellyseerr:
-              href: https://jellyseerr.{{ .Values.global.domain }}
+              href: https://jellyseerr.{{ .Values.global.baseDomain }}
               description: Request media
               icon: jellyseerr.svg
           - Paperless:
-              href: https://paperless.{{ .Values.global.domain }}
+              href: https://paperless.{{ .Values.global.baseDomain }}
               description: Document management system
               icon: paperless.svg
           - OpenCloud:
-              href: https://drive.{{ .Values.global.domain }}
+              href: https://drive.{{ .Values.global.baseDomain }}
               description: File storage and sharing
               icon: open-cloud.svg
         - Management:
           - Transmission:
-              href: https://transmission.{{ .Values.global.domain }}
+              href: https://transmission.{{ .Values.global.baseDomain }}
               description: Bittorrent client
               icon: transmission.svg
           - Prowlarr:
-              href: https://prowlarr.{{ .Values.global.domain }}
+              href: https://prowlarr.{{ .Values.global.baseDomain }}
               description: Indexer manager
               icon: prowlarr.svg
           - Radarr:
-              href: https://radarr.{{ .Values.global.domain }}
+              href: https://radarr.{{ .Values.global.baseDomain }}
               description: Movie manager
               icon: radarr.svg
           - Sonarr:
-              href: https://sonarr.{{ .Values.global.domain }}
+              href: https://sonarr.{{ .Values.global.baseDomain }}
               description: TV show manager
               icon: sonarr.svg
           - Kanidm:
-              href: https://auth.{{ .Values.global.domain }}
+              href: https://auth.{{ .Values.global.baseDomain }}
               description: Identity management
-              icon: https://auth.{{ .Values.global.domain }}/pkg/img/logo-square.svg
+              icon: https://auth.{{ .Values.global.baseDomain }}/pkg/img/logo-square.svg
         - Development:
           - Forgejo:
-              href: https://git.{{ .Values.global.domain }}
+              href: https://git.{{ .Values.global.baseDomain }}
               description: Git forge
               icon: forgejo.svg
           - Woodpecker:
-              href: https://ci.{{ .Values.global.domain }}
+              href: https://ci.{{ .Values.global.baseDomain }}
               description: Continuous integration
               icon: woodpecker-ci.svg
           - ArgoCD:
-              href: https://argocd.{{ .Values.global.domain }}
+              href: https://argocd.{{ .Values.global.baseDomain }}
               description: Continuous deployment
               icon: argocd.svg
           - Registry:
-              href: https://registry.{{ .Values.global.domain }}
+              href: https://registry.{{ .Values.global.baseDomain }}
               description: Container registry
               icon: docker.svg
           - Grafana:
-              href: https://grafana.{{ .Values.global.domain }}
+              href: https://grafana.{{ .Values.global.baseDomain }}
               description: Observability dashboards
               icon: grafana.svg
         - Utilities:
           - Excalidraw:
-              href: https://draw.{{ .Values.global.domain }}
+              href: https://draw.{{ .Values.global.baseDomain }}
               description: Virtual whiteboard
               icon: excalidraw.svg
           - Speedtest:
-              href: https://speedtest.{{ .Values.global.domain }}
+              href: https://speedtest.{{ .Values.global.baseDomain }}
               description: Internal network speed test
               icon: openspeedtest.png
       bookmarks.yaml: |
         - Homelab:
           - Documentation:
-            - href: https://homelab.khuedoan.com
+            - href: https://github.com/duongle-steven/homelab
               icon: google-docs.svg
           - Public homelab repository:
             - href: https://github.com/khuedoan/homelab

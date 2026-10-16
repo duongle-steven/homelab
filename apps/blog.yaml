@@ -3,7 +3,7 @@ controllers:
     containers:
       main:
         image:
-          repository: registry.khuedoan.com/blog
+          repository: registry.{{ .Values.global.baseDomain }}/blog
           tag: latest
 service:
   main:
@@ -16,7 +16,7 @@ route:
     annotations:
       external-dns.kubernetes.io/cloudflare-proxied: "true"
     hostnames:
-      - www.{{ .Values.global.domain }}
+      - www.{{ .Values.global.baseDomain }}
     parentRefs:
       - name: '{{ .Values.global.publicGateway }}'
         namespace: istio-system

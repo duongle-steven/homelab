@@ -36,7 +36,7 @@ forgejo:
         namespace: istio-system
         sectionName: https
     hostnames:
-      - git.khuedoan.com
+      - git.{{ .Values.global.baseDomain }}
   deployment:
     # Also set in the init container that registers the login source (gitea.oauth below)
     env:

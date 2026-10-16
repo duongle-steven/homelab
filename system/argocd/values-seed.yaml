@@ -77,8 +77,6 @@ argocd-apps:
                 valueFiles:
                   - '$values/apps/{{ .path.filename }}'
                 parameters:
-                  - name: global.domain
-                    value: khuedoan.com
                   - name: global.publicGateway
                     value: public
                   - name: global.devCA

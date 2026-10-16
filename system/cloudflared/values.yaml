@@ -22,7 +22,7 @@ app-template:
           no-autoupdate: true
           ingress:
             # Only the public Gateway: apps on the LAN Gateway stay off the internet
-            - hostname: '*.khuedoan.com'
+            - hostname: '*.{{ .Values.global.baseDomain }}'
               service: https://public-istio.istio-system
               originRequest:
                 noTLSVerify: true

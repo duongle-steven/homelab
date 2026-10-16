@@ -6,8 +6,8 @@ controllers:
           repository: docker.io/actualbudget/actual-server
           tag: 26.10.0-alpine
         env:
-          ACTUAL_OPENID_DISCOVERY_URL: 'https://auth.{{ .Values.global.domain }}/oauth2/openid/actualbudget/.well-known/openid-configuration'
-          ACTUAL_OPENID_SERVER_HOSTNAME: 'https://budget.{{ .Values.global.domain }}'
+          ACTUAL_OPENID_DISCOVERY_URL: 'https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/actualbudget/.well-known/openid-configuration'
+          ACTUAL_OPENID_SERVER_HOSTNAME: 'https://budget.{{ .Values.global.baseDomain }}'
           ACTUAL_OPENID_CLIENT_ID: actualbudget
           ACTUAL_OPENID_CLIENT_SECRET:
             valueFrom:
@@ -42,7 +42,7 @@ service:
 route:
   main:
     hostnames:
-      - budget.{{ .Values.global.domain }}
+      - budget.{{ .Values.global.baseDomain }}
     parentRefs:
       - name: gateway
         namespace: istio-system
@@ -96,9 +96,9 @@ rawResources:
           name: kanidm
           namespace: kanidm
         displayname: Actual Budget
-        origin: 'https://budget.{{ .Values.global.domain }}'
+        origin: 'https://budget.{{ .Values.global.baseDomain }}'
         redirectUrl:
-          - 'https://budget.{{ .Values.global.domain }}/openid/callback'
+          - 'https://budget.{{ .Values.global.baseDomain }}/openid/callback'
         disableConsentPrompt: true
         preferShortUsername: true
         strictRedirectUrl: true

@@ -6,9 +6,6 @@ seed:
 forgejo:
   persistence:
     size: 1Gi
-  httpRoute:
-    hostnames:
-      - git.127-0-0-1.nip.io
   deployment:
     # Restated (lists are replaced), plus the sandbox CA for calls to Kanidm
     env:

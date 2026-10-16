@@ -217,11 +217,9 @@ argocd-apps:
                 releaseName: '{{ .path.filename | trimSuffix ".yaml" }}'
                 valueFiles:
                   - '$values/apps/{{ .path.filename }}'
-                # App files template hosts as <app>.{{ .Values.global.domain }}; public apps attach to
+                # App files template hosts as <app>.{{ .Values.global.baseDomain }}; public apps attach to
                 # the Gateway named by global.publicGateway
                 parameters:
-                  - name: global.domain
-                    value: khuedoan.com
                   - name: global.publicGateway
                     value: public
                   - name: global.devCA
