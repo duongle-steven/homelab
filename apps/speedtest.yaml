@@ -14,7 +14,7 @@ service:
 route:
   main:
     hostnames:
-      - speedtest.{{ .Values.global.domain }}
+      - speedtest.{{ .Values.global.baseDomain }}
     parentRefs:
       - name: gateway
         namespace: istio-system

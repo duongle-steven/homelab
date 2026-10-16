@@ -12,7 +12,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   # A new name whenever the Job changes (script, source or image): a Job's template is immutable
-  name: forgejo-seed-{{ print $script .Values.seed.repository $image | sha256sum | trunc 7 }}
+  name: forgejo-seed-{{ print $script .Values.global.seedRepository $image | sha256sum | trunc 7 }}
   namespace: {{ .Release.Namespace }}
   annotations:
     # After the Deployment is healthy
@@ -29,7 +29,7 @@ spec:
           command: [sh, /seed/seed.sh]
           env:
             - name: SEED_REPOSITORY
-              value: {{ .Values.seed.repository | quote }}
+              value: {{ .Values.global.seedRepository | quote }}
             - name: FORGEJO_ADMIN_USERNAME
               valueFrom:
                 secretKeyRef:

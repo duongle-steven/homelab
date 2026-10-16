@@ -1,0 +1,30 @@
+# The chart's route does not template its host names: same route, host from global.baseDomain
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: zot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: zot
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: gateway
+      namespace: istio-system
+      sectionName: https
+  hostnames:
+    - {{ .Values.host }}.{{ .Values.global.baseDomain }}
+  rules:
+    # Image pushes upload large blobs: no request timeout
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      timeouts:
+        request: 0s
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: zot
+          port: 5000

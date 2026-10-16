@@ -1,4 +1,5 @@
-host: git.khuedoan.com
+# Host label: <host>.<global.baseDomain>
+host: git
 database:
   # CloudNativePG cluster forgejo-db (templates/database.yaml); the sandbox uses SQLite
   cnpg:
@@ -6,9 +7,6 @@ database:
     instances: 3
     image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
     size: 10Gi
-seed:
-  # Copied once into ops/homelab (templates/seed-job.yaml); make configure replaces it
-  repository: https://github.com/khuedoan/homelab
 forgejo:
   fullnameOverride: forgejo
   image:
@@ -35,7 +33,7 @@ forgejo:
         namespace: istio-system
         sectionName: https
     hostnames:
-      - git.khuedoan.com
+      - git.{{ .Values.global.baseDomain }}
   deployment:
     # Also set in the init container that registers the login source (gitea.oauth below)
     env:
@@ -44,6 +42,11 @@ forgejo:
           secretKeyRef:
             name: forgejo-kanidm-oauth2-credentials
             key: CLIENT_SECRET
+      - name: HOMELAB_DOMAIN
+        valueFrom:
+          configMapKeyRef:
+            name: forgejo-environment
+            key: domain
   # `gitea:` is the Forgejo chart's own key for the app's settings
   gitea:
     admin:
@@ -53,18 +56,16 @@ forgejo:
       - name: Kanidm
         provider: openidConnect
         key: forgejo
-        # Expanded by the init script's shell from deployment.env
+        # Expanded by the init script's shell from deployment.env (the chart does not template these)
         secret: ${CLIENT_SECRET}
-        autoDiscoverUrl: https://auth.khuedoan.com/oauth2/openid/forgejo/.well-known/openid-configuration
+        autoDiscoverUrl: https://auth.${HOMELAB_DOMAIN}/oauth2/openid/forgejo/.well-known/openid-configuration
         scopes: openid,profile,email,groups
         # Short group names from the client's claimMap (templates/kanidm-client.yaml)
         groupClaimName: homelab_groups
         adminGroup: homelab-admins
     config:
+      # DOMAIN, ROOT_URL and SSH_DOMAIN: templates/environment.yaml (additionalConfigSources)
       server:
-        DOMAIN: git.khuedoan.com
-        ROOT_URL: https://git.khuedoan.com
-        SSH_DOMAIN: git.khuedoan.com
         LANDING_PAGE: explore
         OFFLINE_MODE: true
       service:
@@ -97,6 +98,9 @@ forgejo:
       queue:
         TYPE: level
     # FORGEJO__<section>__<key> sets an app.ini setting from an env variable
+    additionalConfigSources:
+      - configMap:
+          name: forgejo-app-ini-server
     additionalConfigFromEnvs:
       - name: FORGEJO__DATABASE__PASSWD
         valueFrom:

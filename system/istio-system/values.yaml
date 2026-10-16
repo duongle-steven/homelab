@@ -1,4 +1,3 @@
-domain: khuedoan.com
 gateway:
   # kube-vip serves the LAN Gateway's Service on its own VIP (global.addresses.gatewayVIP, from
   # infra/<env>/cluster/config.json): Forgejo SSH keeps port 22 (node sshd owns it on the node IPs) and the address

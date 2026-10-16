@@ -18,7 +18,9 @@ argocd-apps:
         - matrix:
             generators:
               - git:
-                  repoURL: &repoURL https://github.com/khuedoan/homelab
+                  # The seed repository (config.json's seed_repository): infra/_modules/argocd replaces this placeholder when it
+                  # renders the seed, and fails if any is left
+                  repoURL: &repoURL https://seed-repository.invalid
                   revision: &revision master
                   directories:
                     - path: system/*
@@ -41,6 +43,9 @@ argocd-apps:
               helm:
                 valuesObject: &values
                   global:
+                    baseDomain: '{{ .domain }}'
+                    timezone: '{{ .timezone }}'
+                    seedRepository: '{{ .seed_repository }}'
                     addresses: &addresses
                       apiVIP: '{{ .vip }}'
                       router: '{{ .network.gateway }}'
@@ -74,14 +79,15 @@ argocd-apps:
                 valueFiles:
                   - '$values/apps/{{ .path.filename }}'
                 parameters:
-                  - name: global.domain
-                    value: khuedoan.com
                   - name: global.publicGateway
                     value: public
                   - name: global.devCA
                     value: ""
                 valuesObject:
                   global:
+                    baseDomain: '{{ .domain }}'
+                    timezone: '{{ .timezone }}'
+                    seedRepository: '{{ .seed_repository }}'
                     addresses: *addresses
             - repoURL: *repoURL
               targetRevision: *revision

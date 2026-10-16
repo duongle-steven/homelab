@@ -8,7 +8,7 @@ controllers:
         env:
           PAPERLESS_PORT: 8000
           PAPERLESS_ADMIN_USER: admin
-          PAPERLESS_URL: https://paperless.{{ .Values.global.domain }}
+          PAPERLESS_URL: https://paperless.{{ .Values.global.baseDomain }}
           # Kanidm login; the provider id kanidm sets the callback path
           PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
           # Expanded into PAPERLESS_SOCIALACCOUNT_PROVIDERS (env renders alphabetically, so it comes first)
@@ -21,7 +21,7 @@ controllers:
             {"openid_connect": {"OAUTH_PKCE_ENABLED": true, "SCOPE": ["openid", "profile", "email", "groups"],
             "APPS": [{"provider_id": "kanidm", "name": "Kanidm", "client_id": "paperless",
             "secret": "$(CLIENT_SECRET)",
-            "settings": {"server_url": "https://auth.{{ .Values.global.domain }}/oauth2/openid/paperless"}}]}}
+            "settings": {"server_url": "https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/paperless"}}]}}
           # Members of homelab-documents get an account on first login; homelab-admins become superusers
           PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
           PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS: "true"
@@ -44,7 +44,7 @@ service:
 route:
   main:
     hostnames:
-      - paperless.{{ .Values.global.domain }}
+      - paperless.{{ .Values.global.baseDomain }}
     parentRefs:
       - name: gateway
         namespace: istio-system
@@ -144,9 +144,9 @@ rawResources:
           name: kanidm
           namespace: kanidm
         displayname: Paperless
-        origin: 'https://paperless.{{ .Values.global.domain }}'
+        origin: 'https://paperless.{{ .Values.global.baseDomain }}'
         redirectUrl:
-          - 'https://paperless.{{ .Values.global.domain }}/accounts/oidc/kanidm/login/callback/'
+          - 'https://paperless.{{ .Values.global.baseDomain }}/accounts/oidc/kanidm/login/callback/'
         disableConsentPrompt: true
         preferShortUsername: true
         strictRedirectUrl: true

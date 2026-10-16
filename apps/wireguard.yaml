@@ -64,35 +64,31 @@ externalSecrets:
 
             # Servers
 
+            # PLACEHOLDER keys (random, nobody holds their private key): replace each PublicKey before the first
+            # deploy. The server's: `wg pubkey` of its private key (global-secrets external.wireguard-private-key);
+            # a device's: `wg genkey | tee private.key | wg pubkey` on that device. Keep the tunnel addresses.
             # Clients add the API and Gateway VIPs (infra/<env>/cluster/config.json) to this peer's AllowedIPs
             # themselves (docs/getting-started/vpn-setup.md); this template cannot read Helm values
             [Peer]
-            # homelab
-            PublicKey = sSAZS1Z3vB7Wx8e2yVqXfeHjgWTa80wnSYoma3mZkiU=
+            # homelab (this server)
+            PublicKey = qVzEirdt8tkK9vdXGAJDtJ+iAu6mwhhrCH+DiKvM9G0=
             AllowedIPs = 172.16.0.1/32
-
-            [Peer]
-            # horus
-            PublicKey = zVwYqwvGn/IL7o6CD84y4/Y/OnRAUl/jw6T7DtNqWGM=
-            Endpoint = horus.khuedoan.com:51820
-            PersistentKeepalive = 25
-            AllowedIPs = 172.16.0.2/32
 
             # Clients
 
             [Peer]
-            # khuedoan-ryzentower
-            PublicKey = qnDY23ZWUOlCRUmB8anpXH1uzX0A17F1YtQJmVi7GWM=
+            # PLACEHOLDER: desktop
+            PublicKey = pnAcvrnzkrKymV/1uXZs1+JN8BYKVSiQ2X/X6G39fGE=
             AllowedIPs = 172.16.0.10/32
 
             [Peer]
-            # khuedoan-thinkpadz13
-            PublicKey = hSVWn2lBasJeueHApQYmYR0s2zNpXrqZX6F8gyEqpy0=
+            # PLACEHOLDER: laptop
+            PublicKey = ntH7MHBvBJn7+Zfk35FPw5rhiubhzI0VPu0XM/ZveSI=
             AllowedIPs = 172.16.0.11/32
 
             [Peer]
-            # khuedoan-phone
-            PublicKey = nITHFdgTkNZOTWeSWqnGXjgwlCJMKRCnnUsjMx2yp2U=
+            # PLACEHOLDER: phone
+            PublicKey = 5LG5Tp5CCSyi9/3IlRuQaH61SOrVnWbWHABDsCenpDk=
             AllowedIPs = 172.16.0.12/32
 rawResources:
   # Outside the mesh (a router): only its tunnel port

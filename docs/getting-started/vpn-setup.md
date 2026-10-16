@@ -147,7 +147,7 @@ Replace placeholders with actual values and save as `wg0.conf`.
     PrivateKey = <REDACTED>
 
     [Peer]
-    PublicKey = sSAZS1Z3vB7Wx8e2yVqXfeHjgWTa80wnSYoma3mZkiU
+    PublicKey = <the server's public key: the homelab peer in apps/wireguard.yaml>
     Endpoint = <HOME IP>:51820
     AllowedIPs = 172.16.0.1/32, 192.168.0.10/32, 192.168.0.2/32
     ```

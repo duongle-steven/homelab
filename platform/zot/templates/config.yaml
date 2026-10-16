@@ -1,0 +1,9 @@
+# zot's config.json (values.yaml config:), templated with global.baseDomain: the chart does not template its config.
+# The chart mounts this ConfigMap (mountConfig with no configFiles). zot reads it at start: restart zot after a change.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zot-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.json: {{ tpl (toPrettyJson .Values.config) . | quote }}

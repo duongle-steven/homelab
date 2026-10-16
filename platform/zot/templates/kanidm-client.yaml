@@ -10,9 +10,9 @@ spec:
   displayname: Registry
   # No client secret: zot uses PKCE
   public: true
-  origin: https://{{ .Values.host }}
+  origin: https://{{ .Values.host }}.{{ .Values.global.baseDomain }}
   redirectUrl:
-    - https://{{ .Values.host }}/zot/auth/callback/oidc
+    - https://{{ .Values.host }}.{{ .Values.global.baseDomain }}/zot/auth/callback/oidc
   # Kanidm does not allow disabling the consent prompt on public clients: users confirm once
   preferShortUsername: true
   strictRedirectUrl: true

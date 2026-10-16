@@ -54,7 +54,7 @@ service:
 route:
   main:
     hostnames:
-      - jellyfin.{{ .Values.global.domain }}
+      - jellyfin.{{ .Values.global.baseDomain }}
     parentRefs: &parentRefs
       - name: gateway
         namespace: istio-system
@@ -65,7 +65,7 @@ route:
             port: http
   transmission:
     hostnames:
-      - transmission.{{ .Values.global.domain }}
+      - transmission.{{ .Values.global.baseDomain }}
     parentRefs: *parentRefs
     rules:
       - backendRefs:
@@ -73,7 +73,7 @@ route:
             port: transmission
   prowlarr:
     hostnames:
-      - prowlarr.{{ .Values.global.domain }}
+      - prowlarr.{{ .Values.global.baseDomain }}
     parentRefs: *parentRefs
     rules:
       - backendRefs:
@@ -81,7 +81,7 @@ route:
             port: prowlarr
   radarr:
     hostnames:
-      - radarr.{{ .Values.global.domain }}
+      - radarr.{{ .Values.global.baseDomain }}
     parentRefs: *parentRefs
     rules:
       - backendRefs:
@@ -89,7 +89,7 @@ route:
             port: radarr
   sonarr:
     hostnames:
-      - sonarr.{{ .Values.global.domain }}
+      - sonarr.{{ .Values.global.baseDomain }}
     parentRefs: *parentRefs
     rules:
       - backendRefs:
@@ -97,7 +97,7 @@ route:
             port: sonarr
   jellyseerr:
     hostnames:
-      - jellyseerr.{{ .Values.global.domain }}
+      - jellyseerr.{{ .Values.global.baseDomain }}
     parentRefs: *parentRefs
     rules:
       - backendRefs:

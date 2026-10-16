@@ -32,7 +32,7 @@ service:
 route:
   main:
     hostnames:
-      - ollama.{{ .Values.global.domain }}
+      - ollama.{{ .Values.global.baseDomain }}
     parentRefs: &parentRefs
       - name: gateway
         namespace: istio-system
@@ -43,7 +43,7 @@ route:
             port: http
   ai:
     hostnames:
-      - ai.{{ .Values.global.domain }}
+      - ai.{{ .Values.global.baseDomain }}
     parentRefs: *parentRefs
     rules:
       - backendRefs:

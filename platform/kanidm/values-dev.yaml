@@ -1,5 +1,4 @@
 kanidm:
-  domain: auth.127-0-0-1.nip.io
   # The sandbox CA, distributed by trust-manager as a ConfigMap
   backendCA: homelab-dev-ca
 groupMembers:

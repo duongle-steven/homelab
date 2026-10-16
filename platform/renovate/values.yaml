@@ -5,7 +5,6 @@ renovate:
     config: |
       {
         "platform": "forgejo",
-        "endpoint": "https://git.khuedoan.com/api/v1",
         "gitAuthor": "Renovate Bot <bot@renovateapp.com>",
         "autodiscover": true
       }

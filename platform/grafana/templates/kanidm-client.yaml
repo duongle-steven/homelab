@@ -8,9 +8,9 @@ spec:
     name: kanidm
     namespace: kanidm
   displayname: Grafana
-  origin: https://{{ .Values.host }}
+  origin: https://{{ .Values.host }}.{{ .Values.global.baseDomain }}
   redirectUrl:
-    - https://{{ .Values.host }}/login/generic_oauth
+    - https://{{ .Values.host }}.{{ .Values.global.baseDomain }}/login/generic_oauth
   disableConsentPrompt: true
   preferShortUsername: true
   strictRedirectUrl: true

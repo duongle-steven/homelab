@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""No chart or app file holds an IP address.
+"""No chart or app file holds an environment setting (address, domain).
 
 Renders every component and app file in production and the sandbox (scripts/render-chart, which passes the
 environment's addresses like Argo CD) and fails on any IPv4 address that does not come from the environment's
@@ -38,6 +38,37 @@ class Loader(yaml.SafeLoader):
 Loader.add_constructor("tag:yaml.org,2002:value", lambda loader, node: loader.construct_scalar(node))
 # Ranges written as such in system/egress, and only there (the private ranges it excludes from "internet")
 EGRESS = "system/egress"
+
+
+def domains():
+    """Each environment's domain, from its config.json: they never appear literally in a chart or app file."""
+    out = {}
+    for env, path in CONFIG.items():
+        with open(path) as f:
+            out[env] = json.load(f)["domain"]
+    return out
+
+
+def domain_literals():
+    """Lines of charts and app files that name an environment's domain (comments and EXEMPT components excepted)."""
+    pattern = "|".join(re.escape(d) for d in domains().values() if d)
+    grep = subprocess.run(["git", "grep", "-n", "-E", pattern, "--", "system", "platform", "apps"],
+                          capture_output=True, text=True).stdout
+    # Uncommitted edits count too
+    grep += subprocess.run(["grep", "-rn", "-E", pattern, "system", "platform", "apps", "--include=*.yaml", "--include=*.tpl",
+                            "--exclude-dir=charts"], capture_output=True, text=True).stdout
+    hits = []
+    for line in sorted(set(grep.splitlines())):
+        path, _, text = line.split(":", 2)
+        if not text.lstrip().startswith("#") and not any(path.startswith(e + "/") for e in EXEMPT):
+            hits.append(f"{path}: names a domain: {text.strip()[:80]}")
+    return hits
+# Components that still name the production domain, and why (listed in CLAUDE.md's production checklist)
+EXEMPT = {
+    "apps/matrix": "dendrite and element-web neither template their config nor take an existing one (production only)",
+}
+# Globals we pass to every chart (system/argocd ApplicationSets): no subchart may define them in its own global
+OUR_GLOBALS = {"addresses", "baseDomain", "timezone", "seedRepository"}
 LITERALS = {"0.0.0.0/0", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"}
 IPV4 = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(/\d{1,2})?(?![\d.])")
 
@@ -100,6 +131,23 @@ def main():
                     if match in allowed or exempt(target, match, prefix, node_network):
                         continue
                     failures.append(f"{target} ({env}): {doc.get('kind')}/{doc.get('metadata', {}).get('name')}: {match}")
+            # Kanidm clients send people back to the environment's own host names
+            for (kind, name), dumped in objects.items():
+                if kind != "KanidmOAuth2Client":
+                    continue
+                spec = yaml.safe_load(dumped).get("spec") or {}
+                for url in [spec.get("origin", "")] + list(spec.get("redirectUrl") or []):
+                    host = url.split("//")[-1].split("/")[0]
+                    if url and not host.endswith("." + config["domain"]):
+                        failures.append(f"{target} ({env}): KanidmOAuth2Client/{name} points at {url}")
+            # A render never carries the other environment's domain, nor an unrendered global
+            text = "".join(objects.values())
+            other = domains()["dev" if env == "prod" else "prod"]
+            if other in text and target not in EXEMPT:
+                failures.append(f"{target} ({env}): renders {other}")
+            # Istio's injector ConfigMap holds Go templates of its own: look only for ours
+            if any(f"Values.global.{key}" in text for key in OUR_GLOBALS):
+                failures.append(f"{target} ({env}): renders an untemplated .Values.global reference")
             # Istio has its own global.network (a network name): our values must not take its keys
             for (kind, name), dumped in objects.items():
                 values = yaml.safe_load(dumped).get("data", {}).get("values") if kind == "ConfigMap" else None
@@ -160,9 +208,17 @@ def main():
         for ns in egress_values.get(table) or {}:
             if ns not in namespaces:
                 failures.append(f"system/egress: {table} names {ns}, which nothing deploys into")
+    # No domain literal in charts and app files (comments excepted)
+    failures += domain_literals()
+    # Our globals must not collide with a subchart's own global values (argo-cd has global.domain, Istio global.network)
+    for chart in sorted(glob.glob("system/*/charts/*.tgz") + glob.glob("platform/*/charts/*.tgz") + glob.glob("apps/*/charts/*.tgz")):
+        out = subprocess.run(["helm", "show", "values", chart], capture_output=True, text=True).stdout
+        own = set(((yaml.load(out, Loader=Loader) or {}).get("global") or {}).keys())
+        for key in sorted(own & OUR_GLOBALS):
+            failures.append(f"{chart}: its global.{key} collides with ours")
     for failure in failures:
         print(failure)
-    print(f"check-network-config: {len(failures)} failures")
+    print(f"check-env-config: {len(failures)} failures")
     sys.exit(1 if failures else 0)
 
 

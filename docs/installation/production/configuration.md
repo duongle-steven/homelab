@@ -6,23 +6,15 @@ Open the [development shell](../../concepts/development-shell.md), which include
 nix develop
 ```
 
-Run the following script to configure the homelab:
+Everything that depends on where your homelab runs lives in `infra/production/cluster/config.json`; edit it:
 
-```sh
-make configure
-```
+- `domain`: your domain (apps are served as `<app>.<domain>`)
+- `timezone`: your time zone (the charts receive it as `global.timezone`)
+- `seed_repository`: the Git repository (your fork) the first install copies into Forgejo
+- `vip`: the Kubernetes API address; `network.gateway`, `network.prefix_length`: your router and LAN prefix
+- `service_vips`: the LAN addresses of the Gateway and wireguard, outside your router's DHCP range
 
-!!! example
-
-    <!-- TODO update example input -->
-
-    ```
-    Text editor (nvim):
-    Enter seed repo (github.com/khuedoan/homelab): github.com/example/homelab
-    Enter your domain (khuedoan.com): example.com
-    ```
-
-It will prompt you to edit your network's addresses in `infra/production/cluster/config.json`: the Kubernetes API VIP (`vip`), the router (`network.gateway`) and the LAN addresses of the Gateway and wireguard (`service_vips`), all outside your router's DHCP range. Charts read them from there; never write an address into a chart or app file.
+Charts read these from there (`scripts/check-env-config` checks that none is written into a chart or app file). Three settings still need a hand edit, because their charts cannot take them from `config.json`: the domain in `apps/matrix/values.yaml` (Matrix), and the time zone in `system/kured/values.yaml` (automatic reboots) and `metal/roles/pxe_server/defaults/main.yml` (node installation). Until step 7c, also change `organization` in `external/versions.tf` to your Terraform Cloud organization.
 
 !!! example
 
@@ -32,7 +24,7 @@ It will prompt you to edit your network's addresses in `infra/production/cluster
     --8<--
     ```
 
-Then it will prompt you to edit the inventory:
+Then edit the inventory:
 
 - IP address: the desired one, not the current one, since your servers have no operating system installed yet
 - Disk: based on `/dev/$DISK`, in my case it's `sda`, but yours can be `sdb`, `nvme0n1`...
@@ -47,4 +39,4 @@ Then it will prompt you to edit the inventory:
     --8<--
     ```
 
-At the end it will show what has changed. After examining the diff, commit and push the changes.
+Then review the diff (`git diff`), commit and push the changes.

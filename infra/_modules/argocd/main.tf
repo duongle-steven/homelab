@@ -18,6 +18,11 @@ variable "values" {
   description = "Values file in the chart directory"
 }
 
+variable "environment" {
+  type        = string
+  description = "prod or dev: which ApplicationSet values scripts/env-values reads (the seed file switches to seed)"
+}
+
 variable "seed" {
   type        = string
   default     = ""
@@ -28,6 +33,12 @@ variable "cluster_id" {
   type        = string
   default     = ""
   description = "Identity of the cluster: a new cluster is bootstrapped again"
+}
+
+variable "seed_repository" {
+  type        = string
+  default     = ""
+  description = "Repository the seed syncs from (config.json's seed_repository)"
 }
 
 variable "protect" {
@@ -41,10 +52,12 @@ locals {
   files = sort(setunion(fileset(var.chart, "*.yaml"), fileset(var.chart, "templates/**")))
   hash  = sha1(join("", [for f in local.files : filesha1("${var.chart}/${f}")]))
   environment = {
-    KUBECONFIG = var.kubeconfig
-    CHART      = var.chart
-    VALUES     = var.values
-    SEED       = var.seed
+    KUBECONFIG      = var.kubeconfig
+    CHART           = var.chart
+    VALUES          = var.values
+    ENVIRONMENT     = var.environment
+    SEED_REPOSITORY = var.seed_repository
+    SEED            = var.seed
   }
   command = "sh ${abspath("${path.module}/bootstrap.sh")}"
 }

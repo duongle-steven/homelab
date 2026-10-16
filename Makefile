@@ -30,10 +30,6 @@ sandbox-refresh:
 dev-clean:
 	cd infra/sandbox && terragrunt run --all destroy --non-interactive -- -auto-approve
 
-configure:
-	./scripts/configure
-	git status
-
 metal:
 	make -C metal
 

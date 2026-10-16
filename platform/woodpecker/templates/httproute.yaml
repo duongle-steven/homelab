@@ -10,7 +10,7 @@ spec:
       namespace: istio-system
       sectionName: https
   hostnames:
-    - {{ .Values.route.hostname }}
+    - {{ .Values.host }}.{{ .Values.global.baseDomain }}
   rules:
     - backendRefs:
         - name: woodpecker-server

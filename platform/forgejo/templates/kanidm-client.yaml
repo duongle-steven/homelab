@@ -9,9 +9,9 @@ spec:
     namespace: kanidm
   displayname: Forgejo
   # Confidential client; Forgejo also sends PKCE (S256), which Kanidm requires
-  origin: https://{{ .Values.host }}
+  origin: https://{{ .Values.host }}.{{ .Values.global.baseDomain }}
   redirectUrl:
-    - https://{{ .Values.host }}/user/oauth2/Kanidm/callback
+    - https://{{ .Values.host }}.{{ .Values.global.baseDomain }}/user/oauth2/Kanidm/callback
   disableConsentPrompt: true
   preferShortUsername: true
   strictRedirectUrl: true

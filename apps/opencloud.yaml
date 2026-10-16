@@ -20,7 +20,7 @@ controllers:
               exec opencloud init --quiet --insecure=false
             fi
         env:
-          OC_URL: 'https://drive.{{ .Values.global.domain }}'
+          OC_URL: 'https://drive.{{ .Values.global.baseDomain }}'
         resources:
           requests:
             cpu: 10m
@@ -30,9 +30,9 @@ controllers:
     containers:
       main:
         env:
-          OC_URL: 'https://drive.{{ .Values.global.domain }}'
+          OC_URL: 'https://drive.{{ .Values.global.baseDomain }}'
           OC_EXCLUDE_RUN_SERVICES: idp
-          OC_OIDC_ISSUER: 'https://auth.{{ .Values.global.domain }}/oauth2/openid/opencloud'
+          OC_OIDC_ISSUER: 'https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/opencloud'
           OC_OIDC_CLIENT_ID: opencloud
           OC_LDAP_SERVER_WRITE_ENABLED: 'true'
           PROXY_TLS: 'false'
@@ -79,7 +79,7 @@ service:
 route:
   main:
     hostnames:
-      - drive.{{ .Values.global.domain }}
+      - drive.{{ .Values.global.baseDomain }}
     parentRefs:
       - name: gateway
         namespace: istio-system
@@ -128,7 +128,7 @@ configMaps:
       csp.yaml: |
         directives:
           connect-src:
-            - 'https://auth.{{ .Values.global.domain }}/'
+            - 'https://auth.{{ .Values.global.baseDomain }}/'
       proxy.yaml: |
         # Only the config file can map claim values to roles; the first matching entry wins
         role_assignment:
@@ -173,11 +173,11 @@ rawResources:
         displayname: OpenCloud
         # No client secret: the web UI runs the code flow in the browser with PKCE
         public: true
-        origin: 'https://drive.{{ .Values.global.domain }}'
+        origin: 'https://drive.{{ .Values.global.baseDomain }}'
         redirectUrl:
-          - 'https://drive.{{ .Values.global.domain }}/'
-          - 'https://drive.{{ .Values.global.domain }}/oidc-callback.html'
-          - 'https://drive.{{ .Values.global.domain }}/oidc-silent-redirect.html'
+          - 'https://drive.{{ .Values.global.baseDomain }}/'
+          - 'https://drive.{{ .Values.global.baseDomain }}/oidc-callback.html'
+          - 'https://drive.{{ .Values.global.baseDomain }}/oidc-silent-redirect.html'
         # Kanidm does not allow disabling the consent prompt on public clients: users confirm once
         preferShortUsername: true
         strictRedirectUrl: true
