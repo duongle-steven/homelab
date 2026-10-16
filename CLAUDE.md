@@ -18,6 +18,7 @@ Each step changes one thing, with its own spec and plan in `docs/superpowers/`.
 9. Git and CI: Forgejo is the source of truth (push mirror to GitHub), Woodpecker, Renovate in the cluster; their Forgejo credentials live in OpenBao
 10. Backups: VolSync declared per app, automatic restore on a fresh install (PVC `dataSourceRef`), plus an option for a truly fresh install that never prunes the old repository
 11. Nodes: NixOS + k3s + kube-vip + Istio (PXE with upstream's `nixie`, `nixos-anywhere`); staging on NixOS VMs in WSL (KVM; stop the sandbox first), then production hardware
+12. Remote access: a cloud VPS outside the cluster (AWS, Singapore; NixOS through `infra/`: OpenTofu + `nixos-anywhere`), because the home network sits behind the ISP's CGNAT and a double NAT. It hosts the WireGuard hub (the cluster's `apps/wireguard` dials out to it with `PersistentKeepalive`; devices connect to the hub) and Headscale with Kanidm OIDC (Kanidm published through the Cloudflare Tunnel; Headscale's DERP and STUN on the VPS's public address); `apps/tailscale` then points at Headscale
 
 ## Rules
 
@@ -82,4 +83,4 @@ The sandbox runs Kubernetes 1.37 and only ever installs from scratch, so it does
 
 ## Ideas (not planned)
 
-- VPN with kanidm users: Headscale with OIDC to kanidm instead of per-device WireGuard keys and third-party Tailscale accounts. Needs kanidm reachable from the internet.
+None yet.
