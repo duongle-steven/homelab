@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"testing"
@@ -126,8 +127,15 @@ func TestMeshEnrolled(t *testing.T) {
 }
 
 // meshCurlIn runs curl from a temporary pod in a namespace (namespace default is outside the mesh unless labels
-// enroll the pod) and returns the HTTP status it printed ("000" when the connection failed).
+// enroll the pod) and returns the HTTP status it printed ("000" when the connection failed; certificates are not
+// verified).
 func meshCurlIn(t *testing.T, namespace, name, target string, labels string) string {
+	return curlFrom(t, namespace, name, target, labels, 3)
+}
+
+// curlFrom is meshCurlIn with the seconds the pod waits before connecting (istio-cni and the network policy
+// controller set up a new pod asynchronously)
+func curlFrom(t *testing.T, namespace, name, target string, labels string, wait int) string {
 	options := k8s.NewKubectlOptions("", "", namespace)
 	options.Logger = logger.Discard
 	// A pod left over from an interrupted run would make kubectl run fail with AlreadyExists
@@ -136,8 +144,7 @@ func meshCurlIn(t *testing.T, namespace, name, target string, labels string) str
 	if labels != "" {
 		args = append(args, "--labels="+labels)
 	}
-	// Give istio-cni a moment to redirect the new pod before it connects
-	args = append(args, "--", "sh", "-c", `sleep 3; curl -s -m 10 -o /dev/null -w "%{http_code}\n" `+target+` || true`)
+	args = append(args, "--", "sh", "-c", fmt.Sprintf("sleep %d; ", wait)+`curl -sk -m 10 -o /dev/null -w "%{http_code}\n" `+target+` || true`)
 	out, _ := k8s.RunKubectlAndGetOutputE(t, options, args...)
 	status := regexp.MustCompile(`(?m)^[0-9]{3}$`).FindString(out)
 	require.NotEmpty(t, status, "no HTTP status from %s:\n%s", name, out)

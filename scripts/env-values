@@ -17,7 +17,7 @@ pick() {
 base=".argocd-apps.applicationsets.$appset"
 config=$(pick "$base.generators[0].matrix.generators[1].git.files[0].path")
 case "$appset" in
-  root) object="$base.template.spec.source.helm.valuesObject" ;;
+  root) object="$base.template.spec.sources[0].helm.valuesObject" ;;
   apps) object="$base.template.spec.sources[0].helm.valuesObject" ;;
 esac
 pick "$object" | yq '.. | select(tag == "!!str") | (path | join(".")) + "=" + .' | while IFS='=' read -r name value; do

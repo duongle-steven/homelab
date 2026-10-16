@@ -1,0 +1,32 @@
+# Default-deny egress for every namespace Argo CD manages: each Application of the root and apps ApplicationSets
+# renders this chart into its own namespace (system/argocd/values.yaml). Everything reaches the cluster, the
+# Kubernetes API and the LAN Gateway (templates/baseline.yaml); the tables below add the rest.
+
+# Out of the mesh with host-network or system pods: no egress policies (keep in step with the root templatePatch)
+exclude: [istio-system, rook-ceph]
+
+# Namespaces that reach the internet (0.0.0.0/0 except the private ranges) and on which ports. An entry without
+# port opens every port of its protocol (default TCP); {} opens every TCP and UDP port.
+internet:
+  argocd: [{port: 443}]  # GitHub, Helm and OCI repositories
+  cert-manager: [{port: 443}, {port: 53}, {port: 53, protocol: UDP}]  # ACME, Cloudflare API; DNS01 self-check
+  external-dns: [{port: 443}]  # Cloudflare API
+  cloudflared: [{port: 443}, {port: 7844}, {port: 7844, protocol: UDP}]  # Cloudflare edge
+  monitoring-system: [{port: 443}]  # ntfy.sh relay
+  forgejo: [{port: 443}]  # seed clone, mirrors
+  renovate: [{port: 80}, {port: 443}]
+  woodpecker: [{port: 80}, {port: 443}]  # pipelines
+  ollama: [{port: 443}]  # models
+  matrix: [{port: 443}, {port: 8448}]  # federation
+  jellyfin: [{}]  # torrents, indexers, Seerr: every port
+  tailscale: [{port: 443}, {protocol: UDP}]  # DERP; STUN and direct connections on any UDP port
+  wireguard: [{port: 51820, protocol: UDP}]  # handshakes and keepalives to server peers (apps/wireguard.yaml)
+
+# Node ports a namespace reaches besides the API server
+nodes:
+  # node-exporter, kubelet, controller-manager, scheduler, etcd, kube-proxy
+  monitoring-system: [{port: 9100}, {port: 10250}, {port: 10257}, {port: 10259}, {port: 2381}, {port: 10249}]
+
+# k3s's default pod and Service ranges
+cluster: [10.42.0.0/16, 10.43.0.0/16]
+private: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16]

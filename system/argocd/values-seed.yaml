@@ -22,6 +22,8 @@ argocd-apps:
                   revision: &revision master
                   directories:
                     - path: system/*
+                    - path: system/egress
+                      exclude: true
                     - path: platform/*
                     - path: apps/*
               - git: &config
@@ -32,9 +34,25 @@ argocd-apps:
                   pathParamPrefix: config
       template:
         spec:
-          source:
-            repoURL: *repoURL
-            targetRevision: *revision
+          sources:
+            - repoURL: *repoURL
+              path: '{{ .path.path }}'
+              targetRevision: *revision
+              helm:
+                valuesObject: &values
+                  global:
+                    addresses: &addresses
+                      apiVIP: '{{ .vip }}'
+                      router: '{{ .network.gateway }}'
+                      prefixLength: '{{ .network.prefix_length }}'
+                      gatewayVIP: '{{ .service_vips.gateway }}'
+                      wireguardVIP: '{{ .service_vips.wireguard }}'
+            - &egress
+              repoURL: *repoURL
+              path: system/egress
+              targetRevision: *revision
+              helm:
+                valuesObject: *values
     apps:
       generators:
         - matrix:
@@ -64,11 +82,8 @@ argocd-apps:
                     value: ""
                 valuesObject:
                   global:
-                    addresses:
-                      apiVIP: '{{ .vip }}'
-                      router: '{{ .network.gateway }}'
-                      gatewayVIP: '{{ .service_vips.gateway }}'
-                      wireguardVIP: '{{ .service_vips.wireguard }}'
+                    addresses: *addresses
             - repoURL: *repoURL
               targetRevision: *revision
               ref: values
+            - *egress
