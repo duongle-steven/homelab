@@ -20,10 +20,10 @@ spec:
       to:
         - operation:
             ports: ["8080"]
-    # Prometheus: application controller, server and repo server metrics
+    # Prometheus: application controller, server, repo server and redis exporter metrics
     - from:
         - source:
             principals: ["cluster.local/ns/monitoring-system/sa/monitoring-system-kube-pro-prometheus"]
       to:
         - operation:
-            ports: ["8082", "8083", "8084"]
+            ports: ["8082", "8083", "8084", "9121"]

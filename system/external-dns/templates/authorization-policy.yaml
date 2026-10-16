@@ -11,3 +11,10 @@ spec:
     - from:
         - source:
             namespaces: ["{{ .Release.Namespace }}"]
+    # Prometheus: metrics
+    - from:
+        - source:
+            principals: ["cluster.local/ns/monitoring-system/sa/monitoring-system-kube-pro-prometheus"]
+      to:
+        - operation:
+            ports: ["7979"]

@@ -18,7 +18,6 @@ external-dns:
     - --annotation-filter=external-dns.kubernetes.io/exclude notin (true)
   interval: 5m
   triggerLoopOnEvent: true
-  metrics:
+  # Prometheus scrapes it (templates/authorization-policy.yaml lets it in)
+  serviceMonitor:
     enabled: true
-    serviceMonitor:
-      enabled: true

@@ -145,23 +145,30 @@ def service_pod_ports(svc, workloads, port=None, port_name=None, target=None):
     return out
 
 
-def allowed(policies, principal, port):
-    """Whether an ALLOW policy lets `principal` (None: plaintext from outside the mesh) reach `port`."""
-    for pol in policies:
+def allowed(policies, principal, port, labels=None):
+    """Whether `principal` (None: plaintext from outside the mesh) may reach `port` on a pod with `labels` (None:
+    unknown): some ALLOW rule matches and no DENY rule does, among the policies whose selector picks the pod."""
+    def matches(rule):
+        sources = [f.get("source") or {} for f in rule.get("from") or []]
+        if sources:
+            ns = principal.split("/ns/")[1].split("/")[0] if principal else None
+            if principal is None or not any(principal in (s.get("principals") or []) or ns in (s.get("namespaces") or []) for s in sources):
+                return False
+        operations = [t.get("operation") or {} for t in rule.get("to") or []]
+        if not operations:
+            return True
+        return any((not o.get("ports") or str(port) in [str(p) for p in o["ports"]])
+                   and str(port) not in [str(p) for p in o.get("notPorts") or []] for o in operations)
+
+    applying = [p for p in policies if labels is None or not (p.get("spec") or {}).get("selector")
+                or selects(p["spec"]["selector"], labels)]
+    actions = {"ALLOW": False, "DENY": False}
+    for pol in applying:
         spec = pol.get("spec") or {}
-        if spec.get("action", "ALLOW") != "ALLOW":
-            continue
-        for rule in spec.get("rules") or []:
-            sources = [f.get("source") or {} for f in rule.get("from") or []]
-            if sources:
-                ns = principal.split("/ns/")[1].split("/")[0] if principal else None
-                ok = principal is not None and any(principal in (s.get("principals") or []) or ns in (s.get("namespaces") or []) for s in sources)
-            else:
-                ok = True
-            ports = [str(p) for t in rule.get("to") or [] for p in ((t.get("operation") or {}).get("ports") or [])]
-            if ok and (not ports or str(port) in ports):
-                return True
-    return False
+        action = spec.get("action", "ALLOW")
+        if action in actions and any(matches(r) for r in spec.get("rules") or []):
+            actions[action] = True
+    return actions["ALLOW"] and not actions["DENY"]
 
 
 def opened(netpols, workload, ns_of, port, from_namespace):
@@ -218,6 +225,15 @@ def check_policies(target, env, namespace, docs, ns_of, failures, all_policies):
                 if sns in names and selects(spec.get("selector") or {}, svc["metadata"].get("labels") or {}):
                     for ep in spec.get("endpoints") or []:
                         found = service_pod_ports(svc, workloads, port_name=ep.get("port")) if ep.get("port") else service_pod_ports(svc, workloads, target=ep.get("targetPort"))
+                        # Prometheus scrapes a Service only on a port it names: a named port that reaches no container
+                        # leaves a target with no endpoints, which up == 0 does not show
+                        named = [p for p in (svc.get("spec") or {}).get("ports") or []
+                                 if (ep.get("port") and p.get("name") == ep.get("port")) or (ep.get("targetPort") and p.get("targetPort") == ep.get("targetPort"))]
+                        rendered = [w for w in workloads if ns_of(w) == sns and (svc.get("spec") or {}).get("selector")
+                                    and selects({"matchLabels": svc["spec"]["selector"]}, labels_of(w))]
+                        # Pods an operator creates (Prometheus, Alertmanager) or kube-system's are not rendered here
+                        if not found and named and rendered:
+                            failures.append(f"{target} ({env}): {why} endpoint {ep.get('port') or ep.get('targetPort')} of {svc['metadata']['name']} does not resolve to a pod port")
                         needs += [(w, sns, PROMETHEUS, p, why) for w, p in found]
         else:
             for w in workloads:
@@ -245,7 +261,7 @@ def check_policies(target, env, namespace, docs, ns_of, failures, all_policies):
         else:
             if principal == "apiserver":
                 continue  # meshed webhook targets are reported by main()
-            ok = allowed([p for p in policies if ns_of(p) == ns], principal, port)
+            ok = allowed([p for p in policies if ns_of(p) == ns], principal, port, labels_of(w) if w is not None else None)
             where = f"AuthorizationPolicy in {ns}"
         line = f"{target} ({env}): {where} port {port} for {who} ({why})"
         if ok:
@@ -256,6 +272,20 @@ def check_policies(target, env, namespace, docs, ns_of, failures, all_policies):
         if ns_of(w) not in OUTSIDE and outside(w, ns_of) and not host_network(w) and not any(
                 ns_of(n) == ns_of(w) and selects((n.get("spec") or {}).get("podSelector") or {}, labels_of(w)) for n in netpols):
             failures.append(f"{target} ({env}): {ns_of(w)}/{w['metadata']['name']} is outside the mesh without a NetworkPolicy")
+
+
+def hbone_relevant(policy, docs, ns_of):
+    """Whether an ingress NetworkPolicy may select meshed pods, which receive traffic on HBONE (15008): it selects
+    every pod, a meshed rendered pod, or no rendered pod at all (pods an operator creates, e.g. CloudNativePG
+    instances, are meshed but not rendered). Policies that select only pods outside the mesh do not count."""
+    spec = policy.get("spec") or {}
+    if policy.get("kind") != "NetworkPolicy" or ns_of(policy) in OUTSIDE or "Ingress" not in (spec.get("policyTypes") or ["Ingress"]):
+        return False
+    selector = spec.get("podSelector")
+    if selector in ({}, None):
+        return True
+    selected = [w for w in docs if w.get("kind") in WORKLOADS and ns_of(w) == ns_of(policy) and selects(selector, labels_of(w))]
+    return not selected or any(not outside(w, ns_of) for w in selected)
 
 
 def main():
@@ -276,11 +306,7 @@ def main():
             ns_of = lambda d, namespace=namespace: (d.get("metadata") or {}).get("namespace") or namespace
             # In the mesh, pods receive traffic on ztunnel's HBONE port, which a chart's NetworkPolicies must let in;
             # policies that select only pods outside the mesh (webhooks, VPN routers) do not touch meshed pods
-            meshed_pods = [w for w in docs if w.get("kind") in WORKLOADS and not outside(w, ns_of)]
-            policies = [d for d in docs if d.get("kind") == "NetworkPolicy" and ns_of(d) not in OUTSIDE
-                        and "Ingress" in ((d.get("spec") or {}).get("policyTypes") or ["Ingress"])
-                        and ((d.get("spec") or {}).get("podSelector") in ({}, None)
-                             or any(ns_of(w) == ns_of(d) and selects(d["spec"]["podSelector"], labels_of(w)) for w in meshed_pods))]
+            policies = [d for d in docs if hbone_relevant(d, docs, ns_of)]
             for ns in sorted({ns_of(d) for d in policies}):
                 if any(allows_hbone(d) for d in policies if ns_of(d) == ns):
                     print(f"ok   {target} ({env}): NetworkPolicies in {ns} let HBONE (15008) in")
