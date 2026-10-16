@@ -10,9 +10,9 @@ spec:
     name: kanidm
     namespace: kanidm
   displayname: Argo CD
-  origin: https://{{ index .Values "argo-cd" "global" "domain" }}
+  origin: https://argocd.{{ .Values.global.baseDomain }}
   redirectUrl:
-    - https://{{ index .Values "argo-cd" "global" "domain" }}/auth/callback
+    - https://argocd.{{ .Values.global.baseDomain }}/auth/callback
   disableConsentPrompt: true
   preferShortUsername: true
   strictRedirectUrl: true

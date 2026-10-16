@@ -108,6 +108,15 @@ def main():
                     if match in allowed or exempt(target, match, prefix, node_network):
                         continue
                     failures.append(f"{target} ({env}): {doc.get('kind')}/{doc.get('metadata', {}).get('name')}: {match}")
+            # Kanidm clients send people back to the environment's own host names
+            for (kind, name), dumped in objects.items():
+                if kind != "KanidmOAuth2Client":
+                    continue
+                spec = yaml.safe_load(dumped).get("spec") or {}
+                for url in [spec.get("origin", "")] + list(spec.get("redirectUrl") or []):
+                    host = url.split("//")[-1].split("/")[0]
+                    if url and not host.endswith("." + config["domain"]):
+                        failures.append(f"{target} ({env}): KanidmOAuth2Client/{name} points at {url}")
             # A render never carries the other environment's domain, nor an unrendered global
             text = "".join(objects.values())
             other = DOMAINS["dev" if env == "prod" else "prod"]
