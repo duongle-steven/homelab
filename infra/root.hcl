@@ -17,6 +17,14 @@ remote_state {
   }
 }
 
+# Local state holds secrets (Cloudflare tokens, the tunnel secret): readable by the user only
+terraform {
+  after_hook "state_permissions" {
+    commands = ["apply", "destroy", "import", "refresh", "state"]
+    execute  = ["chmod", "-R", "go-rwx", "${get_repo_root()}/.state"]
+  }
+}
+
 inputs = {
   kubeconfig = local.kubeconfig
 }
