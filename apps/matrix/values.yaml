@@ -1,18 +1,18 @@
 elementweb:
   config:
     default:
-      base_url: https://matrix.khuedoan.com
-      server_name: khuedoan.com
+      base_url: https://matrix.hoangduong.dev
+      server_name: hoangduong.dev
 
 dendrite:
   dendrite_config:
     global:
-      server_name: matrix.khuedoan.com
+      server_name: matrix.hoangduong.dev
   postgresql:
     enabled: true
 
 route:
   # Published through the Cloudflare Tunnel
-  elementHostname: chat.khuedoan.com
+  elementHostname: chat.hoangduong.dev
   # LAN only, as before
-  dendriteHostname: matrix.khuedoan.com
+  dendriteHostname: matrix.hoangduong.dev

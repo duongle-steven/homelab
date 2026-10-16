@@ -9,6 +9,7 @@
     "wireguard": ""
   },
   "domain": "127-0-0-1.nip.io",
+  "zone": "",
   "timezone": "Asia/Ho_Chi_Minh",
   "seed_repository": "https://github.com/duongle-steven/homelab"
 }

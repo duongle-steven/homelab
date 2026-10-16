@@ -9,7 +9,7 @@ Below is a list of external resources and why we need them (also see some [alter
 
 | Provider        | Resource  | Purpose                                                                                                     |
 | --------        | --------  | -------                                                                                                     |
-| Terraform Cloud | Workspace | Terraform state backend                                                                                     |
+| Terraform Cloud | Workspace | State of `external/` (ntfy, extra secrets) until step 8                                                     |
 | Cloudflare      | DNS       | DNS and [DNS-01 challenge](https://letsencrypt.org/docs/challenge-types/#dns-01-challenge) for certificates |
 | Cloudflare      | Tunnel    | Public services to the internet without port forwarding                                                     |
 | ntfy            | Topic     | External notification service to receive alerts                                                             |
@@ -30,31 +30,35 @@ If you decide to use a [different Terraform backend](https://www.terraform.io/la
 
 ### Cloudflare
 
-- Buy a domain and [transfer it to Cloudflare](https://developers.cloudflare.com/registrar/get-started/transfer-domain-to-cloudflare) if you haven't already
-- Get Cloudflare email and account ID
-- Global API key: <https://dash.cloudflare.com/profile/api-tokens>
+`infra/production/cloudflare` (OpenTofu, `infra/_modules/cloudflare`) creates the Tunnel, its DNS record
+`homelab-production-tunnel.<domain>` and two DNS tokens (cert-manager's DNS-01 challenge and external-dns), for the
+`domain` and `zone` in `infra/production/cluster/config.json`. Their secrets are the unit's sensitive output `secrets`
+(they reach the cluster through OpenBao, step 8).
 
-<!-- TODO switch to API token instead of API key? -->
-<!-- Terraform API token summary: -->
+1. Buy a domain on Cloudflare, or [transfer it to Cloudflare](https://developers.cloudflare.com/registrar/get-started/transfer-domain-to-cloudflare); set `domain` and `zone` in `config.json`.
+2. Enable **Zero Trust** (any team name, the Free plan) so the account can create tunnels.
+3. Create an API token (My Profile → API Tokens → Create Custom Token) scoped to your account and the zone:
 
-<!-- ``` -->
-<!-- This API token will affect the below accounts and zones, along with their respective permissions -->
+    | Type | Permission | Access |
+    |---|---|---|
+    | Account | Cloudflare Tunnel | Edit |
+    | Account | Account API Tokens | Edit |
+    | Account | Account Settings | Read |
+    | Zone | Zone | Read |
+    | Zone | DNS | Edit |
 
-<!-- └── Khue Doan - Argo Tunnel:Edit, Account Settings:Read -->
-<!--     └── khuedoan.com - Zone:Read, DNS:Edit -->
+4. Keep it outside the repository; `.envrc` loads it:
 
-<!-- Client IP Address Filtering -->
+    ```sh
+    mkdir -p ~/.config/homelab && printf 'Token: ' && read -rs t \
+      && printf 'export CLOUDFLARE_API_TOKEN=%s\n' "$t" > ~/.config/homelab/cloudflare.env \
+      && chmod 600 ~/.config/homelab/cloudflare.env
+    ```
 
-<!-- └── Is in - 117.xxx.xxx.xxx, 2402:xxx:xxx:xxx:xxx:xxx:xxx:xxx -->
-<!-- ``` -->
+5. `cd infra/production/cloudflare && terragrunt plan`, then `terragrunt apply` (`make` applies every production unit).
 
-<!-- ### Create Minio keys -->
-
-<!-- TODO: skip this for now -->
-
-<!-- ### Create AWS API key -->
-
-<!-- TODO: skip this for now -->
+The unit's state (`.state/`, git-ignored) holds the tokens and the tunnel secret until step 8 moves state to
+encrypted R2.
 
 ### ntfy
 
