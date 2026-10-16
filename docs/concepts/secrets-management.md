@@ -31,7 +31,7 @@ flowchart TD
 
 ## Generated secrets
 
-Random secrets (admin passwords, OAuth2 client secrets) are listed in `platform/global-secrets/values.yaml`. For each one, an external-secrets `Password` generator creates a Secret in namespace `global-secrets` once, and the `global-secrets` ClusterSecretStore shares it with the apps that reference it.
+Random secrets (admin passwords and other random app secrets; kaniop generates the OAuth2 client secrets) are listed in `platform/global-secrets/values.yaml`. For each one, an external-secrets `Password` generator creates a Secret in namespace `global-secrets` once, and the `global-secrets` ClusterSecretStore shares it with the apps that reference it.
 
 ```yaml title="./platform/global-secrets/values.yaml"
 --8<--

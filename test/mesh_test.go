@@ -140,7 +140,8 @@ func curlFrom(t *testing.T, namespace, name, target string, labels string, wait 
 	options.Logger = logger.Discard
 	// A pod left over from an interrupted run would make kubectl run fail with AlreadyExists
 	_, _ = k8s.RunKubectlAndGetOutputE(t, options, "delete", "pod", name, "--ignore-not-found", "--wait")
-	args := []string{"run", name, "--rm", "-i", "--restart=Never", "--image=curlimages/curl:8.23.0"}
+	// A slow image pull must not fail the probe (kubectl run waits 1 minute by default)
+	args := []string{"run", name, "--rm", "-i", "--restart=Never", "--pod-running-timeout=5m", "--image=curlimages/curl:8.23.0"}
 	if labels != "" {
 		args = append(args, "--labels="+labels)
 	}
@@ -155,6 +156,8 @@ func curlFrom(t *testing.T, namespace, name, target string, labels string, wait 
 // pod in the mesh that no allow policy names, after ztunnel authenticated it.
 func TestMeshRejectsPlaintext(t *testing.T) {
 	meshSandboxOnly(t)
+	// Only this run's log lines: an earlier run's rejection must not satisfy the assertions below
+	since := time.Now().UTC().Format(time.RFC3339)
 	target := "http://excalidraw.excalidraw"
 	assert.Equal(t, "000", meshCurlIn(t, "default", "mesh-plain", target, ""), "a pod outside the mesh reached a meshed service in plaintext")
 	// In the mesh but not allowed into excalidraw (default deny): refused after the mTLS handshake
@@ -163,7 +166,7 @@ func TestMeshRejectsPlaintext(t *testing.T) {
 	options := k8s.NewKubectlOptions("", "", "istio-system")
 	options.Logger = logger.Discard
 	// Every node's ztunnel (the connections may have gone through any of them); a selector alone keeps only 10 lines
-	logs, err := k8s.RunKubectlAndGetOutputE(t, options, "logs", "--selector=app=ztunnel", "--prefix", "--since=5m", "--tail=-1")
+	logs, err := k8s.RunKubectlAndGetOutputE(t, options, "logs", "--selector=app=ztunnel", "--prefix", "--since-time="+since, "--tail=-1")
 	require.NoError(t, err)
 	assert.Contains(t, logs, "policy rejection", "ztunnel did not log the refused plaintext connection")
 	assert.Contains(t, logs, `src.identity="spiffe://cluster.local/ns/default/sa/default"`,

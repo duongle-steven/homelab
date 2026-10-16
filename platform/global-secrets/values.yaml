@@ -4,9 +4,6 @@ secrets:
   - name: forgejo.admin
     key: password
     special: true
-  - name: registry.admin
-    key: password
-    special: true
   - name: woodpecker.agent
     key: secret
   - name: paperless.admin

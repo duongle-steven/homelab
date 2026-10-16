@@ -79,6 +79,12 @@ argo-cd:
     metrics: *metrics
   redis:
     metrics: *metrics
+    # The metrics Service and ServiceMonitor scrape this sidecar (without it the target has no endpoints)
+    exporter:
+      enabled: true
+      image:
+        repository: ghcr.io/oliver006/redis_exporter
+        tag: v1.94.0
 argocd-apps:
   applicationsets:
     root:

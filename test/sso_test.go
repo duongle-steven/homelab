@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -148,12 +149,18 @@ func TestSSOZot(t *testing.T) {
 
 			var key struct {
 				APIKey string `json:"apiKey"`
+				UUID   string `json:"uuid"`
 			}
 			label := fmt.Sprintf("sso-test-%d", time.Now().UnixNano())
 			require.Equal(t, http.StatusCreated, getJSON(t, "POST", base+"/zot/auth/apikey", cookies, "", "", map[string]any{"label": label, "scopes": []string{}}, &key,
 				// zot only accepts its session cookie from its UI client
 				"X-ZOT-API-CLIENT", "zot-ui"))
 			require.NotEmpty(t, key.APIKey)
+			// Each run creates a key: remove it so they do not pile up in zot
+			t.Cleanup(func() {
+				assert.Equal(t, http.StatusOK, getJSON(t, "DELETE", base+"/zot/auth/apikey?id="+key.UUID, cookies, "", "", nil, nil,
+					"X-ZOT-API-CLIENT", "zot-ui"))
+			})
 
 			assert.Equal(t, want, getJSON(t, "POST", upload, nil, account, key.APIKey, nil, nil))
 			assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/v2/_catalog", nil, account, key.APIKey, nil, nil))
@@ -336,6 +343,13 @@ func TestSSOOpenCloud(t *testing.T) {
 				for _, a := range me.AppRoleAssignments {
 					roles = append(roles, names[a.AppRoleID])
 				}
+				// OpenCloud's first login can race and store the same role twice; a wrong, mixed, unknown or missing
+				// role still fails
+				if len(roles) > 1 {
+					t.Logf("%s has %d role assignments %v (OpenCloud's first-login race stores duplicates)", c.account, len(roles), roles)
+				}
+				slices.Sort(roles)
+				roles = slices.Compact(roles)
 				assert.Equal(t, []string{c.role}, roles)
 			}
 			assert.Equal(t, ids[0], ids[1], "the second login created another account")

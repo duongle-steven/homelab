@@ -27,11 +27,12 @@ func waitForEgressPolicies(t *testing.T, namespace string) {
 	}, 30*time.Minute, 10*time.Second, "no egress policies in %s", namespace)
 }
 
-// A namespace not in system/egress's internet table reaches neither the internet nor the nodes' other ports
+// A namespace not in system/egress's internet table reaches neither the internet nor the nodes' other ports. The
+// internet probe uses an address, not a name, so a DNS failure cannot pass for a block
 func TestEgressBlocksInternet(t *testing.T) {
 	meshSandboxOnly(t)
 	waitForEgressPolicies(t, "excalidraw")
-	assert.Equal(t, "000", egressCurl(t, "excalidraw", "https://github.com"), "excalidraw reached the internet")
+	assert.Equal(t, "000", egressCurl(t, "excalidraw", "https://1.1.1.1"), "excalidraw reached the internet")
 }
 
 func TestEgressBlocksNodePorts(t *testing.T) {
