@@ -104,13 +104,13 @@ externalSecrets:
   secret:
     forceRename: paperless-secret
     secretStoreRef:
-      kind: ClusterSecretStore
-      name: global-secrets
+      kind: SecretStore
+      name: openbao
     dataFrom:
       - extract:
-          key: paperless.admin
+          key: paperless/admin
       - extract:
-          key: paperless.secret-key
+          key: paperless/secret-key
     target:
       deletionPolicy: Retain
 rawResources:

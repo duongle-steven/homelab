@@ -52,14 +52,15 @@ rbac:
 externalSecrets:
   auth:
     forceRename: tailscale-auth
+    # secret/tailscale/auth-key in OpenBao (property auth-key), written in step 8b
     secretStoreRef:
-      kind: ClusterSecretStore
-      name: global-secrets
+      kind: SecretStore
+      name: openbao
     data:
       - secretKey: TS_AUTHKEY
         remoteRef:
-          key: external
-          property: tailscale-auth-key
+          key: tailscale/auth-key
+          property: auth-key
     target:
       deletionPolicy: Retain
 rawResources:
