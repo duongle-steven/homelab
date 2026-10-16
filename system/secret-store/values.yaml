@@ -1,0 +1,7 @@
+# Every Application renders this chart into its own namespace (system/argocd/values.yaml): the namespace's
+# ExternalSecrets read their branch of OpenBao, secret/<namespace>/ (platform/openbao, role apps)
+
+# Same as system/egress (scripts/check-env-config compares them)
+exclude: [istio-system, rook-ceph]
+
+server: http://openbao.openbao.svc.cluster.local:8200

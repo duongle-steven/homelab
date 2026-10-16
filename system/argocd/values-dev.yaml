@@ -72,6 +72,13 @@ argocd-apps:
               targetRevision: *revision
               helm:
                 valuesObject: *values
+            # The namespace's SecretStore openbao (its branch of OpenBao)
+            - &secretStore
+              repoURL: *repoURL
+              path: system/secret-store
+              targetRevision: *revision
+              helm:
+                valuesObject: *values
     apps:
       generators:
         - matrix:
@@ -115,3 +122,4 @@ argocd-apps:
               targetRevision: *revision
               ref: values
             - *egress
+            - *secretStore

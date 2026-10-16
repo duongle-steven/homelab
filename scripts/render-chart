@@ -16,7 +16,8 @@ done
 set -- "$@" --api-versions batch/v1/CronJob
 # Templates rendered only once their CRDs exist (system/argocd's Kanidm client and Forgejo repository): Argo CD
 # passes the cluster's APIs, the bootstrap does not
-set -- "$@" --api-versions kaniop.rs/v1beta1/KanidmOAuth2Client --api-versions external-secrets.io/v1/ExternalSecret
+set -- "$@" --api-versions kaniop.rs/v1beta1/KanidmOAuth2Client --api-versions external-secrets.io/v1/ExternalSecret \
+  --api-versions external-secrets.io/v1/SecretStore
 # Charts that create Prometheus monitors only when the cluster serves them (kube-prometheus-stack's CRDs)
 set -- "$@" --api-versions monitoring.coreos.com/v1
 for kind in ServiceMonitor PodMonitor PrometheusRule; do
