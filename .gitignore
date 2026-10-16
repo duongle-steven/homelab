@@ -8,3 +8,8 @@ book/
 *kubeconfig.yaml
 Chart.lock
 metal/gateway-api-*.yaml
+
+# OpenTofu and Terragrunt (state is local until step 8)
+.state/
+.terragrunt-cache/
+.terraform/

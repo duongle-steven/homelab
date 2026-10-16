@@ -40,7 +40,8 @@
             libisoburn
             neovim
             openssh_gssapi
-            opentofu # Drop-in replacement for Terraform
+            unstable.opentofu # Drop-in replacement for Terraform (nixos-26.05 ships 1.11)
+            unstable.terragrunt
             p7zip
             pre-commit
             qrencode
