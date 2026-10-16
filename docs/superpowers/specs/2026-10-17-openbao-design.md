@@ -27,9 +27,14 @@ removed) and 8c (OpenTofu state on Cloudflare R2 with state encryption).
 - Spike (2026-10-16, sandbox, OpenBao 2.7.1): `seal "static"` with a 32-byte key from a mounted Secret auto-unseals;
   self-initialisation (`initialize` stanzas) enables KV v2, Kubernetes auth, policies and roles on first start (no root
   token is returned, no recovery keys exist); a policy templated on the Kubernetes auth accessor (taken from an earlier
-  self-init response) lets namespace A read `secret/A/*` and refuses B; a `writer` policy (`create` on `secret/data/*`,
-  `read` on `secret/metadata/*`) creates but cannot overwrite or read; after a restart OpenBao unseals itself, keeps its
+  self-init response) lets namespace A read `secret/A/*` and refuses B; after a restart OpenBao unseals itself, keeps its
   data and does not self-initialise again.
+- Found while planning (ESO 2.12 source, `providers/v1/vault/client_push.go`): a `PushSecret` reads the path before it
+  writes (403 is an error, only 404 means "absent"), writes `custom_metadata` to `secret/metadata/<path>` first, and the
+  data write that follows is then an `update` for OpenBao (KV v2's existence check looks at the metadata). So `writer`
+  needs `create`, `read` and `update` on `secret/data/*` and `secret/metadata/*`: the spike's create-only policy cannot
+  push through ESO. "Never overwritten" therefore comes from `updatePolicy: IfNotExists`, not from the policy; the
+  writer's only holder is namespace `global-secrets`, which already holds every generated value in plain Secrets.
 - Versions (2026-10-16): OpenBao 2.7.1, chart `openbao` 0.30.4 (`https://openbao.github.io/openbao-helm`).
 
 ## Decisions
@@ -43,7 +48,8 @@ removed) and 8c (OpenTofu state on Cloudflare R2 with state encryption).
 | Emergency access | Role `admin` bound to service account `openbao-admin` (namespace `openbao`): `kubectl create token` then log in; no root token exists |
 | Reading | Every Application renders `system/secret-store` (extra source, like `system/egress`): `SecretStore` `openbao` in its namespace, Kubernetes auth role `apps` with the namespace's `default` service account |
 | Key layout | `secret/<namespace>/<name>`, properties as today (`password`, …) |
-| Generating | `platform/global-secrets` keeps the `Password` generators; a `PushSecret` per entry writes it to each destination (`updatePolicy: IfNotExists`) through a `SecretStore` with role `writer` |
+| Generating | `platform/global-secrets` keeps the `Password` generators; a `PushSecret` per entry writes it to each destination (`updatePolicy: IfNotExists`, checked hourly so a lost destination is pushed again) through a `SecretStore` with role `writer` |
+| Writer policy | `create`, `read`, `update` on `secret/data/*` and `secret/metadata/*` (what ESO's push needs); no `delete` |
 | Shared secrets | One generated value pushed to several branches (Forgejo's admin password to `secret/forgejo/admin` and `secret/argocd/forgejo-admin`) |
 | Old store | `ClusterSecretStore` `global-secrets` removed; every `ExternalSecret` moves to `SecretStore` `openbao` |
 
@@ -60,13 +66,13 @@ depends on `../argocd`; `infra/production/openbao` likewise, with `prevent_destr
 ### `platform/openbao`
 
 Wrapper chart over `openbao` 0.30.4: `server.standalone` with the HCL config (listener without TLS inside the mesh;
-ztunnel's mTLS carries it), raft storage on a PVC (`openbao-data`, never pruned), the unseal Secret mounted read-only,
+ztunnel's mTLS carries it), raft storage on a PVC (the chart's `data-openbao-0`, never pruned: a StatefulSet's PVCs are not Argo CD's), the unseal Secret mounted read-only,
 `injector.enabled: false`, `ui: false`. The config's `initialize` stanzas, in order:
 
 1. `mounts`: `sys/mounts/secret` (kv v2), `sys/auth/kubernetes`, `auth/kubernetes/config`, a read of `sys/auth/kubernetes`
    (its accessor);
 2. `policies`: `apps` (templated with the accessor: `read` on `secret/data/{{identity.entity.aliases.<accessor>.metadata.service_account_namespace}}/*`),
-   `writer`, `admin` (everything);
+   `writer` (see Decisions), `admin` (everything);
 3. `roles`: `apps` (service account `default` in any namespace), `writer` (`default` in `global-secrets`), `admin`
    (`openbao-admin` in `openbao`).
 
@@ -104,7 +110,8 @@ API).
 ### `platform/global-secrets`
 
 Each entry gains `destinations` (namespace/name paths); the generator and its Kubernetes Secret stay; a `PushSecret`
-(`refreshInterval` 0, `updatePolicy: IfNotExists`, `deletionPolicy: None`) pushes the Secret to each destination through
+(`refreshInterval` 1h, `updatePolicy: IfNotExists`, `deletionPolicy: None`: an existing value is never replaced, a
+missing one, such as after OpenBao lost its data, is pushed again) pushes the Secret to each destination through
 `SecretStore` `openbao-writer` (role `writer`, rendered by the chart itself). The `ClusterSecretStore` and its RBAC are
 removed.
 
@@ -136,11 +143,13 @@ Every `ExternalSecret` that read `ClusterSecretStore` `global-secrets` reads `Se
 
 ## Testing
 
-- Offline: renders of every changed component; `scripts/check-mesh-policies` (namespace `openbao`'s allow), a check that no
-  `ExternalSecret` or `PushSecret` references `ClusterSecretStore` `global-secrets`, `make -C infra check`.
+- Offline: renders of every changed component; `scripts/check-mesh-policies` (namespace `openbao`'s allow), `scripts/check-secret-stores`
+  (every `ExternalSecret` reads `SecretStore` `openbao` with keys under its namespace, generators aside; only
+  `platform/global-secrets` pushes, through `openbao-writer`; no `ClusterSecretStore`), `make -C infra check`.
 - `test/secrets_test.go` (sandbox): OpenBao is initialised and unsealed; after its pod is deleted it comes back unsealed
   with the same data; a temporary pod in one namespace logs in with role `apps` and reads its own branch but not another
-  namespace's; the `writer` role cannot read; Grafana's admin Secret (synced from OpenBao) equals the generated one in
+  namespace's, and cannot write even its own; the `admin` role (service account `openbao-admin`) lists the policies;
+  Grafana's admin Secret (synced from OpenBao) equals the generated one in
   `global-secrets`.
 - `make dev-clean; make dev`: every existing test passes (SSO, Forgejo seed, zot CI login read secrets through OpenBao now).
 
