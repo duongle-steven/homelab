@@ -31,6 +31,7 @@ argocd-apps:
                     - path: system/cert-manager
                     - path: system/monitoring-system
                     - path: platform/external-secrets
+                    - path: platform/openbao
                     - path: platform/global-secrets
                     - path: platform/kanidm
                     - path: platform/grafana
