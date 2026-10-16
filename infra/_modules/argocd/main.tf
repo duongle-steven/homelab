@@ -24,6 +24,12 @@ variable "seed" {
   description = "Values file used while Forgejo is not running (production's first install)"
 }
 
+variable "cluster_id" {
+  type        = string
+  default     = ""
+  description = "Identity of the cluster: a new cluster is bootstrapped again"
+}
+
 variable "protect" {
   type        = bool
   default     = false
@@ -46,7 +52,7 @@ locals {
 # prevent_destroy cannot take a variable: one resource per setting, only one of them exists
 resource "terraform_data" "bootstrap" {
   count            = var.protect ? 0 : 1
-  triggers_replace = [local.hash, var.values, var.seed]
+  triggers_replace = [local.hash, var.values, var.seed, var.cluster_id]
 
   provisioner "local-exec" {
     command     = local.command
@@ -54,9 +60,11 @@ resource "terraform_data" "bootstrap" {
   }
 }
 
+# Production bootstraps once: Argo CD manages itself afterwards, and a re-run would need a replacement, which
+# prevent_destroy refuses
 resource "terraform_data" "protected" {
   count            = var.protect ? 1 : 0
-  triggers_replace = [local.hash, var.values, var.seed]
+  triggers_replace = [local.hash, var.values, var.seed, var.cluster_id]
 
   provisioner "local-exec" {
     command     = local.command
@@ -65,5 +73,6 @@ resource "terraform_data" "protected" {
 
   lifecycle {
     prevent_destroy = true
+    ignore_changes  = [triggers_replace]
   }
 }

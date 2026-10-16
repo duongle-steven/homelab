@@ -85,8 +85,9 @@ Inputs: kubeconfig, values files (relative to `system/argocd`), and for producti
 3. renders `system/argocd` (`helm dependency build`, `helm template --include-crds`) and applies it with
    `kubectl apply --server-side --field-manager argocd-controller --force-conflicts`.
 
-`triggers_replace` hashes the chart directory's files and the chosen values files, so later applies do nothing
-unless they change; Argo CD's own sync applies every later change from git. Destroy does nothing in the sandbox
+`triggers_replace` hashes the chart directory's files and the chosen values files, plus the sandbox cluster's id (a
+recreated cluster is bootstrapped again), so later applies do nothing unless they change; production ignores trigger
+changes and bootstraps once (a re-run would be a replacement, which `prevent_destroy` refuses); Argo CD's own sync applies every later change from git. Destroy does nothing in the sandbox
 (the cluster is deleted) and is refused in production (`prevent_destroy`).
 
 ### Make

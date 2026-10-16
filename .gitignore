@@ -7,7 +7,7 @@ book/
 *.tgz
 *kubeconfig.yaml
 Chart.lock
-infra/_modules/k3d/gateway-api-*.yaml
+infra/sandbox/cluster/gateway-api-*.yaml
 
 # OpenTofu and Terragrunt (state is local until step 8)
 .state/

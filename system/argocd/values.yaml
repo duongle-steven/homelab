@@ -5,6 +5,9 @@ argo-cd:
     params:
       server.insecure: true
       controller.diff.server.side: true
+      # A sync that waits forever (a workload waiting for a Secret whose ExternalSecret failed because its CRD came
+      # later) is cut off and retried; without it a fresh cluster can stall
+      controller.sync.timeout.seconds: "600"
     cm:
       resource.ignoreResourceUpdatesEnabled: true
       resource.customizations.ignoreResourceUpdates.all: |

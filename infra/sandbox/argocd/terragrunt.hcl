@@ -2,8 +2,11 @@ include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
-dependencies {
-  paths = ["../cluster"]
+# A new cluster (its id changes) is bootstrapped again
+dependency "cluster" {
+  config_path                             = "../cluster"
+  mock_outputs                            = { cluster_id = "not-created-yet" }
+  mock_outputs_allowed_terraform_commands = ["validate", "plan"]
 }
 
 terraform {
@@ -11,6 +14,7 @@ terraform {
 }
 
 inputs = {
-  chart  = "${get_repo_root()}/system/argocd"
-  values = "values-dev.yaml"
+  chart      = "${get_repo_root()}/system/argocd"
+  values     = "values-dev.yaml"
+  cluster_id = dependency.cluster.outputs.cluster_id
 }

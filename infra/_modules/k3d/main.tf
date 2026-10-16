@@ -25,6 +25,11 @@ variable "gateway_api_version" {
   default = "v1.6.3"
 }
 
+variable "manifest_dir" {
+  type        = string
+  description = "Where the Gateway API manifest is kept: k3d mounts it into the node, so it must outlive Terragrunt's cache"
+}
+
 variable "proxy_bind" {
   type    = string
   default = "127.0.0.1"
@@ -32,13 +37,13 @@ variable "proxy_bind" {
 
 locals {
   config   = abspath("${path.module}/k3d.yaml")
-  manifest = abspath("${path.module}/gateway-api-${var.gateway_api_version}.yaml")
+  manifest = "${var.manifest_dir}/gateway-api-${var.gateway_api_version}.yaml"
   node     = "k3d-${var.name}-server-0"
   proxy    = "${var.name}-proxy"
 }
 
 resource "terraform_data" "cluster" {
-  triggers_replace = [filesha1(local.config), var.gateway_api_version, var.name]
+  triggers_replace = [filesha1(local.config), local.manifest, var.name]
   input            = { name = var.name, kubeconfig = var.kubeconfig }
 
   provisioner "local-exec" {
@@ -89,6 +94,11 @@ resource "terraform_data" "proxy" {
     when    = destroy
     command = "docker rm -f ${self.input.name} >/dev/null 2>&1 || true"
   }
+}
+
+# Changes whenever the cluster is recreated: the argocd unit bootstraps again
+output "cluster_id" {
+  value = terraform_data.cluster.id
 }
 
 output "kubeconfig" {
