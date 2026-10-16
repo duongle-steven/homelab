@@ -35,6 +35,12 @@ variable "cluster_id" {
   description = "Identity of the cluster: a new cluster is bootstrapped again"
 }
 
+variable "seed_repository" {
+  type        = string
+  default     = ""
+  description = "Repository the seed syncs from (config.json's seed_repository)"
+}
+
 variable "protect" {
   type        = bool
   default     = false
@@ -46,11 +52,12 @@ locals {
   files = sort(setunion(fileset(var.chart, "*.yaml"), fileset(var.chart, "templates/**")))
   hash  = sha1(join("", [for f in local.files : filesha1("${var.chart}/${f}")]))
   environment = {
-    KUBECONFIG  = var.kubeconfig
-    CHART       = var.chart
-    VALUES      = var.values
-    ENVIRONMENT = var.environment
-    SEED        = var.seed
+    KUBECONFIG      = var.kubeconfig
+    CHART           = var.chart
+    VALUES          = var.values
+    ENVIRONMENT     = var.environment
+    SEED_REPOSITORY = var.seed_repository
+    SEED            = var.seed
   }
   command = "sh ${abspath("${path.module}/bootstrap.sh")}"
 }

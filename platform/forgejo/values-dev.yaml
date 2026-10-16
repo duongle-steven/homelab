@@ -1,8 +1,6 @@
 database:
   cnpg:
     enabled: false
-seed:
-  repository: https://github.com/duongle-steven/homelab
 forgejo:
   persistence:
     size: 1Gi

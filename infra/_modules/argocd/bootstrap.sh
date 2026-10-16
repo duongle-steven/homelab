@@ -26,6 +26,15 @@ for value in $(cd "$CHART/../.." && scripts/env-values "$environment" root); do
 done
 unset IFS
 helm template argocd "$CHART" --namespace argocd --include-crds -f "$CHART/$values" "$@" > "$manifests"
+# The seed's repository is config.json's seed_repository (values-seed.yaml holds a placeholder)
+if [ "$environment" = seed ]; then
+  [ -n "${SEED_REPOSITORY:-}" ] || { echo "seed_repository is not set in config.json" >&2; exit 1; }
+  sed -i "s|https://seed-repository.invalid|$SEED_REPOSITORY|g" "$manifests"
+fi
+if grep -q seed-repository.invalid "$manifests"; then
+  echo "the seed repository placeholder was not replaced" >&2
+  exit 1
+fi
 apply() { kubectl apply --server-side --field-manager argocd-controller --force-conflicts -f -; }
 # The ApplicationSets need Argo CD's CRDs established first
 yq 'select(.kind == "CustomResourceDefinition")' "$manifests" | apply
