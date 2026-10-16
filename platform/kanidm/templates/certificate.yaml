@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: kanidm-tls
   dnsNames:
-    - {{ .Values.kanidm.domain }}
+    - {{ .Values.kanidm.host }}.{{ .Values.global.baseDomain }}
   issuerRef:
     group: cert-manager.io
     kind: ClusterIssuer

@@ -9,9 +9,9 @@ spec:
   kanidmRef:
     name: kanidm
   displayname: Smoke test
-  origin: https://smoke.{{ .Values.kanidm.domain | trimPrefix "auth." }}
+  origin: https://smoke.{{ .Values.global.baseDomain }}
   redirectUrl:
-    - https://smoke.{{ .Values.kanidm.domain | trimPrefix "auth." }}/callback
+    - https://smoke.{{ .Values.global.baseDomain }}/callback
   disableConsentPrompt: true
   preferShortUsername: true
   strictRedirectUrl: true

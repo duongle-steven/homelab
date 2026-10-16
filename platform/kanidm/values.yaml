@@ -1,6 +1,7 @@
 kaniop: {}
 kanidm:
-  domain: auth.khuedoan.com
+  # Host label: Kanidm serves auth.<global.baseDomain>
+  host: auth
   image: docker.io/kanidm/server:1.11.2
   storage: 1Gi
   # ConfigMap (key ca.crt) that signs Kanidm's certificate; empty trusts the system CAs (Let's Encrypt)

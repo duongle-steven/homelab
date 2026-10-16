@@ -1,4 +1,5 @@
-host: grafana.khuedoan.com
+# Host label: <host>.<global.baseDomain>
+host: grafana
 grafana:
   admin:
     existingSecret: grafana-admin

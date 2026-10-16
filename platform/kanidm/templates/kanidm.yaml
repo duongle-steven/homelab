@@ -4,7 +4,7 @@ metadata:
   name: kanidm
   namespace: {{ .Release.Namespace }}
 spec:
-  domain: {{ .Values.kanidm.domain }}
+  domain: {{ .Values.kanidm.host }}.{{ .Values.global.baseDomain }}
   image: {{ .Values.kanidm.image }}
   replicaGroups:
     - name: default
@@ -26,7 +26,7 @@ spec:
         sectionName: https
     backendTlsPolicy:
       validation:
-        hostname: {{ .Values.kanidm.domain }}
+        hostname: {{ .Values.kanidm.host }}.{{ .Values.global.baseDomain }}
         {{- with .Values.kanidm.backendCA }}
         caCertificateRefs:
           - group: ""

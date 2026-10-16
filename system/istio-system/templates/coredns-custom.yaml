@@ -1,6 +1,6 @@
 {{- if .Values.corednsRewrite }}
 # k3s's CoreDNS imports *.override keys from this ConfigMap into its server block (the Corefile itself is
-# managed by k3s); pods would otherwise resolve *.127-0-0-1.nip.io to their own loopback
+# managed by k3s); pods would otherwise resolve the sandbox's names (*.127-0-0-1.nip.io) to their own loopback
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,5 +8,5 @@ metadata:
   namespace: kube-system
 data:
   nip-io.override: |
-    rewrite name regex (.*)\.127-0-0-1\.nip\.io gateway-istio.istio-system.svc.cluster.local answer auto
+    rewrite name regex (.*)\.{{ .Values.global.baseDomain | replace "." "\\." }} gateway-istio.istio-system.svc.cluster.local answer auto
 {{- end }}

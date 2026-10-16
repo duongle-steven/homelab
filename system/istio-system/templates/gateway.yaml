@@ -37,7 +37,7 @@ spec:
     - name: https
       protocol: HTTPS
       port: 443
-      hostname: "*.{{ .Values.domain }}"
+      hostname: "*.{{ .Values.global.baseDomain }}"
       tls:
         mode: Terminate
         certificateRefs:
@@ -75,7 +75,7 @@ kind: Gateway
 metadata:
   name: public
   annotations:
-    external-dns.kubernetes.io/target: homelab-tunnel.{{ .Values.domain }}
+    external-dns.kubernetes.io/target: homelab-tunnel.{{ .Values.global.baseDomain }}
 spec:
   gatewayClassName: istio
   infrastructure:
@@ -87,7 +87,7 @@ spec:
     - name: https
       protocol: HTTPS
       port: 443
-      hostname: "*.{{ .Values.domain }}"
+      hostname: "*.{{ .Values.global.baseDomain }}"
       tls:
         mode: Terminate
         certificateRefs:

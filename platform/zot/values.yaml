@@ -1,4 +1,5 @@
-host: registry.khuedoan.com
+# Host label: <host>.<global.baseDomain>
+host: registry
 zot:
   httproute:
     enabled: true

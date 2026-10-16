@@ -1,4 +1,5 @@
-host: git.khuedoan.com
+# Host label: <host>.<global.baseDomain>
+host: git
 database:
   # CloudNativePG cluster forgejo-db (templates/database.yaml); the sandbox uses SQLite
   cnpg:
