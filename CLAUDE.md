@@ -73,7 +73,7 @@ The sandbox runs Kubernetes 1.37 and only ever installs from scratch, so it does
 - Argo CD's switch to `ops/homelab` on Forgejo (`values.yaml`, the bootstrap's seed detection in `infra/_modules/argocd`, repository Secret `argocd-repo-forgejo` with `forgejo_admin`) is only rendered; the sandbox tests prove the seed and that the credential reads the repository.
 - Argo CD has `exec.enabled: "true"` (needed for the editor role), so admins and editors can open terminals in pods.
 - The Grafana chart now comes from `https://grafana-community.github.io/helm-charts`.
-- zot refuses anonymous pulls: `apps/blog` (`registry.khuedoan.com/blog`) needs pull credentials (a read-only htpasswd account plus an `imagePullSecret`) or an anonymous `read` policy for its repository.
+- zot refuses anonymous pulls: `apps/blog` (`registry.<domain>/blog`) needs pull credentials (a read-only htpasswd account plus an `imagePullSecret`) or an anonymous `read` policy for its repository.
 - Forgejo does not start while Kanidm is unreachable: its init container registers the Kanidm login source at every start and needs Kanidm's discovery document. Argo CD syncs from Forgejo, so bring Kanidm back first after an outage.
 - zot exits at start when Kanidm is unreachable (OIDC discovery), so a Kanidm outage plus a zot restart also stops `ci` and API-key pulls and pushes.
 - The first person to log in to Actual Budget with OpenID becomes its server owner: add yourself to `homelab-budget` and log in first.
