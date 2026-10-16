@@ -32,13 +32,15 @@ func TestForgejoSeed(t *testing.T) {
 	// The repository exists (and is empty) while the migration still clones it, so wait until it has content
 	require.Eventually(t, func() bool {
 		repo.Empty = true
-		return getJSON(t, "GET", base+"/api/v1/repos/ops/homelab", nil, admin, password, nil, &repo) == http.StatusOK && !repo.Empty
+		status, err := getJSONE("GET", base+"/api/v1/repos/ops/homelab", nil, admin, password, nil, &repo)
+		return err == nil && status == http.StatusOK && !repo.Empty
 	}, 20*time.Minute, 15*time.Second, "ops/homelab was not seeded")
 	assert.True(t, repo.Private)
 
-	user := secretValue(t, "argocd", "argocd-repo-forgejo", "username")
-	pass := secretValue(t, "argocd", "argocd-repo-forgejo", "password")
-	assert.Equal(t, "http://forgejo-http.forgejo:3000/ops/homelab", secretValue(t, "argocd", "argocd-repo-forgejo", "url"))
+	// External Secrets creates it once its CRDs and the store are ready
+	repoSecret := waitForSecret(t, "argocd", "argocd-repo-forgejo")
+	user, pass := string(repoSecret["username"]), string(repoSecret["password"])
+	assert.Equal(t, "http://forgejo-http.forgejo:3000/ops/homelab", string(repoSecret["url"]))
 	assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/v1/repos/ops/homelab/branches/master", nil, user, pass, nil, nil))
 }
 
@@ -63,12 +65,15 @@ func TestForgejoSeedIsIdempotent(t *testing.T) {
 		"export SEED_REPOSITORY=https://example.invalid/homelab\n" + script
 
 	var out []byte
-	require.Eventually(t, func() bool {
+	ok := assert.Eventually(t, func() bool {
 		cmd := exec.Command("kubectl", "--namespace", "forgejo", "exec", "-i", "deploy/forgejo", "--container", "forgejo", "--", "sh", "-s")
 		cmd.Stdin = strings.NewReader(stdin)
 		out, err = cmd.CombinedOutput()
 		return err == nil
 	}, 20*time.Minute, 15*time.Second, "seed script failed on its second run")
+	if !ok {
+		t.Fatalf("last output of the seed script: %v\n%s", err, out)
+	}
 	assert.Contains(t, string(out), "ops/homelab exists")
 	assert.NotContains(t, string(out), "copied")
 }

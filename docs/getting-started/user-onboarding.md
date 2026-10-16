@@ -25,7 +25,7 @@
 
 === "For admin"
 
-    Add the person to one of the three role groups (`admins`, `editors` or `users`), and optionally to the access groups `budget` and `documents`:
+    Add the person to one of the three role groups (`admins`, `editors` or `users`), and optionally to the access groups `budget`, `documents` and `files`:
 
     ```sh
     ./scripts/onboard-user johndoe "John Doe" "johndoe@example.com" users budget files

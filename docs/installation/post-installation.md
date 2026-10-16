@@ -15,13 +15,14 @@ Save the following files to a safe location like a password manager (if you're u
 - ArgoCD:
     - Username: `admin`
     - Password: run `./scripts/argocd-admin-password`
-- Forgejo (people log in with Kanidm; `forgejo_admin` is for when Kanidm is down):
+- Forgejo (people log in with Kanidm; `forgejo_admin` works only while the Forgejo pod keeps running: it does not start while Kanidm is unreachable, so bring Kanidm back first after an outage):
     - Username: `forgejo_admin`
     - Password: get from `global-secrets` namespace
 - Kanidm:
     - Usernames: `admin` and `idm_admin`
     - Password: kept by the kaniop operator, `kubectl -n kanidm get secret kanidm-admin-passwords -o jsonpath='{.data.IDM_ADMIN_PASSWORD}' | base64 -d` (`ADMIN_PASSWORD` for `admin`)
 - Jellyfin and other applications in the \*arr stack: see the [dedicated guide for media management](../how-to-guides/media-management.md)
+- zot: people log in with Kanidm; the `ci` account (htpasswd, password in `global-secrets` `registry.ci`) is for automation
 - Other apps:
     - Username: `admin`
     - Password: get from `global-secrets` namespace

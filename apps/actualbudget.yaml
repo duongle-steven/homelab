@@ -106,4 +106,5 @@ rawResources:
         jwtLegacyCryptoEnable: true
         scopeMap:
           - group: homelab-budget
-            scopes: [openid, profile, email, groups]
+            # Actual maps no groups: do not send it every group the person is in
+            scopes: [openid, profile, email]

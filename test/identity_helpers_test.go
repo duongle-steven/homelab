@@ -601,14 +601,26 @@ func openCloudAuthorizeURL(appBase string) string {
 // getJSON sends a request with cookies or basic auth and optional header name/value pairs, decodes a
 // JSON body into out (if not nil) and returns the status.
 func getJSON(t *testing.T, method, target string, cookies []*http.Cookie, user, pass string, body any, out any, headers ...string) int {
+	status, err := getJSONE(method, target, cookies, user, pass, body, out, headers...)
+	require.NoError(t, err)
+	return status
+}
+
+// getJSONE is getJSON without require, for conditions inside Eventually (a transport error there must retry, not
+// call FailNow from Eventually's goroutine)
+func getJSONE(method, target string, cookies []*http.Cookie, user, pass string, body any, out any, headers ...string) (int, error) {
 	var reader io.Reader
 	if body != nil {
 		payload, err := json.Marshal(body)
-		require.NoError(t, err)
+		if err != nil {
+			return 0, err
+		}
 		reader = bytes.NewReader(payload)
 	}
 	req, err := http.NewRequest(method, target, reader)
-	require.NoError(t, err)
+	if err != nil {
+		return 0, err
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -622,14 +634,20 @@ func getJSON(t *testing.T, method, target string, cookies []*http.Cookie, user, 
 		req.Header.Set(headers[i], headers[i+1])
 	}
 	resp, err := insecureClient.Do(req)
-	require.NoError(t, err)
+	if err != nil {
+		return 0, err
+	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	if out != nil && resp.StatusCode < 300 {
-		require.NoError(t, json.Unmarshal(raw, out), "%s %s: %s", method, target, raw)
+	if err != nil {
+		return 0, err
 	}
-	return resp.StatusCode
+	if out != nil && resp.StatusCode < 300 {
+		if err := json.Unmarshal(raw, out); err != nil {
+			return resp.StatusCode, fmt.Errorf("%s %s: %w: %s", method, target, err, raw)
+		}
+	}
+	return resp.StatusCode, nil
 }
 
 // waitForIdentityStack blocks until a fresh sandbox has synced Kanidm and the smoke client, because the
@@ -694,15 +712,4 @@ func exchangeCode(t *testing.T, code, secret, verifier string) map[string]any {
 	var claims map[string]any
 	require.NoError(t, json.Unmarshal(payload, &claims))
 	return claims
-}
-
-// hasGroup accepts Kanidm's short group names and SPNs (name@domain).
-func hasGroup(claims map[string]any, group string) bool {
-	groups, _ := claims["groups"].([]any)
-	for _, g := range groups {
-		if s, ok := g.(string); ok && (s == group || strings.HasPrefix(s, group+"@")) {
-			return true
-		}
-	}
-	return false
 }

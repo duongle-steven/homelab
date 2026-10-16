@@ -103,7 +103,7 @@ git switch -c feat/harness-the-sun
 scripts/render-chart platform/kanidm
 scripts/render-chart platform/kanidm dev
 # offline unit tests (the other tests need a cluster)
-(cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect' ./...)
+(cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect' ./...)
 mkdocs build --strict
 git commit -am "feat: harness the sun"
 make dev   # pushes this commit to the branch sandbox and runs every sandbox test on it

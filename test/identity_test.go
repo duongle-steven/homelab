@@ -30,13 +30,6 @@ func TestIdentityTOTPWaitsForNextStep(t *testing.T) {
 	assert.Equal(t, totpCode(t, c, t0.Add(30*time.Second)), second)
 }
 
-func TestIdentityHasGroup(t *testing.T) {
-	assert.True(t, hasGroup(map[string]any{"groups": []any{"homelab-admins"}}, "homelab-admins"))
-	assert.True(t, hasGroup(map[string]any{"groups": []any{"homelab-admins@auth.127-0-0-1.nip.io"}}, "homelab-admins"))
-	assert.False(t, hasGroup(map[string]any{"groups": []any{"homelab-admins-old"}}, "homelab-admins"))
-	assert.False(t, hasGroup(map[string]any{}, "homelab-admins"))
-}
-
 func TestIdentityLogin(t *testing.T) {
 	if os.Getenv("ENV") != "dev" {
 		t.Skip("identity tests run against the sandbox only")
