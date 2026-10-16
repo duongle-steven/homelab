@@ -2,36 +2,81 @@
 
 ## Overview
 
-- Global secrets are stored in the `global-secrets` namespace.
-- Integrate with GitOps using [External Secrets Operator](https://external-secrets.io).
-- Secrets that can be generated are automatically generated and stored in the `global-secrets` namespace.
-
-!!! info
-
-    Despite the name _External_ Secrets Operator, global secrets are created in the same cluster and synced
-    to other namespaces using the [Kubernetes provider](https://external-secrets.io/latest/provider/kubernetes).
-
-    While not supported by default in this project, you can also use other external providers such as HashiCorp Vault,
-    AWS Secret Manager, Google Cloud Secret Manager, Azure Key Vault, 1Password, etc.
+- [OpenBao](https://openbao.org) (`platform/openbao`) holds the cluster's secrets in its KV store `secret/`.
+- Every namespace reads its own branch, `secret/<namespace>/<name>`, through its `SecretStore` `openbao`
+  (`system/secret-store`, rendered by every Application) and [External Secrets](https://external-secrets.io)
+  `ExternalSecret`s. OpenBao refuses a read of another namespace's branch.
+- Generated secrets come from `platform/global-secrets`, which pushes each one to its readers' branches.
 
 ```mermaid
 flowchart TD
-  subgraph global-secrets-namespace[global-secrets namespace]
-    password-generators[Password generators] -- generate once --> source-secrets[Source Secrets]
+  subgraph global-secrets[global-secrets namespace]
+    generators[Password generators] -- generate once --> source[Secrets]
+    source -- PushSecret, IfNotExists --> writer[SecretStore openbao-writer]
   end
-
-  subgraph app-namespace[application namespace]
+  writer -- role writer --> openbao[(OpenBao secret/)]
+  subgraph app[application namespace]
+    store[SecretStore openbao] -- role apps: secret/&lt;namespace&gt;/ --> openbao
+    ExternalSecret --- store
     ExternalSecret -- create --> Secret
     App -- read --> Secret
   end
-
-  ClusterSecretStore -- read --> source-secrets
-  ExternalSecret --- ClusterSecretStore
 ```
+
+## Reading a secret
+
+```yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-admin
+spec:
+  secretStoreRef:
+    kind: SecretStore
+    name: openbao
+  data:
+    - secretKey: password
+      remoteRef:
+        key: grafana/admin  # secret/grafana/admin: the namespace's own branch
+        property: password
+```
+
+`scripts/check-secret-stores` refuses, before merge, an `ExternalSecret` that reads another store or another
+namespace's branch. A secret two namespaces need is pushed to both branches (`destinations` in
+`platform/global-secrets/values.yaml`).
+
+## Unsealing and configuration
+
+- OpenBao unseals itself (`seal "static"`) with a 32-byte key that the OpenTofu unit `infra/<env>/openbao` creates,
+  keeps in its state (`.state/`, readable only by you; Cloudflare R2 with state encryption from step 8c) and writes into
+  Secret `openbao/openbao-unseal`. Losing the key loses everything OpenBao holds.
+- On first start OpenBao configures itself from `platform/openbao/values.yaml` (`initialize` stanzas):
+  - the KV v2 store `secret/` and Kubernetes auth;
+  - the policies `apps` (read `secret/<namespace>/`), `writer` (push: `create`, `read`, `update` on everything,
+    because External Secrets reads before it writes) and `admin`;
+  - their roles: `apps` for every namespace's `default` service account, `writer` for `global-secrets`' and `admin`
+    for `openbao/openbao-admin`.
+- These stanzas run only on an empty storage: editing them later changes nothing on a running OpenBao. Apply the
+  change by hand with the admin role (below), or, in the sandbox, `make dev-clean`.
+- No root token and no recovery keys exist.
+- OpenBao's data has no backup until step 10.
+
+## Emergency access
+
+No root token exists: log in with the admin role, as service account `openbao/openbao-admin`.
+
+```sh
+token=$(kubectl -n openbao create token openbao-admin --duration=1h)
+# Prints an OpenBao token valid for an hour
+kubectl -n openbao exec -i openbao-0 -c openbao -- bao write -field=token auth/kubernetes/login role=admin jwt=- <<<"$token"
+kubectl -n openbao exec -it openbao-0 -c openbao -- env BAO_TOKEN=<the printed token> sh
+```
+
+Anyone who can create tokens for `openbao-admin` (cluster admins) holds every secret.
 
 ## Generated secrets
 
-Random secrets (admin passwords and other random app secrets; kaniop generates the OAuth2 client secrets) are listed in `platform/global-secrets/values.yaml`. For each one, an external-secrets `Password` generator creates a Secret in namespace `global-secrets` once, and the `global-secrets` ClusterSecretStore shares it with the apps that reference it.
+Random secrets (admin passwords and other random app secrets; kaniop generates the OAuth2 client secrets) are listed in `platform/global-secrets/values.yaml`. For each one, an external-secrets `Password` generator creates a Secret in namespace `global-secrets` once, and a `PushSecret` writes it to each of its `destinations` in OpenBao (`updatePolicy: IfNotExists`: an existing value is never replaced, a missing one is pushed again within an hour).
 
 ```yaml title="./platform/global-secrets/values.yaml"
 --8<--
@@ -43,70 +88,24 @@ They are never rotated automatically: both sides of a client secret would have t
 
 To rotate one by hand:
 
-1. `kubectl -n global-secrets delete secret <name>`. external-secrets generates a new value.
-2. Restart every app that uses it (for example `kubectl -n forgejo rollout restart deploy/forgejo`).
-3. For an admin password, also change it inside the app to the new value.
+1. With the admin role: `bao kv metadata delete secret/<namespace>/<name>` for each destination of the entry.
+2. `kubectl -n global-secrets delete secret <name>`. External Secrets generates a new value; its PushSecret writes it
+   to the empty destinations within an hour (`kubectl -n global-secrets annotate pushsecret <name>
+   force-sync=$(date +%s) --overwrite` pushes it at once).
+3. Restart every app that uses it (for example `kubectl -n forgejo rollout restart deploy/forgejo`).
+4. For an admin password, also change it inside the app to the new value.
 
 Kanidm OAuth2 client secrets are generated by the kaniop operator instead, as `<client>-kanidm-oauth2-credentials` in the client's namespace.
 
-## Extra third-party secrets
+## Extra third-party secrets (until step 8b)
 
 For third-party secrets that you don't control, add them to `external/terraform.tfvars` under the `extra_secrets` key,
 then run `make external`.
 
 They will be available as a Secret named `external` in the `global-secrets` namespace.
-You can use it with `ExternalSecret` just like any other global secret.
-
-## How secrets are pulled from global secrets to other namespaces
-
-When you apply an `ExternalSecret` object, for example:
-
-```yaml hl_lines="4 21-23"
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: forgejo-admin
-  namespace: forgejo
-spec:
-  data:
-  - remoteRef:
-      conversionStrategy: Default
-      key: forgejo.admin
-      property: password
-    secretKey: password
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: global-secrets
-  target:
-    creationPolicy: Owner
-    deletionPolicy: Retain
-    template:
-      data:
-        password: '{{ .password }}'
-        username: forgejo_admin
-      engineVersion: v2
-```
-
-This will create a corresponding Kubernetes secret:
-
-`kubectl describe secrets -n forgejo forgejo-admin`
-
-```yaml hl_lines="1 8-11"
-Name:         forgejo-admin
-Namespace:    forgejo
-Labels:       <none>
-Annotations:  reconcile.external-secrets.io/data-hash: <REDACTED>
-
-Type:  Opaque
-
-Data
-====
-password:  32 bytes
-username:  13 bytes
-```
+Nothing reads it any more: step 8b moves these secrets into OpenBao.
 
 Please see the official documentation for more information:
 
-- [External Secrets Operator](https://external-secrets.io)
-- [API specification](https://external-secrets.io/latest/spec)
+- [OpenBao](https://openbao.org/docs/)
+- [External Secrets Operator](https://external-secrets.io) and its [Vault provider](https://external-secrets.io/latest/provider/hashicorp-vault/)

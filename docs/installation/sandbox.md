@@ -36,7 +36,7 @@ export KUBECONFIG=$PWD/infra/sandbox/kubeconfig.yaml  # from the repository root
 - <https://grafana.127-0-0-1.nip.io> ("Sign in with Kanidm", or user `admin` with `kubectl -n grafana get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`)
 - <https://registry.127-0-0-1.nip.io> (zot; log in with Kanidm, then create an API key under your user menu and `docker login registry.127-0-0-1.nip.io -u <username> -p <key>`)
 - <https://git.127-0-0-1.nip.io> (Forgejo; "Sign in with Kanidm", or user `forgejo_admin` with `kubectl -n forgejo get secret forgejo-admin -o jsonpath='{.data.password}' | base64 -d`; the seed Job copies this repository into `ops/homelab`; SSH on `127.0.0.1:22`)
-- <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io>: log in with Kanidm (paperless also has a local `admin`, password in `global-secrets/paperless.admin`)
+- <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io>: log in with Kanidm (paperless also has a local `admin`, password in `global-secrets/paperless.admin` and OpenBao `secret/paperless/admin`)
 - <https://drive.127-0-0-1.nip.io> (OpenCloud): log in with Kanidm and accept the consent page once
 - <https://home.127-0-0-1.nip.io>, <https://drop.127-0-0-1.nip.io>, <https://speedtest.127-0-0-1.nip.io>
 
@@ -79,7 +79,7 @@ What each group may do:
 
 Actual Budget admits only `homelab-budget`, paperless only `homelab-documents` (members of `homelab-admins` become paperless superusers), OpenCloud only `homelab-files` (members of `homelab-admins` get the Admin role, the others User).
 
-Argo CD and Grafana keep their local `admin` account, Forgejo its `forgejo_admin`; zot has a `ci` account for automation (password in `global-secrets/registry.ci`).
+Argo CD and Grafana keep their local `admin` account, Forgejo its `forgejo_admin`; zot has a `ci` account for automation (password in `global-secrets/registry.ci` and OpenBao `secret/zot/ci`).
 
 Use the `totpSecret` there in any authenticator app to log in by hand. Kanidm asks for the TOTP code before the password.
 
