@@ -1,6 +1,6 @@
 #!/bin/sh
 
-export KUBECONFIG=./metal/kubeconfig.yaml
+export KUBECONFIG="${KUBECONFIG:-./infra/production/kubeconfig.yaml}"
 # One line per route hostname: the address of the Gateway the route is attached to
 # (public DNS points hosts on the Gateway public at the Cloudflare Tunnel instead)
 kubectl get gateways,httproutes --all-namespaces --output json | jq -r '

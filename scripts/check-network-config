@@ -111,7 +111,7 @@ def main():
                 for key, user, kind, name in USES:
                     if user == target and field(config, key) not in objects.get((kind, name), ""):
                         failures.append(f"{target} (prod): {kind}/{name} does not use {key} ({field(config, key)})")
-    # Every way the argocd chart is rendered (system/bootstrap.yml uses values-seed.yaml on a first install) must read
+    # Every way the argocd chart is rendered (infra/_modules/argocd uses values-seed.yaml on a first install) must read
     # the environment's config.json: Helm replaces the generator and source lists each values file restates
     for env, path in {"prod": CONFIG["prod"], "dev": CONFIG["dev"], "seed": CONFIG["prod"]}.items():
         for doc in render("system/argocd", env):

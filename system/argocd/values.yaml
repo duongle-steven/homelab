@@ -159,10 +159,6 @@ argocd-apps:
               - ServerSideApply=true
               # Keep the ignored webhook fields when a sync applies the rest
               - RespectIgnoreDifferences=true
-              # Apply what the cluster already knows and retry the rest: on a fresh cluster the components need each
-              # other's CRDs in a cycle (cert-manager and monitoring-system carry Istio's AuthorizationPolicy,
-              # istio-system a cert-manager Certificate, cert-manager a ServiceMonitor)
-              - SkipDryRunOnMissingResource=true
             managedNamespaceMetadata:
               labels:
                 # Every namespace joins Istio's ambient mesh (system/istio-system); exceptions: templatePatch below

@@ -9,6 +9,10 @@ cert-manager:
     enabled: true
     servicemonitor:
       enabled: true
+      # Its CRD comes from monitoring-system, which waits for Istio, which waits for cert-manager: apply the rest of
+      # the sync and retry this
+      annotations:
+        argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 issuer:
   # Sandbox only: issue certificates from a local CA instead of Let's Encrypt
   dev: false
