@@ -1,5 +1,12 @@
 external-dns:
-  provider: cloudflare
+  provider:
+    name: cloudflare
+  # Routes attached to a Gateway; the DNS target comes from the Gateway (gateway: its kube-vip address,
+  # public: the Cloudflare Tunnel)
+  sources:
+    - gateway-httproute
+  # Never delete records (the previous chart default; the chart now requires it)
+  policy: upsert-only
   txtOwnerId: homelab
   env:
     - name: CF_API_TOKEN
@@ -8,10 +15,9 @@ external-dns:
           name: cloudflare-api-token
           key: value
   extraArgs:
-    - --annotation-filter=external-dns.alpha.kubernetes.io/exclude notin (true)
+    - --annotation-filter=external-dns.kubernetes.io/exclude notin (true)
   interval: 5m
   triggerLoopOnEvent: true
-  metrics:
+  # Prometheus scrapes it (templates/authorization-policy.yaml lets it in)
+  serviceMonitor:
     enabled: true
-    serviceMonitor:
-      enabled: true

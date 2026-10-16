@@ -6,7 +6,7 @@ metadata:
 spec:
   containers:
     - name: kube-vip
-      image: ghcr.io/kube-vip/kube-vip:v0.6.4
+      image: ghcr.io/kube-vip/kube-vip:v1.2.4
       args:
         - manager
       env:
@@ -14,12 +14,20 @@ spec:
           value: {{ control_plane_endpoint }}
         - name: vip_arp
           value: "true"
-        - name: cp_enable
-          value: "true"
         - name: vip_leaderelection
+          value: "true"
+        # The API server VIP
+        - name: cp_enable
           value: "true"
         - name: lb_enable
           value: "true"
+        # LoadBalancer Services that ask for kube-vip (the LAN Gateway, wireguard); ServiceLB serves the rest
+        - name: svc_enable
+          value: "true"
+        - name: lb_class_only
+          value: "true"
+        - name: lb_class_name
+          value: kube-vip.io/kube-vip-class
       securityContext:
         capabilities:
           add:

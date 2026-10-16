@@ -1,7 +1,8 @@
 #!/bin/sh
 
-export KUBECONFIG=./metal/kubeconfig.yaml
+export KUBECONFIG="${KUBECONFIG:-./infra/production/kubeconfig.yaml}"
 
 kubectl get applicationsets --namespace argocd
 kubectl get applications --namespace argocd
-kubectl get ingress --all-namespaces
+kubectl get gateways --namespace gateway
+kubectl get httproutes,tcproutes --all-namespaces

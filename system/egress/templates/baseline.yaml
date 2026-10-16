@@ -1,0 +1,61 @@
+{{- if not (has .Release.Namespace .Values.exclude) }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all-egress
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+---
+# DNS, the Gateway pods, pods outside the mesh, Services before DNAT; who may enter which pod is step 6c's policies.
+# Meshed traffic (HBONE) and in-cluster DNS go through ztunnel and are not seen here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cluster
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        {{- range .Values.cluster }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+---
+# The API server, after kube-proxy rewrites kubernetes.default to a node address
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kube-api
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: {{ include "egress.nodeNetwork" . }}
+      ports:
+        - protocol: TCP
+          port: 6443
+{{- with .Values.global.addresses.gatewayVIP }}
+---
+# Apps reach each other by hostname, which resolves to the Gateway's VIP; kube-proxy normally rewrites it to the
+# Gateway pods (allow-cluster), this keeps it working if not
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-vip
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: {{ . }}/32
+      ports:
+        - {protocol: TCP, port: 80}
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 22}
+{{- end }}
+{{- end }}

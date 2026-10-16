@@ -1,0 +1,166 @@
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          repository: docker.io/jellyfin/jellyfin
+          tag: 10.11.11
+      transmission:
+        image:
+          repository: lscr.io/linuxserver/transmission
+          tag: 4.1.3
+      prowlarr:
+        image:
+          repository: lscr.io/linuxserver/prowlarr
+          tag: 2.6.5.5623-ls163
+      radarr:
+        image:
+          repository: lscr.io/linuxserver/radarr
+          tag: 6.4.4.10685-ls320
+      sonarr:
+        image:
+          repository: lscr.io/linuxserver/sonarr
+          tag: 4.0.20.3014-ls328
+      # Seerr, the successor of Jellyseerr
+      jellyseerr:
+        image:
+          repository: ghcr.io/seerr-team/seerr
+          tag: v3.5.0
+service:
+  main:
+    ports:
+      http:
+        port: 8096
+        protocol: HTTP
+      transmission:
+        port: 9091
+        protocol: HTTP
+      prowlarr:
+        port: 9696
+        protocol: HTTP
+      radarr:
+        port: 7878
+        protocol: HTTP
+      sonarr:
+        port: 8989
+        protocol: HTTP
+      jellyseerr:
+        port: 5055
+        protocol: HTTP
+# One route per host: a route's hostnames apply to all its rules
+route:
+  main:
+    hostnames:
+      - jellyfin.{{ .Values.global.domain }}
+    parentRefs: &parentRefs
+      - name: gateway
+        namespace: istio-system
+        sectionName: https
+    rules:
+      - backendRefs:
+          - identifier: main
+            port: http
+  transmission:
+    hostnames:
+      - transmission.{{ .Values.global.domain }}
+    parentRefs: *parentRefs
+    rules:
+      - backendRefs:
+          - identifier: main
+            port: transmission
+  prowlarr:
+    hostnames:
+      - prowlarr.{{ .Values.global.domain }}
+    parentRefs: *parentRefs
+    rules:
+      - backendRefs:
+          - identifier: main
+            port: prowlarr
+  radarr:
+    hostnames:
+      - radarr.{{ .Values.global.domain }}
+    parentRefs: *parentRefs
+    rules:
+      - backendRefs:
+          - identifier: main
+            port: radarr
+  sonarr:
+    hostnames:
+      - sonarr.{{ .Values.global.domain }}
+    parentRefs: *parentRefs
+    rules:
+      - backendRefs:
+          - identifier: main
+            port: sonarr
+  jellyseerr:
+    hostnames:
+      - jellyseerr.{{ .Values.global.domain }}
+    parentRefs: *parentRefs
+    rules:
+      - backendRefs:
+          - identifier: main
+            port: jellyseerr
+persistence:
+  data:
+    # Keep the PVC name jellyfin-data
+    suffix: data
+    accessMode: ReadWriteOnce
+    size: 50Gi
+    advancedMounts:
+      main:
+        main:
+          - path: /config
+            subPath: jellyfin/config
+          - path: /media/movies
+            subPath: movies
+          - path: /media/shows
+            subPath: shows
+        transmission:
+          - path: /config
+            subPath: transmission/config
+          - path: /downloads
+            subPath: transmission/downloads
+        prowlarr:
+          - path: /config
+            subPath: prowlarr/config
+        radarr:
+          - path: /config
+            subPath: radarr/config
+          - path: /downloads/complete
+            subPath: transmission/downloads/complete
+          - path: /movies
+            subPath: movies
+        sonarr:
+          - path: /config
+            subPath: sonarr/config
+          - path: /downloads/complete
+            subPath: transmission/downloads/complete
+          - path: /shows
+            subPath: shows
+        jellyseerr:
+          - path: /app/config
+            subPath: jellyseerr/config
+rawResources:
+  # Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
+  authorization-policy:
+    forceRename: allow
+    manifest:
+      apiVersion: security.istio.io/v1
+      kind: AuthorizationPolicy
+      spec:
+        action: ALLOW
+        rules:
+          # Pods in this namespace call each other freely
+          - from:
+              - source:
+                  namespaces: ['{{ .Release.Namespace }}']
+          # the LAN Gateway
+          - from:
+              - source:
+                  principals: ['cluster.local/ns/istio-system/sa/gateway-istio']
+            to:
+              - operation:
+                  ports: ["8096", "5055", "9696", "7878", "8989", "9091"]

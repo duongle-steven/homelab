@@ -1,0 +1,44 @@
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          repository: docker.io/excalidraw/excalidraw
+          tag: latest@sha256:f7ee194addd607bf831d2af0f0a34463dd4225e426cf35199ef0b12a803398e9
+service:
+  main:
+    ports:
+      http:
+        port: 80
+        protocol: HTTP
+route:
+  main:
+    annotations:
+      external-dns.kubernetes.io/cloudflare-proxied: "true"
+    hostnames:
+      - draw.{{ .Values.global.domain }}
+    parentRefs:
+      - name: '{{ .Values.global.publicGateway }}'
+        namespace: istio-system
+        sectionName: https
+rawResources:
+  # Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
+  authorization-policy:
+    forceRename: allow
+    manifest:
+      apiVersion: security.istio.io/v1
+      kind: AuthorizationPolicy
+      spec:
+        action: ALLOW
+        rules:
+          # Pods in this namespace call each other freely
+          - from:
+              - source:
+                  namespaces: ['{{ .Release.Namespace }}']
+          # the Gateway named by global.publicGateway (public in production, gateway in the sandbox)
+          - from:
+              - source:
+                  principals: ['cluster.local/ns/istio-system/sa/{{ .Values.global.publicGateway }}-istio']
+            to:
+              - operation:
+                  ports: ["80"]

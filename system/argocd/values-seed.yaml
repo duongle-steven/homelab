@@ -13,16 +13,77 @@ argo-cd:
 argocd-apps:
   applicationsets:
     root:
+      # Helm replaces lists: the matrix with the environment's addresses is restated (system/argocd/values.yaml)
       generators:
-        - git:
-            repoURL: &repoURL https://github.com/khuedoan/homelab
-            revision: &revision master
-            directories:
-              - path: system/*
-              - path: platform/*
-              - path: apps/*
+        - matrix:
+            generators:
+              - git:
+                  repoURL: &repoURL https://github.com/khuedoan/homelab
+                  revision: &revision master
+                  directories:
+                    - path: system/*
+                    - path: system/egress
+                      exclude: true
+                    - path: platform/*
+                    - path: apps/*
+              - git: &config
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: infra/production/cluster/config.json
+                  pathParamPrefix: config
       template:
         spec:
-          source:
-            repoURL: *repoURL
-            targetRevision: *revision
+          sources:
+            - repoURL: *repoURL
+              path: '{{ .path.path }}'
+              targetRevision: *revision
+              helm:
+                valuesObject: &values
+                  global:
+                    addresses: &addresses
+                      apiVIP: '{{ .vip }}'
+                      router: '{{ .network.gateway }}'
+                      prefixLength: '{{ .network.prefix_length }}'
+                      gatewayVIP: '{{ .service_vips.gateway }}'
+                      wireguardVIP: '{{ .service_vips.wireguard }}'
+            - &egress
+              repoURL: *repoURL
+              path: system/egress
+              targetRevision: *revision
+              helm:
+                valuesObject: *values
+    apps:
+      generators:
+        - matrix:
+            generators:
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: apps/*.yaml
+              - git: *config
+      template:
+        spec:
+          sources:
+            - repoURL: https://bjw-s-labs.github.io/helm-charts
+              chart: app-template
+              targetRevision: 5.3.0
+              helm:
+                releaseName: '{{ .path.filename | trimSuffix ".yaml" }}'
+                valueFiles:
+                  - '$values/apps/{{ .path.filename }}'
+                parameters:
+                  - name: global.domain
+                    value: khuedoan.com
+                  - name: global.publicGateway
+                    value: public
+                  - name: global.devCA
+                    value: ""
+                valuesObject:
+                  global:
+                    addresses: *addresses
+            - repoURL: *repoURL
+              targetRevision: *revision
+              ref: values
+            - *egress

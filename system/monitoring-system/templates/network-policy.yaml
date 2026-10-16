@@ -1,0 +1,18 @@
+# Outside the mesh (the API server calls its admission webhook): only its HTTPS port (webhook and metrics)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-operator
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
+      app.kubernetes.io/instance: monitoring-system
+  policyTypes:
+    - Ingress
+  ingress:
+    # From anywhere: the API server calls from the nodes' addresses
+    - ports:
+        - protocol: TCP
+          port: 10250

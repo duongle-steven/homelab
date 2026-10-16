@@ -5,14 +5,24 @@
     This tutorial is for Cloudflare Tunnel users, please skip if you use port forwarding.
 
 Apply the `./external` layer to create a tunnel if you haven't already,
-then add the following annotations to your `Ingress` object (replace `example.com` with your domain):
+then attach the app's `HTTPRoute` to the public Gateway `public` (replace `example.com` with your domain):
 
 ```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   annotations:
-    external-dns.alpha.kubernetes.io/target: "homelab-tunnel.example.com"
-    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    external-dns.kubernetes.io/cloudflare-proxied: "true"
+spec:
+  parentRefs:
+    - name: public
+      namespace: istio-system
+      sectionName: https
+  hostnames:
+    - foo.example.com
 # ...
 ```
+
+external-dns points the hostname at the tunnel (the `public` Gateway carries the
+`external-dns.kubernetes.io/target` annotation), and cloudflared forwards tunnel traffic to that Gateway only.
+Routes on the LAN Gateway `gateway` stay off the internet.

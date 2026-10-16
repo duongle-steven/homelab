@@ -1,14 +1,47 @@
 #!/bin/sh
+# Usage: scripts/onboard-user <username> <fullname> <mail> <admins|editors|users> [budget] [documents] [files]
+
+set -eu
 
 username="${1}"
 fullname="${2}"
 mail="${3}"
+group="${4}"
+shift 4
 
-export KUBECONFIG=./metal/kubeconfig.yaml
-host="$(kubectl get ingress --namespace kanidm kanidm --output jsonpath='{.spec.rules[0].host}')"
+case "${group}" in
+    admins|editors|users) ;;
+    *) echo "group must be one of: admins, editors, users" >&2; exit 1 ;;
+esac
+# Optional access groups for apps with personal data
+for access in "$@"; do
+    case "${access}" in
+        budget|documents|files) ;;
+        *) echo "access group must be one of: budget, documents, files" >&2; exit 1 ;;
+    esac
+done
 
-kanidm person create "${username}" "${fullname}" --url "https://${host}" --name idm_admin
-kanidm person update "${username}" --url "https://${host}" --name idm_admin --mail "${mail}"
-# TODO better group management
-kanidm group add-members "editor" "${username}" --url "https://${host}" --name idm_admin
-kanidm person credential create-reset-token "${username}" --url "https://${host}" --name idm_admin
+export KUBECONFIG="${KUBECONFIG:-./infra/production/kubeconfig.yaml}"
+host="$(kubectl get kanidm --namespace kanidm kanidm --output jsonpath='{.spec.domain}')"
+url="https://${host}"
+
+# The sandbox CA is not in the system trust store; certificates from Let's Encrypt have no ca.crt
+ca_file="$(mktemp)"
+trap 'rm -f "${ca_file}"' EXIT
+kubectl get secret --namespace kanidm kanidm-tls --output jsonpath='{.data.ca\.crt}' | base64 -d > "${ca_file}"
+if [ -s "${ca_file}" ]; then
+    export KANIDM_CA_PATH="${ca_file}"
+fi
+
+echo "Log in as idm_admin with this password:"
+kubectl get secret --namespace kanidm kanidm-admin-passwords --output jsonpath='{.data.IDM_ADMIN_PASSWORD}' | base64 -d
+echo
+
+kanidm login --url "${url}" --name idm_admin
+kanidm person create "${username}" "${fullname}" --url "${url}" --name idm_admin
+kanidm person update "${username}" --url "${url}" --name idm_admin --mail "${mail}"
+kanidm group add-members "homelab-${group}" "${username}" --url "${url}" --name idm_admin
+for access in "$@"; do
+    kanidm group add-members "homelab-${access}" "${username}" --url "${url}" --name idm_admin
+done
+kanidm person credential create-reset-token "${username}" --url "${url}" --name idm_admin

@@ -1,20 +1,77 @@
+host: registry.khuedoan.com
 zot:
-  ingress:
+  httproute:
     enabled: true
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-      nginx.ingress.kubernetes.io/proxy-body-size: "0"
-    className: nginx
-    hosts:
-      - host: &host registry.khuedoan.com
-        paths:
-          - path: /
-    tls:
-      - secretName: zot-tls-certificate
-        hosts:
-          - *host
-  # TODO enable auth
+    parentRefs:
+      - name: gateway
+        namespace: istio-system
+        sectionName: https
+    hostnames:
+      - registry.khuedoan.com
+    # Image pushes upload large blobs: no request timeout
+    rules:
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /
+        timeouts:
+          request: 0s
   persistence: true
   pvc:
     create: true
     storage: 10Gi
+  # The config below replaces the chart's sample config.json
+  configFiles:
+    config.json: null
+  config:
+    distSpecVersion: "1.1.1"
+    storage:
+      rootDirectory: /var/lib/registry
+    http:
+      address: 0.0.0.0
+      port: "5000"
+      externalUrl: https://registry.khuedoan.com
+      auth:
+        # Machine account for CI
+        htpasswd:
+          path: /secret/zot-auth/htpasswd
+        # People log in to the UI through Kanidm and create API keys for docker/crane
+        apikey: true
+        openid:
+          providers:
+            oidc:
+              name: Kanidm
+              issuer: https://auth.khuedoan.com/oauth2/openid/zot
+              # Public client: no secret, zot uses PKCE
+              clientid: zot
+              scopes:
+                - openid
+                - profile
+                - email
+                - groups
+              claimMapping:
+                username: preferred_username
+                groups: homelab_groups
+      accessControl:
+        repositories:
+          "**":
+            policies:
+              - groups: [homelab-admins]
+                actions: [read, create, update, delete]
+              - groups: [homelab-editors]
+                actions: [read, create, update]
+              - groups: [homelab-users]
+                actions: [read]
+              - users: [ci]
+                actions: [read, create, update]
+            defaultPolicy: []
+    log:
+      level: info
+    extensions:
+      search:
+        enable: true
+      ui:
+        enable: true
+  externalSecrets:
+    - secretName: zot-auth
+      mountPath: /secret/zot-auth

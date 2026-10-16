@@ -1,15 +1,16 @@
+host: grafana.khuedoan.com
 grafana:
-  ingress:
-    enabled: true
-    ingressClassName: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-    hosts:
-      - &host grafana.khuedoan.com
-    tls:
-      - secretName: grafana-general-tls
-        hosts:
-          - *host
+  admin:
+    existingSecret: grafana-admin
+  route:
+    main:
+      enabled: true
+      parentRefs:
+        - name: gateway
+          namespace: istio-system
+          sectionName: https
+      hostnames:
+        - grafana.khuedoan.com
   sidecar:
     dashboards:
       enabled: true
@@ -17,17 +18,23 @@ grafana:
     datasources:
       enabled: true
       searchNamespace: monitoring-system
-  envFromSecret: grafana-secrets
+  # CLIENT_ID and CLIENT_SECRET of the Kanidm client (templates/kanidm-client.yaml)
+  envFromSecret: grafana-kanidm-oauth2-credentials
   grafana.ini:
     server:
       root_url: https://grafana.khuedoan.com
     auth.generic_oauth:
       enabled: true
       allow_sign_up: true
-      name: Dex
-      client_id: grafana-sso
-      client_secret: $__env{GRAFANA_SSO_CLIENT_SECRET}
+      name: Kanidm
+      client_id: grafana
+      client_secret: $__env{CLIENT_SECRET}
       scopes: openid profile email groups
-      auth_url: https://dex.khuedoan.com/auth
-      token_url: https://dex.khuedoan.com/token
-      api_url: https://dex.khuedoan.com/userinfo
+      auth_url: https://auth.khuedoan.com/ui/oauth2
+      token_url: https://auth.khuedoan.com/oauth2/token
+      api_url: https://auth.khuedoan.com/oauth2/openid/grafana/userinfo
+      use_pkce: true
+      role_attribute_path: "contains(homelab_groups[*], 'homelab-admins') && 'GrafanaAdmin' || contains(homelab_groups[*], 'homelab-editors') && 'Editor' || contains(homelab_groups[*], 'homelab-users') && 'Viewer'"
+      role_attribute_strict: true
+      allow_assign_grafana_admin: true
+      login_attribute_path: preferred_username

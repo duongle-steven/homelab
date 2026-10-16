@@ -1,6 +1,24 @@
 cert-manager:
-  installCRDs: true
+  crds:
+    enabled: true
+  webhook:
+    # The API server (outside the mesh) calls it: keep it out of the mesh's strict mTLS
+    podLabels:
+      istio.io/dataplane-mode: none
   prometheus:
     enabled: true
     servicemonitor:
       enabled: true
+      # Its CRD comes from monitoring-system, which waits for Istio, which waits for cert-manager: apply the rest of
+      # the sync and retry this
+      annotations:
+        argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+issuer:
+  # Sandbox only: issue certificates from a local CA instead of Let's Encrypt
+  dev: false
+trust-manager:
+  enabled: false
+  app:
+    # The API server (outside the mesh) calls its webhook
+    podLabels:
+      istio.io/dataplane-mode: none

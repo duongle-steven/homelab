@@ -1,4 +1,10 @@
 #!/bin/sh
 
-export KUBECONFIG=./metal/kubeconfig.yaml
-kubectl get ingress --all-namespaces --no-headers --output custom-columns="ADDRESS:.status.loadBalancer.ingress[0].ip,HOST:.spec.rules[0].host"
+export KUBECONFIG="${KUBECONFIG:-./infra/production/kubeconfig.yaml}"
+# One line per route hostname: the address of the Gateway the route is attached to
+# (public DNS points hosts on the Gateway public at the Cloudflare Tunnel instead)
+kubectl get gateways,httproutes --all-namespaces --output json | jq -r '
+  (.items | map(select(.kind == "Gateway")) | map({key: (.metadata.namespace + "/" + .metadata.name), value: (.status.addresses[0].value // "pending")}) | from_entries) as $addr
+  | .items[] | select(.kind == "HTTPRoute") | . as $r
+  | ($r.spec.parentRefs[0] | (.namespace // $r.metadata.namespace) + "/" + .name) as $gw
+  | ($r.spec.hostnames // [])[] | "\($addr[$gw] // "pending") \(.)"'

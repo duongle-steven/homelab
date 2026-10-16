@@ -1,0 +1,32 @@
+{{- if .Values.smokeClient }}
+# Sandbox-only client used by the identity tests (test/identity_test.go)
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmOAuth2Client
+metadata:
+  name: smoke
+  namespace: {{ .Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+  displayname: Smoke test
+  origin: https://smoke.{{ .Values.kanidm.domain | trimPrefix "auth." }}
+  redirectUrl:
+    - https://smoke.{{ .Values.kanidm.domain | trimPrefix "auth." }}/callback
+  disableConsentPrompt: true
+  preferShortUsername: true
+  strictRedirectUrl: true
+  claimMap:
+    - name: homelab_groups
+      joinStrategy: array
+      valuesMap:
+        {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+        - group: {{ . }}
+          values:
+            - {{ . }}
+        {{- end }}
+  scopeMap:
+    {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+    - group: {{ . }}
+      scopes: [openid, profile, email, groups]
+    {{- end }}
+{{- end }}

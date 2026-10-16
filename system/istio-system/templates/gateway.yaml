@@ -1,0 +1,97 @@
+{{- with .Values.global.addresses.gatewayVIP }}
+# Merged into the Service Istio generates for the Gateway (spec.infrastructure.parametersRef)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-options
+data:
+  service: |
+    metadata:
+      annotations:
+        kube-vip.io/loadbalancerIPs: {{ . }}
+    spec:
+      loadBalancerClass: {{ $.Values.gateway.loadBalancerClass }}
+---
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: gateway
+spec:
+  gatewayClassName: istio
+  {{- if .Values.global.addresses.gatewayVIP }}
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: gateway-options
+  {{- end }}
+  listeners:
+    # Only the HTTPS redirect (templates/https-redirect.yaml)
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.{{ .Values.domain }}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+    # Forgejo SSH
+    - name: ssh
+      protocol: TCP
+      port: 22
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: forgejo
+        kinds:
+          - kind: TCPRoute
+---
+# cloudflared forwards to it in the cluster, so it needs no external address
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: public-options
+data:
+  service: |
+    spec:
+      type: ClusterIP
+---
+# Published through the Cloudflare Tunnel: external-dns points public hosts at the tunnel,
+# and cloudflared forwards to this Gateway only
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: public
+  annotations:
+    external-dns.kubernetes.io/target: homelab-tunnel.{{ .Values.domain }}
+spec:
+  gatewayClassName: istio
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: public-options
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.{{ .Values.domain }}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: All

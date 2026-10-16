@@ -5,7 +5,7 @@ app-template:
         app:
           image:
             repository: docker.io/cloudflare/cloudflared
-            tag: 2024.4.0
+            tag: 2026.10.0
           args:
             - tunnel
             - --config
@@ -21,16 +21,19 @@ app-template:
           metrics: 0.0.0.0:2000
           no-autoupdate: true
           ingress:
+            # Only the public Gateway: apps on the LAN Gateway stay off the internet
             - hostname: '*.khuedoan.com'
-              service: https://ingress-nginx-controller.ingress-nginx
+              service: https://public-istio.istio-system
               originRequest:
                 noTLSVerify: true
+                # The Gateway's listener needs the requested host as SNI
+                matchSNItoHost: true
             - service: http_status:404
   persistence:
     config:
       enabled: true
       type: configMap
-      name: cloudflared-config
+      identifier: config
       globalMounts:
         - path: /etc/cloudflared/config.yaml
           subPath: config.yaml

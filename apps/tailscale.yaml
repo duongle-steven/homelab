@@ -1,0 +1,81 @@
+controllers:
+  tailscale:
+    # tailscale stores its state in the Secret tailscale (TS_KUBE_SECRET); app-template 5 disables the token by default
+    pod:
+      automountServiceAccountToken: true
+      # A router: ambient would send the subnet route's forwarded TCP to ztunnel, and strict mTLS refuses it
+      labels:
+        istio.io/dataplane-mode: none
+    serviceAccount:
+      identifier: tailscale
+    containers:
+      app:
+        image:
+          repository: ghcr.io/tailscale/tailscale
+          tag: v1.102.5
+        env:
+          TS_HOSTNAME: homelab-router
+          TS_USERSPACE: false
+          TS_KUBE_SECRET: tailscale
+          TS_ROUTES: '{{ with .Values.global.addresses.gatewayVIP }}{{ . }}/32{{ end }}'
+          TS_AUTHKEY:
+            valueFrom:
+              secretKeyRef:
+                name: tailscale-auth
+                key: TS_AUTHKEY
+        securityContext:
+          capabilities:
+            add:
+              - NET_ADMIN
+serviceAccount:
+  tailscale: {}
+rbac:
+  # https://github.com/tailscale/tailscale/blob/main/docs/k8s/role.yaml
+  roles:
+    tailscale:
+      type: Role
+      rules:
+        - apiGroups: [""]
+          resources: ["secrets"]
+          verbs: ["create"]
+        - apiGroups: [""]
+          resourceNames: ["tailscale"]
+          resources: ["secrets"]
+          verbs: ["get", "update", "patch"]
+  bindings:
+    tailscale:
+      type: RoleBinding
+      roleRef:
+        identifier: tailscale
+      subjects:
+        - identifier: tailscale
+externalSecrets:
+  auth:
+    forceRename: tailscale-auth
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: global-secrets
+    data:
+      - secretKey: TS_AUTHKEY
+        remoteRef:
+          key: external
+          property: tailscale-auth-key
+    target:
+      deletionPolicy: Retain
+rawResources:
+  # Outside the mesh (a router): only its direct-connection port (peers fall back to DERP relays without it)
+  network-policy:
+    forceRename: tailscale
+    manifest:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      spec:
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: tailscale
+        policyTypes:
+          - Ingress
+        ingress:
+          - ports:
+              - protocol: UDP
+                port: 41641

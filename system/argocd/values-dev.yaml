@@ -1,0 +1,130 @@
+# Sandbox: sync an allowlist from GitHub instead of in-cluster Forgejo.
+# Helm replaces lists and anchors do not cross files, so generator and source are restated in full.
+argo-cd:
+  global:
+    domain: argocd.127-0-0-1.nip.io
+  configs:
+    cm:
+      oidc.config: |
+        name: Kanidm
+        issuer: https://auth.127-0-0-1.nip.io/oauth2/openid/argocd
+        clientID: argocd
+        clientSecret: $argocd-kanidm-oauth2-credentials:CLIENT_SECRET
+        enablePKCEAuthentication: true
+        requestedScopes:
+          - openid
+          - profile
+          - email
+          - groups
+  server:
+    httproute:
+      hostnames:
+        - argocd.127-0-0-1.nip.io
+    # Trust the sandbox CA for calls to Kanidm
+    env:
+      - name: SSL_CERT_DIR
+        value: /etc/ssl/certs:/etc/homelab-dev-ca
+    volumes:
+      - name: dev-ca
+        configMap:
+          name: homelab-dev-ca
+          optional: true
+    volumeMounts:
+      - name: dev-ca
+        mountPath: /etc/homelab-dev-ca
+        readOnly: true
+argocd-apps:
+  applicationsets:
+    root:
+      generators:
+        - matrix:
+            generators:
+              - git:
+                  repoURL: &repoURL https://github.com/duongle-steven/homelab
+                  # make dev force-pushes the current commit here, so a branch is tested before its merge
+                  revision: &revision sandbox
+                  directories:
+                    - path: system/argocd
+                    - path: system/istio-system
+                    - path: system/cert-manager
+                    - path: system/monitoring-system
+                    - path: platform/external-secrets
+                    - path: platform/global-secrets
+                    - path: platform/kanidm
+                    - path: platform/grafana
+                    - path: platform/zot
+                    - path: platform/forgejo
+              - git: &config
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: infra/sandbox/cluster/config.json
+                  pathParamPrefix: config
+      template:
+        spec:
+          sources:
+            - repoURL: *repoURL
+              path: '{{ .path.path }}'
+              targetRevision: *revision
+              helm:
+                valueFiles:
+                  - values.yaml
+                  - values-dev.yaml
+                ignoreMissingValueFiles: true
+                valuesObject: &values
+                  global:
+                    addresses: &addresses
+                      apiVIP: '{{ .vip }}'
+                      router: '{{ .network.gateway }}'
+                      prefixLength: '{{ .network.prefix_length }}'
+                      gatewayVIP: '{{ .service_vips.gateway }}'
+                      wireguardVIP: '{{ .service_vips.wireguard }}'
+            # Default-deny egress for the Application's namespace
+            - &egress
+              repoURL: *repoURL
+              path: system/egress
+              targetRevision: *revision
+              helm:
+                valuesObject: *values
+    apps:
+      generators:
+        - matrix:
+            generators:
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: apps/actualbudget.yaml
+                    - path: apps/excalidraw.yaml
+                    - path: apps/homepage.yaml
+                    - path: apps/opencloud.yaml
+                    - path: apps/paperless.yaml
+                    - path: apps/pairdrop.yaml
+                    - path: apps/speedtest.yaml
+              - git: *config
+      template:
+        spec:
+          sources:
+            - repoURL: https://bjw-s-labs.github.io/helm-charts
+              chart: app-template
+              targetRevision: 5.3.0
+              helm:
+                releaseName: '{{ .path.filename | trimSuffix ".yaml" }}'
+                valueFiles:
+                  - '$values/apps/{{ .path.filename }}'
+                parameters:
+                  - name: global.domain
+                    value: 127-0-0-1.nip.io
+                  # No Cloudflare Tunnel in the sandbox: public apps use the LAN Gateway
+                  - name: global.publicGateway
+                    value: gateway
+                  # App files trust the sandbox CA ConfigMap homelab-dev-ca when set
+                  - name: global.devCA
+                    value: "true"
+                valuesObject:
+                  global:
+                    addresses: *addresses
+            - repoURL: *repoURL
+              targetRevision: *revision
+              ref: values
+            - *egress

@@ -1,0 +1,19 @@
+kanidm:
+  domain: auth.127-0-0-1.nip.io
+  # The sandbox CA, distributed by trust-manager as a ConfigMap
+  backendCA: homelab-dev-ca
+groupMembers:
+  homelab-admins: [dev-admin]
+  homelab-editors: [dev-editor]
+  homelab-users: [dev-viewer]
+  homelab-budget: [dev-admin, dev-viewer]
+  homelab-documents: [dev-admin, dev-editor]
+  homelab-files: [dev-admin, dev-editor]
+# Restated (lists are replaced): the sandbox client smoke lives in kanidm
+oauth2ClientNamespaces: [argocd, grafana, zot, actualbudget, paperless, forgejo, opencloud, kanidm]
+smokeClient: true
+testAccounts:
+  - dev-admin
+  - dev-editor
+  - dev-viewer
+  - dev-outsider

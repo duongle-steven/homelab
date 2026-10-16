@@ -1,4 +1,18 @@
 kube-prometheus-stack:
+  prometheusOperator:
+    # The API server (outside the mesh) calls its admission webhook
+    podLabels:
+      istio.io/dataplane-mode: none
+  # templates/control-plane-scrape.yaml scrapes these by node discovery; the chart's address-list scrape (Service
+  # and ServiceMonitor) is off, its rules and dashboards stay
+  kubeControllerManager: &scrapedElsewhere
+    service:
+      enabled: false
+    serviceMonitor:
+      enabled: false
+  kubeScheduler: *scrapedElsewhere
+  kubeEtcd: *scrapedElsewhere
+  kubeProxy: *scrapedElsewhere
   grafana:
     enabled: false
     forceDeployDatasources: true

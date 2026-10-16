@@ -1,0 +1,26 @@
+host: registry.127-0-0-1.nip.io
+zot:
+  httproute:
+    hostnames:
+      - registry.127-0-0-1.nip.io
+  config:
+    http:
+      externalUrl: https://registry.127-0-0-1.nip.io
+      auth:
+        openid:
+          providers:
+            oidc:
+              issuer: https://auth.127-0-0-1.nip.io/oauth2/openid/zot
+  # Trust the sandbox CA for calls to Kanidm
+  env:
+    - name: SSL_CERT_DIR
+      value: /etc/ssl/certs:/etc/homelab-dev-ca
+  extraVolumes:
+    - name: dev-ca
+      # Not optional: the pod waits until trust-manager has copied the CA here
+      configMap:
+        name: homelab-dev-ca
+  extraVolumeMounts:
+    - name: dev-ca
+      mountPath: /etc/homelab-dev-ca
+      readOnly: true

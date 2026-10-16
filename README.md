@@ -42,7 +42,7 @@ More information can be found in [the roadmap](#roadmap) below.
 
 ### Features
 
-- [x] Common applications: Gitea, Jellyfin, Paperless...
+- [x] Common applications: Forgejo, Jellyfin, Paperless, OpenCloud...
 - [x] Automated bare metal provisioning with PXE boot
 - [x] Automated Kubernetes installation and management
 - [x] Installing and managing applications using GitOps
@@ -71,14 +71,10 @@ They can't capture all the project's features, but they are sufficient to get a 
 | Deploy with a single command (after updating the configuration files)                                           |
 | [![][pxe-demo]](https://www.youtube.com/watch?v=y-d7btNNAT8)                                                    |
 | PXE boot                                                                                                        |
-| [![][hubble-demo]][hubble-demo]                                                                                 |
-| Observe network traffic with Hubble, built on top of [Cilium](https://cilium.io) and eBPF                       |
 | [![][homepage-demo]][homepage-demo]                                                                             |
 | Homepage powered by... [Homepage](https://gethomepage.dev)                                                      |
 | [![][grafana-demo]][grafana-demo]                                                                               |
 | Monitoring dashboard powered by [Grafana](https://grafana.com)                                                  |
-| [![][gitea-demo]][gitea-demo]                                                                                   |
-| Git server powered by [Gitea](https://gitea.io/en-us)                                                           |
 | [![][matrix-demo]][matrix-demo]                                                                                 |
 | [Matrix](https://matrix.org/) chat server                                                                       |
 | [![][woodpecker-demo]][woodpecker-demo]                                                                         |
@@ -92,10 +88,8 @@ They can't capture all the project's features, but they are sufficient to get a 
 
 [deploy-demo]: https://asciinema.org/a/xkBRkwC6e9RAzVuMDXH3nGHp7.svg
 [pxe-demo]: https://user-images.githubusercontent.com/27996771/157303477-df2e7410-8f02-4648-a86c-71e6b7e89e35.png
-[hubble-demo]: https://github.com/khuedoan/homelab/assets/27996771/9c6677d0-3564-47c0-852b-24b6a554b4a3
 [homepage-demo]: https://github.com/khuedoan/homelab/assets/27996771/d0eaf620-be08-48d8-8420-40bcaa86093b
 [grafana-demo]: https://github.com/khuedoan/homelab/assets/27996771/ad937b26-e9bc-4761-83ae-1c7f512ea97f
-[gitea-demo]: https://github.com/khuedoan/homelab/assets/27996771/c245534f-88d9-4565-bde8-b39f60ccee9e
 [matrix-demo]: https://user-images.githubusercontent.com/27996771/149448510-7163310c-2049-4ccd-901d-f11f605bfc32.png
 [woodpecker-demo]: https://github.com/khuedoan/homelab/assets/27996771/5d887688-d20a-44c8-8f77-0c625527dfe4
 [argocd-demo]: https://github.com/khuedoan/homelab/assets/27996771/527e2529-4fe1-4664-ab8a-b9eb3c492d20
@@ -126,9 +120,9 @@ They can't capture all the project's features, but they are sufficient to get a 
         <td>Cloud native certificate management</td>
     </tr>
     <tr>
-        <td><img width="32" src="https://avatars.githubusercontent.com/u/21054566?s=200&v=4"></td>
-        <td><a href="https://cilium.io">Cilium</a></td>
-        <td>eBPF-based Networking, Observability and Security (CNI, LB, Network Policy, etc.)</td>
+        <td><img width="32" src="https://avatars.githubusercontent.com/u/23534644?s=200&v=4"></td>
+        <td><a href="https://istio.io">Istio</a></td>
+        <td>Gateway API implementation</td>
     </tr>
     <tr>
         <td><img width="32" src="https://avatars.githubusercontent.com/u/314135?s=200&v=4"></td>
@@ -143,7 +137,7 @@ They can't capture all the project's features, but they are sufficient to get a 
     <tr>
         <td><img width="32" src="https://github.com/kubernetes-sigs/external-dns/raw/master/docs/img/external-dns.png"></td>
         <td><a href="https://github.com/kubernetes-sigs/external-dns">ExternalDNS</a></td>
-        <td>Synchronizes exposed Kubernetes Services and Ingresses with DNS providers</td>
+        <td>Synchronizes Gateway API routes with DNS providers</td>
     </tr>
     <tr>
         <td><img width="32" src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Fedora_logo.svg/267px-Fedora_logo.svg.png"></td>
@@ -151,8 +145,8 @@ They can't capture all the project's features, but they are sufficient to get a 
         <td>Base OS for Kubernetes nodes</td>
     </tr>
     <tr>
-        <td><img width="32" src="https://upload.wikimedia.org/wikipedia/commons/b/bb/Gitea_Logo.svg"></td>
-        <td><a href="https://gitea.com">Gitea</a></td>
+        <td><img width="32" src="https://code.forgejo.org/forgejo/forgejo/raw/branch/forgejo/assets/logo.svg"></td>
+        <td><a href="https://forgejo.org">Forgejo</a></td>
         <td>Self-hosted Git service</td>
     </tr>
     <tr>
@@ -184,11 +178,6 @@ They can't capture all the project's features, but they are sufficient to get a 
         <td><img width="32" src="https://github.com/grafana/loki/blob/main/docs/sources/logo.png?raw=true"></td>
         <td><a href="https://grafana.com/oss/loki">Loki</a></td>
         <td>Log aggregation system</td>
-    </tr>
-    <tr>
-        <td><img width="32" src="https://avatars.githubusercontent.com/u/1412239?s=200&v=4"></td>
-        <td><a href="https://www.nginx.com">NGINX</a></td>
-        <td>Kubernetes Ingress Controller</td>
     </tr>
     <tr>
         <td><img width="32" src="https://raw.githubusercontent.com/NixOS/nixos-artwork/refs/heads/master/logo/nix-snowflake-colours.svg"></td>

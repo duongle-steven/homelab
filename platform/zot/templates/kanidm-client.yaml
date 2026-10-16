@@ -1,0 +1,33 @@
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmOAuth2Client
+metadata:
+  name: zot
+  namespace: {{ .Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+    namespace: kanidm
+  displayname: Registry
+  # No client secret: zot uses PKCE
+  public: true
+  origin: https://{{ .Values.host }}
+  redirectUrl:
+    - https://{{ .Values.host }}/zot/auth/callback/oidc
+  # Kanidm does not allow disabling the consent prompt on public clients: users confirm once
+  preferShortUsername: true
+  strictRedirectUrl: true
+  # Short, domain-free group names for the access control policies
+  claimMap:
+    - name: homelab_groups
+      joinStrategy: array
+      valuesMap:
+        {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+        - group: {{ . }}
+          values:
+            - {{ . }}
+        {{- end }}
+  scopeMap:
+    {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+    - group: {{ . }}
+      scopes: [openid, profile, email, groups]
+    {{- end }}

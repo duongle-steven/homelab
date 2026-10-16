@@ -1,0 +1,24 @@
+# Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow
+  namespace: {{ .Release.Namespace }}
+  # Its CRD comes from another component that needs this one first (cert-manager, istio-system and
+  # monitoring-system wait for each other's CRDs): apply the rest of the sync and retry this
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  action: ALLOW
+  rules:
+    # Pods in this namespace call each other freely
+    - from:
+        - source:
+            namespaces: ["{{ .Release.Namespace }}"]
+    # Prometheus: the controller's and cainjector's metrics
+    - from:
+        - source:
+            principals: ["cluster.local/ns/monitoring-system/sa/monitoring-system-kube-pro-prometheus"]
+      to:
+        - operation:
+            ports: ["9402"]

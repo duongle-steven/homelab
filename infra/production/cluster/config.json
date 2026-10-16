@@ -1,0 +1,11 @@
+{
+  "vip": "192.168.0.10",
+  "network": {
+    "prefix_length": 24,
+    "gateway": "192.168.0.1"
+  },
+  "service_vips": {
+    "gateway": "192.168.0.2",
+    "wireguard": "192.168.0.3"
+  }
+}

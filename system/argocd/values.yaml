@@ -10,13 +10,63 @@ argo-cd:
       resource.customizations.ignoreResourceUpdates.all: |
         jsonPointers:
           - /status
+      # istiod patches its validating webhooks (CA bundle, failure policy once it is ready)
+      resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
+        jqPathExpressions:
+          - .webhooks[]?.clientConfig.caBundle
+          - .webhooks[]?.failurePolicy
+      # Needed for the editor role; also lets admins open a terminal in the UI
+      exec.enabled: "true"
+      oidc.config: |
+        name: Kanidm
+        issuer: https://auth.khuedoan.com/oauth2/openid/argocd
+        clientID: argocd
+        clientSecret: $argocd-kanidm-oauth2-credentials:CLIENT_SECRET
+        enablePKCEAuthentication: true
+        requestedScopes:
+          - openid
+          - profile
+          - email
+          - groups
+    rbac:
+      # No access unless a group grants it
+      policy.default: ''
+      scopes: '[homelab_groups]'
+      policy.csv: |
+        p, role:editor, applications, get, */*, allow
+        p, role:editor, applications, sync, */*, allow
+        p, role:editor, applications, action/*, */*, allow
+        p, role:editor, logs, get, */*, allow
+        # Exec only into workloads under apps/: platform pods hold cluster-wide credentials
+        p, role:editor, exec, create, default/actualbudget, allow
+        p, role:editor, exec, create, default/blog, allow
+        p, role:editor, exec, create, default/excalidraw, allow
+        p, role:editor, exec, create, default/homepage, allow
+        p, role:editor, exec, create, default/jellyfin, allow
+        p, role:editor, exec, create, default/matrix, allow
+        p, role:editor, exec, create, default/ollama, allow
+        p, role:editor, exec, create, default/opencloud, allow
+        p, role:editor, exec, create, default/pairdrop, allow
+        p, role:editor, exec, create, default/paperless, allow
+        p, role:editor, exec, create, default/speedtest, allow
+        p, role:editor, exec, create, default/tailscale, allow
+        p, role:editor, exec, create, default/wireguard, allow
+        p, role:editor, projects, get, *, allow
+        p, role:editor, clusters, get, *, allow
+        p, role:editor, repositories, get, *, allow
+        g, homelab-admins, role:admin
+        g, homelab-editors, role:editor
+        g, homelab-users, role:readonly
   server:
-    ingress:
+    httproute:
       enabled: true
-      ingressClassName: nginx
-      annotations:
-        cert-manager.io/cluster-issuer: letsencrypt-prod
-      tls: true
+      parentRefs:
+        - name: gateway
+          namespace: istio-system
+          sectionName: https
+      # The chart does not derive it from global.domain
+      hostnames:
+        - argocd.khuedoan.com
     metrics: &metrics
       enabled: true
       serviceMonitor:
@@ -29,31 +79,71 @@ argo-cd:
     metrics: *metrics
   redis:
     metrics: *metrics
+    # The metrics Service and ServiceMonitor scrape this sidecar (without it the target has no endpoints)
+    exporter:
+      enabled: true
+      image:
+        repository: ghcr.io/oliver006/redis_exporter
+        tag: v1.94.0
 argocd-apps:
   applicationsets:
     root:
       namespace: argocd
+      goTemplate: true
+      goTemplateOptions:
+        - missingkey=error
       generators:
-        - git:
-            repoURL: &repoURL http://gitea-http.gitea:3000/ops/homelab
-            revision: &revision master
-            directories:
-              - path: system/*
-              - path: platform/*
-              - path: apps/*
+        # Every component, crossed with the environment's addresses (infra/<env>/cluster/config.json, upstream's
+        # format; OpenTofu reads the same file in step 7)
+        - matrix:
+            generators:
+              - git:
+                  repoURL: &repoURL http://forgejo-http.forgejo:3000/ops/homelab
+                  revision: &revision master
+                  directories:
+                    - path: system/*
+                    # Rendered into every namespace by each Application (template below), not on its own
+                    - path: system/egress
+                      exclude: true
+                    - path: platform/*
+                    - path: apps/*
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: infra/production/cluster/config.json
+                  # Its own .path would replace the directory's
+                  pathParamPrefix: config
       template:
         metadata:
-          name: '{{path.basename}}'
+          name: '{{ .path.basename }}'
         spec:
           destination:
             name: in-cluster
-            namespace: '{{path.basename}}'
+            namespace: '{{ .path.basename }}'
           project: default  # TODO
-          source:
-            repoURL: *repoURL
-            path: '{{path}}'
-            targetRevision: *revision
-          syncPolicy:
+          sources:
+            - repoURL: *repoURL
+              path: '{{ .path.path }}'
+              targetRevision: *revision
+              helm:
+                # scripts/env-values resolves these offline for scripts/render-chart
+                valuesObject: &values
+                  global:
+                    addresses: &addresses
+                      apiVIP: '{{ .vip }}'
+                      router: '{{ .network.gateway }}'
+                      prefixLength: '{{ .network.prefix_length }}'
+                      gatewayVIP: '{{ .service_vips.gateway }}'
+                      wireguardVIP: '{{ .service_vips.wireguard }}'
+            # Default-deny egress for the Application's namespace
+            - &egress
+              repoURL: *repoURL
+              path: system/egress
+              targetRevision: *revision
+              helm:
+                valuesObject: *values
+          syncPolicy: &syncPolicy
             automated:
               prune: true
               selfHeal: true
@@ -67,9 +157,77 @@ argocd-apps:
               - CreateNamespace=true
               - ApplyOutOfSyncOnly=true
               - ServerSideApply=true
+              # Keep the ignored webhook fields when a sync applies the rest
+              - RespectIgnoreDifferences=true
             managedNamespaceMetadata:
+              labels:
+                # Every namespace joins Istio's ambient mesh (system/istio-system); exceptions: templatePatch below
+                istio.io/dataplane-mode: ambient
               annotations:
                 # Enable privileged VolSync movers by default for all namespaces
                 # TODO this may be refactored in the future for finer granularity
                 # See also https://volsync.readthedocs.io/en/stable/usage/permissionmodel.html
                 volsync.backube/privileged-movers: "true"
+      # The mesh itself and Ceph (some host-network pods, its own encryption) stay out of the mesh; keep in step with
+      # OUTSIDE in scripts/check-mesh-policies and test/mesh_test.go
+      templatePatch: |
+        {{- if has .path.basename (list "istio-system" "rook-ceph") }}
+        spec:
+          syncPolicy:
+            managedNamespaceMetadata:
+              labels:
+                istio.io/dataplane-mode: none
+        {{- end }}
+    # One Application per app-template values file apps/<name>.yaml (apps/matrix/ is a chart, synced by root)
+    apps:
+      namespace: argocd
+      goTemplate: true
+      goTemplateOptions:
+        - missingkey=error
+      generators:
+        - matrix:
+            generators:
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: apps/*.yaml
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: infra/production/cluster/config.json
+                  pathParamPrefix: config
+      template:
+        metadata:
+          name: '{{ .path.filename | trimSuffix ".yaml" }}'
+        spec:
+          destination:
+            name: in-cluster
+            namespace: '{{ .path.filename | trimSuffix ".yaml" }}'
+          project: default  # TODO
+          sources:
+            - repoURL: https://bjw-s-labs.github.io/helm-charts
+              chart: app-template
+              targetRevision: 5.3.0
+              helm:
+                releaseName: '{{ .path.filename | trimSuffix ".yaml" }}'
+                valueFiles:
+                  - '$values/apps/{{ .path.filename }}'
+                # App files template hosts as <app>.{{ .Values.global.domain }}; public apps attach to
+                # the Gateway named by global.publicGateway
+                parameters:
+                  - name: global.domain
+                    value: khuedoan.com
+                  - name: global.publicGateway
+                    value: public
+                  - name: global.devCA
+                    value: ""
+                valuesObject:
+                  global:
+                    addresses: *addresses
+            - repoURL: *repoURL
+              targetRevision: *revision
+              ref: values
+            - *egress
+          syncPolicy: *syncPolicy

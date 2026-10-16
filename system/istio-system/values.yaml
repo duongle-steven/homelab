@@ -1,0 +1,34 @@
+domain: khuedoan.com
+gateway:
+  # kube-vip serves the LAN Gateway's Service on its own VIP (global.addresses.gatewayVIP, from
+  # infra/<env>/cluster/config.json): Forgejo SSH keeps port 22 (node sshd owns it on the node IPs) and the address
+  # moves to another node when one fails. Without a VIP (the sandbox), k3s ServiceLB serves it.
+  loadBalancerClass: kube-vip.io/kube-vip-class
+# Sandbox only: pods resolve sandbox hostnames to the Gateway instead of their own loopback
+corednsRewrite: false
+# Ambient mesh (no sidecars): istio-cni redirects pods of labelled namespaces to the node's ztunnel.
+# The k3s profile also fits the k3d sandbox (its CNI plugins live in /var/lib/rancher/k3s/data/cni; Istio's k3d
+# profile still points at /bin)
+base: &ambient
+  profile: ambient
+  global:
+    platform: k3s
+istiod:
+  <<: *ambient
+  pilot:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+cni:
+  <<: *ambient
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+ztunnel:
+  <<: *ambient
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi

@@ -1,0 +1,63 @@
+#!/bin/sh
+# Render a component the same way ArgoCD does.
+# Usage: scripts/render-chart <chart-dir> [env]      wrapper chart: values.yaml, then values-<env>.yaml if it exists
+#        scripts/render-chart apps/<name>.yaml [env]  app file: app-template with the ApplicationSet "apps" parameters
+set -euf
+target="$1"
+env="${2:-prod}"
+argocd=system/argocd
+set --
+# ArgoCD passes the cluster's API versions; charts pick Gateway API versions from them
+set -- "$@" --api-versions gateway.networking.k8s.io/v1
+for kind in Gateway HTTPRoute TCPRoute BackendTLSPolicy ReferenceGrant; do
+  set -- "$@" --api-versions "gateway.networking.k8s.io/v1/$kind"
+done
+# Charts that check for CronJob (renovate)
+set -- "$@" --api-versions batch/v1/CronJob
+# Charts that create Prometheus monitors only when the cluster serves them (kube-prometheus-stack's CRDs)
+set -- "$@" --api-versions monitoring.coreos.com/v1
+for kind in ServiceMonitor PodMonitor PrometheusRule; do
+  set -- "$@" --api-versions "monitoring.coreos.com/v1/$kind"
+done
+
+if [ -f "$target" ]; then
+  name="$(basename "$target" .yaml)"
+  # The sandbox restates the ApplicationSet source in values-dev.yaml
+  source_of() {
+    query=".argocd-apps.applicationsets.apps.template.spec.sources[0]$1"
+    if [ "$env" != prod ] && [ "$(yq "$query" "$argocd/values-$env.yaml" 2>/dev/null)" != null ]; then
+      yq "$query" "$argocd/values-$env.yaml"
+    else
+      yq "$query" "$argocd/values.yaml"
+    fi
+  }
+  for parameter in $(source_of '.helm.parameters[] | .name + "=" + .value'); do
+    set -- "$@" --set-string "$parameter"
+  done
+  # Captured first: set -e ignores a failing command substitution in a for list
+  values=$(scripts/env-values "$env" apps)
+  # One value per line, spaces included
+  IFS='
+'
+  for value in $values; do
+    set -- "$@" --set-string "$value"
+  done
+  unset IFS
+  exec helm template "$name" "$(source_of .chart)" --repo "$(source_of .repoURL)" \
+    --version "$(source_of .targetRevision)" --namespace "$name" --include-crds -f "$target" "$@"
+fi
+
+name="$(basename "$target")"
+# Argo CD passes the environment's addresses to every component (scripts/env-values)
+values=$(scripts/env-values "$env" root)
+# One value per line, spaces included
+IFS='
+'
+for value in $values; do
+  set -- "$@" --set-string "$value"
+done
+unset IFS
+[ -f "$target/values.yaml" ] && set -- "$@" -f "$target/values.yaml"
+[ "$env" != prod ] && [ -f "$target/values-$env.yaml" ] && set -- "$@" -f "$target/values-$env.yaml"
+helm dependency update "$target" >/dev/null
+helm template "$name" "$target" --namespace "$name" --include-crds "$@"

@@ -1,0 +1,11 @@
+{
+  "vip": "",
+  "network": {
+    "prefix_length": 16,
+    "gateway": "172.28.0.1"
+  },
+  "service_vips": {
+    "gateway": "",
+    "wireguard": ""
+  }
+}

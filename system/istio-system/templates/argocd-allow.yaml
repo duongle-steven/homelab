@@ -1,0 +1,30 @@
+# Argo CD's own allow lives here, not in system/argocd: it must land in the same sync as deny-all (otherwise Argo
+# CD's controller loses its repo server and redis and can never sync its own policy), and the bootstrap
+# (infra/_modules/argocd) applies the argocd chart before Istio's CRDs exist. Under the mesh-wide deny-all: who may
+# call into argocd
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow
+  namespace: argocd
+spec:
+  action: ALLOW
+  rules:
+    # Pods in this namespace call each other freely
+    - from:
+        - source:
+            namespaces: ["argocd"]
+    # Gateway: the web UI
+    - from:
+        - source:
+            principals: ["cluster.local/ns/istio-system/sa/gateway-istio"]
+      to:
+        - operation:
+            ports: ["8080"]
+    # Prometheus: application controller, server, repo server and redis exporter metrics
+    - from:
+        - source:
+            principals: ["cluster.local/ns/monitoring-system/sa/monitoring-system-kube-pro-prometheus"]
+      to:
+        - operation:
+            ports: ["8082", "8083", "8084", "9121"]

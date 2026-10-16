@@ -1,0 +1,32 @@
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmOAuth2Client
+metadata:
+  name: forgejo
+  namespace: {{ .Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+    namespace: kanidm
+  displayname: Forgejo
+  # Confidential client; Forgejo also sends PKCE (S256), which Kanidm requires
+  origin: https://{{ .Values.host }}
+  redirectUrl:
+    - https://{{ .Values.host }}/user/oauth2/Kanidm/callback
+  disableConsentPrompt: true
+  preferShortUsername: true
+  strictRedirectUrl: true
+  # Short, domain-free group names: homelab-admins become site admins (adminGroup in values.yaml)
+  claimMap:
+    - name: homelab_groups
+      joinStrategy: array
+      valuesMap:
+        {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+        - group: {{ . }}
+          values:
+            - {{ . }}
+        {{- end }}
+  scopeMap:
+    {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+    - group: {{ . }}
+      scopes: [openid, profile, email, groups]
+    {{- end }}

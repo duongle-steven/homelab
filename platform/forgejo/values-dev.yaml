@@ -1,0 +1,53 @@
+host: git.127-0-0-1.nip.io
+database:
+  cnpg:
+    enabled: false
+seed:
+  repository: https://github.com/duongle-steven/homelab
+forgejo:
+  persistence:
+    size: 1Gi
+  httpRoute:
+    hostnames:
+      - git.127-0-0-1.nip.io
+  deployment:
+    # Restated (lists are replaced), plus the sandbox CA for calls to Kanidm
+    env:
+      - name: CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: forgejo-kanidm-oauth2-credentials
+            key: CLIENT_SECRET
+      - name: SSL_CERT_DIR
+        value: /etc/ssl/certs:/etc/homelab-dev-ca
+  extraVolumes:
+    - name: dev-ca
+      # Not optional: the pod waits until trust-manager has copied the CA here
+      configMap:
+        name: homelab-dev-ca
+  extraContainerVolumeMounts: &devCAMounts
+    - name: dev-ca
+      mountPath: /etc/homelab-dev-ca
+      readOnly: true
+  extraInitVolumeMounts: *devCAMounts
+  gitea:
+    # Restated (lists are replaced) with the sandbox Kanidm
+    oauth:
+      - name: Kanidm
+        provider: openidConnect
+        key: forgejo
+        secret: ${CLIENT_SECRET}
+        autoDiscoverUrl: https://auth.127-0-0-1.nip.io/oauth2/openid/forgejo/.well-known/openid-configuration
+        scopes: openid,profile,email,groups
+        groupClaimName: homelab_groups
+        adminGroup: homelab-admins
+    config:
+      server:
+        DOMAIN: git.127-0-0-1.nip.io
+        ROOT_URL: https://git.127-0-0-1.nip.io
+        SSH_DOMAIN: git.127-0-0-1.nip.io
+      # SQLite; HOST, NAME and USER from values.yaml stay but SQLite ignores them
+      database:
+        DB_TYPE: sqlite3
+    # No PostgreSQL password in the sandbox
+    additionalConfigFromEnvs: []

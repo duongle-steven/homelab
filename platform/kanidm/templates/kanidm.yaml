@@ -1,0 +1,43 @@
+apiVersion: kaniop.rs/v1beta1
+kind: Kanidm
+metadata:
+  name: kanidm
+  namespace: {{ .Release.Namespace }}
+spec:
+  domain: {{ .Values.kanidm.domain }}
+  image: {{ .Values.kanidm.image }}
+  replicaGroups:
+    - name: default
+      replicas: 1
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.kanidm.storage }}
+  # Kanidm serves TLS itself (templates/certificate.yaml); the Gateway re-encrypts to it
+  tlsSecretName: kanidm-tls
+  gateway:
+    parentRefs:
+      - name: gateway
+        namespace: istio-system
+        sectionName: https
+    backendTlsPolicy:
+      validation:
+        hostname: {{ .Values.kanidm.domain }}
+        {{- with .Values.kanidm.backendCA }}
+        caCertificateRefs:
+          - group: ""
+            kind: ConfigMap
+            name: {{ . }}
+        {{- else }}
+        wellKnownCaCertificates: System
+        {{- end }}
+  # Each app declares its own OAuth2 client in its namespace
+  oauth2ClientNamespaceSelector:
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: In
+        values: {{- toYaml .Values.oauth2ClientNamespaces | nindent 10 }}

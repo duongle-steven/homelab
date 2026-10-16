@@ -1,0 +1,50 @@
+# k3s runs the control plane and kube-proxy inside its own process, so kube-prometheus-stack's pod selectors find
+# nothing: discover the nodes instead (no address list). Job names stay the chart's, for its dashboards and rules.
+{{- $components := list
+  (dict "job" "kube-controller-manager" "port" 10257 "https" true "controlPlane" true)
+  (dict "job" "kube-scheduler" "port" 10259 "https" true "controlPlane" true)
+  (dict "job" "kube-etcd" "port" 2381 "https" false "controlPlane" true)
+  (dict "job" "kube-proxy" "port" 10249 "https" false "controlPlane" false) }}
+{{- range $components }}
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: {{ .job }}
+  labels:
+    # Prometheus selects ScrapeConfigs of its release
+    release: {{ $.Release.Name }}
+spec:
+  kubernetesSDConfigs:
+    - role: Node
+  {{- if .https }}
+  scheme: HTTPS
+  tlsConfig:
+    insecureSkipVerify: true
+  {{- end }}
+  authorization:
+    type: Bearer
+    credentials:
+      name: {{ $.Release.Name }}-kube-pro-prometheus-token
+      key: token
+  relabelings:
+    {{- if .controlPlane }}
+    - sourceLabels: [__meta_kubernetes_node_label_node_role_kubernetes_io_control_plane]
+      regex: "true"
+      action: keep
+    {{- end }}
+    - sourceLabels: [__meta_kubernetes_node_address_InternalIP]
+      targetLabel: __address__
+      replacement: ${1}:{{ .port }}
+    - targetLabel: job
+      replacement: {{ .job }}
+    - sourceLabels: [__meta_kubernetes_node_name]
+      targetLabel: instance
+  {{- if ne .job "kube-etcd" }}
+  # Every port of the k3s process serves all components' metrics: keep only this component's
+  metricRelabelings:
+    - action: drop
+      sourceLabels: [__name__]
+      regex: (apiserver|etcd|kubelet|container)_.+
+  {{- end }}
+{{- end }}

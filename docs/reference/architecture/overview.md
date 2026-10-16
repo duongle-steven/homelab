@@ -19,7 +19,7 @@
 Main components:
 
 - `./metal`: bare metal management, install Linux and Kubernetes
-- `./system`: critical system components for the cluster (load balancer, storage, ingress, operation tools...)
+- `./system`: critical system components for the cluster (load balancer, storage, Gateway API gateways, operation tools...)
 - `./platform`: essential components for service hosting platform (git, build runners, dashboards...)
 - `./apps`: user facing applications
 - `./external` (optional): externally managed services
@@ -40,7 +40,7 @@ Everything is automated, after you edit the configuration files, you just need t
 - (2) Bootstrap the `./system` layer:
     - Install ArgoCD and the root app to manage itself and other layers, from now on ArgoCD will do the rest
     - Install the remaining components (storage, monitoring, etc)
-- (3) Build the `./platform` layer (Gitea, Grafana, SSO, etc)
+- (3) Build the `./platform` layer (Forgejo, Grafana, SSO, etc)
 - (4) Deploy applications in the `./apps` layer
 
 ```mermaid
@@ -69,7 +69,7 @@ flowchart TD
   cloudflare -.-> cloudflared
 
   subgraph platform[./platform]
-    Gitea
+    Forgejo
     Woodpecker
     Grafana
   end

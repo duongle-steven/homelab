@@ -18,7 +18,6 @@ upstream_config = {
     "domain": "khuedoan.com",
     "timezone": "Asia/Ho_Chi_Minh",
     "terraform_workspace": "khuedoan",
-    "loadbalancer_ip_range": "192.168.1.224/27",
 }
 
 
@@ -49,7 +48,6 @@ def main() -> None:
     domain = Prompt.ask("Enter your domain", default=upstream_config['domain'])
     seed_repo = Prompt.ask("Enter seed repo", default=upstream_config['seed_repo'])
     timezone = Prompt.ask("Enter time zone", default=upstream_config['timezone'])
-    loadbalancer_ip_range = Prompt.ask("Enter IP range for load balancer", default=upstream_config['loadbalancer_ip_range'])
 
     find_and_replace(
         pattern=upstream_config['domain'],
@@ -82,14 +80,11 @@ def main() -> None:
         ]
     )
 
-    find_and_replace(
-        pattern=upstream_config['loadbalancer_ip_range'],
-        replacement=loadbalancer_ip_range,
-        paths=[
-            "metal/inventories/prod.yml",
-            "apps/tailscale/values.yaml",
-        ]
-    )
+    # Addresses are settings, not code: charts read them from this file (scripts/check-network-config)
+    if Confirm.ask("Update network addresses (API, Gateway and wireguard VIPs, router)?", default=True):
+        subprocess.run(
+            [editor, 'infra/production/cluster/config.json']
+        )
 
     if Confirm.ask("Update server list?", default=True):
         subprocess.run(

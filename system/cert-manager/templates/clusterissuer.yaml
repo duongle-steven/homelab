@@ -1,3 +1,38 @@
+{{- if .Values.issuer.dev }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: homelab-dev-ca
+  namespace: {{ .Release.Namespace }}
+spec:
+  isCA: true
+  commonName: homelab-dev-ca
+  secretName: homelab-dev-ca
+  duration: 87600h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: selfsigned
+---
+# Same name as production so app annotations do not change
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  ca:
+    secretName: homelab-dev-ca
+{{- else }}
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -13,3 +48,4 @@ spec:
           apiTokenSecretRef:
             name: cloudflare-api-token
             key: api-token
+{{- end }}
