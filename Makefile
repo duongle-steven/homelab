@@ -2,15 +2,18 @@
 .PHONY: *
 .EXPORT_ALL_VARIABLES:
 
-KUBECONFIG = $(shell pwd)/metal/kubeconfig.yaml
+env ?= production
+KUBECONFIG = $(shell pwd)/infra/$(env)/kubeconfig.yaml
 KUBE_CONFIG_PATH = $(KUBECONFIG)
 smoke_filter ?= Smoke
+terragrunt_apply = terragrunt run --all apply --non-interactive -- -auto-approve
 
-default: metal system external smoke-test clean
+default: metal infra external smoke-test clean
 
 # The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on
 dev: sandbox-push
-	$(MAKE) env=dev ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress' metal system sandbox-refresh smoke-test
+	cd infra/sandbox && $(terragrunt_apply)
+	$(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress' sandbox-refresh smoke-test
 
 sandbox-push:
 	@if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
@@ -25,7 +28,7 @@ sandbox-refresh:
 	-@kubectl -n argocd annotate applications --all argocd.argoproj.io/refresh=normal --overwrite >/dev/null 2>&1
 
 dev-clean:
-	$(MAKE) -C metal env=dev clean
+	cd infra/sandbox && terragrunt run --all destroy --non-interactive -- -auto-approve
 
 configure:
 	./scripts/configure
@@ -34,8 +37,9 @@ configure:
 metal:
 	make -C metal
 
-system:
-	make -C system
+# Bootstrap Argo CD (production; the sandbox's runs in make dev)
+infra:
+	cd infra/$(env) && $(terragrunt_apply)
 
 external:
 	make -C external

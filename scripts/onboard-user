@@ -21,7 +21,7 @@ for access in "$@"; do
     esac
 done
 
-export KUBECONFIG="${KUBECONFIG:-./metal/kubeconfig.yaml}"
+export KUBECONFIG="${KUBECONFIG:-./infra/production/kubeconfig.yaml}"
 host="$(kubectl get kanidm --namespace kanidm kanidm --output jsonpath='{.spec.domain}')"
 url="https://${host}"
 

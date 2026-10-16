@@ -13,3 +13,4 @@ infra/_modules/k3d/gateway-api-*.yaml
 .state/
 .terragrunt-cache/
 .terraform/
+__pycache__/

@@ -16,7 +16,7 @@ options:
     extraArgs:
       - arg: --disable=traefik
         nodeFilters: [server:*]
-      # k3s 1.37 packages Gateway API v1.6.1 CRDs; ours (metal/Makefile) are the latest release
+      # k3s 1.37 packages Gateway API v1.6.1 CRDs; ours (main.tf) are the latest release
       - arg: --disable=gateway-api-crd
         nodeFilters: [server:*]
       # Embedded etcd, like production

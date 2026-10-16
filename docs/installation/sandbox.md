@@ -17,7 +17,7 @@ nix develop
 make dev
 ```
 
-`make dev` creates the k3d cluster with k3s's own networking (Flannel, kube-proxy, ServiceLB), bootstraps ArgoCD, waits for it, and runs the smoke test.
+`make dev` runs Terragrunt in `infra/sandbox`: the unit `cluster` creates the k3d cluster with k3s's own networking (Flannel, kube-proxy, ServiceLB) and the localhost proxy, the unit `argocd` bootstraps ArgoCD; then it runs the tests. State stays on your machine (`.state/`).
 
 !!! note
 
@@ -28,7 +28,7 @@ make dev
 `make` uses the sandbox kubeconfig automatically. For `kubectl` in your own shell, point it at the same file first:
 
 ```sh
-export KUBECONFIG=$PWD/metal/kubeconfig.yaml  # from the repository root
+export KUBECONFIG=$PWD/infra/sandbox/kubeconfig.yaml  # from the repository root
 ```
 
 - <https://argocd.127-0-0-1.nip.io> (user `admin`, password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`)
@@ -153,7 +153,7 @@ Measured on a fresh k3d sandbox with all components running and every namespace 
 ## Clean up
 
 ```sh
-make dev-clean
+make dev-clean  # terragrunt run --all destroy in infra/sandbox: the cluster, the proxy and the kubeconfig
 ```
 
 ## Differences from production

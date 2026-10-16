@@ -4,7 +4,7 @@ k3s_token_file: /etc/rancher/node/password
 k3s_service_file: /etc/systemd/system/k3s.service
 k3s_data_dir: /var/lib/rancher/k3s
 k3s_kubeconfig_file: /etc/rancher/k3s/k3s.yaml
-# Keep in sync with metal/Makefile (sandbox)
+# Keep in sync with gateway_api_version in infra/_modules/k3d/main.tf (sandbox)
 gateway_api_version: v1.6.3
 # k3s's own networking (Flannel, kube-proxy, ServiceLB, network policy), like upstream nixos;
 # Istio serves the Gateways, Rook Ceph the storage
