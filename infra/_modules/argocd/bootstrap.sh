@@ -18,12 +18,16 @@ helm dependency update "$CHART" >/dev/null
 manifests=$(mktemp)
 trap 'rm -f "$manifests"' EXIT
 # The global values Argo CD passes from infra/<env>/cluster/config.json (addresses, domain, ...)
+# Captured first: set -e ignores a failing command substitution in a for list (a key missing from config.json)
+values_from_config=$(cd "$CHART/../.." && scripts/env-values "$environment" root)
 set --
 IFS='
 '
-for value in $(cd "$CHART/../.." && scripts/env-values "$environment" root); do
+set -f
+for value in $values_from_config; do
   set -- "$@" --set-string "$value"
 done
+set +f
 unset IFS
 helm template argocd "$CHART" --namespace argocd --include-crds -f "$CHART/$values" "$@" > "$manifests"
 # The seed's repository is config.json's seed_repository (values-seed.yaml holds a placeholder)

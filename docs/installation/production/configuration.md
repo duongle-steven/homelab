@@ -9,12 +9,12 @@ nix develop
 Everything that depends on where your homelab runs lives in `infra/production/cluster/config.json`; edit it:
 
 - `domain`: your domain (apps are served as `<app>.<domain>`)
-- `timezone`: for automatic reboots
+- `timezone`: your time zone (the charts receive it as `global.timezone`)
 - `seed_repository`: the Git repository (your fork) the first install copies into Forgejo
 - `vip`: the Kubernetes API address; `network.gateway`, `network.prefix_length`: your router and LAN prefix
 - `service_vips`: the LAN addresses of the Gateway and wireguard, outside your router's DHCP range
 
-Charts read these from there (`scripts/check-env-config` checks that none is written into a chart or app file). Until step 7c, also change `organization` in `external/versions.tf` to your Terraform Cloud organization.
+Charts read these from there (`scripts/check-env-config` checks that none is written into a chart or app file). Three settings still need a hand edit, because their charts cannot take them from `config.json`: the domain in `apps/matrix/values.yaml` (Matrix), and the time zone in `system/kured/values.yaml` (automatic reboots) and `metal/roles/pxe_server/defaults/main.yml` (node installation). Until step 7c, also change `organization` in `external/versions.tf` to your Terraform Cloud organization.
 
 !!! example
 
@@ -39,4 +39,4 @@ Then edit the inventory:
     --8<--
     ```
 
-At the end it will show what has changed. After examining the diff, commit and push the changes.
+Then review the diff (`git diff`), commit and push the changes.
