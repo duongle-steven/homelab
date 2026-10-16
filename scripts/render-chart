@@ -2,7 +2,7 @@
 # Render a component the same way ArgoCD does.
 # Usage: scripts/render-chart <chart-dir> [env]      wrapper chart: values.yaml, then values-<env>.yaml if it exists
 #        scripts/render-chart apps/<name>.yaml [env]  app file: app-template with the ApplicationSet "apps" parameters
-set -eu
+set -euf
 target="$1"
 env="${2:-prod}"
 argocd=system/argocd
@@ -36,9 +36,13 @@ if [ -f "$target" ]; then
   done
   # Captured first: set -e ignores a failing command substitution in a for list
   values=$(scripts/env-values "$env" apps)
+  # One value per line, spaces included
+  IFS='
+'
   for value in $values; do
     set -- "$@" --set-string "$value"
   done
+  unset IFS
   exec helm template "$name" "$(source_of .chart)" --repo "$(source_of .repoURL)" \
     --version "$(source_of .targetRevision)" --namespace "$name" --include-crds -f "$target" "$@"
 fi
@@ -46,9 +50,13 @@ fi
 name="$(basename "$target")"
 # Argo CD passes the environment's addresses to every component (scripts/env-values)
 values=$(scripts/env-values "$env" root)
+# One value per line, spaces included
+IFS='
+'
 for value in $values; do
   set -- "$@" --set-string "$value"
 done
+unset IFS
 [ -f "$target/values.yaml" ] && set -- "$@" -f "$target/values.yaml"
 [ "$env" != prod ] && [ -f "$target/values-$env.yaml" ] && set -- "$@" -f "$target/values-$env.yaml"
 helm dependency update "$target" >/dev/null

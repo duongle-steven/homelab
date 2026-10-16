@@ -23,7 +23,7 @@ service:
     # Its own kube-vip address (global.addresses.wireguardVIP, from infra/<env>/cluster/config.json), like the LAN Gateway
     loadBalancerClass: kube-vip.io/kube-vip-class
     annotations:
-      kube-vip.io/loadbalancerIPs: '{{ .Values.global.addresses.wireguardVIP }}'
+      kube-vip.io/loadbalancerIPs: '{{ with .Values.global.addresses.wireguardVIP }}{{ . }}{{ end }}'
     ports:
       http:
         port: 51820
@@ -64,7 +64,8 @@ externalSecrets:
 
             # Servers
 
-            # Clients also route the API and Gateway VIPs (infra/<env>/cluster/config.json) through this peer
+            # Clients add the API and Gateway VIPs (infra/<env>/cluster/config.json) to this peer's AllowedIPs
+            # themselves (docs/getting-started/vpn-setup.md); this template cannot read Helm values
             [Peer]
             # homelab
             PublicKey = sSAZS1Z3vB7Wx8e2yVqXfeHjgWTa80wnSYoma3mZkiU=

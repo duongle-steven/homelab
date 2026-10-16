@@ -36,7 +36,8 @@ class Loader(yaml.SafeLoader):
 
 
 Loader.add_constructor("tag:yaml.org,2002:value", lambda loader, node: loader.construct_scalar(node))
-# Ranges written as such in system/egress (the private ranges it excludes from "internet")
+# Ranges written as such in system/egress, and only there (the private ranges it excludes from "internet")
+EGRESS = "system/egress"
 LITERALS = {"0.0.0.0/0", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"}
 IPV4 = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(/\d{1,2})?(?![\d.])")
 
@@ -68,6 +69,18 @@ def addresses(value):
     return {value} if isinstance(value, str) and value else set()
 
 
+def exempt(target, match, prefix, node_network):
+    """Whether an address literal needs no config.json entry: same everywhere (FIXED), or one of system/egress's
+    own ranges (the private ranges, the node network it computes)."""
+    if target == EGRESS and (match + prefix in LITERALS or (node_network and match == node_network)):
+        return True
+    try:
+        address = ipaddress.ip_address(match)
+    except ValueError:
+        return True
+    return any(address in n for n in FIXED)
+
+
 def main():
     failures = []
     for env, path in CONFIG.items():
@@ -75,8 +88,7 @@ def main():
             config = json.load(f)
         allowed = addresses(config)
         # system/egress opens the API server on the node network, the router address masked to its prefix
-        if config["network"]["gateway"]:
-            allowed.add(str(ipaddress.ip_network(f"{config['network']['gateway']}/{config['network']['prefix_length']}", strict=False).network_address))
+        node_network = str(ipaddress.ip_network(f"{config['network']['gateway']}/{config['network']['prefix_length']}", strict=False).network_address) if config["network"]["gateway"] else None
         for target in targets():
             objects = {}
             for doc in render(target, env):
@@ -85,13 +97,7 @@ def main():
                 dumped = yaml.safe_dump(doc)
                 objects[(doc.get("kind"), doc.get("metadata", {}).get("name"))] = dumped
                 for match, prefix in IPV4.findall(dumped):
-                    if match + prefix in LITERALS:
-                        continue
-                    try:
-                        address = ipaddress.ip_address(match)
-                    except ValueError:
-                        continue
-                    if match in allowed or any(address in n for n in FIXED):
+                    if match in allowed or exempt(target, match, prefix, node_network):
                         continue
                     failures.append(f"{target} ({env}): {doc.get('kind')}/{doc.get('metadata', {}).get('name')}: {match}")
             # Istio has its own global.network (a network name): our values must not take its keys
@@ -139,7 +145,17 @@ def main():
     # The egress table names only namespaces something deploys into
     with open("system/egress/values.yaml") as f:
         egress_values = yaml.safe_load(f)
-    namespaces = {os.path.basename(t).removesuffix(".yaml") for t in targets()}
+    deployed = [os.path.basename(t).removesuffix(".yaml") for t in targets()]
+    namespaces = set(deployed)
+    # system/egress's policy names are fixed: two Applications in one namespace would render the same objects
+    for ns in sorted({n for n in deployed if deployed.count(n) > 1}):
+        failures.append(f"system/egress: several components deploy into namespace {ns}")
+    # The namespaces without egress policies are the ones the root templatePatch keeps out of the mesh
+    with open("system/argocd/values.yaml") as f:
+        patch = yaml.safe_load(f)["argocd-apps"]["applicationsets"]["root"]["templatePatch"]
+    outside = set(re.findall(r'"([a-z0-9-]+)"', re.search(r"\(list ([^)]*)\)", patch).group(1)))
+    if set(egress_values.get("exclude") or []) != outside:
+        failures.append(f"system/egress: exclude {sorted(egress_values.get('exclude') or [])} differs from the root templatePatch {sorted(outside)}")
     for table in ("internet", "nodes"):
         for ns in egress_values.get(table) or {}:
             if ns not in namespaces:
