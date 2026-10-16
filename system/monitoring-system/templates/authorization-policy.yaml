@@ -4,6 +4,10 @@ kind: AuthorizationPolicy
 metadata:
   name: allow
   namespace: {{ .Release.Namespace }}
+  # Its CRD comes from another component that needs this one first (cert-manager, istio-system and
+  # monitoring-system wait for each other's CRDs): apply the rest of the sync and retry this
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   action: ALLOW
   rules:
