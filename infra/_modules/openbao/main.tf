@@ -20,12 +20,6 @@ variable "namespace" {
   description = "Namespace of platform/openbao, created by Argo CD"
 }
 
-variable "cluster_id" {
-  type        = string
-  default     = ""
-  description = "Identity of the cluster: a new cluster gets the Secret again (same key)"
-}
-
 variable "protect" {
   type        = bool
   default     = false
@@ -51,8 +45,10 @@ locals {
   key = one(concat(random_bytes.key[*].base64, random_bytes.protected[*].base64))
 }
 
+# Applied on every run (an idempotent server-side apply): a rebuilt cluster, whose identity OpenTofu cannot see in
+# production (nodes from make -C metal), or a deleted Secret gets the same key again
 resource "terraform_data" "secret" {
-  triggers_replace = [var.cluster_id, var.namespace, sha256(local.key)]
+  triggers_replace = [plantimestamp()]
 
   provisioner "local-exec" {
     command = "sh ${abspath("${path.module}/apply-secret.sh")}"

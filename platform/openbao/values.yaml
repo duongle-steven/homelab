@@ -6,6 +6,8 @@ openbao:
   server:
     image:
       tag: 2.7.1
+    # The chart's OnDelete would leave the running pod on the old image and config after a sync
+    updateStrategyType: RollingUpdate
     dataStorage:
       size: 1Gi
     # OpenTofu's unit infra/<env>/openbao writes this Secret; the pod waits for it
