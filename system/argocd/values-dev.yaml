@@ -1,25 +1,7 @@
 # Sandbox: sync an allowlist from GitHub instead of in-cluster Forgejo.
 # Helm replaces lists and anchors do not cross files, so generator and source are restated in full.
 argo-cd:
-  global:
-    domain: argocd.127-0-0-1.nip.io
-  configs:
-    cm:
-      oidc.config: |
-        name: Kanidm
-        issuer: https://auth.127-0-0-1.nip.io/oauth2/openid/argocd
-        clientID: argocd
-        clientSecret: $argocd-kanidm-oauth2-credentials:CLIENT_SECRET
-        enablePKCEAuthentication: true
-        requestedScopes:
-          - openid
-          - profile
-          - email
-          - groups
   server:
-    httproute:
-      hostnames:
-        - argocd.127-0-0-1.nip.io
     # Trust the sandbox CA for calls to Kanidm
     env:
       - name: SSL_CERT_DIR

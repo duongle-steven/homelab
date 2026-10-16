@@ -1,15 +1,4 @@
 zot:
-  httproute:
-    hostnames:
-      - registry.127-0-0-1.nip.io
-  config:
-    http:
-      externalUrl: https://registry.127-0-0-1.nip.io
-      auth:
-        openid:
-          providers:
-            oidc:
-              issuer: https://auth.127-0-0-1.nip.io/oauth2/openid/zot
   # Trust the sandbox CA for calls to Kanidm
   env:
     - name: SSL_CERT_DIR

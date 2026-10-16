@@ -1,0 +1,27 @@
+# The chart's own route does not template its host names: same route, host from global.baseDomain
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd-server
+  labels:
+    app.kubernetes.io/name: argocd-server
+    app.kubernetes.io/component: server
+    app.kubernetes.io/part-of: argocd
+spec:
+  parentRefs:
+    - name: gateway
+      namespace: istio-system
+      sectionName: https
+  hostnames:
+    - argocd.{{ .Values.global.baseDomain }}
+  rules:
+    - backendRefs:
+        - group: ''
+          kind: Service
+          name: argocd-server
+          port: 80
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /

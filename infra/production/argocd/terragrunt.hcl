@@ -8,8 +8,9 @@ terraform {
 }
 
 inputs = {
-  chart   = "${get_repo_root()}/system/argocd"
-  values  = "values.yaml"
-  seed    = "values-seed.yaml"
-  protect = true
+  chart       = "${get_repo_root()}/system/argocd"
+  values      = "values.yaml"
+  environment = "prod"
+  seed        = "values-seed.yaml"
+  protect     = true
 }

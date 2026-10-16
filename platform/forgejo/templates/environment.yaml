@@ -1,0 +1,19 @@
+# Settings from the environment (global.baseDomain): the Forgejo chart does not template gitea.config or gitea.oauth.
+# The [server] section reaches app.ini through gitea.additionalConfigSources (each key is a section)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forgejo-app-ini-server
+data:
+  server: |
+    DOMAIN={{ .Values.host }}.{{ .Values.global.baseDomain }}
+    ROOT_URL=https://{{ .Values.host }}.{{ .Values.global.baseDomain }}
+    SSH_DOMAIN={{ .Values.host }}.{{ .Values.global.baseDomain }}
+---
+# HOMELAB_DOMAIN for gitea.oauth's autoDiscoverUrl, which the init script's shell expands (deployment.env)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forgejo-environment
+data:
+  domain: {{ .Values.global.baseDomain | quote }}

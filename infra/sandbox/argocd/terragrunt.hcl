@@ -14,7 +14,8 @@ terraform {
 }
 
 inputs = {
-  chart      = "${get_repo_root()}/system/argocd"
-  values     = "values-dev.yaml"
-  cluster_id = dependency.cluster.outputs.cluster_id
+  chart       = "${get_repo_root()}/system/argocd"
+  values      = "values-dev.yaml"
+  environment = "dev"
+  cluster_id  = dependency.cluster.outputs.cluster_id
 }
