@@ -150,6 +150,16 @@ alloy:
           forward_to = [loki.write.loki.receiver]
         }
 
+        // Every namespace's events, from one Alloy instance of the cluster (clustering)
+        loki.source.kubernetes_events "events" {
+          job_name   = "kubernetes-events"
+          log_format = "logfmt"
+          clustering {
+            enabled = true
+          }
+          forward_to = [loki.write.loki.receiver]
+        }
+
         loki.write "loki" {
           endpoint {
             url = "http://loki:3100/loki/api/v1/push"
@@ -160,6 +170,9 @@ alloy:
     rules:
       - apiGroups: [""]
         resources: ["pods", "namespaces"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["events"]
         verbs: ["get", "list", "watch"]
     clusterRules:
       - apiGroups: [""]

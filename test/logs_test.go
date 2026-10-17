@@ -156,3 +156,21 @@ func TestLogsResumeAfterRestart(t *testing.T) {
 		10*time.Minute, 10*time.Second, "the line written during the restart was lost")
 	assert.Len(t, markerEntries(t, "resume", first), 1, "the restarted Alloy sent the first marker again")
 }
+
+// Kubernetes events land in Loki (kept 30 days instead of the API server's hour)
+func TestLogsEvents(t *testing.T) {
+	logsSandboxOnly(t)
+	logPod(t, "events")
+	require.Eventually(t, func() bool {
+		entries, err := lokiQuery(t, fmt.Sprintf(`{job="kubernetes-events", namespace=%q} |= "events"`, logsNamespace), time.Hour)
+		if err != nil {
+			return false
+		}
+		for _, e := range entries {
+			if strings.Contains(e.Line, "Scheduled") || strings.Contains(e.Line, "Started") {
+				return true
+			}
+		}
+		return false
+	}, 10*time.Minute, 15*time.Second, "the pod's events did not reach Loki")
+}
