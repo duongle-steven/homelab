@@ -172,3 +172,28 @@ func TestSecretsSurviveRestart(t *testing.T) {
 	waitForUnsealed(t)
 	assert.Equal(t, sentinel, admin(t, "kv", "get", "-field=value", "secret/smoke/restart"))
 }
+
+// Role infra (OpenTofu's secrets, platform/infra-secrets) writes every branch except generated/, which it neither
+// reads nor writes
+func TestSecretsInfraRole(t *testing.T) {
+	secretsSandboxOnly(t)
+	waitForUnsealed(t)
+	grafanaAdmin(t) // pushed by now
+	defer admin(t, "kv", "metadata", "delete", "secret/grafana/infra-probe")
+	out, err := bao(t, "infra", "infra-secrets", "openbao-infra", "kv", "put", "secret/grafana/infra-probe", "value=x")
+	require.NoError(t, err, out)
+	for _, args := range [][]string{
+		{"kv", "get", "secret/grafana/generated/admin"},
+		{"kv", "put", "secret/grafana/generated/admin", "password=x"},
+		{"kv", "put", "secret/grafana/generated/new", "value=x"},
+		{"kv", "metadata", "get", "secret/grafana/generated/admin"},
+		{"kv", "metadata", "delete", "secret/grafana/infra-probe"},
+	} {
+		out, err := bao(t, "infra", "infra-secrets", "openbao-infra", args...)
+		assert.Error(t, err, "infra: bao %v", args)
+		assert.Contains(t, out, "permission denied", "infra: bao %v", args)
+	}
+	out, err = bao(t, "infra", "grafana", "default", "kv", "get", "secret/grafana/infra-probe")
+	assert.Error(t, err, "grafana logged in as infra")
+	assert.Contains(t, out, "not authorized")
+}
