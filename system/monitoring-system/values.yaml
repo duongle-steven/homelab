@@ -19,6 +19,7 @@ kube-prometheus-stack:
     forceDeployDashboards: true
     additionalDataSources:
       - name: Loki
+        uid: loki
         type: loki
         url: http://loki.loki:3100
   prometheus:

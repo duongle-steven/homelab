@@ -58,7 +58,7 @@ flowchart TD
     cloudflared
   end
 
-  subgraph external[./external]
+  subgraph external[External services]
     letsencrypt[Let's Encrypt]
     cloudflare[Cloudflare]
   end
@@ -83,3 +83,6 @@ flowchart TD
 
   make[Run make] -- 1 --> metal -- 2 --> system -. 3 .-> platform -. 4 .-> apps
 ```
+
+Logs: Alloy on every node reads the pods' logs and the cluster's events into Loki (`system/loki`), which Grafana queries
+([logs](../../how-to-guides/logs.md)).

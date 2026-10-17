@@ -1,7 +1,7 @@
 # Use both GitHub and Forgejo
 
 Forgejo is the source of truth: Argo CD syncs from `ops/homelab` on Forgejo.
-GitHub keeps a copy for backup and discovery; push to it when needed (an automatic push mirror comes in step 9).
+GitHub keeps a copy for backup and discovery; push to it when needed (an automatic push mirror comes in step 10).
 
 Add both push URLs (replace my repositories with yours):
 

@@ -30,6 +30,7 @@ argocd-apps:
                     - path: system/istio-system
                     - path: system/cert-manager
                     - path: system/monitoring-system
+                    - path: system/loki
                     - path: platform/external-secrets
                     - path: platform/openbao
                     - path: platform/global-secrets

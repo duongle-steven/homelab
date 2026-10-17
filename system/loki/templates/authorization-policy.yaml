@@ -25,3 +25,10 @@ spec:
       to:
         - operation:
             ports: ["3100"]
+    # Prometheus: Alloy's metrics
+    - from:
+        - source:
+            principals: ["cluster.local/ns/monitoring-system/sa/monitoring-system-kube-pro-prometheus"]
+      to:
+        - operation:
+            ports: ["12345"]
