@@ -6,7 +6,8 @@
 - Every namespace reads its own branch, `secret/<namespace>/<name>`, through its `SecretStore` `openbao`
   (`system/secret-store`, rendered by every Application) and [External Secrets](https://external-secrets.io)
   `ExternalSecret`s. OpenBao refuses a read of another namespace's branch.
-- Generated secrets come from `platform/global-secrets`, which pushes each one to its readers' branches.
+- Generated secrets come from `platform/global-secrets`, which pushes each one to its readers' branches, under
+  `secret/<namespace>/generated/`: the only paths it can write.
 
 ```mermaid
 flowchart TD
@@ -37,13 +38,13 @@ spec:
   data:
     - secretKey: password
       remoteRef:
-        key: grafana/admin  # secret/grafana/admin: the namespace's own branch
+        key: grafana/generated/admin  # secret/grafana/generated/admin: the namespace's own branch
         property: password
 ```
 
 `scripts/check-secret-stores` refuses, before merge, an `ExternalSecret` that reads another store or another
-namespace's branch. A secret two namespaces need is pushed to both branches (`destinations` in
-`platform/global-secrets/values.yaml`).
+namespace's branch, and a generated secret that nobody reads or that is read but never pushed. A secret two namespaces
+need is pushed to both branches (`destinations` in `platform/global-secrets/values.yaml`).
 
 ## Unsealing and configuration
 
@@ -52,10 +53,11 @@ namespace's branch. A secret two namespaces need is pushed to both branches (`de
   Secret `openbao/openbao-unseal`. Losing the key loses everything OpenBao holds.
 - On first start OpenBao configures itself from `platform/openbao/values.yaml` (`initialize` stanzas):
   - the KV v2 store `secret/` and Kubernetes auth;
-  - the policies `apps` (read `secret/<namespace>/`), `writer` (push: `create`, `read`, `update` on everything,
-    because External Secrets reads before it writes) and `admin`;
+  - the policies `apps` (read `secret/<namespace>/`), `writer` (push: `create`, `read`, `update` on
+    `secret/<namespace>/generated/` only, because External Secrets reads before it writes; no `delete`) and `admin`;
   - their roles: `apps` for every namespace's `default` service account, `writer` for `global-secrets`' and `admin`
-    for `openbao/openbao-admin`.
+    for `openbao/openbao-admin`. They accept only service account tokens issued for audience `openbao` (the
+    `SecretStore`s ask for it), so a token sent to OpenBao never works against the API server.
 - These stanzas run only on an empty storage: editing them later changes nothing on a running OpenBao. Apply the
   change by hand with the admin role (below), or, in the sandbox, `make dev-clean`.
 - No root token and no recovery keys exist.
@@ -66,13 +68,18 @@ namespace's branch. A secret two namespaces need is pushed to both branches (`de
 No root token exists: log in with the admin role, as service account `openbao/openbao-admin`.
 
 ```sh
-token=$(kubectl -n openbao create token openbao-admin --duration=1h)
-# Prints an OpenBao token valid for an hour
-kubectl -n openbao exec -i openbao-0 -c openbao -- bao write -field=token auth/kubernetes/login role=admin jwt=- <<<"$token"
-kubectl -n openbao exec -it openbao-0 -c openbao -- env BAO_TOKEN=<the printed token> sh
+# Logs the bao CLI in OpenBao's pod in with the admin role for an hour; neither token reaches an argument or your
+# shell history
+kubectl -n openbao create token openbao-admin --audience=openbao --duration=1h |
+  kubectl -n openbao exec -i openbao-0 -c openbao -- \
+    sh -c 'bao write -field=token auth/kubernetes/login role=admin jwt=- | bao login -no-print -'
+kubectl -n openbao exec -it openbao-0 -c openbao -- sh
+# Inside, when you are done
+bao token revoke -self && rm ~/.vault-token
 ```
 
-Anyone who can create tokens for `openbao-admin` (cluster admins) holds every secret.
+The OpenBao token stays in `~/.vault-token` in the pod until you revoke it, it expires or the pod restarts.
+Anyone who can create tokens for `openbao-admin` or exec into OpenBao's pod (cluster admins) holds every secret.
 
 ## Generated secrets
 
@@ -88,12 +95,15 @@ They are never rotated automatically: both sides of a client secret would have t
 
 To rotate one by hand:
 
-1. With the admin role: `bao kv metadata delete secret/<namespace>/<name>` for each destination of the entry.
-2. `kubectl -n global-secrets delete secret <name>`. External Secrets generates a new value; its PushSecret writes it
-   to the empty destinations within an hour (`kubectl -n global-secrets annotate pushsecret <name>
-   force-sync=$(date +%s) --overwrite` pushes it at once).
-3. Restart every app that uses it (for example `kubectl -n forgejo rollout restart deploy/forgejo`).
-4. For an admin password, also change it inside the app to the new value.
+1. `kubectl -n global-secrets delete secret <name>`. External Secrets generates a new value at once; OpenBao keeps
+   the old one meanwhile (`IfNotExists`).
+2. With the admin role: `bao kv metadata delete secret/<namespace>/generated/<name>` for each destination of the
+   entry, in this order: a push between the two steps finds the old value and leaves it, a push after them writes the
+   new one.
+3. `kubectl -n global-secrets annotate pushsecret <name> force-sync=$(date +%s) --overwrite` pushes it at once
+   (otherwise within an hour).
+4. Restart every app that uses it (for example `kubectl -n forgejo rollout restart deploy/forgejo`).
+5. For an admin password, also change it inside the app to the new value.
 
 Kanidm OAuth2 client secrets are generated by the kaniop operator instead, as `<client>-kanidm-oauth2-credentials` in the client's namespace.
 

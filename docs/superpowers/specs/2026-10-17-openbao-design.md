@@ -35,6 +35,10 @@ removed) and 8c (OpenTofu state on Cloudflare R2 with state encryption).
   needs `create`, `read` and `update` on `secret/data/*` and `secret/metadata/*`: the spike's create-only policy cannot
   push through ESO. "Never overwritten" therefore comes from `updatePolicy: IfNotExists`, not from the policy; the
   writer's only holder is namespace `global-secrets`, which already holds every generated value in plain Secrets.
+- Amended after the PR's first review (2026-10-17): the writer reached every branch, which 8b's OpenTofu secrets would
+  share; it is now limited to `generated/` paths. Audiences, the key guard, the namespace wait as a separate step
+  (OpenTofu hides a provisioner's output when its environment is sensitive) and the rotation order came from the same
+  review's minors.
 - Versions (2026-10-16): OpenBao 2.7.1, chart `openbao` 0.30.4 (`https://openbao.github.io/openbao-helm`).
 
 ## Decisions
@@ -47,10 +51,12 @@ removed) and 8c (OpenTofu state on Cloudflare R2 with state encryption).
 | Configuration | Self-initialisation in the chart's config (git): KV v2 `secret/`, Kubernetes auth, policies `apps`, `writer`, `admin`, roles `apps`, `writer`, `admin` |
 | Emergency access | Role `admin` bound to service account `openbao-admin` (namespace `openbao`): `kubectl create token` then log in; no root token exists |
 | Reading | Every Application renders `system/secret-store` (extra source, like `system/egress`): `SecretStore` `openbao` in its namespace, Kubernetes auth role `apps` with the namespace's `default` service account |
-| Key layout | `secret/<namespace>/<name>`, properties as today (`password`, …) |
+| Key layout | `secret/<namespace>/<name>`, properties as today (`password`, …); generated secrets under `secret/<namespace>/generated/<name>` |
 | Generating | `platform/global-secrets` keeps the `Password` generators; a `PushSecret` per entry writes it to each destination (`updatePolicy: IfNotExists`, checked hourly so a lost destination is pushed again) through a `SecretStore` with role `writer` |
-| Writer policy | `create`, `read`, `update` on `secret/data/*` and `secret/metadata/*` (what ESO's push needs); no `delete` |
-| Shared secrets | One generated value pushed to several branches (Forgejo's admin password to `secret/forgejo/admin` and `secret/argocd/forgejo-admin`) |
+| Writer policy | `create`, `read`, `update` on `secret/data/+/generated/*` and `secret/metadata/+/generated/*` (what ESO's push needs); no `delete`; it never reaches what OpenTofu writes (8b) |
+| Audience | Every role requires audience `openbao`; the `SecretStore`s request it (`serviceAccountRef.audiences`) |
+| Key protection | One `random_bytes`; production's `protect` adds a `prevent_destroy` guard whose trigger is the key, so a plan that would replace or destroy it fails, and flipping `protect` never changes the key |
+| Shared secrets | One generated value pushed to several branches (Forgejo's admin password to `secret/forgejo/generated/admin` and `secret/argocd/generated/forgejo-admin`) |
 | Old store | `ClusterSecretStore` `global-secrets` removed; every `ExternalSecret` moves to `SecretStore` `openbao` |
 
 ## Design
@@ -117,11 +123,11 @@ removed.
 
 | Entry | Destinations |
 |---|---|
-| `forgejo.admin` | `forgejo/admin`, `argocd/forgejo-admin` |
-| `grafana.admin` | `grafana/admin` |
-| `paperless.admin`, `paperless.secret-key` | `paperless/admin`, `paperless/secret-key` |
-| `registry.ci` | `zot/ci` |
-| `woodpecker.agent` | `woodpecker/agent` |
+| `forgejo.admin` | `forgejo/generated/admin`, `argocd/generated/forgejo-admin` |
+| `grafana.admin` | `grafana/generated/admin` |
+| `paperless.admin`, `paperless.secret-key` | `paperless/generated/admin`, `paperless/generated/secret-key` |
+| `registry.ci` | `zot/generated/ci` |
+| `woodpecker.agent` | `woodpecker/generated/agent` |
 
 ### Consumers
 
