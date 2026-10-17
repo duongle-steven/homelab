@@ -104,5 +104,5 @@ the sandbox too (done)" and renumbers 9–12 to 10–13; every "step 9/10/11/12"
 
 - `docs/reference/architecture/overview.md`: the logs path.
 - A short how-to: querying logs and events in Grafana (Explore → Loki, label examples).
-- CLAUDE.md: roadmap (step 9 done, renumbered), Sandbox (Loki and Alloy run there), production checklist (Loki and
+- CLAUDE.md: roadmap (step 9 done, renumbered; step 11 gains "decide whether Loki's PVC is backed up"), Sandbox (Loki and Alloy run there), production checklist (Loki and
   Alloy ran only in the sandbox: rook-ceph PVC, retention sizing, `/var/log/pods` on NixOS k3s nodes).
