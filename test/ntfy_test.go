@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -73,21 +74,53 @@ func TestNtfyUsers(t *testing.T) {
 	assert.Contains(t, body, marker)
 }
 
+// postAlert posts one alert to Alertmanager's API from inside its pod. Its namespace label is its name: a group of its
+// own (group_by namespace), so it is sent after group_wait, not after an earlier test alert's group_interval
+func postAlert(t *testing.T, name, severity string) {
+	alert := fmt.Sprintf(`[{"labels":{"alertname":%q,"namespace":%q,"severity":%q}}]`, name, strings.ToLower(name), severity)
+	k8s.RunKubectl(t, k8s.NewKubectlOptions("", "", "monitoring-system"), "exec",
+		"alertmanager-monitoring-system-kube-pro-alertmanager-0", "-c", "alertmanager", "--",
+		"wget", "-qO-", "--header=Content-Type: application/json", "--post-data="+alert,
+		"http://localhost:9093/api/v2/alerts")
+}
+
+// ntfyMessage waits for a message in topic alerts (read as phone) whose text contains marker
+func ntfyMessage(t *testing.T, marker string) map[string]any {
+	phone := ntfyToken(t, "phone")
+	var found map[string]any
+	require.Eventually(t, func() bool {
+		status, body := ntfyRequest(t, http.MethodGet, "/alerts/json?poll=1&since=10m", phone, "")
+		if status != http.StatusOK {
+			return false
+		}
+		for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
+			var m map[string]any
+			if json.Unmarshal([]byte(line), &m) == nil && strings.Contains(line, marker) {
+				found = m
+				return true
+			}
+		}
+		return false
+	}, 3*time.Minute, 10*time.Second, "no message with %s in topic alerts", marker)
+	return found
+}
+
 // An alert posted to Alertmanager reaches topic alerts through ntfy's alertmanager template
 func TestNtfyAlertmanagerDelivers(t *testing.T) {
 	secretsSandboxOnly(t)
 	waitForNtfy(t)
 	name := fmt.Sprint("NtfyTest", time.Now().UnixNano())
-	alert := fmt.Sprintf(`[{"labels":{"alertname":%q,"namespace":"ntfy-test","severity":"warning"}}]`, name)
-	k8s.RunKubectl(t, k8s.NewKubectlOptions("", "", "monitoring-system"), "exec",
-		"alertmanager-monitoring-system-kube-pro-alertmanager-0", "-c", "alertmanager", "--",
-		"wget", "-qO-", "--header=Content-Type: application/json", "--post-data="+alert,
-		"http://localhost:9093/api/v2/alerts")
-	phone := ntfyToken(t, "phone")
-	assert.Eventually(t, func() bool {
-		status, body := ntfyRequest(t, http.MethodGet, "/alerts/json?poll=1&since=10m", phone, "")
-		return status == http.StatusOK && strings.Contains(body, name)
-	}, 3*time.Minute, 10*time.Second, "the alert did not reach topic alerts")
+	postAlert(t, name, "warning")
+	ntfyMessage(t, name)
+}
+
+// Critical alerts arrive with ntfy's highest priority, so they stand out on phones
+func TestNtfyAlertmanagerCriticalPriority(t *testing.T) {
+	secretsSandboxOnly(t)
+	waitForNtfy(t)
+	name := fmt.Sprint("NtfyCritical", time.Now().UnixNano())
+	postAlert(t, name, "critical")
+	assert.EqualValues(t, 5, ntfyMessage(t, name)["priority"], "critical alert priority")
 }
 
 // The Watchdog keeps a delayed message scheduled (sequence watchdog): it fires only if heartbeats stop

@@ -14,6 +14,10 @@ controllers:
           # message; the sandbox sends nothing out
           NTFY_UPSTREAM_BASE_URL: '{{ if eq .Values.global.publicGateway "public" }}https://ntfy.sh{{ end }}'
           NTFY_BEHIND_PROXY: "true"
+          # The client's address, for ntfy's per-visitor limits: behind the Tunnel every request's X-Forwarded-For ends
+          # with cloudflared's pod, so one visitor's failed logins would lock every phone out. Only cloudflared reaches
+          # the public Gateway (ClusterIP), so Cloudflare's header can be trusted there
+          NTFY_PROXY_FORWARDED_HEADER: '{{ if eq .Values.global.publicGateway "public" }}CF-Connecting-IP{{ else }}X-Forwarded-For{{ end }}'
           NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
           NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
           NTFY_AUTH_DEFAULT_ACCESS: deny-all
