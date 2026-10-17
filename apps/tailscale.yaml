@@ -52,7 +52,7 @@ rbac:
 externalSecrets:
   auth:
     forceRename: tailscale-auth
-    # secret/tailscale/auth-key in OpenBao (property auth-key), written in step 12 (Headscale)
+    # secret/tailscale/auth-key in OpenBao (property auth-key), written in step 13 (Headscale)
     secretStoreRef:
       kind: SecretStore
       name: openbao

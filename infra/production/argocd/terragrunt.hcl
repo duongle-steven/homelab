@@ -2,7 +2,7 @@ include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
-# The cluster comes from Ansible (make -C metal) until step 11
+# The cluster comes from Ansible (make -C metal) until step 12
 terraform {
   source = "${find_in_parent_folders("_modules")}//argocd"
 }

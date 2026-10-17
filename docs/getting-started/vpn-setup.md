@@ -6,7 +6,7 @@ WireGuard but keep Tailscale as a backup for when the WireGuard server is down.
 
 ## Tailscale (requires third-party account)
 
-The auth key will come from Headscale (roadmap step 12), which replaces Tailscale's service; until then
+The auth key will come from Headscale (roadmap step 13), which replaces Tailscale's service; until then
 `apps/tailscale.yaml` waits for `secret/tailscale/auth-key` in OpenBao. To use Tailscale's service before that, write a
 key from the [admin console](https://login.tailscale.com/admin/authkeys) with the admin role
 ([emergency access](../concepts/secrets-management.md#emergency-access)):

@@ -14,13 +14,13 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | #31 (7b) | Argo CD's `argocd-notifications-cm` keeps the chart default `argocdUrl: https://argocd.example.com` | any |
 | #31 (7b) | Forgejo's `[server]` ConfigMap duplicates what the chart derives from the route host | any |
 | #31 (7b) | `global.timezone` is read by no chart | any |
-| #31 (7b) | The tests hard-code `*.127-0-0-1.nip.io` | 11 (staging) |
+| #31 (7b) | The tests hard-code `*.127-0-0-1.nip.io` | 12 (staging) |
 | #31 (7b) | The seed `sed` breaks on `&` or `\|` in `seed_repository`; `SEED_REPOSITORY` duplicates `global.seedRepository` | any |
-| #31 (7b) | woodpecker's and zot's config changes do not roll their pods | 9 (Git and CI) |
+| #31 (7b) | woodpecker's and zot's config changes do not roll their pods | 10 (Git and CI) |
 | #31 (7b) | `scripts/check-env-config`'s untemplated-global check knows only four keys | any |
 | #32 (7c) | `.envrc` exports the Cloudflare token to every process in the repo shell | 8c (OAuth through `cf`) |
 | #32 (7c) | `.direnv/` and `site/` are not git-ignored | any |
-| #34 (8a) | Two destinations of one generated secret can drift if one is lost after its source Secret was regenerated (`Replace` would overwrite restored values) | 10 (backups) |
+| #34 (8a) | Two destinations of one generated secret can drift if one is lost after its source Secret was regenerated (`Replace` would overwrite restored values) | 11 (backups) |
 | #34 (8a) | `TestSecretsAudience` matches the plugin's "invalid audience" message | any |
 | 8b | `infra/_modules/secrets/wait-namespace.sh` names OpenBao and `platform/openbao` (copied) instead of `infra-secrets` | any |
 | 8b | `apply-secrets.sh`'s kubectl errors are hidden (OpenTofu suppresses output when `MANIFEST` is sensitive) | any |
@@ -30,3 +30,4 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 8b | `InfoInhibitor` reaches phones: the Alertmanager config override drops the chart's `null` receiver | any |
 | 8b | `external-dns/cloudflare#zone_id` is pushed but never read (no `--zone-id-filter`) | any |
 | 8b | The 8b spec lists hashicorp/random, which the `secrets` module does not use | any |
+| 9 (chat) | `system/rook-ceph` pins Rook 1.13.5 (latest v1.21.0): upgrade when Ceph first runs | 12 (Nodes) |

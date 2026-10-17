@@ -53,7 +53,7 @@ save it there as well.
 
 ## Add backup credentials
 
-Not wired yet: step 10 replaces this guide with VolSync (backups declared per app), and its credentials will reach
+Not wired yet: step 11 replaces this guide with VolSync (backups declared per app), and its credentials will reach
 OpenBao through `platform/infra-secrets`. The k8up-era `scripts/backup` and `make backup` were removed in step 8b.
 
 ## Add backup configuration for volumes
