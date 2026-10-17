@@ -56,6 +56,50 @@ persistence:
     size: 1Gi
     globalMounts:
       - path: /var/lib/ntfy
+  templates:
+    type: configMap
+    identifier: templates
+    globalMounts:
+      - path: /etc/ntfy/templates
+        readOnly: true
+# Alertmanager posts with ?template=alerts: ntfy's built-in alertmanager template plus a priority (critical 5, info 1,
+# resolved 2), which a named template takes only from its file, never from the URL
+configMaps:
+  templates:
+    data:
+      alerts.yml: |
+        {{`
+        title: |
+          {{- if eq .status "firing" }}
+          🚨 Alert: {{ (first .alerts).labels.alertname }}
+          {{- else }}
+          ✅ Resolved: {{ (first .alerts).labels.alertname }}
+          {{- end }}
+        priority: |
+          {{- if eq .status "resolved" }}2
+          {{- else if eq (first .alerts).labels.severity "critical" }}5
+          {{- else if eq (first .alerts).labels.severity "info" }}1
+          {{- else }}3{{ end }}
+        message: |
+          Status: {{ .status | title }}
+          Receiver: {{ .receiver }}
+          {{- range .alerts }}
+
+          Alert: {{ .labels.alertname }}
+          Namespace: {{ .labels.namespace }}
+          Severity: {{ .labels.severity }}
+          Starts at: {{ .startsAt }}
+          {{- if .annotations.summary }}
+          Summary: {{ .annotations.summary }}
+          {{- end }}
+          {{- if .annotations.description }}
+          Description: {{ .annotations.description }}
+          {{- end }}
+          {{- if .annotations.runbook_url }}
+          Runbook: {{ .annotations.runbook_url }}
+          {{- end }}
+          {{- end }}
+        `}}
 externalSecrets:
   auth:
     forceRename: ntfy-auth
