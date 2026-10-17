@@ -47,6 +47,7 @@ CI, Backups, Nodes and Remote access become 10 to 13.
 | Grafana | Data source `http://loki.loki:3100` in production and the sandbox |
 | Sandbox | `system/loki` joins the sandbox's root list; smaller PVC and retention (`values-dev.yaml`) |
 | Roadmap | Step 9 Logs; old 9 to 12 become 10 to 13 everywhere they are named |
+| Backup | Not in this step: step 11 decides whether Loki's PVC is backed up (default: not) |
 
 ## Design
 
@@ -84,7 +85,8 @@ the sandbox too (done)" and renumbers 9–12 to 10–13; every "step 9/10/11/12"
   buffer are lost; kube-prometheus-stack's pod alerts (crash loops, PVC filling up) reach ntfy.
 - A pod deleted before Alloy read its last lines: they are lost (the kubelet removes its log directory).
 - The events instance moves to another Alloy pod (node drain): a few events may be delivered twice.
-- Losing Loki's PVC loses past logs only; no backup (step 11 leaves logs out).
+- Losing Loki's PVC loses past logs only. Whether step 11 (backups) declares Loki's PVC is decided there; until then
+  logs have no backup.
 
 ## Testing
 
