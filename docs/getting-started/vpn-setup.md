@@ -6,26 +6,11 @@ WireGuard but keep Tailscale as a backup for when the WireGuard server is down.
 
 ## Tailscale (requires third-party account)
 
-Get an [auth key](https://tailscale.com/kb/1085/auth-keys) from [Tailscale admin console](https://login.tailscale.com/admin/authkeys):
-
-- Description: homelab
-- Reusable: optionally set this to true
-
-Add it to `external/terraform.tfvars` as an extra secret:
-
-```hcl
-extra_secrets = {
-  tailscale-auth-key = "tskey-auth-myauthkeyhere"
-}
-```
-
-You may want to back up the `external/terraform.tfvars` file to a secure location.
-
-Apply the secret:
-
-```sh
-make external
-```
+The auth key will come from Headscale (roadmap step 12), which replaces Tailscale's service; until then
+`apps/tailscale.yaml` waits for `secret/tailscale/auth-key` in OpenBao. To use Tailscale's service before that, write a
+key from the [admin console](https://login.tailscale.com/admin/authkeys) with the admin role
+([emergency access](../concepts/secrets-management.md#emergency-access)):
+`bao kv put secret/tailscale/auth-key auth-key=-` (the key on stdin).
 
 Finally, [enable subnet routes](https://tailscale.com/kb/1019/subnets#step-3-enable-subnet-routes-from-the-admin-console) for `homelab-router`
 from the [admin console](https://login.tailscale.com/admin/machines).
@@ -58,27 +43,11 @@ Next, configure port forwarding in your router for the WireGuard service.
     - Start Port Local: `51820`
     - End Port Local: `51820`
 
-Generate a key pair for the server:
+The server's key pair comes from OpenTofu (`infra/production/secrets`): its private key reaches the cluster through
+OpenBao, and its public key, which every peer needs, is
 
 ```sh
-wg genkey | tee /dev/tty | wg pubkey
-```
-
-This will generate a private key and a public key, in that order. Add the
-private key to `external/terraform.tfvars` as an extra secret:
-
-```hcl
-extra_secrets = {
-  wireguard-private-key = "privatekeyhere"
-}
-```
-
-You may want to back up the `external/terraform.tfvars` file to a secure location.
-
-Apply the secret:
-
-```sh
-make external
+cd infra/production/secrets && terragrunt output -raw wireguard_public_key
 ```
 
 I use `172.16.0.0/12` as the private IP range for WireGuard, but you can choose

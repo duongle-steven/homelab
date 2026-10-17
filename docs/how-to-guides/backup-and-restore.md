@@ -51,26 +51,10 @@ save it there as well.
     - I also set up Minio replication to store backups in two locations: one in
       my house and one remotely.
 
-## Add backup credentials to global secrets
+## Add backup credentials
 
-Add the following to `external/terraform.tfvars`:
-
-```hcl
-extra_secrets = {
-  restic-password = "xxxxxxxxxxxxxxxxxxxxxxxx"
-  restic-s3-bucket = "https://s3.amazonaws.com/my-homelab-backup-xxxxxxxxxx"
-  restic-s3-access-key = "xxxxxxxxxxxxxxxx"
-  restic-s3-secret-key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-}
-```
-
-Then apply the changes:
-
-```sh
-make external
-```
-
-You may want to back up the `external/terraform.tfvars` file to a secure location as well.
+Not wired yet: step 10 replaces this guide with VolSync (backups declared per app), and its credentials will reach
+OpenBao through `platform/infra-secrets`. The k8up-era `scripts/backup` and `make backup` were removed in step 8b.
 
 ## Add backup configuration for volumes
 

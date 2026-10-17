@@ -15,7 +15,7 @@ Everything that depends on where your homelab runs lives in `infra/production/cl
 - `vip`: the Kubernetes API address; `network.gateway`, `network.prefix_length`: your router and LAN prefix
 - `service_vips`: the LAN addresses of the Gateway and wireguard, outside your router's DHCP range
 
-Charts read these from there (`scripts/check-env-config` checks that none is written into a chart or app file). Three settings still need a hand edit, because their charts cannot take them from `config.json`: the domain in `apps/matrix/values.yaml` (Matrix), and the time zone in `system/kured/values.yaml` (automatic reboots) and `metal/roles/pxe_server/defaults/main.yml` (node installation). Also change `organization` in `external/versions.tf` to your Terraform Cloud organization: `external/` keeps ntfy and the extra secrets there until step 8.
+Charts read these from there (`scripts/check-env-config` checks that none is written into a chart or app file). Three settings still need a hand edit, because their charts cannot take them from `config.json`: the domain in `apps/matrix/values.yaml` (Matrix), and the time zone in `system/kured/values.yaml` (automatic reboots) and `metal/roles/pxe_server/defaults/main.yml` (node installation).
 
 !!! example
 
