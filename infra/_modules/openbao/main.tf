@@ -31,7 +31,8 @@ resource "random_bytes" "key" {
 }
 
 # prevent_destroy cannot take a variable, so it guards the key from a resource of its own: with protect set, a plan
-# that would replace or destroy the key fails. Changing protect never changes the key
+# that would replace or destroy the key fails. Changing protect never changes the key; turning it off fails too
+# (removing the guard is a destroy): run `tofu state rm 'terraform_data.protected[0]'` first
 resource "terraform_data" "protected" {
   count            = var.protect ? 1 : 0
   triggers_replace = [sha256(random_bytes.key.base64)]

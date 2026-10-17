@@ -55,7 +55,7 @@ removed) and 8c (OpenTofu state on Cloudflare R2 with state encryption).
 | Generating | `platform/global-secrets` keeps the `Password` generators; a `PushSecret` per entry writes it to each destination (`updatePolicy: IfNotExists`, checked hourly so a lost destination is pushed again) through a `SecretStore` with role `writer` |
 | Writer policy | `create`, `read`, `update` on `secret/data/+/generated/*` and `secret/metadata/+/generated/*` (what ESO's push needs); no `delete`; it never reaches what OpenTofu writes (8b) |
 | Audience | Every role requires audience `openbao`; the `SecretStore`s request it (`serviceAccountRef.audiences`) |
-| Key protection | One `random_bytes`; production's `protect` adds a `prevent_destroy` guard whose trigger is the key, so a plan that would replace or destroy it fails, and flipping `protect` never changes the key |
+| Key protection | One `random_bytes`; production's `protect` adds a `prevent_destroy` guard whose trigger is the key, so a plan that would replace or destroy it fails, and flipping `protect` never changes the key (turning it off needs the guard removed from state first) |
 | Shared secrets | One generated value pushed to several branches (Forgejo's admin password to `secret/forgejo/generated/admin` and `secret/argocd/generated/forgejo-admin`) |
 | Old store | `ClusterSecretStore` `global-secrets` removed; every `ExternalSecret` moves to `SecretStore` `openbao` |
 
