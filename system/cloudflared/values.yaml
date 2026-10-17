@@ -40,7 +40,7 @@ app-template:
     credentials:
       enabled: true
       type: secret
-      # credentials.json from infra/_modules/cloudflare (output secrets); it reaches the cluster in step 8 (OpenBao)
+      # credentials.json from OpenBao (templates/credentials-secret.yaml)
       name: cloudflared-credentials
       globalMounts:
         - path: /etc/cloudflared/credentials.json
