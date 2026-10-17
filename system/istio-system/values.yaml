@@ -21,6 +21,9 @@ istiod:
         memory: 128Mi
 cni:
   <<: *ambient
+  # Istio's own CNI config file (02-istio-cni.conflist) survives a node restart, so pods that start again before the
+  # agent has reconciled them still go through istio-cni (istio/istio#55968)
+  istioOwnedCNIConfig: true
   resources:
     requests:
       cpu: 10m
