@@ -52,7 +52,7 @@ Cloud state, ntfy, extra secrets) and the k8up-era `scripts/backup` are removed.
 | WireGuard | `wireguard_asymmetric_key` in the unit; output `wireguard_public_key` (for peers); a `prevent_destroy` guard in production, as `infra/<env>/openbao` |
 | Tailscale | Not in this step: `tailscale/auth-key` comes from Headscale in step 12 (upstream `master` pasted a 90-day auth key into `external/terraform.tfvars`) |
 | Secret names | One Secret per OpenBao path, `<namespace>.<name>` (`cert-manager.cloudflare`, …), keys = properties |
-| ntfy | `apps/ntfy.yaml` (namespace `ntfy`), routes on the LAN Gateway and `global.publicGateway`, `deny-all`, signup and attachments off, `NTFY_UPSTREAM_BASE_URL=https://ntfy.sh` in production only |
+| ntfy | `apps/ntfy.yaml` (namespace `ntfy`), one route on `global.publicGateway` (as excalidraw: a LAN route on the same host would compete for the DNS record), `deny-all`, signup and attachments off, `NTFY_UPSTREAM_BASE_URL=https://ntfy.sh` in production only |
 | ntfy users | `alerts` (write-only on topic `alerts`, Alertmanager) and `phone` (read-only, people's apps); passwords and tokens from `platform/global-secrets` |
 | Alertmanager | Posts to `http://ntfy.ntfy/alerts?template=alertmanager` with the `alerts` token; Watchdog as upstream (delayed message, `sequence_id`); relay container `webhook-transformer` removed; enabled in the sandbox too |
 | Removed | `external/`, `scripts/backup`, the root Makefile's `external`, `backup`, `restore` targets, `system/monitoring-system/files/webhook-transformer`, egress 443 for `monitoring-system` |
@@ -110,8 +110,8 @@ calls).
 `phone:alerts:ro`, `NTFY_AUTH_USERS` and `NTFY_AUTH_TOKENS` from an `ExternalSecret` (the bcrypt hashes come from ESO's
 `htpasswd` template function, as zot's). `global-secrets` entries generate each user's password and token (ntfy
 tokens are `tk_` plus 29 characters) and push them to `ntfy/generated/…`; the `alerts` token also to
-`monitoring-system/generated/ntfy`. Routes: the LAN Gateway and `global.publicGateway` (`public` in production: the
-Tunnel; external-dns publishes the record). `allow`: the Gateways on its port, Alertmanager's service account.
+`monitoring-system/generated/ntfy`. Route: `global.publicGateway` only (`public` in production: the Tunnel; external-dns
+publishes the record; at home too, phones go through Cloudflare). `allow`: that Gateway on its port, Alertmanager's service account.
 Egress: `ntfy` 443 (ntfy.sh, production). `NTFY_UPSTREAM_BASE_URL` stays empty in the sandbox, so it sends nothing out.
 
 People subscribe in the ntfy app (Android, iOS) to server `https://ntfy.<domain>`, topic `alerts`, user `phone`

@@ -12,12 +12,12 @@ internet:
   cert-manager: [{port: 443}, {port: 53}, {port: 53, protocol: UDP}]  # ACME, Cloudflare API; DNS01 self-check
   external-dns: [{port: 443}]  # Cloudflare API
   cloudflared: [{port: 443}, {port: 7844}, {port: 7844, protocol: UDP}]  # Cloudflare edge
-  monitoring-system: [{port: 443}]  # ntfy.sh relay
   forgejo: [{port: 443}]  # seed clone, mirrors
   renovate: [{port: 80}, {port: 443}]
   woodpecker: [{port: 80}, {port: 443}]  # pipelines
   ollama: [{port: 443}]  # models
   matrix: [{port: 443}, {port: 8448}]  # federation
+  ntfy: [{port: 443}]  # ntfy.sh: iOS push (upstream-base-url, production)
   jellyfin: [{}]  # torrents, indexers, Seerr: every port
   tailscale: [{port: 443}, {protocol: UDP}]  # DERP; STUN and direct connections on any UDP port
   wireguard: [{port: 51820, protocol: UDP}]  # handshakes and keepalives to server peers (apps/wireguard.yaml)
