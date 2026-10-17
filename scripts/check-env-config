@@ -38,6 +38,8 @@ class Loader(yaml.SafeLoader):
 Loader.add_constructor("tag:yaml.org,2002:value", lambda loader, node: loader.construct_scalar(node))
 # Ranges written as such in system/egress, and only there (the private ranges it excludes from "internet")
 EGRESS = "system/egress"
+# Charts every Application renders into its namespace as an extra source (system/argocd/values.yaml)
+SHARED = ("system/egress", "system/secret-store")
 
 
 def domains():
@@ -173,26 +175,32 @@ def main():
             source = spec["template"]["spec"].get("source") or spec["template"]["spec"]["sources"][0]
             if "addresses" not in source.get("helm", {}).get("valuesObject", {}).get("global", {}):
                 failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not pass global.addresses")
-            # Every Application renders system/egress (default-deny egress) into its namespace
-            egress = [s for s in spec["template"]["spec"].get("sources") or [] if s.get("path") == "system/egress"]
-            if not egress:
-                failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} lacks the system/egress source")
-            elif "addresses" not in egress[0].get("helm", {}).get("valuesObject", {}).get("global", {}):
-                failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not pass global.addresses to system/egress")
-            if doc["metadata"]["name"] == "root":
-                dirs = generators[0].get("git", {}).get("directories", [])
-                if any(d.get("path") in ("system/*", "system/egress") for d in dirs) and not any(
-                        d.get("path") == "system/egress" and d.get("exclude") for d in dirs):
-                    failures.append(f"system/argocd ({env}): the root generator would deploy system/egress on its own")
+            # Every Application renders system/egress (default-deny egress) and system/secret-store (its OpenBao
+            # SecretStore) into its namespace
+            for shared in SHARED:
+                found = [s for s in spec["template"]["spec"].get("sources") or [] if s.get("path") == shared]
+                if not found:
+                    failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} lacks the {shared} source")
+                elif "addresses" not in found[0].get("helm", {}).get("valuesObject", {}).get("global", {}):
+                    failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not pass global.addresses to {shared}")
+                if doc["metadata"]["name"] == "root":
+                    dirs = generators[0].get("git", {}).get("directories", [])
+                    if any(d.get("path") in ("system/*", shared) for d in dirs) and not any(
+                            d.get("path") == shared and d.get("exclude") for d in dirs):
+                        failures.append(f"system/argocd ({env}): the root generator would deploy {shared} on its own")
     # Argo CD reaches the internet on port 443 only (system/egress): chart repositories must be https or oci
     for chart in sorted(glob.glob("system/*/Chart.yaml") + glob.glob("platform/*/Chart.yaml") + glob.glob("apps/*/Chart.yaml")):
         with open(chart) as f:
             for dependency in (yaml.safe_load(f) or {}).get("dependencies") or []:
                 if dependency.get("repository", "").startswith("http://"):
                     failures.append(f"{chart}: {dependency['name']} comes from {dependency['repository']} (Argo CD reaches only port 443)")
-    # The egress table names only namespaces something deploys into
     with open("system/egress/values.yaml") as f:
         egress_values = yaml.safe_load(f)
+    # The same namespaces stay out of both shared charts (keep in step with the root templatePatch)
+    with open("system/secret-store/values.yaml") as f:
+        if yaml.safe_load(f).get("exclude") != egress_values.get("exclude"):
+            failures.append("system/secret-store: exclude differs from system/egress's")
+    # The egress table names only namespaces something deploys into
     deployed = [os.path.basename(t).removesuffix(".yaml") for t in targets()]
     namespaces = set(deployed)
     # system/egress's policy names are fixed: two Applications in one namespace would render the same objects

@@ -1,22 +1,31 @@
-# Random secrets generated once per cluster and shared through the global-secrets ClusterSecretStore.
-# They are never rotated automatically; see docs/concepts/secrets-management.md.
+# Random secrets generated once per cluster (Password generators, Secrets in this namespace) and pushed once to each
+# reader's branch of OpenBao, secret/<namespace>/generated/<name>, the only paths the writer reaches
+# (templates/push-secrets.yaml); readers use their namespace's SecretStore openbao.
+# Never rotated automatically; see docs/concepts/secrets-management.md.
 secrets:
   - name: forgejo.admin
     key: password
     special: true
+    # Argo CD reads the GitOps repository with it
+    destinations: [forgejo/generated/admin, argocd/generated/forgejo-admin]
   - name: woodpecker.agent
     key: secret
+    destinations: [woodpecker/generated/agent]
   - name: paperless.admin
     key: PAPERLESS_ADMIN_PASSWORD
     special: true
+    destinations: [paperless/generated/admin]
   # paperless 3 refuses to start without it
   - name: paperless.secret-key
     key: PAPERLESS_SECRET_KEY
     length: 64
+    destinations: [paperless/generated/secret-key]
   - name: grafana.admin
     key: password
     special: true
+    destinations: [grafana/generated/admin]
   - name: registry.ci
     key: password
+    destinations: [zot/generated/ci]
 # Environment-specific additions, so the list above does not have to be restated
 extraSecrets: []

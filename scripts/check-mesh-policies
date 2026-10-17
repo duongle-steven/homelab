@@ -70,6 +70,8 @@ GRAFANA = "cluster.local/ns/grafana/sa/grafana"
 # only when this kind is rendered, why)
 EXTRA = [
     ("platform/kanidm", GATEWAYS["gateway"], 8443, None, "kaniop creates Kanidm's HTTPRoute"),
+    ("platform/openbao", "cluster.local/ns/external-secrets/sa/external-secrets", 8200, None,
+     "External Secrets reads (SecretStore openbao) and pushes (openbao-writer) secrets"),
     ("platform/forgejo", "cluster.local/ns/argocd/sa/argocd-repo-server", 3000, "Cluster",
      "production Argo CD syncs from Forgejo"),
     ("platform/forgejo", None, 8000, "Cluster", "the CloudNativePG operator polls forgejo-db's status port"),

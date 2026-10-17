@@ -13,7 +13,7 @@ default: metal infra external smoke-test clean
 # The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on
 dev: sandbox-push
 	cd infra/sandbox && $(terragrunt_apply)
-	$(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress' sandbox-refresh smoke-test
+	$(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets' sandbox-refresh smoke-test
 
 sandbox-push:
 	@if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \

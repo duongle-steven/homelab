@@ -26,6 +26,9 @@ argocd-apps:
                     - path: system/*
                     - path: system/egress
                       exclude: true
+                    # Rendered into every namespace by each Application (template below), not on its own
+                    - path: system/secret-store
+                      exclude: true
                     - path: platform/*
                     - path: apps/*
               - git: &config
@@ -55,6 +58,13 @@ argocd-apps:
             - &egress
               repoURL: *repoURL
               path: system/egress
+              targetRevision: *revision
+              helm:
+                valuesObject: *values
+            # The namespace's SecretStore openbao (its branch of OpenBao)
+            - &secretStore
+              repoURL: *repoURL
+              path: system/secret-store
               targetRevision: *revision
               helm:
                 valuesObject: *values
@@ -93,3 +103,4 @@ argocd-apps:
               targetRevision: *revision
               ref: values
             - *egress
+            - *secretStore

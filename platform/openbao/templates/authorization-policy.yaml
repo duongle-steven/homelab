@@ -1,0 +1,20 @@
+# Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow
+  namespace: {{ .Release.Namespace }}
+spec:
+  action: ALLOW
+  rules:
+    # Pods in this namespace call each other freely
+    - from:
+        - source:
+            namespaces: ["{{ .Release.Namespace }}"]
+    # External Secrets' controller reads every namespace's branch and pushes generated secrets
+    - from:
+        - source:
+            principals: ["cluster.local/ns/external-secrets/sa/external-secrets"]
+      to:
+        - operation:
+            ports: ["8200"]

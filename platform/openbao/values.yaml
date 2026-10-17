@@ -1,0 +1,142 @@
+openbao:
+  injector:
+    enabled: false
+  ui:
+    enabled: false
+  server:
+    image:
+      tag: 2.7.1
+    # The chart's OnDelete would leave the running pod on the old image and config after a sync
+    updateStrategyType: RollingUpdate
+    dataStorage:
+      size: 1Gi
+    # OpenTofu's unit infra/<env>/openbao writes this Secret; the pod waits for it
+    volumes:
+      - name: unseal
+        secret:
+          secretName: openbao-unseal
+    volumeMounts:
+      - name: unseal
+        mountPath: /openbao/unseal
+        readOnly: true
+    standalone:
+      enabled: true
+      # The chart passes this through Helm's tpl: OpenBao's own template (policy apps) is wrapped in {{` `}}.
+      # Self-initialisation runs once, on an empty storage; changing it later needs the admin role
+      # (docs/concepts/secrets-management.md). HOSTNAME is replaced by the pod name at start.
+      config: |
+        ui = false
+        disable_mlock = true
+
+        # Plain HTTP: ztunnel's mTLS carries every connection inside the mesh
+        listener "tcp" {
+          address         = "[::]:8200"
+          cluster_address = "[::]:8201"
+          tls_disable     = true
+        }
+
+        storage "raft" {
+          path    = "/openbao/data"
+          node_id = "HOSTNAME"
+        }
+
+        seal "static" {
+          current_key_id = "homelab-1"
+          current_key    = "file:///openbao/unseal/key"
+        }
+
+        initialize "mounts" {
+          request "kv" {
+            operation = "update"
+            path      = "sys/mounts/secret"
+            data = {
+              type    = "kv"
+              options = { version = "2" }
+            }
+          }
+          request "kubernetes" {
+            operation = "update"
+            path      = "sys/auth/kubernetes"
+            data      = { type = "kubernetes" }
+          }
+          request "kubernetes-config" {
+            operation = "update"
+            path      = "auth/kubernetes/config"
+            data      = { kubernetes_host = "https://kubernetes.default.svc" }
+          }
+          # Its accessor names the namespace in policy apps
+          request "kubernetes-read" {
+            operation = "read"
+            path      = "sys/auth/kubernetes"
+          }
+        }
+
+        initialize "policies" {
+          # A namespace's default service account reads its own branch, secret/<namespace>/
+          request "apps" {
+            operation = "update"
+            path      = "sys/policies/acl/apps"
+            data = {
+              policy = {
+                eval_type   = "string"
+                eval_source = "template"
+                template    = "{{`path \"secret/data/{{ \"{{\" }}identity.entity.aliases.{{ (index .responses.mounts \"kubernetes-read\").data.accessor }}.metadata.service_account_namespace{{ \"}}\" }}/*\" { capabilities = [\"read\"] }`}}"
+              }
+            }
+          }
+          # platform/global-secrets pushes generated secrets, only to secret/<namespace>/generated/: it never reaches what
+          # others write (OpenTofu, step 8b). External Secrets reads a path and its metadata before it writes them, so
+          # the writer reads too; IfNotExists keeps existing values. No delete
+          request "writer" {
+            operation = "update"
+            path      = "sys/policies/acl/writer"
+            data = {
+              policy = "path \"secret/data/+/generated/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/+/generated/*\" { capabilities = [\"create\", \"read\", \"update\"] }"
+            }
+          }
+          # Emergency access: no root token exists
+          request "admin" {
+            operation = "update"
+            path      = "sys/policies/acl/admin"
+            data = {
+              policy = "path \"*\" { capabilities = [\"create\", \"read\", \"update\", \"patch\", \"delete\", \"list\", \"sudo\"] }"
+            }
+          }
+        }
+
+        # Every role accepts only tokens issued for OpenBao (audience openbao), never ones the API server accepts
+        initialize "roles" {
+          request "apps" {
+            operation = "update"
+            path      = "auth/kubernetes/role/apps"
+            data = {
+              bound_service_account_names      = ["default"]
+              bound_service_account_namespaces = ["*"]
+              token_policies                   = ["apps"]
+              audience                         = "openbao"
+              token_ttl                        = "10m"
+            }
+          }
+          request "writer" {
+            operation = "update"
+            path      = "auth/kubernetes/role/writer"
+            data = {
+              bound_service_account_names      = ["default"]
+              bound_service_account_namespaces = ["global-secrets"]
+              token_policies                   = ["writer"]
+              audience                         = "openbao"
+              token_ttl                        = "10m"
+            }
+          }
+          request "admin" {
+            operation = "update"
+            path      = "auth/kubernetes/role/admin"
+            data = {
+              bound_service_account_names      = ["openbao-admin"]
+              bound_service_account_namespaces = ["openbao"]
+              token_policies                   = ["admin"]
+              audience                         = "openbao"
+              token_ttl                        = "1h"
+            }
+          }
+        }
