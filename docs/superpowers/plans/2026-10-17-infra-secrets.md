@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Cloudflare's, WireGuard's and Tailscale's secrets reach OpenBao as Kubernetes Secrets OpenTofu writes and a
+**Goal:** Cloudflare's and WireGuard's secrets reach OpenBao as Kubernetes Secrets OpenTofu writes and a
 `PushSecret` pushes; alerts go to a self-hosted ntfy published through the Tunnel; `external/` and `scripts/backup`
 disappear.
 
@@ -123,14 +123,12 @@ secrets:
     properties: [credentials.json]
   - path: wireguard/private-key
     properties: [private-key]
-  - path: tailscale/auth-key
-    properties: [auth-key]
 ```
 
 `platform/infra-secrets/values-dev.yaml`:
 
 ```yaml
-# The sandbox has no Cloudflare, WireGuard or Tailscale; the WireGuard key proves the path (test/secrets_test.go)
+# The sandbox has no Cloudflare or WireGuard; the WireGuard key proves the path (test/secrets_test.go)
 secrets:
   - path: wireguard/private-key
     properties: [private-key]
@@ -276,13 +274,12 @@ Run: `cd test && go vet ./...` — Expected: no output (compiles). The test runs
 
 - [ ] **Step 5: Verify the checker (GREEN) and renders**
 
-Run: `direnv exec . scripts/render-chart platform/infra-secrets` — Expected: 1 ServiceAccount, 1 SecretStore, 5 PushSecrets
-(`cert-manager.cloudflare`, `external-dns.cloudflare`, `cloudflared.cloudflare`, `wireguard.private-key`,
-`tailscale.auth-key`).
+Run: `direnv exec . scripts/render-chart platform/infra-secrets` — Expected: 1 ServiceAccount, 1 SecretStore, 4 PushSecrets
+(`cert-manager.cloudflare`, `external-dns.cloudflare`, `cloudflared.cloudflare`, `wireguard.private-key`).
 Run: `direnv exec . scripts/render-chart platform/infra-secrets dev` — Expected: only `wireguard.private-key` among PushSecrets.
 Run: `direnv exec . scripts/check-secret-stores` — Expected: failures "pushes cert-manager/cloudflare, which no
-ExternalSecret in namespace cert-manager reads" (and the same for external-dns, cloudflared) until Task 3. Wireguard and
-tailscale already have readers. Record the output; it is this task's RED for Task 3.
+ExternalSecret in namespace cert-manager reads" (and the same for external-dns, cloudflared) until Task 3. WireGuard already has a
+reader (`apps/wireguard.yaml`). Record the output; it is this task's RED for Task 3.
 Then break it on purpose: temporarily change one path in `values.yaml` to `grafana/generated/x` — Expected: "pushes
 grafana/generated/x: platform/infra-secrets writes nothing under <namespace>/generated/". Revert.
 
@@ -301,14 +298,12 @@ git commit -m "feat(infra-secrets): push OpenTofu's secrets into OpenBao through
 - Create: `infra/_modules/secrets/main.tf`, `infra/_modules/secrets/apply-secrets.sh`
 - Create: `infra/sandbox/secrets/terragrunt.hcl`, `infra/production/secrets/terragrunt.hcl`
 - Reuse: `infra/_modules/openbao/wait-namespace.sh` (copy into the module: modules are copied alone into the cache)
-- Modify: `.envrc` (`source_env_if_exists ~/.config/homelab/secrets.env`)
 - Test: `test/secrets_test.go` (`TestSecretsInfraPush`)
 
 **Interfaces:**
 - Consumes: namespace `infra-secrets`, Secret naming `<namespace>.<name>` from Task 1.
 - Produces: output `wireguard_public_key` (string), Secrets `wireguard.private-key` (key `private-key`), production
-  `cert-manager.cloudflare`, `external-dns.cloudflare`, `cloudflared.cloudflare`, and `tailscale.auth-key` when
-  `TF_VAR_tailscale_auth_key` is set.
+  `cert-manager.cloudflare`, `external-dns.cloudflare`, `cloudflared.cloudflare`.
 
 - [ ] **Step 1: Write the failing test `TestSecretsInfraPush`**
 
@@ -377,13 +372,6 @@ variable "secrets" {
   description = "OpenBao path (<namespace>/<name>) to properties, from other units (infra/<env>/cloudflare's output secrets)"
 }
 
-variable "tailscale_auth_key" {
-  type        = string
-  default     = ""
-  sensitive   = true
-  description = "TF_VAR_tailscale_auth_key from ~/.config/homelab/secrets.env; empty: not written"
-}
-
 variable "protect" {
   type        = bool
   default     = false
@@ -407,7 +395,6 @@ locals {
   secrets = merge(
     var.secrets,
     { "wireguard/private-key" = { "private-key" = wireguard_asymmetric_key.wireguard.private_key } },
-    var.tailscale_auth_key == "" ? {} : { "tailscale/auth-key" = { "auth-key" = var.tailscale_auth_key } },
   )
   manifest = yamlencode({
     apiVersion = "v1"
@@ -515,9 +502,6 @@ inputs = {
 }
 ```
 
-`.envrc`: after the `cloudflare.env` line add
-`source_env_if_exists ~/.config/homelab/secrets.env  # TF_VAR_tailscale_auth_key (infra/<env>/secrets)`.
-
 Note: `var.secrets` is `map(map(string))`; the Cloudflare output's values are all strings (`credentials.json` is
 `jsonencode`d). If Terragrunt passes it as JSON with an object type mismatch, keep `map(map(string))` and fix the
 output's type, not the variable.
@@ -533,8 +517,8 @@ it does not need the cluster for planning. Do not apply. If the plan fails only 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add infra/_modules/secrets infra/sandbox/secrets infra/production/secrets .envrc test/secrets_test.go
-git commit -m "feat(infra): unit secrets writes OpenTofu's secrets (Cloudflare, WireGuard, Tailscale) into infra-secrets"
+git add infra/_modules/secrets infra/sandbox/secrets infra/production/secrets test/secrets_test.go
+git commit -m "feat(infra): unit secrets writes OpenTofu's secrets (Cloudflare, WireGuard) into infra-secrets"
 ```
 
 ---
@@ -847,8 +831,8 @@ rawResources:
 ```
 
 Check `htpasswd`'s output: ESO's v2 template `htpasswd` returns `user:hash`; ntfy wants `user:hash:role`, so the
-template appends `:user`. If the hash's cost is below ntfy's minimum (10), ntfy refuses to start: Task 8 shows it in
-the pod log; then use `bcrypt` cost from the function's arguments if it takes one, or record a Ruling.
+template appends `:user`. ntfy refuses bcrypt hashes below cost 10; ESO's `htpasswd` makes `$2a$10$` hashes (checked
+on zot's Secret in the sandbox, 2026-10-17), exactly the minimum.
 
 The excalidraw app file publishes only on `global.publicGateway`; ntfy follows it (one route: a LAN route on the same
 host would compete for the DNS record). Ruling to record: the spec's "routes on the LAN Gateway and
@@ -1099,8 +1083,7 @@ git commit -m "chore: remove external/ (ntfy and extra secrets now in the cluste
   `infra-secrets` to the mermaid diagram (OpenTofu → Secrets → PushSecret → `SecretStore openbao-infra` → role infra).
 - Replace "Extra third-party secrets (until step 8b)" with "Secrets from OpenTofu": the table of Task 1's entries with
   their source (Cloudflare unit output; WireGuard generated, `terragrunt output wireguard_public_key` in
-  `infra/<env>/secrets` for peers; Tailscale from `TF_VAR_tailscale_auth_key` in `~/.config/homelab/secrets.env`,
-  mode 600); adding one (OpenTofu `secrets` input or module local, plus an entry in `platform/infra-secrets/values.yaml`
+  `infra/<env>/secrets` for peers; Tailscale's key comes from Headscale in step 12); adding one (OpenTofu `secrets` input or module local, plus an entry in `platform/infra-secrets/values.yaml`
   and its reader); rotating (change in OpenTofu, `make infra env=…`, the PushSecret replaces OpenBao's within an hour or
   `force-sync`; restart the consumer); removing (delete the entry, then the OpenBao value with the admin role).
 - Policies list: add `infra`.
@@ -1131,13 +1114,12 @@ heartbeat missing"): if Prometheus or Alertmanager stop, it is delivered. If ntf
 stop, nothing is: an external dead man's switch is an idea in `CLAUDE.md`.
 ```
 
-- [ ] **Step 3: Other docs** — rewrite each Task 6 hit: `make external` and `terraform.tfvars` → `make infra env=production`
-  and `~/.config/homelab/secrets.env`; VPN keys → OpenTofu (`wireguard_public_key`) and `secrets.env`; backup page →
+- [ ] **Step 3: Other docs** — rewrite each Task 6 hit: `make external` and `terraform.tfvars` → `make infra env=production`; VPN keys → OpenTofu (`wireguard_public_key`) for WireGuard, Headscale (step 12) for Tailscale; backup page →
   "replaced in step 10 (VolSync); `scripts/backup` was removed in step 8b". Keep each page's structure.
 
 - [ ] **Step 4: `CLAUDE.md`**
 
-- Roadmap 8: `8b OpenTofu's secrets (Cloudflare, WireGuard, Tailscale) through infra-secrets into OpenBao, ntfy in the
+- Roadmap 8: `8b OpenTofu's secrets (Cloudflare, WireGuard) through infra-secrets into OpenBao, ntfy in the
   cluster, external/ removed (done)`.
 - Rules bullet "Secrets live in OpenBao": add "OpenTofu's secrets (`infra/<env>/secrets`) are Secrets in `infra-secrets`
   that `platform/infra-secrets` pushes outside `generated/` (role `infra`)".
@@ -1147,10 +1129,11 @@ stop, nothing is: an external dead man's switch is an idea in `CLAUDE.md`.
   cluster through `infra/production/secrets` (applied with `make infra env=production` after Argo CD created
   `infra-secrets`)"; replace the `external/versions.tf` sentence; WireGuard: "the server's public key is
   `terragrunt output wireguard_public_key` in `infra/production/secrets`"; Woodpecker/Renovate bullet: wireguard and
-  tailscale "written by `infra/production/secrets`; Tailscale needs `TF_VAR_tailscale_auth_key` in
-  `~/.config/homelab/secrets.env`"; new bullets: ntfy's public route (Tunnel, `public` Gateway, external-dns) untested;
+  wireguard "written by `infra/production/secrets`", tailscale "by Headscale in step 12"; new bullets: ntfy's public route (Tunnel, `public` Gateway, external-dns) untested;
   egress for `ntfy` 443 production-only rendered; the cert-manager, external-dns and cloudflared ExternalSecrets only
   rendered.
+- Roadmap 12: append "; Headscale issues `apps/tailscale`'s pre-auth key (`secret/tailscale/auth-key`)".
+- `apps/tailscale.yaml`: the comment "written in step 8b" becomes "written in step 12 (Headscale)".
 - Ideas: "An external dead man's switch (e.g. healthchecks.io) for the Watchdog: ntfy's delayed message cannot fire when
   ntfy, the Tunnel or the cluster is down."
 
@@ -1159,7 +1142,7 @@ stop, nothing is: an external dead man's switch is an idea in `CLAUDE.md`.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add docs CLAUDE.md mkdocs.yml
+git add docs CLAUDE.md mkdocs.yml apps/tailscale.yaml
 git commit -m "docs: secrets from OpenTofu, alerts through ntfy, external/ gone (step 8b)"
 ```
 

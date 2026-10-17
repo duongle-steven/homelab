@@ -5,7 +5,7 @@ Status: design approved in chat 2026-10-17, written spec awaiting review. Branch
 ## Goal
 
 Every secret the cluster needs comes from OpenBao. The ones OpenTofu creates (Cloudflare's tokens and Tunnel
-credentials, WireGuard's private key) or receives (Tailscale's auth key) reach OpenBao the way generated secrets do: as
+credentials, WireGuard's private key) reach OpenBao the way generated secrets do: as
 Kubernetes Secrets that a `PushSecret` writes into OpenBao, through a writer that can never touch `generated/`.
 Alerts go to a self-hosted ntfy (like upstream `nixos`), published through the Cloudflare Tunnel. `external/` (Terraform
 Cloud state, ntfy, extra secrets) and the k8up-era `scripts/backup` are removed.
@@ -31,7 +31,9 @@ Cloud state, ntfy, extra secrets) and the k8up-era `scripts/backup` are removed.
   posts a message delayed 15 minutes with `sequence_id: watchdog`, so a stopped heartbeat lets the last one fire (a
   dead man's switch inside ntfy). Upstream has no VPN apps; the home network here sits behind CGNAT, so a LAN-only ntfy
   would be unreachable outside home until step 12.
-- Decided 2026-10-17: OpenTofu generates what it can (WireGuard key); Tailscale's auth key comes from a user-only file;
+- Decided 2026-10-17: OpenTofu generates what it can (WireGuard key); Tailscale's auth key waits for step 12, where
+  Headscale issues pre-auth keys itself (no third-party credential; `apps/tailscale.yaml` runs only in production, not
+  deployed yet), so no secrets file is added;
   OpenTofu's values go through Kubernetes Secrets and `PushSecret` (not `kubectl exec` into OpenBao: ESO re-pushes
   within an hour if OpenBao loses its data, which has no backup until step 10, and it is the same pattern as
   `global-secrets`); ntfy self-hosted and published through the Tunnel, with iOS push through ntfy.sh (iPhone and
@@ -48,7 +50,7 @@ Cloud state, ntfy, extra secrets) and the k8up-era `scripts/backup` are removed.
 | Push policy | `updatePolicy: Replace` (OpenTofu is the source: a rotated Cloudflare token reaches OpenBao), `deletionPolicy: None`, hourly |
 | Cloudflare | Production: the `cloudflare` unit's output `secrets`, as a Terragrunt dependency |
 | WireGuard | `wireguard_asymmetric_key` in the unit; output `wireguard_public_key` (for peers); a `prevent_destroy` guard in production, as `infra/<env>/openbao` |
-| Tailscale | `TF_VAR_tailscale_auth_key` from `~/.config/homelab/secrets.env` (user-only, loaded by `.envrc` when present); unset: nothing written |
+| Tailscale | Not in this step: `tailscale/auth-key` comes from Headscale in step 12 (upstream `master` pasted a 90-day auth key into `external/terraform.tfvars`) |
 | Secret names | One Secret per OpenBao path, `<namespace>.<name>` (`cert-manager.cloudflare`, …), keys = properties |
 | ntfy | `apps/ntfy.yaml` (namespace `ntfy`), routes on the LAN Gateway and `global.publicGateway`, `deny-all`, signup and attachments off, `NTFY_UPSTREAM_BASE_URL=https://ntfy.sh` in production only |
 | ntfy users | `alerts` (write-only on topic `alerts`, Alertmanager) and `phone` (read-only, people's apps); passwords and tokens from `platform/global-secrets` |
@@ -60,8 +62,8 @@ Cloud state, ntfy, extra secrets) and the k8up-era `scripts/backup` are removed.
 ### OpenTofu unit `secrets`
 
 `infra/_modules/secrets` takes `kubeconfig`, `secrets` (map path → map property → value, sensitive, default `{}`),
-`tailscale_auth_key` (sensitive, default `""`) and `protect`. It adds `wireguard/private-key` (`private-key`, from
-`wireguard_asymmetric_key`) and, when set, `tailscale/auth-key` (`auth-key`). It waits for namespace `infra-secrets`
+and `protect`. It adds `wireguard/private-key` (`private-key`, from
+`wireguard_asymmetric_key`). It waits for namespace `infra-secrets`
 (as `infra/_modules/openbao`'s `wait-namespace.sh`: its own step, so the timeout message shows) and applies every Secret
 server-side, the values on stdin (one JSON document, never an argument or a file), on every run. Secrets it no longer
 renders are left alone (removal is by hand: deleting an OpenBao value is an admin decision).
@@ -81,7 +83,6 @@ per entry of `secrets` in its values (`<namespace>/<name>` with its properties):
 | `external-dns/cloudflare` | `api_token`, `zone_id` | production |
 | `cloudflared/cloudflare` | `credentials.json` | production |
 | `wireguard/private-key` | `private-key` | production, sandbox |
-| `tailscale/auth-key` | `auth-key` | production |
 
 `values-dev.yaml` lists only the sandbox's entries, so no `PushSecret` waits for a Secret its environment never writes.
 The namespace needs no mesh `allow` beyond the baseline (nothing calls it; External Secrets' controller makes the
@@ -118,7 +119,7 @@ People subscribe in the ntfy app (Android, iOS) to server `https://ntfy.<domain>
 
 ## Error handling
 
-- A Secret not written yet (Tailscale's key unset, OpenTofu not applied): its `PushSecret` is not ready ("secret not
+- A Secret not written yet (OpenTofu not applied): its `PushSecret` is not ready ("secret not
   found"); the consumer's `ExternalSecret` is not ready; nothing else is affected.
 - OpenBao loses its data: `infra-secrets` and `global-secrets` push everything again within an hour.
 - Namespace `infra-secrets` never appears: the unit fails after 30 minutes with a visible message.
@@ -150,5 +151,5 @@ People subscribe in the ntfy app (Android, iOS) to server `https://ntfy.<domain>
 - `docs/installation/production/external-resources.md` and other pages naming `external/` or `make external`; VPN
   page: keys come from OpenBao / OpenTofu.
 - `CLAUDE.md`: roadmap 8b done; rules (two writers); production checklist (Cloudflare secrets reach the cluster;
-  `secrets.env`; ntfy's public route untested; WireGuard's public key from the unit's output); Ideas: an external
+  Tailscale's key in step 12; ntfy's public route untested; WireGuard's public key from the unit's output); Ideas: an external
   dead man's switch for the Watchdog.
