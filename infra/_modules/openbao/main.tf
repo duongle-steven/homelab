@@ -23,39 +23,50 @@ variable "namespace" {
 variable "protect" {
   type        = bool
   default     = false
-  description = "Refuse to destroy the key (production)"
+  description = "Refuse to replace or destroy the key (production)"
 }
 
-# prevent_destroy cannot take a variable: one resource per setting, only one of them exists
 resource "random_bytes" "key" {
-  count  = var.protect ? 0 : 1
   length = 32
 }
 
-resource "random_bytes" "protected" {
-  count  = var.protect ? 1 : 0
-  length = 32
+# prevent_destroy cannot take a variable, so it guards the key from a resource of its own: with protect set, a plan
+# that would replace or destroy the key fails. Changing protect never changes the key
+resource "terraform_data" "protected" {
+  count            = var.protect ? 1 : 0
+  triggers_replace = [sha256(random_bytes.key.base64)]
 
   lifecycle {
     prevent_destroy = true
   }
 }
 
-locals {
-  key = one(concat(random_bytes.key[*].base64, random_bytes.protected[*].base64))
+# Separate from the Secret below so its timeout message shows: OpenTofu hides the output of a provisioner whose
+# environment holds the key
+resource "terraform_data" "namespace" {
+  triggers_replace = [plantimestamp()]
+
+  provisioner "local-exec" {
+    command = "sh ${abspath("${path.module}/wait-namespace.sh")}"
+    environment = {
+      KUBECONFIG = var.kubeconfig
+      NAMESPACE  = var.namespace
+    }
+  }
 }
 
 # Applied on every run (an idempotent server-side apply): a rebuilt cluster, whose identity OpenTofu cannot see in
 # production (nodes from make -C metal), or a deleted Secret gets the same key again
 resource "terraform_data" "secret" {
   triggers_replace = [plantimestamp()]
+  depends_on       = [terraform_data.namespace]
 
   provisioner "local-exec" {
     command = "sh ${abspath("${path.module}/apply-secret.sh")}"
     environment = {
       KUBECONFIG = var.kubeconfig
       NAMESPACE  = var.namespace
-      KEY        = local.key
+      KEY        = random_bytes.key.base64
     }
   }
 }
