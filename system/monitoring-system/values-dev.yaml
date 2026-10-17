@@ -1,4 +1,0 @@
-kube-prometheus-stack:
-  # No Loki in the sandbox
-  grafana:
-    additionalDataSources: []
