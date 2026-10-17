@@ -33,6 +33,7 @@ argocd-apps:
                     - path: platform/external-secrets
                     - path: platform/openbao
                     - path: platform/global-secrets
+                    - path: platform/infra-secrets
                     - path: platform/kanidm
                     - path: platform/grafana
                     - path: platform/zot
@@ -90,6 +91,7 @@ argocd-apps:
                     - path: apps/actualbudget.yaml
                     - path: apps/excalidraw.yaml
                     - path: apps/homepage.yaml
+                    - path: apps/ntfy.yaml
                     - path: apps/opencloud.yaml
                     - path: apps/paperless.yaml
                     - path: apps/pairdrop.yaml

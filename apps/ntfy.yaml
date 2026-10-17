@@ -1,0 +1,152 @@
+# Alerts (Alertmanager posts to topic alerts); published through the Cloudflare Tunnel in production, so nothing is
+# readable or writable without a user (docs/how-to-guides/alerts.md)
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          repository: docker.io/binwiederhier/ntfy
+          tag: v2.31.1
+        args: [serve]
+        env:
+          NTFY_BASE_URL: https://ntfy.{{ .Values.global.baseDomain }}
+          # iOS gets instant push only through ntfy.sh, which receives a poll request (the topic's hash), never the
+          # message; the sandbox sends nothing out
+          NTFY_UPSTREAM_BASE_URL: '{{ if eq .Values.global.publicGateway "public" }}https://ntfy.sh{{ end }}'
+          NTFY_BEHIND_PROXY: "true"
+          # The client's address, for ntfy's per-visitor limits: behind the Tunnel every request's X-Forwarded-For ends
+          # with cloudflared's pod, so one visitor's failed logins would lock every phone out. Only cloudflared reaches
+          # the public Gateway (ClusterIP), so Cloudflare's header can be trusted there
+          NTFY_PROXY_FORWARDED_HEADER: '{{ if eq .Values.global.publicGateway "public" }}CF-Connecting-IP{{ else }}X-Forwarded-For{{ end }}'
+          NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+          NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
+          NTFY_AUTH_DEFAULT_ACCESS: deny-all
+          NTFY_ENABLE_SIGNUP: "false"
+          NTFY_AUTH_ACCESS: alerts:alerts:wo,phone:alerts:ro
+        # NTFY_AUTH_USERS and NTFY_AUTH_TOKENS, from OpenBao; no attachment cache dir: attachments are off
+        envFrom:
+          - secretRef:
+              name: ntfy-auth
+        probes:
+          liveness: &probe
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /v1/health
+                port: 80
+          readiness: *probe
+service:
+  main:
+    ports:
+      http:
+        port: 80
+        protocol: HTTP
+route:
+  main:
+    hostnames:
+      - ntfy.{{ .Values.global.baseDomain }}
+    parentRefs:
+      - name: '{{ .Values.global.publicGateway }}'
+        namespace: istio-system
+        sectionName: https
+persistence:
+  data:
+    accessMode: ReadWriteOnce
+    size: 1Gi
+    globalMounts:
+      - path: /var/lib/ntfy
+  templates:
+    type: configMap
+    identifier: templates
+    globalMounts:
+      - path: /etc/ntfy/templates
+        readOnly: true
+# Alertmanager posts with ?template=alerts: ntfy's built-in alertmanager template plus a priority (critical 5, info 1,
+# resolved 2), which a named template takes only from its file, never from the URL
+configMaps:
+  templates:
+    data:
+      alerts.yml: |
+        {{`
+        title: |
+          {{- if eq .status "firing" }}
+          🚨 Alert: {{ (first .alerts).labels.alertname }}
+          {{- else }}
+          ✅ Resolved: {{ (first .alerts).labels.alertname }}
+          {{- end }}
+        priority: |
+          {{- if eq .status "resolved" }}2
+          {{- else if eq (first .alerts).labels.severity "critical" }}5
+          {{- else if eq (first .alerts).labels.severity "info" }}1
+          {{- else }}3{{ end }}
+        message: |
+          Status: {{ .status | title }}
+          Receiver: {{ .receiver }}
+          {{- range .alerts }}
+
+          Alert: {{ .labels.alertname }}
+          Namespace: {{ .labels.namespace }}
+          Severity: {{ .labels.severity }}
+          Starts at: {{ .startsAt }}
+          {{- if .annotations.summary }}
+          Summary: {{ .annotations.summary }}
+          {{- end }}
+          {{- if .annotations.description }}
+          Description: {{ .annotations.description }}
+          {{- end }}
+          {{- if .annotations.runbook_url }}
+          Runbook: {{ .annotations.runbook_url }}
+          {{- end }}
+          {{- end }}
+        `}}
+externalSecrets:
+  auth:
+    forceRename: ntfy-auth
+    secretStoreRef:
+      kind: SecretStore
+      name: openbao
+    target:
+      template:
+        engineVersion: v2
+        data:
+          # htpasswd gives user:hash (bcrypt cost 10, ntfy's minimum); ntfy wants user:hash:role
+          NTFY_AUTH_USERS: '{{ htpasswd "alerts" .alerts_password "bcrypt" }}:user,{{ htpasswd "phone" .phone_password "bcrypt" }}:user'
+          NTFY_AUTH_TOKENS: 'alerts:tk_{{ .alerts_token }},phone:tk_{{ .phone_token }}'
+    data:
+      - secretKey: alerts_password
+        remoteRef: {key: ntfy/generated/alerts-password, property: password}
+      - secretKey: alerts_token
+        remoteRef: {key: ntfy/generated/alerts-token, property: token}
+      - secretKey: phone_password
+        remoteRef: {key: ntfy/generated/phone-password, property: password}
+      - secretKey: phone_token
+        remoteRef: {key: ntfy/generated/phone-token, property: token}
+rawResources:
+  # Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
+  authorization-policy:
+    forceRename: allow
+    manifest:
+      apiVersion: security.istio.io/v1
+      kind: AuthorizationPolicy
+      spec:
+        action: ALLOW
+        rules:
+          # Pods in this namespace call each other freely
+          - from:
+              - source:
+                  namespaces: ['{{ .Release.Namespace }}']
+          # the Gateway named by global.publicGateway (public in production, gateway in the sandbox)
+          - from:
+              - source:
+                  principals: ['cluster.local/ns/istio-system/sa/{{ .Values.global.publicGateway }}-istio']
+            to:
+              - operation:
+                  ports: ["80"]
+          # Alertmanager (system/monitoring-system)
+          - from:
+              - source:
+                  principals: ['cluster.local/ns/monitoring-system/sa/monitoring-system-kube-pro-alertmanager']
+            to:
+              - operation:
+                  ports: ["80"]

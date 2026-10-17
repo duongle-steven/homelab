@@ -7,8 +7,9 @@ Save the following files to a safe location like a password manager (if you're u
 - `~/.ssh/id_ed25519`
 - `~/.ssh/id_ed25519.pub`
 - `./infra/production/kubeconfig.yaml`
-- `~/.terraform.d/credentials.tfrc.json`
-- `./external/terraform.tfvars`
+- `~/.config/homelab/cloudflare.env`
+- `./.state/production/` (OpenTofu's state: OpenBao's unseal key, the Cloudflare tokens, the WireGuard key; until
+  step 8c moves it to R2)
 
 ## Admin credentials
 

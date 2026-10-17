@@ -31,6 +31,7 @@ func smokeApps(env string) []smokeApp {
 			{"speedtest", "speedtest"},
 			{"forgejo", "forgejo"},
 			{"opencloud", "opencloud"},
+			{"ntfy", "ntfy"},
 		}
 	}
 

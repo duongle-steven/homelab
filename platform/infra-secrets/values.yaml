@@ -1,0 +1,12 @@
+# Secrets OpenTofu writes into this namespace (unit infra/<env>/secrets: Secret <namespace>.<name>, one key per
+# property) and pushes to OpenBao's secret/<namespace>/<name>; readers use their namespace's SecretStore openbao.
+# OpenTofu is the source: a changed value replaces OpenBao's (docs/concepts/secrets-management.md)
+secrets:
+  - path: cert-manager/cloudflare
+    properties: [api_token]
+  - path: external-dns/cloudflare
+    properties: [api_token, zone_id]
+  - path: cloudflared/cloudflare
+    properties: [credentials.json]
+  - path: wireguard/private-key
+    properties: [private-key]

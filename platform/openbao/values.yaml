@@ -94,6 +94,16 @@ openbao:
               policy = "path \"secret/data/+/generated/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/+/generated/*\" { capabilities = [\"create\", \"read\", \"update\"] }"
             }
           }
+          # OpenTofu's secrets (platform/infra-secrets): every branch except what platform/global-secrets generates.
+          # The allow uses + too: OpenBao picks the highest-priority matching path, and secret/data/* would outrank
+          # the longer deny (fewer + segments)
+          request "infra" {
+            operation = "update"
+            path      = "sys/policies/acl/infra"
+            data = {
+              policy = "path \"secret/data/+/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/+/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/data/+/generated/*\" { capabilities = [\"deny\"] }\npath \"secret/metadata/+/generated/*\" { capabilities = [\"deny\"] }"
+            }
+          }
           # Emergency access: no root token exists
           request "admin" {
             operation = "update"
@@ -124,6 +134,17 @@ openbao:
               bound_service_account_names      = ["default"]
               bound_service_account_namespaces = ["global-secrets"]
               token_policies                   = ["writer"]
+              audience                         = "openbao"
+              token_ttl                        = "10m"
+            }
+          }
+          request "infra" {
+            operation = "update"
+            path      = "auth/kubernetes/role/infra"
+            data = {
+              bound_service_account_names      = ["openbao-infra"]
+              bound_service_account_namespaces = ["infra-secrets"]
+              token_policies                   = ["infra"]
               audience                         = "openbao"
               token_ttl                        = "10m"
             }

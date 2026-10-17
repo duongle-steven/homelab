@@ -8,12 +8,12 @@ KUBE_CONFIG_PATH = $(KUBECONFIG)
 smoke_filter ?= Smoke
 terragrunt_apply = terragrunt run --all apply --non-interactive -- -auto-approve
 
-default: metal infra external smoke-test clean
+default: metal infra smoke-test clean
 
 # The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on
 dev: sandbox-push
 	cd infra/sandbox && $(terragrunt_apply)
-	$(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets' sandbox-refresh smoke-test
+	$(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy' sandbox-refresh smoke-test
 
 sandbox-push:
 	@if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
@@ -33,24 +33,12 @@ dev-clean:
 metal:
 	make -C metal
 
-# Bootstrap Argo CD (production; the sandbox's runs in make dev)
+# Every unit of infra/<env>: Argo CD's bootstrap, OpenBao's key, OpenTofu's secrets (the sandbox's run in make dev)
 infra:
 	cd infra/$(env) && $(terragrunt_apply)
 
-external:
-	make -C external
-
 smoke-test:
 	make -C test filter="$(smoke_filter)"
-
-# TODO maybe there's a better way to manage backup with GitOps?
-backup:
-	./scripts/backup --action setup --namespace=actualbudget --pvc=actualbudget-data
-	./scripts/backup --action setup --namespace=jellyfin --pvc=jellyfin-data
-
-restore:
-	./scripts/backup --action restore --namespace=actualbudget --pvc=actualbudget-data
-	./scripts/backup --action restore --namespace=jellyfin --pvc=jellyfin-data
 
 test:
 	make -C test

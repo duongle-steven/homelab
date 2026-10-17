@@ -172,3 +172,53 @@ func TestSecretsSurviveRestart(t *testing.T) {
 	waitForUnsealed(t)
 	assert.Equal(t, sentinel, admin(t, "kv", "get", "-field=value", "secret/smoke/restart"))
 }
+
+// Role infra (OpenTofu's secrets, platform/infra-secrets) writes every branch except generated/, which it neither
+// reads nor writes
+func TestSecretsInfraRole(t *testing.T) {
+	secretsSandboxOnly(t)
+	waitForUnsealed(t)
+	grafanaAdmin(t) // pushed by now
+	defer admin(t, "kv", "metadata", "delete", "secret/grafana/infra-probe")
+	out, err := bao(t, "infra", "infra-secrets", "openbao-infra", "kv", "put", "secret/grafana/infra-probe", "value=x")
+	require.NoError(t, err, out)
+	for _, args := range [][]string{
+		{"kv", "get", "secret/grafana/generated/admin"},
+		{"kv", "put", "secret/grafana/generated/admin", "password=x"},
+		{"kv", "put", "secret/grafana/generated/new", "value=x"},
+		{"kv", "metadata", "get", "secret/grafana/generated/admin"},
+		{"kv", "metadata", "delete", "secret/grafana/infra-probe"},
+	} {
+		out, err := bao(t, "infra", "infra-secrets", "openbao-infra", args...)
+		assert.Error(t, err, "infra: bao %v", args)
+		assert.Contains(t, out, "permission denied", "infra: bao %v", args)
+	}
+	out, err = bao(t, "infra", "grafana", "default", "kv", "get", "secret/grafana/infra-probe")
+	assert.Error(t, err, "grafana logged in as infra")
+	assert.Contains(t, out, "not authorized")
+}
+
+// OpenTofu's WireGuard key (infra/sandbox/secrets) reaches OpenBao through platform/infra-secrets, and comes back after
+// its OpenBao value is lost
+func TestSecretsInfraPush(t *testing.T) {
+	secretsSandboxOnly(t)
+	waitForUnsealed(t)
+	want := secretValue(t, "infra-secrets", "wireguard.private-key", "private-key")
+	require.NotEmpty(t, want)
+	// The sandbox has no namespace wireguard (production only): read with the admin role
+	read := func() string {
+		out, err := bao(t, "admin", "openbao", "openbao-admin", "kv", "get", "-field=private-key", "secret/wireguard/private-key")
+		if err != nil {
+			return ""
+		}
+		return out
+	}
+	require.Eventually(t, func() bool { return read() == want }, 20*time.Minute, 15*time.Second,
+		"secret/wireguard/private-key does not hold the Secret's value")
+
+	admin(t, "kv", "metadata", "delete", "secret/wireguard/private-key")
+	k8s.RunKubectl(t, k8s.NewKubectlOptions("", "", "infra-secrets"), "annotate", "pushsecret", "wireguard.private-key",
+		"force-sync="+fmt.Sprint(time.Now().UnixNano()), "--overwrite")
+	assert.Eventually(t, func() bool { return read() == want }, 5*time.Minute, 10*time.Second,
+		"the lost value was not pushed again")
+}

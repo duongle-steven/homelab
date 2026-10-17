@@ -45,6 +45,7 @@ argo-cd:
         p, role:editor, exec, create, default/homepage, allow
         p, role:editor, exec, create, default/jellyfin, allow
         p, role:editor, exec, create, default/matrix, allow
+        p, role:editor, exec, create, default/ntfy, allow
         p, role:editor, exec, create, default/ollama, allow
         p, role:editor, exec, create, default/opencloud, allow
         p, role:editor, exec, create, default/pairdrop, allow

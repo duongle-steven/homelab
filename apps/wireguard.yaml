@@ -37,7 +37,7 @@ persistence:
 externalSecrets:
   secret:
     forceRename: wireguard-secret
-    # secret/wireguard/private-key in OpenBao (property private-key), written in step 8b
+    # secret/wireguard/private-key in OpenBao (property private-key), written by OpenTofu (infra/<env>/secrets, through platform/infra-secrets)
     secretStoreRef:
       kind: SecretStore
       name: openbao
@@ -66,7 +66,7 @@ externalSecrets:
             # Servers
 
             # PLACEHOLDER keys (random, nobody holds their private key): replace each PublicKey before the first
-            # deploy. The server's: `wg pubkey` of its private key (OpenBao secret/wireguard/private-key, step 8b);
+            # deploy. The server's: `terragrunt output -raw wireguard_public_key` in infra/production/secrets;
             # a device's: `wg genkey | tee private.key | wg pubkey` on that device. Keep the tunnel addresses.
             # Clients add the API and Gateway VIPs (infra/<env>/cluster/config.json) to this peer's AllowedIPs
             # themselves (docs/getting-started/vpn-setup.md); this template cannot read Helm values

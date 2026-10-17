@@ -22,7 +22,7 @@ spec:
       to:
         - operation:
             ports: ["9090"]
-    # Grafana's Alertmanager data source (production; the sandbox has no Alertmanager)
+    # Grafana's Alertmanager data source
     - from:
         - source:
             principals: ["cluster.local/ns/grafana/sa/grafana"]
