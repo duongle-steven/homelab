@@ -88,3 +88,71 @@ func TestLogsTargetsUp(t *testing.T) {
 		return loki && alloy
 	}, 20*time.Minute, 30*time.Second, "Loki's and Alloy's targets are not up")
 }
+
+const logsNamespace = "logs-test"
+
+// logPod starts a pod in logsNamespace that sleeps; the test makes it print with printTo
+func logPod(t *testing.T, name string) *k8s.KubectlOptions {
+	options := k8s.NewKubectlOptions("", "", logsNamespace)
+	_ = k8s.RunKubectlE(t, k8s.NewKubectlOptions("", "", ""), "create", "namespace", logsNamespace)
+	_ = k8s.RunKubectlE(t, options, "delete", "pod", name, "--ignore-not-found", "--wait=true")
+	k8s.RunKubectl(t, options, "run", name, "--image=curlimages/curl:8.23.0", "--restart=Never",
+		"--labels=app.kubernetes.io/name=logs-test", "--command", "--", "sleep", "3600")
+	k8s.RunKubectl(t, options, "wait", "--for=condition=Ready", "pod/"+name, "--timeout=5m")
+	t.Cleanup(func() { _ = k8s.RunKubectlE(t, options, "delete", "pod", name, "--wait=false") })
+	return options
+}
+
+// printTo writes a line to the pod's stdout (its container log)
+func printTo(t *testing.T, options *k8s.KubectlOptions, pod, line string) {
+	k8s.RunKubectl(t, options, "exec", pod, "--", "sh", "-c", "echo "+line+" > /proc/1/fd/1")
+}
+
+func markerEntries(t *testing.T, pod, marker string) []lokiEntry {
+	entries, err := lokiQuery(t, fmt.Sprintf(`{namespace=%q, pod=%q} |= %q`, logsNamespace, pod, marker), time.Hour)
+	if err != nil {
+		return nil
+	}
+	return entries
+}
+
+// A pod's line reaches Loki once, with its labels
+func TestLogsPodLines(t *testing.T) {
+	logsSandboxOnly(t)
+	options := logPod(t, "lines")
+	marker := fmt.Sprint("logs-marker-", time.Now().UnixNano())
+	printTo(t, options, "lines", marker)
+	var entries []lokiEntry
+	require.Eventually(t, func() bool {
+		entries = markerEntries(t, "lines", marker)
+		return len(entries) > 0
+	}, 10*time.Minute, 10*time.Second, "the marker did not reach Loki")
+	time.Sleep(30 * time.Second) // a second tail of the same file would deliver it again by now
+	entries = markerEntries(t, "lines", marker)
+	require.Len(t, entries, 1, "the marker arrived more than once")
+	labels := entries[0].Labels
+	assert.Equal(t, logsNamespace, labels["namespace"])
+	assert.Equal(t, "lines", labels["pod"])
+	assert.Equal(t, "lines", labels["container"])
+	assert.Equal(t, "logs-test", labels["app"])
+	assert.NotEmpty(t, labels["node"])
+}
+
+// A restarted Alloy resumes from its positions: no line lost, none repeated
+func TestLogsResumeAfterRestart(t *testing.T) {
+	logsSandboxOnly(t)
+	options := logPod(t, "resume")
+	first := fmt.Sprint("logs-first-", time.Now().UnixNano())
+	printTo(t, options, "resume", first)
+	require.Eventually(t, func() bool { return len(markerEntries(t, "resume", first)) > 0 },
+		10*time.Minute, 10*time.Second, "the first marker did not reach Loki")
+
+	loki := k8s.NewKubectlOptions("", "", "loki")
+	k8s.RunKubectl(t, loki, "delete", "pod", "-l", "app.kubernetes.io/name=alloy", "--wait=true")
+	second := fmt.Sprint("logs-second-", time.Now().UnixNano())
+	printTo(t, options, "resume", second) // written while Alloy restarts
+	k8s.RunKubectl(t, loki, "rollout", "status", "daemonset/loki-alloy", "--timeout=5m")
+	require.Eventually(t, func() bool { return len(markerEntries(t, "resume", second)) > 0 },
+		10*time.Minute, 10*time.Second, "the line written during the restart was lost")
+	assert.Len(t, markerEntries(t, "resume", first), 1, "the restarted Alloy sent the first marker again")
+}
