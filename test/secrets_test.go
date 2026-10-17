@@ -197,3 +197,28 @@ func TestSecretsInfraRole(t *testing.T) {
 	assert.Error(t, err, "grafana logged in as infra")
 	assert.Contains(t, out, "not authorized")
 }
+
+// OpenTofu's WireGuard key (infra/sandbox/secrets) reaches OpenBao through platform/infra-secrets, and comes back after
+// its OpenBao value is lost
+func TestSecretsInfraPush(t *testing.T) {
+	secretsSandboxOnly(t)
+	waitForUnsealed(t)
+	want := secretValue(t, "infra-secrets", "wireguard.private-key", "private-key")
+	require.NotEmpty(t, want)
+	// The sandbox has no namespace wireguard (production only): read with the admin role
+	read := func() string {
+		out, err := bao(t, "admin", "openbao", "openbao-admin", "kv", "get", "-field=private-key", "secret/wireguard/private-key")
+		if err != nil {
+			return ""
+		}
+		return out
+	}
+	require.Eventually(t, func() bool { return read() == want }, 20*time.Minute, 15*time.Second,
+		"secret/wireguard/private-key does not hold the Secret's value")
+
+	admin(t, "kv", "metadata", "delete", "secret/wireguard/private-key")
+	k8s.RunKubectl(t, k8s.NewKubectlOptions("", "", "infra-secrets"), "annotate", "pushsecret", "wireguard.private-key",
+		"force-sync="+fmt.Sprint(time.Now().UnixNano()), "--overwrite")
+	assert.Eventually(t, func() bool { return read() == want }, 5*time.Minute, 10*time.Second,
+		"the lost value was not pushed again")
+}
