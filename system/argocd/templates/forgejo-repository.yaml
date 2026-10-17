@@ -25,6 +25,6 @@ spec:
   data:
     - secretKey: password
       remoteRef:
-        key: argocd/forgejo-admin
+        key: argocd/generated/forgejo-admin
         property: password
 {{- end }}

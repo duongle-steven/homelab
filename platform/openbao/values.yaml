@@ -84,13 +84,14 @@ openbao:
               }
             }
           }
-          # platform/global-secrets pushes generated secrets; External Secrets reads a path and its metadata before
-          # it writes them, so the writer reads too. IfNotExists keeps existing values
+          # platform/global-secrets pushes generated secrets, only to secret/<namespace>/generated/: it never reaches what
+          # others write (OpenTofu, step 8b). External Secrets reads a path and its metadata before it writes them, so
+          # the writer reads too; IfNotExists keeps existing values. No delete
           request "writer" {
             operation = "update"
             path      = "sys/policies/acl/writer"
             data = {
-              policy = "path \"secret/data/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/*\" { capabilities = [\"create\", \"read\", \"update\"] }"
+              policy = "path \"secret/data/+/generated/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/+/generated/*\" { capabilities = [\"create\", \"read\", \"update\"] }"
             }
           }
           # Emergency access: no root token exists
@@ -103,6 +104,7 @@ openbao:
           }
         }
 
+        # Every role accepts only tokens issued for OpenBao (audience openbao), never ones the API server accepts
         initialize "roles" {
           request "apps" {
             operation = "update"
@@ -111,6 +113,7 @@ openbao:
               bound_service_account_names      = ["default"]
               bound_service_account_namespaces = ["*"]
               token_policies                   = ["apps"]
+              audience                         = "openbao"
               token_ttl                        = "10m"
             }
           }
@@ -121,6 +124,7 @@ openbao:
               bound_service_account_names      = ["default"]
               bound_service_account_namespaces = ["global-secrets"]
               token_policies                   = ["writer"]
+              audience                         = "openbao"
               token_ttl                        = "10m"
             }
           }
@@ -131,6 +135,7 @@ openbao:
               bound_service_account_names      = ["openbao-admin"]
               bound_service_account_namespaces = ["openbao"]
               token_policies                   = ["admin"]
+              audience                         = "openbao"
               token_ttl                        = "1h"
             }
           }

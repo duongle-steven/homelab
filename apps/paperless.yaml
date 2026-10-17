@@ -108,9 +108,9 @@ externalSecrets:
       name: openbao
     dataFrom:
       - extract:
-          key: paperless/admin
+          key: paperless/generated/admin
       - extract:
-          key: paperless/secret-key
+          key: paperless/generated/secret-key
     target:
       deletionPolicy: Retain
 rawResources:
