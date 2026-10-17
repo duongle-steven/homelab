@@ -24,6 +24,9 @@ cni:
   # Istio's own CNI config file (02-istio-cni.conflist) survives a node restart, so pods that start again before the
   # agent has reconciled them still go through istio-cni (istio/istio#55968)
   istioOwnedCNIConfig: true
+  ambient:
+    # IPv4-only clusters: ztunnel binds its in-pod listeners on 127.0.0.1 only (spike: [::1] failed after a node restart)
+    ipv6: false
   resources:
     requests:
       cpu: 10m
