@@ -81,8 +81,9 @@ the sandbox too (done)" and renumbers 9–12 to 10–13; every "step 9/10/11/12"
 
 ## Error handling
 
-- Loki down or its PVC full: Alloy buffers and retries (its write-ahead log in the storage path); logs older than the
-  buffer are lost; kube-prometheus-stack's pod alerts (crash loops, PVC filling up) reach ntfy.
+- Loki down or its PVC full: Alloy keeps the lines in its write-ahead log (`loki.write`'s `wal`, experimental in Alloy
+  v1.20, on the host's `/var/lib/alloy`, segments kept 24 hours) and sends them once Loki is back; older segments are
+  dropped; kube-prometheus-stack's pod alerts (crash loops, PVC filling up) reach ntfy.
 - A pod deleted before Alloy read its last lines: they are lost (the kubelet removes its log directory).
 - The events instance moves to another Alloy pod (node drain): a few events may be delivered twice.
 - Losing Loki's PVC loses past logs only. Whether step 11 (backups) declares Loki's PVC is decided there; until then

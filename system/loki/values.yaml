@@ -65,13 +65,15 @@ alloy:
         - name: pod-logs
           hostPath:
             path: /var/log/pods
-        # Positions and the write-ahead log survive a restart of the pod
+        # Positions and the write-ahead log (loki.write's wal) survive a restart of the pod
         - name: storage
           hostPath:
             path: /var/lib/alloy
             type: DirectoryOrCreate
   alloy:
     enableReporting: false
+    # loki.write's write-ahead log is experimental in Alloy v1.20
+    stabilityLevel: experimental
     storagePath: /var/lib/alloy
     clustering:
       enabled: true
@@ -160,9 +162,15 @@ alloy:
           forward_to = [loki.write.loki.receiver]
         }
 
+        // Lines go to the write-ahead log on the host first, so a Loki outage or an Alloy restart loses none
+        // (segments older than a day are dropped)
         loki.write "loki" {
           endpoint {
             url = "http://loki:3100/loki/api/v1/push"
+          }
+          wal {
+            enabled         = true
+            max_segment_age = "24h"
           }
         }
   # Read only what the config uses (the chart's default also reads every Secret)

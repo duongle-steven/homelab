@@ -174,3 +174,54 @@ func TestLogsEvents(t *testing.T) {
 		return false
 	}, 10*time.Minute, 15*time.Second, "the pod's events did not reach Loki")
 }
+
+// Lines read while Loki is unreachable survive a restart of Alloy (its write-ahead log on the host) and arrive once
+// Loki is back
+func TestLogsSurviveLokiOutage(t *testing.T) {
+	logsSandboxOnly(t)
+	options := logPod(t, "outage")
+	loki := k8s.NewKubectlOptions("", "", "loki")
+	// Argo CD does not prune what it does not manage: this policy lives only for the test
+	deny := `apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: logs-test-outage
+  namespace: loki
+spec:
+  action: DENY
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/loki/sa/loki-alloy"]
+`
+	k8s.KubectlApplyFromString(t, loki, deny)
+	removed := false
+	remove := func() {
+		if !removed {
+			k8s.KubectlDeleteFromString(t, loki, deny)
+			removed = true
+		}
+	}
+	defer remove()
+	time.Sleep(15 * time.Second) // ztunnel picks up the policy
+	// ztunnel checks policies when a connection opens: restart Alloy so its keep-alive connection to Loki is a new,
+	// denied one
+	restartAlloy := func() {
+		k8s.RunKubectl(t, loki, "delete", "pod", "-l", "app.kubernetes.io/name=alloy", "--wait=true")
+		k8s.RunKubectl(t, loki, "rollout", "status", "daemonset/loki-alloy", "--timeout=5m")
+	}
+	restartAlloy()
+
+	marker := fmt.Sprint("logs-outage-", time.Now().UnixNano())
+	printTo(t, options, "outage", marker)
+	time.Sleep(30 * time.Second) // Alloy reads the line and moves its positions past it
+	require.Empty(t, markerEntries(t, "outage", marker), "the line reached Loki through the denied connection")
+	restartAlloy()
+	remove()
+	require.Eventually(t, func() bool { return len(markerEntries(t, "outage", marker)) > 0 },
+		10*time.Minute, 15*time.Second, "the line read during Loki's outage was lost")
+	assert.Len(t, markerEntries(t, "outage", marker), 1, "the line arrived more than once")
+}
