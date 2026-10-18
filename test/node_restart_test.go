@@ -44,6 +44,18 @@ func TestNodeRestartBlockers(t *testing.T) {
 	}
 }
 
+func TestNodeRestartWatchdogJobs(t *testing.T) {
+	restarted := time.Date(2026, 10, 18, 8, 0, 0, 0, time.UTC)
+	jobs := []watchdogJob{
+		{Name: "istio-cni-watchdog-1", Started: restarted.Add(-time.Minute), Failed: true},
+		{Name: "istio-cni-watchdog-2", Started: restarted.Add(time.Minute)},
+		{Name: "istio-cni-watchdog-3", Started: restarted.Add(2 * time.Minute), Failed: true},
+	}
+	assert.Equal(t, []string{"istio-cni-watchdog-3"}, failedWatchdogJobs(jobs, restarted),
+		"only a Job that failed after the restart counts")
+	assert.Empty(t, failedWatchdogJobs(jobs[:2], restarted))
+}
+
 // restartPod is what TestNodeRestart needs from a pod.
 type restartPod struct {
 	Namespace, Name, Phase, Redirection string
@@ -149,6 +161,69 @@ func clusterState(t *testing.T) (pods []restartPod, meshed map[string]bool, ztun
 	return pods, meshed, ztunnelReady, true
 }
 
+// watchdogJob is a Job of the CronJob istio-system/istio-cni-watchdog.
+type watchdogJob struct {
+	Name    string
+	Started time.Time
+	Failed  bool
+}
+
+// failedWatchdogJobs names the watchdog Jobs that failed after the restart: ipv6 off alone can recover the node, so
+// without this TestNodeRestart would stay green with a broken watchdog (image, RBAC, BusyBox date).
+func failedWatchdogJobs(jobs []watchdogJob, since time.Time) []string {
+	var failed []string
+	for _, j := range jobs {
+		if j.Failed && !j.Started.Before(since) {
+			failed = append(failed, j.Name)
+		}
+	}
+	return failed
+}
+
+// watchdogJobs reads the watchdog's Jobs and logs, once, what each finished Job printed (it prints only when it
+// acts or skips a stuck node).
+func watchdogJobs(t *testing.T, logged map[string]bool) []watchdogJob {
+	var list struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Status struct {
+				StartTime  time.Time `json:"startTime"`
+				Conditions []struct {
+					Type   string `json:"type"`
+					Status string `json:"status"`
+				} `json:"conditions"`
+			} `json:"status"`
+		} `json:"items"`
+	}
+	if !getResource(t, "istio-system", &list, "jobs") {
+		return nil
+	}
+	var jobs []watchdogJob
+	for _, item := range list.Items {
+		if !strings.HasPrefix(item.Metadata.Name, "istio-cni-watchdog-") {
+			continue
+		}
+		job := watchdogJob{Name: item.Metadata.Name, Started: item.Status.StartTime}
+		finished := false
+		for _, c := range item.Status.Conditions {
+			if c.Status == "True" && (c.Type == "Complete" || c.Type == "Failed") {
+				finished = true
+				job.Failed = job.Failed || c.Type == "Failed"
+			}
+		}
+		if finished && !logged[job.Name] {
+			logged[job.Name] = true
+			if out, err := exec.Command("kubectl", "--namespace", "istio-system", "logs", "job/"+job.Name).CombinedOutput(); err == nil && strings.TrimSpace(string(out)) != "" {
+				t.Logf("%s: %s", job.Name, strings.TrimSpace(string(out)))
+			}
+		}
+		jobs = append(jobs, job)
+	}
+	return jobs
+}
+
 // TestNodeRestart restarts the sandbox's node and waits until the mesh and the apps are back as they were: the
 // istio-cni watchdog (system/istio-system) must break the deadlock described in
 // docs/superpowers/specs/2026-10-18-mesh-node-restart-design.md. make dev runs it alone, after the other tests.
@@ -171,7 +246,13 @@ func TestNodeRestart(t *testing.T) {
 	restarted := time.Now()
 
 	var blockers []string
+	seen := map[string]watchdogJob{}
+	logged := map[string]bool{}
 	recovered := assert.Eventually(t, func() bool {
+		// Polled with the rest: a finished Job is deleted after ttlSecondsAfterFinished
+		for _, j := range watchdogJobs(t, logged) {
+			seen[j.Name] = j
+		}
 		pods, meshed, ztunnel, ok := clusterState(t)
 		if !ok {
 			blockers = []string{"API server not answering"}
@@ -185,6 +266,11 @@ func TestNodeRestart(t *testing.T) {
 	} else {
 		t.Logf("still blocking:\n%s", strings.Join(blockers, "\n"))
 	}
+	var jobs []watchdogJob
+	for _, j := range seen {
+		jobs = append(jobs, j)
+	}
+	assert.Empty(t, failedWatchdogJobs(jobs, restarted), "istio-cni-watchdog Jobs failed during the recovery")
 }
 
 // hasServerError reports a 5xx or unreachable app: the codes recorded before the restart must be the apps'
