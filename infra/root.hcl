@@ -7,6 +7,8 @@ locals {
   # Production only: the account and OAuth token of `cf auth login` (empty strings for the sandbox, which never calls cf)
   cloudflare   = jsondecode(run_cmd("--terragrunt-global-cache", "--terragrunt-quiet", "${get_repo_root()}/scripts/cloudflare-credentials", local.env))
   state_bucket = "homelab-${local.env}-tfstate"
+  # Cloudflare's API; test/state_token_refresh_test.go points it at a fake R2
+  state_api = get_env("HOMELAB_STATE_API", "https://api.cloudflare.com/client/v4")
 
   # OpenTofu state encryption (every environment): the passphrase reaches OpenTofu only as TF_VAR_state_passphrase.
   # _PREVIOUS (scripts/rotate-state-passphrase) or HOMELAB_STATE_MIGRATE=1 (unencrypted state) adds a fallback.
@@ -30,7 +32,7 @@ generate "backend" {
     terraform {
     %{~if local.production}
       backend "http" {
-        address       = "https://api.cloudflare.com/client/v4/accounts/${local.cloudflare.account_id}/r2/buckets/${local.state_bucket}/objects/${local.unit}/tfstate.json"
+        address       = "${local.state_api}/accounts/${local.cloudflare.account_id}/r2/buckets/${local.state_bucket}/objects/${local.unit}/tfstate.json"
         update_method = "PUT"
         headers = {
           Authorization = "Bearer ${local.cloudflare.token}"
@@ -101,7 +103,9 @@ generate "encryption" {
 terraform {
   after_hook "state_permissions" {
     commands = ["apply", "destroy", "import", "refresh", "state"]
-    execute  = ["chmod", "-R", "go-rwx", "${get_repo_root()}/.state"]
+    # Production writes nothing under .state/ (its state is on R2), which may not exist
+    if      = !local.production
+    execute = ["chmod", "-R", "go-rwx", "${get_repo_root()}/.state"]
     # Also after a failed apply, which may already have written secrets
     run_on_error = true
   }
