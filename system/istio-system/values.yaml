@@ -35,6 +35,11 @@ cni:
   # start: pods recreated before the agent patched it again would skip istio-cni and run outside the mesh
   # (istio/istio#55968)
   istioOwnedCNIConfig: true
+  ambient:
+    # Pods only get IPv4 (cluster CIDR 10.42.0.0/16, also on IPv6-only hosts), so skip the IPv6 rules: after a node
+    # restart the agent must answer each pod within the CNI plugin's 5 s, and the second iptables-restore per pod kept
+    # it at 10-13 s. Remove this if the cluster becomes dual-stack
+    ipv6: false
   resources:
     requests:
       cpu: 10m
