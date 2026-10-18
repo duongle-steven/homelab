@@ -7,9 +7,8 @@ Save the following files to a safe location like a password manager (if you're u
 - `~/.ssh/id_ed25519`
 - `~/.ssh/id_ed25519.pub`
 - `./infra/production/kubeconfig.yaml`
-- `~/.config/homelab/cloudflare.env`
-- `./.state/production/` (OpenTofu's state: OpenBao's unseal key, the Cloudflare tokens, the WireGuard key; until
-  step 8c moves it to R2)
+- `~/.config/homelab/state.env` (the state passphrase: without it production's state on R2, which holds OpenBao's
+  unseal key, the Cloudflare tokens and the WireGuard key, cannot be read)
 
 ## Admin credentials
 

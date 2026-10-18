@@ -1,0 +1,65 @@
+#!/bin/sh
+# Re-encrypts every OpenTofu state of an environment with a new passphrase (docs/installation/production/external-resources.md):
+# put the new passphrase in HOMELAB_STATE_PASSPHRASE and the old one in HOMELAB_STATE_PASSPHRASE_PREVIOUS, run this,
+# then update the password manager and ~/.config/homelab/state.env and drop _PREVIOUS. Every state is pulled before
+# any is pushed, so a wrong old passphrase changes nothing. Passphrases are never printed.
+set -eu
+env=${1:?usage: rotate-state-passphrase <env>}
+: "${HOMELAB_STATE_PASSPHRASE:?set HOMELAB_STATE_PASSPHRASE to the new passphrase}"
+: "${HOMELAB_STATE_PASSPHRASE_PREVIOUS:?set HOMELAB_STATE_PASSPHRASE_PREVIOUS to the old passphrase}"
+if [ "$HOMELAB_STATE_PASSPHRASE" = "$HOMELAB_STATE_PASSPHRASE_PREVIOUS" ]; then
+	echo "rotate-state-passphrase: the new passphrase equals the old one" >&2
+	exit 1
+fi
+if [ ${#HOMELAB_STATE_PASSPHRASE} -lt 16 ]; then
+	echo "rotate-state-passphrase: the new passphrase is shorter than 16 characters" >&2
+	exit 1
+fi
+root=$(git rev-parse --show-toplevel)
+if [ "$env" = production ]; then
+	echo "Rotating production's state in Cloudflare account $("$root/scripts/cloudflare-credentials" production | jq -r .account_id)"
+fi
+work=$(mktemp -d)
+chmod 700 "$work"
+trap 'rm -rf "$work"' EXIT
+# Not every shell runs the EXIT trap when a signal kills it: the decrypted copies must not stay behind
+trap 'exit 1' INT TERM HUP
+tg() { terragrunt --non-interactive --log-level error "$@"; }
+
+# OpenTofu finds a key's salt under its key provider's name, so the new key is written as "next" while the old one
+# still reads as "current" (HOMELAB_STATE_ROTATING=1), then rewritten as "current"; root.hcl names the providers.
+# A unit that already reads with the new passphrase alone (a rotation interrupted in the second pass) is left to it.
+reencrypt() {
+	units=
+	for dir in "$root"/infra/"$env"/*/; do
+		[ -f "$dir/terragrunt.hcl" ] || continue
+		unit=$(basename "$dir")
+		if ! (cd "$dir" && tg state pull) > "$work/$unit.json"; then
+			if (cd "$dir" && env -u HOMELAB_STATE_PASSPHRASE_PREVIOUS -u HOMELAB_STATE_ROTATING terragrunt --non-interactive --log-level error state pull >/dev/null 2>&1); then
+				continue
+			fi
+			echo "rotate-state-passphrase: cannot read $env/$unit ($1); nothing more changed" >&2
+			exit 1
+		fi
+		# No state, or an object that does not exist (the http backend reads it as serial 0 with nothing in it)
+		if [ ! -s "$work/$unit.json" ] || jq -e '.serial == 0 and (.resources | length) == 0' "$work/$unit.json" >/dev/null; then
+			[ "$1" = "with the old passphrase" ] && echo "$env/$unit: no state, skipped"
+			continue
+		fi
+		units="$units $unit"
+	done
+	for unit in $units; do
+		(cd "$root/infra/$env/$unit" && tg state push -force "$work/$unit.json")
+	done
+	rm -f "$work"/*.json
+}
+
+new=$HOMELAB_STATE_PASSPHRASE
+(export HOMELAB_STATE_ROTATING=1; reencrypt "with the old passphrase")
+(export HOMELAB_STATE_PASSPHRASE_PREVIOUS="$new"; reencrypt "after the first pass")
+for dir in "$root"/infra/"$env"/*/; do
+	[ -f "$dir/terragrunt.hcl" ] || continue
+	unit=$(basename "$dir")
+	(cd "$dir" && env -u HOMELAB_STATE_PASSPHRASE_PREVIOUS terragrunt --non-interactive --log-level error state pull >/dev/null) || { echo "rotate-state-passphrase: $env/$unit does not read with the new passphrase alone" >&2; exit 1; }
+done
+echo "Done: every state reads with the new passphrase. Update the password manager and ~/.config/homelab/state.env, then unset HOMELAB_STATE_PASSPHRASE_PREVIOUS."
