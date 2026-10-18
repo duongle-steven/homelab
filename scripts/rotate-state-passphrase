@@ -1,0 +1,48 @@
+#!/bin/sh
+# Re-encrypts every OpenTofu state of an environment with a new passphrase (docs/installation/production/external-resources.md):
+# put the new passphrase in HOMELAB_STATE_PASSPHRASE and the old one in HOMELAB_STATE_PASSPHRASE_PREVIOUS, run this,
+# then update the password manager and ~/.config/homelab/state.env and drop _PREVIOUS. Every state is pulled before
+# any is pushed, so a wrong old passphrase changes nothing. Passphrases are never printed.
+set -eu
+env=${1:?usage: rotate-state-passphrase <env>}
+: "${HOMELAB_STATE_PASSPHRASE:?set HOMELAB_STATE_PASSPHRASE to the new passphrase}"
+: "${HOMELAB_STATE_PASSPHRASE_PREVIOUS:?set HOMELAB_STATE_PASSPHRASE_PREVIOUS to the old passphrase}"
+if [ "$HOMELAB_STATE_PASSPHRASE" = "$HOMELAB_STATE_PASSPHRASE_PREVIOUS" ]; then
+	echo "rotate-state-passphrase: the new passphrase equals the old one" >&2
+	exit 1
+fi
+if [ ${#HOMELAB_STATE_PASSPHRASE} -lt 16 ]; then
+	echo "rotate-state-passphrase: the new passphrase is shorter than 16 characters" >&2
+	exit 1
+fi
+root=$(git rev-parse --show-toplevel)
+work=$(mktemp -d)
+chmod 700 "$work"
+trap 'rm -rf "$work"' EXIT
+tg() { terragrunt --non-interactive --log-level error "$@"; }
+
+# OpenTofu finds a key's salt under its key provider's name, so the new key is written as "next" while the old one
+# still reads as "current" (HOMELAB_STATE_ROTATING=1), then rewritten as "current"; root.hcl names the providers
+reencrypt() {
+	units=
+	for dir in "$root"/infra/"$env"/*/; do
+		[ -f "$dir/terragrunt.hcl" ] || continue
+		unit=$(basename "$dir")
+		(cd "$dir" && tg state pull) > "$work/$unit.json" || { echo "rotate-state-passphrase: cannot read $env/$unit ($1); nothing more changed" >&2; exit 1; }
+		[ -s "$work/$unit.json" ] && units="$units $unit"
+	done
+	for unit in $units; do
+		(cd "$root/infra/$env/$unit" && tg state push -force "$work/$unit.json")
+	done
+}
+
+new=$HOMELAB_STATE_PASSPHRASE
+(export HOMELAB_STATE_ROTATING=1; reencrypt "with the old passphrase")
+(export HOMELAB_STATE_PASSPHRASE_PREVIOUS="$new"; reencrypt "after the first pass")
+for dir in "$root"/infra/"$env"/*/; do
+	[ -f "$dir/terragrunt.hcl" ] || continue
+	unit=$(basename "$dir")
+	(cd "$dir" && env -u HOMELAB_STATE_PASSPHRASE_PREVIOUS terragrunt --non-interactive --log-level error state pull >/dev/null) || { echo "rotate-state-passphrase: $env/$unit does not read with the new passphrase alone" >&2; exit 1; }
+	echo "$env/$unit: re-encrypted"
+done
+echo "Done. Update the password manager and ~/.config/homelab/state.env with the new passphrase, then unset HOMELAB_STATE_PASSPHRASE_PREVIOUS."
