@@ -20,6 +20,7 @@ Each step changes one thing, with its own spec and plan in `docs/superpowers/`.
 11. Backups: VolSync declared per app, automatic restore on a fresh install (PVC `dataSourceRef`), plus an option for a truly fresh install that never prunes the old repository; decide whether Loki's PVC is backed up
 12. Nodes: NixOS + k3s + kube-vip + Istio (PXE with upstream's `nixie`, `nixos-anywhere`); staging on NixOS VMs in WSL (KVM; stop the sandbox first), then production hardware
 13. Remote access: a cloud VPS outside the cluster (AWS, Singapore; NixOS through `infra/`: OpenTofu + `nixos-anywhere`), because the home network sits behind the ISP's CGNAT and a double NAT. It hosts the WireGuard hub (the cluster's `apps/wireguard` dials out to it with `PersistentKeepalive`; devices connect to the hub) and Headscale with Kanidm OIDC (Kanidm published through the Cloudflare Tunnel; Headscale's DERP and STUN on the VPS's public address); `apps/tailscale` then points at Headscale, which issues its pre-auth key (`secret/tailscale/auth-key`)
+14. Enhancement: go-task replaces make (`Taskfile.yml` at the root, `includes` with `dir:` for `infra/`, `metal/` and `test/`, so `make -C infra check` becomes `task infra:check`; careful: `task -C` is `--concurrency`, `-d` picks the directory); upstream `nixos` still uses make, so this diverges from it on purpose
 
 ## Rules
 
@@ -92,4 +93,5 @@ The sandbox runs Kubernetes 1.37 and only ever installs from scratch, so it does
 
 ## Ideas (not planned)
 
+- A Go CLI like upstream `nixos`'s `lab` (`cli/`: cobra, the Cloudflare, OpenBao, Forgejo and Kubernetes SDKs, tests) replacing the shell scripts (`scripts/ensure-state-bucket`, `cloudflare-credentials`, `rotate-state-passphrase`, `onboard-user`) once they grow or get hard to test; port upstream's commands where they match.
 - An external dead man's switch (e.g. healthchecks.io) for the Watchdog: ntfy's delayed message cannot fire when ntfy, the Tunnel or the cluster is down.
