@@ -14,6 +14,8 @@ default: metal infra smoke-test clean
 dev: sandbox-push
 	cd infra/sandbox && $(terragrunt_apply)
 	$(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs' sandbox-refresh smoke-test
+	# Restarts the node, so it runs alone, after the others
+	$(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter='NodeRestart' smoke-test
 
 sandbox-push:
 	@if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
