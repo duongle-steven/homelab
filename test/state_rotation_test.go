@@ -134,3 +134,33 @@ func TestStatePassphraseRotation(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+// An unencrypted state (an old sandbox, or production before step 8c) is refused, then encrypted by one run with
+// HOMELAB_STATE_MIGRATE=1
+func TestStateMigrateFromPlain(t *testing.T) {
+	root := stateTree(t)
+	plain := `{"version":4,"terraform_version":"1.11.0","serial":1,"lineage":"6b9e2a52-0d8b-4c47-9a31-3f1d1f0c0001","outputs":{},"resources":[]}` + "\n"
+	path := filepath.Join(root, ".state/sandbox/marker/terraform.tfstate")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte(plain), 0o600))
+
+	_, err := tg(t, root, "marker", passphraseA, "", "apply", "-auto-approve")
+	require.Error(t, err, "enforced encryption read an unencrypted state")
+
+	migrate := func(args ...string) (string, error) {
+		cmd := exec.Command("terragrunt", append(args, "--non-interactive", "--log-level", "error")...)
+		cmd.Dir = filepath.Join(root, "infra/sandbox/marker")
+		cmd.Env = append(stateEnv(passphraseA, ""), "HOMELAB_STATE_MIGRATE=1")
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	out, err := migrate("apply", "-auto-approve")
+	require.NoError(t, err, out)
+	state := stateFile(t, root, "marker")
+	assert.Contains(t, state, "encrypted_data")
+	assert.NotContains(t, state, "visible-marker")
+
+	pulled, err := tg(t, root, "marker", passphraseA, "", "state", "pull")
+	require.NoError(t, err, pulled)
+	assert.Contains(t, pulled, "visible-marker")
+}

@@ -62,8 +62,9 @@ generate "encryption" {
         method "unencrypted" "migrate" {}
         %{~endif}
         state {
-          method   = method.aes_gcm.${local.state_key}
-          enforced = true
+          method = method.aes_gcm.${local.state_key}
+          # OpenTofu forbids an unencrypted fallback while enforced
+          enforced = ${!local.state_migrate}
           %{~if local.state_passphrase_previous != "" || local.state_migrate}
           fallback {
             method = ${local.state_passphrase_previous != "" ? "method.aes_gcm.${local.state_fallback_key}" : "method.unencrypted.migrate"}
