@@ -35,11 +35,6 @@ cni:
   # start: pods recreated before the agent patched it again would skip istio-cni and run outside the mesh
   # (istio/istio#55968)
   istioOwnedCNIConfig: true
-  global:
-    platform: k3s
-    # One nftables transaction per pod instead of an iptables-nft-restore per family and table: after a node restart
-    # the agent must answer each pod within the CNI plugin's 5 s, and the iptables path took 10-13 s
-    nativeNftables: true
   resources:
     requests:
       cpu: 10m
