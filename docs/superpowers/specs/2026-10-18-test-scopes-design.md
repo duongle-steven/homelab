@@ -46,6 +46,7 @@ CLI step adds commands to it instead of rewriting it, and Woodpecker (step 10) c
 | Base | `origin/dev` by default (`make dev` fetches it first); `base=<ref>` overrides |
 | Overrides | `make dev scope=full`, `make dev tests='<regex>'` |
 | From scratch | `make dev-fresh` = `make dev-clean` then `make dev scope=full` |
+| `test/`'s module path | `git.khuedoan.com/ops/homelab` (upstream's 2022 Gitea path, a name nothing imports) becomes `github.com/duongle-steven/homelab/test`, as upstream `nixos` names its modules after GitHub (`github.com/khuedoan/homelab/tests`) |
 
 ## `test/scopes.yaml`
 
@@ -159,6 +160,8 @@ The "comment-only commits skip tests" convention becomes the `skip` list plus ju
 
 ## Out of scope
 
+- Upstream's `tests/` layout (`e2e/` behind `E2E=1`, `benchmarks/`, `internal/` helpers, offline tests under
+  `go test -short`), which would shorten the offline list and the map: a later step, with `test/` → `tests/`.
 - Woodpecker pipelines (step 10); the rest of the `lab` commands and its Nix package (the CLI step).
 - Parallel tests or faster individual tests.
 - Remembering the last tested commit to narrow the base.
