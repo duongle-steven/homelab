@@ -1,1 +1,5 @@
 corednsRewrite: true
+# One node: a second istiod would only compete for it
+istiod:
+  pilot:
+    autoscaleMin: 1
