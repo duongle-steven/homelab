@@ -1,0 +1,133 @@
+# Which sandbox tests a change runs (lab test scope, docs/how-to-guides/sandbox-tests.md). Paths are globs (**
+# spans directories) matched against the files a branch changes; a file no entry knows runs the whole suite, and
+# `make -C cli check` fails until its component is added here.
+skip:
+  - docs/**
+  - "**/*.md"
+  - mkdocs.yml
+  - LICENSE.md
+  - renovate.json5
+  - .github/**
+  - .woodpecker/**
+  - .gitignore
+  - .dockerignore
+  - .yamllint.yaml
+  - .pre-commit-config.yaml
+  # Offline tests and their scripts: the basic checks run them
+  - test/state_*_test.go
+  - test/cni_watchdog_test.go
+  - test/apps_test.go
+  - test/tools_test.go
+  - scripts/check-*
+  - scripts/render-chart
+  - scripts/env-values
+  - scripts/cloudflare-credentials
+  - scripts/ensure-state-bucket
+  - scripts/rotate-state-passphrase
+  - scripts/helm-diff
+  - scripts/__pycache__/**
+  - cli/**
+always: Smoke
+alone: [NodeRestart]
+full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|NodeRestart
+groups:
+  - paths:
+      - Makefile
+      - test/Makefile
+      - test/scopes.yaml
+      - test/go.mod
+      - test/go.sum
+      - test/*helpers*_test.go
+      - flake.nix
+      - flake.lock
+      - nix/**
+      - .envrc
+      - Dockerfile
+      - system/argocd/**
+      - infra/_modules/argocd/**
+      - infra/sandbox/argocd/**
+      - infra/_modules/k3d/k3d.yaml
+    tests: full
+  - paths:
+      - system/istio-system/**
+      - infra/_modules/k3d/**
+      - infra/sandbox/cluster/**
+    tests: Mesh|Gateway|Egress|Identity|NodeRestart
+  - paths: [system/egress/**]
+    tests: Egress
+  - paths: [system/cert-manager/**]
+    tests: Gateway|Identity|SSO
+  - paths: [system/loki/**]
+    tests: Logs
+  - paths: [system/monitoring-system/**]
+    tests: Monitoring|Mesh|Ntfy|Logs
+  - paths:
+      - system/secret-store/**
+      - platform/openbao/**
+      - platform/external-secrets/**
+      - platform/global-secrets/**
+      - platform/infra-secrets/**
+      - infra/_modules/openbao/**
+      - infra/_modules/secrets/**
+      - infra/sandbox/openbao/**
+      - infra/sandbox/secrets/**
+      - infra/root.hcl
+    tests: Secrets|Identity|SSO|Ntfy
+  - paths: [platform/kanidm/**, scripts/onboard-user]
+    tests: Identity|SSO
+  - paths: [platform/grafana/**]
+    tests: SSOGrafana|Logs|Monitoring
+  - paths: [platform/forgejo/**]
+    tests: Forgejo|SSOForgejo|GatewayForgejoSSH
+  - paths: [platform/zot/**]
+    tests: SSOZot|GatewayZotLargePush
+  - paths: [apps/actualbudget.yaml]
+    tests: SSOActualBudget
+  - paths: [apps/paperless.yaml]
+    tests: SSOPaperless
+  - paths: [apps/opencloud.yaml]
+    tests: SSOOpenCloud
+  - paths: [apps/ntfy.yaml]
+    tests: Ntfy
+  # Smoke only: apps without their own tests, components the sandbox does not run, and tools for production
+  - paths:
+      - apps/blog.yaml
+      - apps/excalidraw.yaml
+      - apps/homepage.yaml
+      - apps/jellyfin.yaml
+      - apps/matrix/**
+      - apps/ollama.yaml
+      - apps/pairdrop.yaml
+      - apps/speedtest.yaml
+      - apps/tailscale.yaml
+      - apps/wireguard.yaml
+      - platform/cloudnative-pg/**
+      - platform/renovate/**
+      - platform/woodpecker/**
+      - system/cloudflared/**
+      - system/external-dns/**
+      - system/kured/**
+      - system/rook-ceph/**
+      - system/volsync-system/**
+      - infra/Makefile
+      - infra/production/**
+      - infra/_modules/cloudflare/**
+      - metal/**
+      - test/benchmark/**
+      - scripts/argocd-admin-password
+      - scripts/get-dns-config
+      - scripts/get-status
+      - scripts/get-wireguard-config
+      - scripts/new-service
+      - scripts/pxe-logs
+      - scripts/take-screenshots
+    tests: ""
+components:
+  - system/*/
+  - platform/*/
+  - apps/*.yaml
+  - apps/*/
+  - infra/_modules/*/
+  - infra/*/*/
+  - scripts/*
+  - nix/*
