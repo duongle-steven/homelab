@@ -3,6 +3,10 @@ locals {
   env        = split("/", path_relative_to_include())[0]
   unit       = basename(get_original_terragrunt_dir())
   kubeconfig = "${get_repo_root()}/infra/${local.env}/kubeconfig.yaml"
+  production = local.env == "production"
+  # Production only: the account and OAuth token of `cf auth login` (empty strings for the sandbox, which never calls cf)
+  cloudflare   = jsondecode(run_cmd("--terragrunt-global-cache", "--terragrunt-quiet", "${get_repo_root()}/scripts/cloudflare-credentials", local.env))
+  state_bucket = "homelab-${local.env}-tfstate"
 
   # OpenTofu state encryption (every environment): the passphrase reaches OpenTofu only as TF_VAR_state_passphrase.
   # _PREVIOUS (scripts/rotate-state-passphrase) or HOMELAB_STATE_MIGRATE=1 (unencrypted state) adds a fallback.
@@ -16,16 +20,29 @@ locals {
   state_commands     = ["init", "validate", "plan", "apply", "destroy", "refresh", "import", "output", "show", "state", "console", "taint", "untaint", "providers"]
 }
 
-# The sandbox keeps local state (production's moves to R2 in Task 4 of the step 8c plan)
-remote_state {
-  backend = "local"
-  generate = {
-    path      = "backend.tf"
-    if_exists = "overwrite_terragrunt"
-  }
-  config = {
-    path = "${get_repo_root()}/.state/${path_relative_to_include()}/terraform.tfstate"
-  }
+# Production's state is on R2 (one object per unit, read and written through Cloudflare's API with cf's OAuth token;
+# no lock: one operator); the sandbox's stays local. Both are encrypted (encryption.tf). The token lands in
+# .terragrunt-cache, which is git-ignored and user-only, as upstream's remote_state does.
+generate "backend" {
+  path      = "backend.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<-EOF
+    terraform {
+    %{~if local.production}
+      backend "http" {
+        address       = "https://api.cloudflare.com/client/v4/accounts/${local.cloudflare.account_id}/r2/buckets/${local.state_bucket}/objects/${local.unit}/tfstate.json"
+        update_method = "PUT"
+        headers = {
+          Authorization = "Bearer ${local.cloudflare.token}"
+        }
+      }
+    %{~else}
+      backend "local" {
+        path = "${get_repo_root()}/.state/${path_relative_to_include()}/terraform.tfstate"
+      }
+    %{~endif}
+    }
+  EOF
 }
 
 generate "encryption" {
@@ -80,13 +97,35 @@ generate "encryption" {
   EOF
 }
 
-# Local state holds secrets (Cloudflare tokens, the tunnel secret): readable by the user only
+# Local state (the sandbox) holds secrets (Cloudflare tokens, the tunnel secret): readable by the user only
 terraform {
   after_hook "state_permissions" {
     commands = ["apply", "destroy", "import", "refresh", "state"]
     execute  = ["chmod", "-R", "go-rwx", "${get_repo_root()}/.state"]
     # Also after a failed apply, which may already have written secrets
     run_on_error = true
+  }
+
+  extra_arguments "cloudflare_oauth" {
+    commands = ["plan", "apply", "destroy", "import", "refresh"]
+    env_vars = {
+      CLOUDFLARE_API_TOKEN = local.cloudflare.token
+      CLOUDFLARE_API_KEY   = ""
+      CLOUDFLARE_EMAIL     = ""
+    }
+  }
+
+  # The OAuth token in backend.tf changes, so production's init reconfigures; a migration (HOMELAB_STATE_MIGRATE=1)
+  # passes -migrate-state itself, which conflicts with -reconfigure
+  extra_arguments "backend_reconfigure" {
+    commands  = ["init"]
+    arguments = local.production && !local.state_migrate ? ["-reconfigure"] : []
+  }
+
+  before_hook "state_bucket" {
+    commands = ["init"]
+    if       = local.production
+    execute  = ["${get_repo_root()}/scripts/ensure-state-bucket", local.state_bucket]
   }
 
   extra_arguments "state_passphrase" {
