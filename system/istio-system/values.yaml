@@ -45,3 +45,9 @@ ztunnel:
     requests:
       cpu: 10m
       memory: 64Mi
+# Restarts a node's istio-cni when its ztunnel stays not Ready (files/cni-watchdog.sh): breaks the deadlock that
+# follows a node restart
+cniWatchdog:
+  # The official kubectl image has no shell
+  image: alpine/kubectl:1.37.1@sha256:8c72f6f732ce7ef11cdb1bea25faa4f4a521872a12c89e3f40ba9edb52a4d4f2
+  notReadySeconds: 180
