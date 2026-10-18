@@ -9,7 +9,7 @@ book/
 Chart.lock
 infra/sandbox/cluster/gateway-api-*.yaml
 
-# OpenTofu and Terragrunt (state is local until step 8)
+# OpenTofu and Terragrunt (the sandbox's state; production's is on R2)
 .state/
 .terragrunt-cache/
 .terraform/

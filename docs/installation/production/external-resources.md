@@ -27,28 +27,57 @@ You'll be asked to provide these credentials on first build.
 
 1. Buy a domain on Cloudflare, or [transfer it to Cloudflare](https://developers.cloudflare.com/registrar/get-started/transfer-domain-to-cloudflare); set `domain` and `zone` in `config.json`.
 2. Enable **Zero Trust** (any team name, the Free plan) so the account can create tunnels.
-3. Create an API token (My Profile → API Tokens → Create Custom Token) scoped to your account and the zone:
+3. Enable **R2** (R2 Object Storage in the dashboard; it asks for a payment method even on the free tier, which
+   OpenTofu's state stays far below).
+4. `terragrunt plan` in `infra/production/cloudflare`, then `terragrunt apply` (`make` applies every production unit).
 
-    | Type | Permission | Access |
-    |---|---|---|
-    | Account | Cloudflare Tunnel | Edit |
-    | Account | Account API Tokens | Edit |
-    | Account | Account Settings | Read |
-    | Zone | Zone | Read |
-    | Zone | DNS | Edit |
+!!! warning
 
-4. Keep it outside the repository; `.envrc` loads it:
+    `cf auth login`'s OAuth scopes hold none for account API tokens, so `plan` and `apply` in
+    `infra/production/cloudflare` fail with HTTP 403 on its permission groups and DNS tokens until step 8d. The unit was
+    applied on 2026-10-16 and its state is on R2; the other production units only need the R2 scopes.
 
-    ```sh
-    mkdir -p ~/.config/homelab && printf 'Token: ' && read -rs t \
-      && printf 'export CLOUDFLARE_API_TOKEN=%s\n' "$t" > ~/.config/homelab/cloudflare.env \
-      && chmod 600 ~/.config/homelab/cloudflare.env
-    ```
+### Cloudflare login
 
-5. `cd infra/production/cloudflare && terragrunt plan`, then `terragrunt apply` (`make` applies every production unit).
+OpenTofu takes the account and an OAuth token from `cf`, Cloudflare's CLI (in the dev shell), and `cf` refreshes the
+token. Log in once, with no `CLOUDFLARE_API_TOKEN` in the environment (`cf` would use it instead):
 
-The unit's state (`.state/`, git-ignored) holds the tokens and the tunnel secret until step 8 moves state to
-encrypted R2.
+```sh
+env -u CLOUDFLARE_API_TOKEN cf auth login --no-browser
+```
+
+`--no-browser` prints a link and a code (handy under WSL). `CLOUDFLARE_ACCOUNT_ID` picks the account when the login
+sees several. `make -C infra check` needs no login.
+
+### State passphrase
+
+Every OpenTofu state is encrypted (OpenTofu's state encryption, PBKDF2 and AES-GCM) with `HOMELAB_STATE_PASSPHRASE`,
+which `.envrc` loads from `~/.config/homelab/state.env`:
+
+```sh
+sh -c 'umask 077; mkdir -p ~/.config/homelab; printf "export HOMELAB_STATE_PASSPHRASE=%s\n" "$(head -c 32 /dev/urandom | base64)" > ~/.config/homelab/state.env'
+direnv allow
+```
+
+Keep a copy in a password manager. Losing it makes every state unreadable, including OpenBao's unseal key and the
+WireGuard private key, and with the unseal key every secret in OpenBao.
+
+A state written before encryption (an older sandbox, or production before step 8c) is refused; run the first command
+once with `HOMELAB_STATE_MIGRATE=1` (for example `HOMELAB_STATE_MIGRATE=1 make dev`), which reads it unencrypted and
+writes it encrypted.
+
+### Rotating the passphrase
+
+1. Set `HOMELAB_STATE_PASSPHRASE` to the new passphrase and `HOMELAB_STATE_PASSPHRASE_PREVIOUS` to the old one.
+2. Run `scripts/rotate-state-passphrase production` (and `sandbox`). It reads every unit's state with the old
+   passphrase before it writes any, so a wrong old passphrase changes nothing.
+3. Update the password manager and `state.env`, then unset `HOMELAB_STATE_PASSPHRASE_PREVIOUS`.
+
+### Where state lives
+
+Production's state is on R2: bucket `homelab-production-tfstate` (created on the first `init`), one object per unit
+(`<unit>/tfstate.json`), with no lock (one operator). The sandbox's stays in `.state/sandbox/` (git-ignored, readable
+by the user only). Both are encrypted.
 
 ### ntfy
 
