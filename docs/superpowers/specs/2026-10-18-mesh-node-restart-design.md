@@ -136,7 +136,7 @@ agent above 5s.
 | Topic | Decision |
 |---|---|
 | Spike commits | Keep them in the history (they record what was tried); later commits drop `ipv6: false` and fix the comment |
-| `cni.ambient.ipv6: false` | Dropped. It helps (5–13 minutes instead of never), but it silently stops IPv6 redirection on an IPv6 or dual-stack host such as upstream's `hetzner-1` (`infra/production/metal/hosts.json`, IPv6 only). The watchdog covers what it covered |
+| `cni.ambient.ipv6: false` | Kept (revised during implementation, 2026-10-18). The watchdog alone failed: after it cleared the snapshot ztunnel turned Ready, but the agent stayed at ~11 s per pod, so new adds kept timing out, made new dead netns and ztunnel relapsed; the GREEN run needed 26 minutes. Pods only get IPv4 (cluster CIDR `10.42.0.0/16`, upstream's IPv6-only `hetzner-1` included), so the setting only matters for a dual-stack cluster: its comment says to remove it then. `global.nativeNftables` was tried instead and crash-loops istio-cni on k3s (`kubelet or kubelite process not found`, istio/istio#61078) |
 | `cni.istioOwnedCNIConfig: true` | Kept. Its comment names the k3s rewrite of `10-flannel.conflist` and istio/istio#55968 |
 | Watchdog | A CronJob `istio-cni-watchdog` in `istio-system`, in production and in the sandbox |
 | Watchdog rule | For each node: if the ztunnel container has been running for more than 180s and is not Ready, and the istio-cni container on that node has been running for more than 180s, delete that node's istio-cni pod. A healthy ztunnel is Ready within seconds, and the 180s istio-cni age stops repeated restarts |
@@ -157,7 +157,7 @@ match `TestMeshSurvivesNodeRestart`, because `go test -run` is not anchored).
 1. Record each app's status code through the Gateway, as `probe.sh` did (draw, home, speedtest, pairdrop, budget,
    grafana, git), and check the cluster is healthy first.
 2. Run `docker restart` on the node container (the name comes from the test environment).
-3. Within 12 minutes, all of these hold:
+3. Within 20 minutes (revised from 12: recoveries measured 5.5 to 13.4 minutes), all of these hold:
    - the API server answers;
    - every ztunnel pod is Ready;
    - no pod is outside `Running` or `Succeeded`, ignoring completed Jobs;
@@ -166,12 +166,12 @@ match `TestMeshSurvivesNodeRestart`, because `go test -run` is not anchored).
 4. On failure, the test logs ztunnel's not-ready state and the pods that are not running.
 
 `make dev` runs it on its own after the main parallel run: a second `smoke-test` call with
-`smoke_filter='NodeRestart'`, because it takes the whole cluster down. That adds about 6 to 8 minutes.
+`smoke_filter='NodeRestart'`, because it takes the whole cluster down. That adds about 6 to 15 minutes.
 
 - RED: before the watchdog exists, with `ipv6: false` dropped, the test fails at its 12-minute limit. This is already
   shown 5/5 times; the run is repeated on the branch.
-- GREEN: with the watchdog, it passes. Expected recovery is the 180s threshold plus up to a minute for the schedule
-  plus about 3.7 minutes, so 6 to 8 minutes, inside 12.
+- GREEN: with the watchdog, it passes. Revised during implementation: the watchdog alone did not (26 minutes,
+  see the `cni.ambient.ipv6` decision); with `ipv6: false` and the watchdog the test passed in 662s.
 
 The existing checks (`render-chart`, `check-mesh-policies`, `check-env-config`, `check-secret-stores`, go vet and the
 offline tests, `mkdocs build --strict`, `make -C infra check`) pass. `make dev-clean && make dev` passes from scratch
