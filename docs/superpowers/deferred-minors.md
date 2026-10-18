@@ -18,7 +18,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | #31 (7b) | The seed `sed` breaks on `&` or `\|` in `seed_repository`; `SEED_REPOSITORY` duplicates `global.seedRepository` | any |
 | #31 (7b) | woodpecker's and zot's config changes do not roll their pods | 10 (Git and CI) |
 | #31 (7b) | `scripts/check-env-config`'s untemplated-global check knows only four keys | any |
-| #32 (7c) | `.envrc` exports the Cloudflare token to every process in the repo shell | 8c (OAuth through `cf`) |
 | #32 (7c) | `.direnv/` and `site/` are not git-ignored | any |
 | #34 (8a) | Two destinations of one generated secret can drift if one is lost after its source Secret was regenerated (`Replace` would overwrite restored values) | 11 (backups) |
 | #34 (8a) | `TestSecretsAudience` matches the plugin's "invalid audience" message | any |
@@ -36,3 +35,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | mesh restart | `cni-watchdog.sh` logs "no running istio-cni pod" when a rollout briefly shows two istio-cni pods on a node (it skips that minute, which is safe) | any |
 | mesh restart | `TestIstioCNIWatchdog` never exercises the BusyBox `date -D` fallback offline (the host has GNU date; `TestNodeRestart` covers it in the image) | any |
 | mesh restart | The mesh-restart spec's RED bullet says the test "fails at its 12-minute limit" without saying the limit was 12 then | any |
+| 14a | `make dev tests=` with a single quote breaks the recipe's `eval` quoting | any |
+| 14a | The test scopes spec's map table still lists `scripts/check-*`, `render-chart` and `cli/**` as Smoke only; `test/scopes.yaml` skips them | any |
+| 14a | `lab test scope --check` covers only `components` globs: top-level files, `test/` non-test files, `metal/` and `cli/` are not checked (a new file there runs the whole suite) | any |
+| 14a | `scope.SplitTerms` ignores escapes and character classes (`\(`, `[|]`); no term uses them yet | any |
