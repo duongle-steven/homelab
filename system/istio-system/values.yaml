@@ -15,12 +15,31 @@ base: &ambient
 istiod:
   <<: *ambient
   pilot:
+    # Two replicas on different nodes: a rebooted node's ztunnel gets its config at once instead of waiting for
+    # istiod to come back on that node (docs/reference/architecture/networking.md, node restarts)
+    autoscaleMin: 2
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: istiod
     resources:
       requests:
         cpu: 100m
         memory: 128Mi
 cni:
   <<: *ambient
+  # Istio writes its own 02-istio-cni.conflist instead of patching 10-flannel.conflist, which k3s rewrites at every
+  # start: pods recreated before the agent patched it again would skip istio-cni and run outside the mesh
+  # (istio/istio#55968)
+  istioOwnedCNIConfig: true
+  ambient:
+    # Pods only get IPv4 (cluster CIDR 10.42.0.0/16, also on IPv6-only hosts), so skip the IPv6 rules: after a node
+    # restart the agent must answer each pod within the CNI plugin's 5 s, and the second iptables-restore per pod kept
+    # it at 10-13 s. Remove this if the cluster becomes dual-stack
+    ipv6: false
   resources:
     requests:
       cpu: 10m
@@ -31,3 +50,9 @@ ztunnel:
     requests:
       cpu: 10m
       memory: 64Mi
+# Restarts a node's istio-cni when its ztunnel stays not Ready (files/cni-watchdog.sh): breaks the deadlock that
+# follows a node restart
+cniWatchdog:
+  # The official kubectl image has no shell
+  image: alpine/kubectl:1.37.1@sha256:8c72f6f732ce7ef11cdb1bea25faa4f4a521872a12c89e3f40ba9edb52a4d4f2
+  notReadySeconds: 180
