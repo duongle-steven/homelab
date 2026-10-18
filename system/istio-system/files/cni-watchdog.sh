@@ -15,14 +15,17 @@ epoch() {
 kubectl -n istio-system get pods -l app=ztunnel -o jsonpath='{range .items[*]}{.spec.nodeName} {.status.containerStatuses[0].ready} {.status.containerStatuses[0].state.running.startedAt}{"\n"}{end}' |
 	while read -r node ready started; do
 		[ "$ready" = false ] && [ -n "${started:-}" ] || continue
-		[ $((now - $(epoch "$started"))) -gt "$limit" ] || continue
+		# An unparsable time skips this node only
+		since=$(epoch "$started") || { echo "$node: cannot parse ztunnel's start time $started"; continue; }
+		[ $((now - since)) -gt "$limit" ] || continue
 		cni=$(kubectl -n istio-system get pods -l k8s-app=istio-cni-node --field-selector "spec.nodeName=$node" -o jsonpath='{range .items[*]}{.metadata.name} {.status.containerStatuses[0].state.running.startedAt}{"\n"}{end}') || cni=
 		set -- $cni
 		if [ $# -ne 2 ]; then
 			echo "$node: ztunnel not Ready, no running istio-cni pod"
 			continue
 		fi
-		if [ $((now - $(epoch "$2"))) -le "$limit" ]; then
+		cni_since=$(epoch "$2") || { echo "$node: cannot parse istio-cni's start time $2"; continue; }
+		if [ $((now - cni_since)) -le "$limit" ]; then
 			echo "$node: ztunnel not Ready, istio-cni $1 started less than ${limit}s ago"
 			continue
 		fi

@@ -56,6 +56,7 @@ func TestIstioCNIWatchdog(t *testing.T) {
 		{"istio-cni just restarted", fmt.Sprintf("node-a false %s\n", ago(300)), map[string]string{"node-a": "istio-cni-a " + ago(60) + "\n"}, ""},
 		{"ztunnel not running", "node-a false \n", map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n"}, ""},
 		{"no istio-cni pod", fmt.Sprintf("node-a false %s\nnode-b false %s\n", ago(300), ago(300)), map[string]string{"node-b": "istio-cni-b " + ago(300) + "\n"}, "-n istio-system delete pod istio-cni-b --wait=false"},
+		{"unparsable start time", fmt.Sprintf("node-a false garbage\nnode-b false %s\n", ago(300)), map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n", "node-b": "istio-cni-b " + ago(300) + "\n"}, "-n istio-system delete pod istio-cni-b --wait=false"},
 		{"only the stuck node", fmt.Sprintf("node-a true %s\nnode-b false %s\n", ago(300), ago(300)), map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n", "node-b": "istio-cni-b " + ago(300) + "\n"}, "-n istio-system delete pod istio-cni-b --wait=false"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
