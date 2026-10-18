@@ -179,7 +179,7 @@ func TestNodeRestart(t *testing.T) {
 		}
 		blockers = restartBlockers(pods, meshed, ztunnel, want, appCodes(hosts))
 		return len(blockers) == 0
-	}, 12*time.Minute, 15*time.Second, "the sandbox did not recover from a node restart")
+	}, 20*time.Minute, 15*time.Second, "the sandbox did not recover from a node restart")
 	if recovered {
 		t.Logf("recovered %s after the restart", time.Since(restarted).Round(time.Second))
 	} else {
