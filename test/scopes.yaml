@@ -69,9 +69,11 @@ groups:
       - infra/_modules/secrets/**
       - infra/sandbox/openbao/**
       - infra/sandbox/secrets/**
-    tests: Secrets|Identity|SSO|Ntfy
+    # Every component that reads a secret through ESO
+    tests: Secrets|Identity|SSO|Ntfy|Forgejo|Logs|Gateway|Monitoring
+  # Forgejo and zot need Kanidm's discovery document at start
   - paths: [platform/kanidm/**, scripts/onboard-user]
-    tests: Identity|SSO
+    tests: Identity|SSO|ForgejoSeed|GatewayZotLargePush
   - paths: [platform/grafana/**]
     tests: SSOGrafana|Logs|Monitoring
   - paths: [platform/forgejo/**]

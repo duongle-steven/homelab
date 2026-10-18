@@ -20,14 +20,14 @@ default: metal infra smoke-test clean
 dev:
 	@if [ -n "$(tests)" ]; then sel="--tests '$(tests)'"; \
 	elif [ "$(scope)" = full ]; then sel=--full; \
-	else git fetch -q origin dev && sel="--base $(base)"; fi; \
+	else git fetch -q origin dev || echo "make dev: git fetch failed, comparing with the local $(base)" >&2; sel="--base $(base)"; fi; \
 	main=$$(eval "$(lab) $$sel") && alone=$$(eval "$(lab) $$sel --alone") || exit 1; \
-	if [ -z "$$main$$alone" ]; then echo "make dev: nothing to test in the sandbox (every change is in test/scopes.yaml's skip)"; exit 0; fi; \
+	if [ -z "$$main$$alone" ]; then echo "make dev: nothing to test in the sandbox (no change outside test/scopes.yaml's skip)"; exit 0; fi; \
 	echo "make dev: main run '$$main', then alone '$$alone'"; \
 	$(MAKE) sandbox-push && \
 	(cd infra/sandbox && $(terragrunt_apply)) && \
 	if [ -n "$$main" ]; then $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$main" sandbox-refresh smoke-test; fi && \
-	if [ -n "$$alone" ]; then $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" smoke-test; fi
+	if [ -n "$$alone" ]; then $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; fi
 
 # From scratch, the whole suite: before a dev → master PR and a release
 dev-fresh:

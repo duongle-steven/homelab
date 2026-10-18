@@ -83,8 +83,8 @@ Initial groups:
 | `system/cert-manager/**` | `Gateway\|Identity\|SSO` |
 | `system/loki/**` | `Logs` |
 | `system/monitoring-system/**` | `Monitoring\|Mesh\|Ntfy\|Logs` |
-| `system/secret-store/**`, `platform/openbao/**`, `platform/external-secrets/**`, `platform/global-secrets/**`, `platform/infra-secrets/**`, `infra/_modules/openbao/**`, `infra/_modules/secrets/**`, `infra/sandbox/openbao/**`, `infra/sandbox/secrets/**` | `Secrets\|Identity\|SSO\|Ntfy` |
-| `platform/kanidm/**` | `Identity\|SSO` |
+| `system/secret-store/**`, `platform/openbao/**`, `platform/external-secrets/**`, `platform/global-secrets/**`, `platform/infra-secrets/**`, `infra/_modules/openbao/**`, `infra/_modules/secrets/**`, `infra/sandbox/openbao/**`, `infra/sandbox/secrets/**` | `Secrets\|Identity\|SSO\|Ntfy\|Forgejo\|Logs\|Gateway\|Monitoring` (every reader of a secret) |
+| `platform/kanidm/**`, `scripts/onboard-user` | `Identity\|SSO\|ForgejoSeed\|GatewayZotLargePush` (Forgejo and zot need Kanidm at start) |
 | `platform/grafana/**` | `SSOGrafana\|Logs\|Monitoring` |
 | `platform/forgejo/**` | `Forgejo\|SSOForgejo\|GatewayForgejoSSH` |
 | `platform/zot/**` | `SSOZot\|GatewayZotLargePush` |
