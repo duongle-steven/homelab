@@ -58,6 +58,13 @@ func newTestScopeCmd() *cobra.Command {
 			var s scope.Selection
 			switch {
 			case tests != "":
+				names, err := scope.AllTests(root)
+				if err != nil {
+					return err
+				}
+				if err := c.CheckManual(tests, names); err != nil {
+					return err
+				}
 				s = scope.ManualSelection(tests)
 			case full:
 				s = scope.Selection{Full: true}

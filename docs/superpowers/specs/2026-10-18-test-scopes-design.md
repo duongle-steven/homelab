@@ -69,20 +69,21 @@ components:          # what --check expects the map to cover
 ```
 
 A file that matches several groups gets their union. A changed `test/<name>_test.go` (other than helpers) selects the
-tests it defines (`func Test…`, read with `go/parser`), so editing a test runs it.
+tests it defines (`func Test…`, read with `go/parser`) and the tests of every other test file that uses one of its
+top-level names (its helpers), so editing a test or a helper runs what depends on it. `make dev tests=<regex>` refuses
+a term that matches no test, and a non-alone term that matches an alone test.
 
 Initial groups:
 
 | Paths | Tests |
 |---|---|
 | `docs/**`, `**/*.md`, `mkdocs.yml`, `LICENSE.md`, `renovate.json5`, `.github/**` | skip |
-| `Makefile`, `test/Makefile`, `test/scopes.yaml`, `flake.nix`, `flake.lock`, `nix/**`, `.envrc`, `system/argocd/**`, `infra/_modules/argocd/**`, `infra/sandbox/argocd/**`, `test/*helpers*_test.go`, `test/go.mod`, `test/go.sum` | full |
-| `system/istio-system/**`, `infra/_modules/k3d/**`, `infra/sandbox/cluster/**` | `Mesh\|Gateway\|Egress\|Identity\|NodeRestart` |
-| `system/egress/**` | `Egress` |
+| `Makefile`, `test/Makefile`, `test/scopes.yaml`, `flake.nix`, `flake.lock`, `nix/**`, `.envrc`, `system/argocd/**`, `infra/_modules/argocd/**`, `infra/sandbox/argocd/**`, `test/*helpers*_test.go`, `test/go.mod`, `test/go.sum`; inputs of the whole cluster: `infra/_modules/k3d/**`, `infra/sandbox/cluster/**` (`config.json`), `infra/root.hcl`, `scripts/env-values`; `system/egress/**` (rendered into every namespace) | full |
+| `system/istio-system/**` | `Mesh\|Gateway\|Egress\|Identity\|NodeRestart` |
 | `system/cert-manager/**` | `Gateway\|Identity\|SSO` |
 | `system/loki/**` | `Logs` |
 | `system/monitoring-system/**` | `Monitoring\|Mesh\|Ntfy\|Logs` |
-| `system/secret-store/**`, `platform/openbao/**`, `platform/external-secrets/**`, `platform/global-secrets/**`, `platform/infra-secrets/**`, `infra/_modules/openbao/**`, `infra/_modules/secrets/**`, `infra/sandbox/openbao/**`, `infra/sandbox/secrets/**`, `infra/root.hcl` | `Secrets\|Identity\|SSO\|Ntfy` |
+| `system/secret-store/**`, `platform/openbao/**`, `platform/external-secrets/**`, `platform/global-secrets/**`, `platform/infra-secrets/**`, `infra/_modules/openbao/**`, `infra/_modules/secrets/**`, `infra/sandbox/openbao/**`, `infra/sandbox/secrets/**` | `Secrets\|Identity\|SSO\|Ntfy` |
 | `platform/kanidm/**` | `Identity\|SSO` |
 | `platform/grafana/**` | `SSOGrafana\|Logs\|Monitoring` |
 | `platform/forgejo/**` | `Forgejo\|SSOForgejo\|GatewayForgejoSSH` |

@@ -172,3 +172,12 @@ func TestCommandInvalidMap(t *testing.T) {
 		t.Errorf("an invalid map loaded: %q", out)
 	}
 }
+
+func TestCommandManualRefusesUselessRegex(t *testing.T) {
+	repo(t)
+	for _, regex := range []string{`Logs\|Smoke`, "Nothing", "."} {
+		if out, err := lab(t, "--tests", regex); err == nil {
+			t.Errorf("%q accepted: %q", regex, out)
+		}
+	}
+}

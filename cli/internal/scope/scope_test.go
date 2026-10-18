@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -186,5 +187,39 @@ func TestFileTestsDeletedFile(t *testing.T) {
 	names, err := FileTests(t.TempDir())("test/gone_test.go")
 	if err != nil || names != nil {
 		t.Errorf("a deleted test file: %q %v", names, err)
+	}
+}
+
+// A test file's helpers used by other test files select those files' tests too
+func TestFileTestsIncludesHelperUsers(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "test/sso_test.go", "package test\n\nimport \"testing\"\n\nvar timeout = 1\n\nfunc secretValue() string { return \"\" }\nfunc TestSSOZot(t *testing.T) { _ = secretValue() }\n")
+	writeFile(t, root, "test/ntfy_test.go", "package test\n\nimport \"testing\"\n\nfunc TestNtfyUsers(t *testing.T) { _ = secretValue() }\n")
+	writeFile(t, root, "test/logs_test.go", "package test\n\nimport \"testing\"\n\nfunc TestLogsEvents(t *testing.T) { _ = timeout }\n")
+	writeFile(t, root, "test/mesh_test.go", "package test\n\nimport \"testing\"\n\nfunc TestMeshEnrolled(t *testing.T) {}\n")
+	names, err := FileTests(root)("test/sso_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(names)
+	if !reflect.DeepEqual(names, []string{"TestLogsEvents", "TestNtfyUsers", "TestSSOZot"}) {
+		t.Errorf("got %q", names)
+	}
+}
+
+func TestCheckManual(t *testing.T) {
+	c := testConfig()
+	tests := []string{"TestLogsPodLines", "TestNodeRestart", "TestSmoke"}
+	for regex, ok := range map[string]bool{
+		"Logs":             true,
+		"Logs|NodeRestart": true,
+		`Logs\|Secrets`:    false, // a literal |: matches nothing
+		"Nothing":          false,
+		".":                false, // would run TestNodeRestart with the others
+		"Restart":          false,
+	} {
+		if err := c.CheckManual(regex, tests); (err == nil) != ok {
+			t.Errorf("%q: error %v", regex, err)
+		}
 	}
 }

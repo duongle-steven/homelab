@@ -7,9 +7,16 @@
 | `make dev` | The tests `test/scopes.yaml` maps the branch's changes to (`git diff origin/dev...HEAD`), plus `Smoke`; nothing when every change is skipped (docs and the like); the whole suite when a file is in no entry |
 | `make dev scope=full` | The whole suite on the existing sandbox: after merging into `dev` |
 | `make dev-fresh` | `make dev-clean`, then the whole suite on a new sandbox: before a `dev` → `master` PR or a release |
-| `make dev tests='Logs\|Secrets'` | Exactly those tests (a `go test -run` regex) |
+| `make dev tests=<regex>` | Exactly those tests (a `go test -run` regex, example below); a term that matches no test is refused |
 
-`TestNodeRestart` restarts the node, so it always runs alone, after the others.
+For example, the Loki and OpenBao tests only:
+
+```sh
+make dev tests='Logs|Secrets'
+```
+
+`TestNodeRestart` restarts the node, so it always runs alone, after the others; name it on its own
+(`tests='Logs|NodeRestart'`), not through a broader term such as `.`.
 
 To see what a branch would run without running it:
 

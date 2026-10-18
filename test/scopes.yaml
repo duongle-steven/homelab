@@ -1,4 +1,4 @@
-# Which sandbox tests a change runs (lab test scope, docs/how-to-guides/sandbox-tests.md). Paths are globs (**
+# Which sandbox tests a change runs (inputs of the whole cluster, egress rendered into every namespace: full) (lab test scope, docs/how-to-guides/sandbox-tests.md). Paths are globs (**
 # spans directories) matched against the files a branch changes; a file no entry knows runs the whole suite, and
 # `make -C cli check` fails until its component is added here.
 skip:
@@ -20,7 +20,6 @@ skip:
   - test/tools_test.go
   - scripts/check-*
   - scripts/render-chart
-  - scripts/env-values
   - scripts/cloudflare-credentials
   - scripts/ensure-state-bucket
   - scripts/rotate-state-passphrase
@@ -46,15 +45,14 @@ groups:
       - system/argocd/**
       - infra/_modules/argocd/**
       - infra/sandbox/argocd/**
-      - infra/_modules/k3d/k3d.yaml
-    tests: full
-  - paths:
-      - system/istio-system/**
       - infra/_modules/k3d/**
       - infra/sandbox/cluster/**
+      - infra/root.hcl
+      - scripts/env-values
+      - system/egress/**
+    tests: full
+  - paths: [system/istio-system/**]
     tests: Mesh|Gateway|Egress|Identity|NodeRestart
-  - paths: [system/egress/**]
-    tests: Egress
   - paths: [system/cert-manager/**]
     tests: Gateway|Identity|SSO
   - paths: [system/loki/**]
@@ -71,7 +69,6 @@ groups:
       - infra/_modules/secrets/**
       - infra/sandbox/openbao/**
       - infra/sandbox/secrets/**
-      - infra/root.hcl
     tests: Secrets|Identity|SSO|Ntfy
   - paths: [platform/kanidm/**, scripts/onboard-user]
     tests: Identity|SSO
