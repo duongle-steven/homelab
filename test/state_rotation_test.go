@@ -5,7 +5,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -163,4 +165,52 @@ func TestStateMigrateFromPlain(t *testing.T) {
 	pulled, err := tg(t, root, "marker", passphraseA, "", "state", "pull")
 	require.NoError(t, err, pulled)
 	assert.Contains(t, pulled, "visible-marker")
+}
+
+// A rotation interrupted after some units were rewritten with the new passphrase resumes with the same variables
+func TestStateRotationResumes(t *testing.T) {
+	root := stateTree(t)
+	out, err := tg(t, root, "marker", passphraseA, "", "apply", "-auto-approve")
+	require.NoError(t, err, out)
+	out, err = tg(t, root, "empty", passphraseB, "", "apply", "-auto-approve")
+	require.NoError(t, err, out)
+
+	out, err = rotate(t, root, passphraseB, passphraseA)
+	require.NoError(t, err, out)
+	for _, unit := range []string{"marker", "empty"} {
+		_, err := tg(t, root, unit, passphraseB, "", "state", "pull")
+		assert.NoError(t, err, "%s does not read with the new passphrase", unit)
+	}
+}
+
+// Killed mid-run, the script removes its decrypted copies
+func TestStateRotationSignalCleansUp(t *testing.T) {
+	root := stateTree(t)
+	out, err := tg(t, root, "marker", passphraseA, "", "apply", "-auto-approve")
+	require.NoError(t, err, out)
+
+	tmp := t.TempDir()
+	cmd := exec.Command("sh", "scripts/rotate-state-passphrase", "sandbox")
+	cmd.Dir = root
+	cmd.Env = append(stateEnv(passphraseB, passphraseA), "TMPDIR="+tmp)
+	require.NoError(t, cmd.Start())
+	require.Eventually(t, func() bool {
+		entries, _ := filepath.Glob(filepath.Join(tmp, "tmp.*", "*.json"))
+		return len(entries) > 0
+	}, 60*time.Second, 50*time.Millisecond, "the script never wrote a decrypted copy")
+	require.NoError(t, cmd.Process.Signal(syscall.SIGTERM))
+	_ = cmd.Wait()
+	left, _ := filepath.Glob(filepath.Join(tmp, "*"))
+	assert.Empty(t, left, "decrypted states left behind")
+}
+
+// MIGRATE's unencrypted fallback and PREVIOUS's old-passphrase fallback cannot both apply: refuse the combination
+func TestStateMigrateRefusesPrevious(t *testing.T) {
+	root := stateTree(t)
+	cmd := exec.Command("terragrunt", "plan", "--non-interactive", "--log-level", "error")
+	cmd.Dir = filepath.Join(root, "infra/sandbox/marker")
+	cmd.Env = append(stateEnv(passphraseB, passphraseA), "HOMELAB_STATE_MIGRATE=1")
+	out, err := cmd.CombinedOutput()
+	assert.Error(t, err)
+	assert.Contains(t, string(out), "HOMELAB_STATE_MIGRATE and HOMELAB_STATE_PASSPHRASE_PREVIOUS")
 }

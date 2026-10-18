@@ -29,13 +29,17 @@ You'll be asked to provide these credentials on first build.
 2. Enable **Zero Trust** (any team name, the Free plan) so the account can create tunnels.
 3. Enable **R2** (R2 Object Storage in the dashboard; it asks for a payment method even on the free tier, which
    OpenTofu's state stays far below).
-4. `terragrunt plan` in `infra/production/cloudflare`, then `terragrunt apply` (`make` applies every production unit).
+4. `terragrunt plan` in `infra/production/cloudflare`, then `terragrunt apply` (`make infra env=production` applies every
+   production unit; until step 8d see the warning below).
 
 !!! warning
 
     `cf auth login`'s OAuth scopes hold none for account API tokens, so `plan` and `apply` in
     `infra/production/cloudflare` fail with HTTP 403 on its permission groups and DNS tokens until step 8d. The unit was
-    applied on 2026-10-16 and its state is on R2; the other production units only need the R2 scopes.
+    applied on 2026-10-16 and its state is on R2; the other production units only need the R2 scopes. Until then,
+    `make infra env=production` stops at `cloudflare` and skips `secrets`, which depends on it: apply the others with
+    `cd infra/production && terragrunt run --all apply --filter '!cloudflare'` (`secrets` still reads `cloudflare`'s
+    outputs from its state).
 
 ### Cloudflare login
 
@@ -70,7 +74,8 @@ writes it encrypted.
 
 1. Set `HOMELAB_STATE_PASSPHRASE` to the new passphrase and `HOMELAB_STATE_PASSPHRASE_PREVIOUS` to the old one.
 2. Run `scripts/rotate-state-passphrase production` (and `sandbox`). It reads every unit's state with the old
-   passphrase before it writes any, so a wrong old passphrase changes nothing.
+   passphrase before it writes any, so a wrong old passphrase changes nothing; for production it names the Cloudflare
+   account first. An interrupted rotation can be rerun with the same variables.
 3. Update the password manager and `state.env`, then unset `HOMELAB_STATE_PASSPHRASE_PREVIOUS`.
 
 ### Where state lives

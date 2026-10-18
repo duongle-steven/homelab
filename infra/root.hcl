@@ -119,11 +119,11 @@ terraform {
     }
   }
 
-  # The OAuth token in backend.tf changes, so production's init reconfigures; a migration (HOMELAB_STATE_MIGRATE=1)
-  # passes -migrate-state itself, which conflicts with -reconfigure
+  # The OAuth token in backend.tf changes whenever cf refreshes it, so production's init reconfigures (state moves
+  # between backends with `state push`, never `init -migrate-state`)
   extra_arguments "backend_reconfigure" {
     commands  = ["init"]
-    arguments = local.production && !local.state_migrate ? ["-reconfigure"] : []
+    arguments = local.production ? ["-reconfigure"] : []
   }
 
   before_hook "state_bucket" {
@@ -143,7 +143,12 @@ terraform {
   # Parsing works without it (make -C infra check); any command that reads or writes state needs it
   before_hook "state_passphrase" {
     commands = local.state_commands
-    execute  = ["sh", "-c", "[ -n \"$HOMELAB_STATE_PASSPHRASE\" ] || { echo 'HOMELAB_STATE_PASSPHRASE is not set: see docs/installation/production/external-resources.md (~/.config/homelab/state.env)' >&2; exit 1; }"]
+    execute = ["sh", "-c", <<-EOT
+      [ -n "$HOMELAB_STATE_PASSPHRASE" ] || { echo 'HOMELAB_STATE_PASSPHRASE is not set: see docs/installation/production/external-resources.md (~/.config/homelab/state.env)' >&2; exit 1; }
+      # One fallback only: unencrypted (MIGRATE) or the old passphrase (PREVIOUS)
+      [ "$HOMELAB_STATE_MIGRATE" != 1 ] || [ -z "$HOMELAB_STATE_PASSPHRASE_PREVIOUS" ] || { echo 'HOMELAB_STATE_MIGRATE and HOMELAB_STATE_PASSPHRASE_PREVIOUS cannot both be set' >&2; exit 1; }
+    EOT
+    ]
   }
 }
 
