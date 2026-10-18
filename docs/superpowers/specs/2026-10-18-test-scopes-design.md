@@ -39,7 +39,7 @@ CLI step adds commands to it instead of rewriting it, and Woodpecker (step 10) c
 | Selection | Automatic from `git diff --name-only <base>...HEAD`, through a map; plainly harmless changes run nothing; a file the map does not know runs everything |
 | Map | `test/scopes.yaml`, next to the tests (format below) |
 | Groups | Regexes of test names (`Identity\|SSO`), not components |
-| Tool | `lab test scope` in Go, `cli/` module `github.com/khuedoan/homelab/cli` (upstream's path, so its files port unchanged), cobra, upstream's layout (`cmd/lab`, `internal/cli`, `internal/scope`) |
+| Tool | `lab test scope` in Go, `cli/` module `github.com/duongle-steven/homelab/cli` (this fork's path; files ported from upstream get their imports rewritten), cobra, upstream's layout (`cmd/lab`, `internal/cli`, `internal/scope`) |
 | Running `lab` | `go run ./cmd/lab` from `cli/` in the Makefile: no Nix packaging or vendor hash until the CLI step |
 | New components | `lab test scope --check` (a basic check) fails when a component is in no group and not skipped, and when a group's regex matches no test |
 | Tests that run alone | `alone: [NodeRestart]`: selected alone tests run after the others, as today |
