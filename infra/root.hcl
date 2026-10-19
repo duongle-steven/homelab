@@ -20,7 +20,7 @@ locals {
   # encrypted it: the rotation script writes the new key as "next" (HOMELAB_STATE_ROTATING=1), then renames it "current"
   state_key          = get_env("HOMELAB_STATE_ROTATING", "") == "1" ? "next" : "current"
   state_fallback_key = local.state_key == "next" ? "current" : "next"
-  state_commands     = ["init", "validate", "plan", "apply", "destroy", "refresh", "import", "output", "show", "state", "console", "taint", "untaint", "providers"]
+  state_commands     = ["init", "validate", "plan", "apply", "destroy", "refresh", "import", "output", "show", "state", "console", "taint", "untaint", "providers", "force-unlock"]
 }
 
 # Production's state is on R2 through its S3 API (one object per unit, a lock file while a command runs), with

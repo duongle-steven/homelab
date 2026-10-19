@@ -227,3 +227,21 @@ func TestStateRotationSkipsMissingObjects(t *testing.T) {
 	assert.Contains(t, string(rotated), "production/fresh: no state, skipped")
 	assert.Equal(t, []string{"marker/tfstate.json"}, s3.keys(), "an empty state was pushed for the unit never applied")
 }
+
+// A lock left by an interrupted command blocks the next one, and the documented force-unlock releases it
+func TestStateS3ForceUnlock(t *testing.T) {
+	_, s3, run := prodTree(t)
+	out, err := run("marker", "token-one", nil, "apply", "-auto-approve")
+	require.NoError(t, err, out)
+	s3.mu.Lock()
+	s3.objects["marker/tfstate.json.tflock"] = []byte(`{"ID":"stale-lock-id","Operation":"OperationTypeApply","Info":"","Who":"test","Version":"1.13.0","Created":"2026-10-19T00:00:00Z","Path":"homelab-production-tfstate/marker/tfstate.json"}`)
+	s3.mu.Unlock()
+
+	out, err = run("marker", "token-one", nil, "plan", "-lock-timeout=0s")
+	require.Error(t, err, "plan ran while the state was locked")
+	assert.Contains(t, out, "stale-lock-id")
+
+	out, err = run("marker", "token-one", nil, "force-unlock", "-force", "stale-lock-id")
+	require.NoError(t, err, "force-unlock: %s", out)
+	assert.Equal(t, []string{"marker/tfstate.json"}, s3.keys(), "the lock stayed")
+}
