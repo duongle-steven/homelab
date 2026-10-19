@@ -4,7 +4,7 @@
 # changed since $BASE (default origin/dev; lab test charts).
 set -eu
 cd "$(git rev-parse --show-toplevel)"
-offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestIstioCNIWatchdog|TestState|TestArgoCD(Revision|RootPreservesResources)|TestCISandboxScope'
+offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestIstioCNIWatchdog|TestState|TestArgoCD(Revision|RootPreservesResources)|TestCISandboxScope|TestArgoCDServiceMonitors'
 checks='render go cli infra docs mesh env-config secret-stores lint'
 
 check() {

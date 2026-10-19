@@ -63,10 +63,12 @@ argo-cd:
     # templates/httproute.yaml: the chart's route does not template its host names
     httproute:
       enabled: false
+    # The metrics Services; their ServiceMonitors are in system/argocd-config (the bootstrap renders this chart before
+    # monitoring's CRDs exist, so the chart's own would never be applied)
     metrics: &metrics
       enabled: true
       serviceMonitor:
-        enabled: true
+        enabled: false
   dex:
     enabled: false
   controller:

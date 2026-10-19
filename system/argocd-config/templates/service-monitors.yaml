@@ -1,0 +1,27 @@
+{{- /* Argo CD's metrics Services (system/argocd's metrics.enabled), scraped once monitoring's CRDs exist */}}
+{{- if .Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor" }}
+{{- range list
+  (dict "name" "argocd-application-controller" "service" "argocd-metrics" "component" "application-controller")
+  (dict "name" "argocd-repo-server" "service" "argocd-repo-server-metrics" "component" "repo-server")
+  (dict "name" "argocd-server" "service" "argocd-server-metrics" "component" "server")
+  (dict "name" "argocd-redis" "service" "argocd-redis" "component" "redis") }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .name }}
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: argocd
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .service }}
+      app.kubernetes.io/instance: argocd
+      app.kubernetes.io/component: {{ .component }}
+  endpoints:
+    - port: http-metrics
+      interval: 30s
+      path: /metrics
+{{- end }}
+{{- end }}
