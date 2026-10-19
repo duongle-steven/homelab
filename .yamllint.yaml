@@ -1,9 +1,15 @@
 ignore: |
   templates/
   mkdocs.yml
+  .direnv/
+  site/
+  .terragrunt-cache/
 
 extends: default
 
 rules:
   document-start: disable
   line-length: disable
+  # GitHub Actions' "on:" key
+  truthy:
+    check-keys: false

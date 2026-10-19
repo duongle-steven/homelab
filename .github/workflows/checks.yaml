@@ -1,0 +1,56 @@
+# The basic checks (scripts/ci-check) on every pull request into dev or master and every push to them, in the Nix dev
+# shell. The ruleset (.github/rulesets/protect-dev-master.json) requires the job "checks".
+name: checks
+
+on:
+  pull_request:
+    branches: [dev, master]
+  push:
+    branches: [dev, master]
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push to a pull request replaces its run. Each push to dev or master gets its own group (its commit), so
+  # none is cancelled: GitHub keeps one pending run per group and drops an older pending one
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: ${{ matrix.check }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [render, go, cli, infra, docs, mesh, env-config, secret-stores, lint]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0  # lab test charts diffs against the base
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702  # v31.11.2
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569  # v7.0.2
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 8G
+      - name: scripts/ci-check ${{ matrix.check }}
+        env:
+          CHECK: ${{ matrix.check }}
+          # The pull request's base, or the previous commit of a push (forty zeros for a new branch: lab renders all)
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: nix develop --command scripts/ci-check "$CHECK"
+
+  # The one required status: fails unless every check succeeded (a cancelled or skipped check fails it too)
+  checks:
+    if: always()
+    needs: check
+    runs-on: ubuntu-24.04
+    steps:
+      - name: every check succeeded
+        env:
+          RESULT: ${{ needs.check.result }}
+        run: test "$RESULT" = success

@@ -22,6 +22,27 @@ func Changed(root, base string) ([]string, error) {
 	return lines(out), err
 }
 
+// ChangedWorkingTree is Changed plus what is not committed yet (staged, unstaged and untracked files): the basic
+// checks run before a commit.
+func ChangedWorkingTree(root, base string) ([]string, error) {
+	if _, err := git(root, "rev-parse", "--verify", "--quiet", base+"^{commit}"); err != nil {
+		return nil, fmt.Errorf("base %s does not exist: git fetch origin dev, or pass --all", base)
+	}
+	mergeBase, err := git(root, "merge-base", base, "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	diff, err := git(root, "diff", "--name-only", "--no-renames", strings.TrimSpace(mergeBase))
+	if err != nil {
+		return nil, err
+	}
+	untracked, err := git(root, "ls-files", "--others", "--exclude-standard")
+	if err != nil {
+		return nil, err
+	}
+	return append(lines(diff), lines(untracked)...), nil
+}
+
 // Tracked lists the repository's tracked files.
 func Tracked(root string) ([]string, error) {
 	out, err := git(root, "ls-files")

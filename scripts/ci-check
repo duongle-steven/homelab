@@ -1,0 +1,35 @@
+#!/bin/sh
+# The basic checks, one per name, as GitHub Actions runs them (.github/workflows/checks.yaml) and as the workstation
+# runs them before a commit (scripts/ci-check all). Run in the dev shell (nix develop). render renders the charts
+# changed since $BASE (default origin/dev; lab test charts).
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestIstioCNIWatchdog|TestState'
+checks='render go cli infra docs mesh env-config secret-stores lint'
+
+check() {
+	case "$1" in
+		render)
+			targets=$(go -C cli run ./cmd/lab test charts --base "${BASE:-origin/dev}")
+			for t in $targets; do
+				echo "render $t"
+				scripts/render-chart "$t" >/dev/null
+				scripts/render-chart "$t" dev >/dev/null
+			done ;;
+		go) (cd test && go vet ./... && go test -run "$offline_tests" ./...) ;;
+		cli) make -C cli test check ;;
+		infra) env -u HOMELAB_STATE_PASSPHRASE make -C infra check ;;
+		docs) mkdocs build --strict ;;
+		mesh) scripts/check-mesh-policies ;;
+		env-config) scripts/check-env-config ;;
+		secret-stores) scripts/check-secret-stores ;;
+		lint) scripts/lint ;;
+		*) echo "ci-check: unknown check $1 (one of: $checks, all)" >&2; exit 2 ;;
+	esac
+}
+
+if [ "${1:?usage: ci-check <check>|all}" = all ]; then
+	for c in $checks; do echo "== $c"; check "$c"; done
+else
+	check "$1"
+fi

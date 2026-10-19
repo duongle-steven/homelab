@@ -15,9 +15,17 @@ lab = cd cli && go run ./cmd/lab test scope
 
 default: metal infra smoke-test clean
 
+# The sandbox's OpenTofu state is .state/ in this checkout (git-ignored): a git worktree has none, and running the
+# sandbox from it would put a new OpenBao key over the running cluster's
+sandbox-checkout:
+	@if [ "$$(git rev-parse --git-dir)" != "$$(git rev-parse --git-common-dir)" ]; then \
+		echo "make: run the sandbox from the main checkout ($$(dirname "$$(git rev-parse --path-format=absolute --git-common-dir)")), not a git worktree" >&2; \
+		exit 1; \
+	fi
+
 # The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on. Alone tests
 # (TestNodeRestart restarts the node) run after the others
-dev:
+dev: sandbox-checkout
 	@if [ -n "$(tests)" ]; then sel="--tests '$(tests)'"; \
 	elif [ "$(scope)" = full ]; then sel=--full; \
 	else git fetch -q origin dev || echo "make dev: git fetch failed, comparing with the local $(base)" >&2; sel="--base $(base)"; fi; \
@@ -46,7 +54,7 @@ sandbox-refresh:
 	-@kubectl -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1
 	-@kubectl -n argocd annotate applications --all argocd.argoproj.io/refresh=normal --overwrite >/dev/null 2>&1
 
-dev-clean:
+dev-clean: sandbox-checkout
 	cd infra/sandbox && terragrunt run --all destroy --non-interactive -- -auto-approve
 
 metal:

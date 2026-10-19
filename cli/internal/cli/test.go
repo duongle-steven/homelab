@@ -11,7 +11,7 @@ import (
 
 func newTestCmd() *cobra.Command {
 	test := &cobra.Command{Use: "test", Short: "Choose and check the sandbox tests"}
-	test.AddCommand(newTestScopeCmd())
+	test.AddCommand(newTestScopeCmd(), newTestChartsCmd())
 	return test
 }
 
@@ -89,5 +89,46 @@ func newTestScopeCmd() *cobra.Command {
 	flags.BoolVar(&check, "check", false, "verify the map instead of printing a selection")
 	flags.StringVar(&config, "config", "test/scopes.yaml", "the map, relative to the repository root")
 	cmd.MarkFlagsMutuallyExclusive("full", "tests", "check")
+	return cmd
+}
+
+// zeroSHA is what GitHub sends as the previous commit of a push that creates a branch
+const zeroSHA = "0000000000000000000000000000000000000000"
+
+func newTestChartsCmd() *cobra.Command {
+	var base string
+	var all bool
+	cmd := &cobra.Command{
+		Use:   "charts",
+		Short: "Print the charts and app files the basic checks render for the files changed since --base, uncommitted ones included",
+		Long: "One target per line for scripts/render-chart: a chart directory or apps/<name>.yaml. A change to what " +
+			"every render reads (scripts/render-chart, scripts/env-values, infra/*/cluster/config.json, " +
+			"system/argocd/values*.yaml), --all or a --base of forty zeros prints every target.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			root, err := scope.Root()
+			if err != nil {
+				return err
+			}
+			var files []string
+			if base == zeroSHA {
+				all = true
+			} else if !all {
+				if files, err = scope.ChangedWorkingTree(root, base); err != nil {
+					return err
+				}
+			}
+			targets, err := scope.Charts(root, files, all)
+			if err != nil {
+				return err
+			}
+			for _, t := range targets {
+				fmt.Fprintln(cmd.OutOrStdout(), t)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&base, "base", "origin/dev", "compare HEAD with this ref (merge base)")
+	cmd.Flags().BoolVar(&all, "all", false, "every chart and app file")
 	return cmd
 }
