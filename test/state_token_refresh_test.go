@@ -117,7 +117,14 @@ func (f *fakeS3) putKeys() []string {
 // prodTree is stateTree plus production units ("marker", and "fresh", never applied) on a fake S3, with a stub lab
 // (static credentials; ensure records its call) and cloudflare-credentials returning $FAKE_TOKEN.
 func prodTree(t *testing.T) (string, *fakeS3, func(unit, token string, extra []string, args ...string) (string, error)) {
-	root := stateTree(t)
+	root, s3, run := prodTreeAt(t, stateTree(t))
+	return root, s3, func(unit, token string, extra []string, args ...string) (string, error) {
+		return run(unit, token, append([]string{"HOMELAB_LAB=" + filepath.Join(root, "bin/lab")}, extra...), args...)
+	}
+}
+
+// prodTreeAt is prodTree in a given stateTree, leaving HOMELAB_LAB unset
+func prodTreeAt(t *testing.T, root string) (string, *fakeS3, func(unit, token string, extra []string, args ...string) (string, error)) {
 	write := func(path, body string, mode os.FileMode) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, path)), 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(root, path), []byte(body), mode))
@@ -147,8 +154,7 @@ terraform {
 	run := func(unit, token string, extra []string, args ...string) (string, error) {
 		cmd := exec.Command("terragrunt", append(args, "--non-interactive", "--log-level", "error")...)
 		cmd.Dir = filepath.Join(root, "infra/production", unit)
-		cmd.Env = append(append(stateEnv(passphraseA, ""), "FAKE_TOKEN="+token, "HOMELAB_STATE_ENDPOINT="+server.URL,
-			"HOMELAB_LAB="+filepath.Join(root, "bin/lab")), extra...)
+		cmd.Env = append(append(stateEnv(passphraseA, ""), "FAKE_TOKEN="+token, "HOMELAB_STATE_ENDPOINT="+server.URL), extra...)
 		out, err := cmd.CombinedOutput()
 		return string(out), err
 	}
@@ -244,4 +250,24 @@ func TestStateS3ForceUnlock(t *testing.T) {
 	out, err = run("marker", "token-one", nil, "force-unlock", "-force", "stale-lock-id")
 	require.NoError(t, err, "force-unlock: %s", out)
 	assert.Equal(t, []string{"marker/tfstate.json"}, s3.keys(), "the lock stayed")
+}
+
+// root.hcl's default lab command (go -C <repo>/cli run ./cmd/lab) runs through a shell in the init hook and in
+// credential_process: a repository path with a space must survive both
+func TestStateLabInRepoWithSpaces(t *testing.T) {
+	root, s3, run := prodTreeAt(t, stateTreeAt(t, filepath.Join(t.TempDir(), "my homelab")))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "cli"), 0o755))
+	// A fake go: checks that -C names the repository's cli directory, then answers as lab would
+	bin := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bin, "go"), []byte(`#!/bin/sh
+[ "$1" = -C ] && [ "$2" = '`+filepath.Join(root, "cli")+`' ] || { echo "fake go: bad -C argument: $2" >&2; exit 1; }
+shift 4
+exec '`+filepath.Join(root, "bin/lab")+`' "$@"
+`), 0o755))
+
+	out, err := run("marker", "token-one", []string{"PATH=" + bin + ":" + os.Getenv("PATH")}, "apply", "-auto-approve")
+	require.NoError(t, err, out)
+	assert.Equal(t, []string{"marker/tfstate.json"}, s3.keys(), "the state reached the fake bucket")
+	_, err = os.Stat(filepath.Join(root, "bin/ensure.log"))
+	assert.NoError(t, err, "the init hook did not run lab")
 }

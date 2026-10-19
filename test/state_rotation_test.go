@@ -21,7 +21,11 @@ const (
 // stateTree builds a throwaway repository with this repository's infra/root.hcl and scripts, and two sandbox units:
 // "marker" (a terraform_data resource, no provider) and "empty" (no resources).
 func stateTree(t *testing.T) string {
-	root := t.TempDir()
+	return stateTreeAt(t, t.TempDir())
+}
+
+// stateTreeAt is stateTree in a given directory
+func stateTreeAt(t *testing.T, root string) string {
 	mustWrite := func(path, body string, mode os.FileMode) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, path)), 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(root, path), []byte(body), mode))

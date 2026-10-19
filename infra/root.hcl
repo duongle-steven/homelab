@@ -9,7 +9,7 @@ locals {
   state_bucket = "homelab-${local.env}-tfstate"
   # R2's S3 endpoint, and the command that runs lab (a fake endpoint and a stub in test/state_token_refresh_test.go)
   state_endpoint = get_env("HOMELAB_STATE_ENDPOINT", "https://${local.cloudflare.account_id}.r2.cloudflarestorage.com")
-  lab            = get_env("HOMELAB_LAB", "go -C ${get_repo_root()}/cli run ./cmd/lab")
+  lab            = get_env("HOMELAB_LAB", "go -C '${get_repo_root()}/cli' run ./cmd/lab")
 
   # OpenTofu state encryption (every environment): the passphrase reaches OpenTofu only as TF_VAR_state_passphrase.
   # _PREVIOUS (scripts/rotate-state-passphrase) or HOMELAB_STATE_MIGRATE=1 (unencrypted state) adds a fallback.
