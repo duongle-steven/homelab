@@ -75,13 +75,15 @@ writes it encrypted.
 
 ### Where state lives
 
-Production's state is on R2 through its S3 API (OpenTofu's `s3` backend): bucket `homelab-production-tfstate`
-(created on the first `init` by `lab infra state ensure`), one object per unit (`<unit>/tfstate.json`) and a lock file
-(`<unit>/tfstate.json.tflock`) while a command runs. Its credentials last one hour and come from
-`lab infra state credentials` (an account token for that bucket only, created with the `cf` login), so no token is
-written to disk. An interrupted command can leave the lock behind: run `terragrunt force-unlock <ID>` in the unit with
-the ID OpenTofu prints. The sandbox's state stays in `.state/sandbox/` (git-ignored, readable by the user only). Both
-are encrypted.
+Production's state is on R2 through its S3 API (OpenTofu's `s3` backend): bucket `homelab-production-tfstate` (created
+on the first `init` by `lab infra state ensure`), one object per unit (`<unit>/tfstate.json`) and a lock file
+(`<unit>/tfstate.json.tflock`) while a command runs. Its credentials last one hour and come from `lab infra state
+credentials` (an account token for that bucket only, created with the `cf` login), so no token is written to disk; `lab`
+keeps the current one in `$XDG_RUNTIME_DIR` (memory-backed, user-only) and reuses it while it lasts 15 more minutes.
+`lab` runs with `go run`: after a fresh clone or a dependency bump, build it once (`go -C cli build ./cmd/lab`; `make
+infra` does) so the first credential is not cut off by a cold build. An interrupted command can leave the lock behind:
+run `terragrunt force-unlock <ID>` in the unit with the ID OpenTofu prints. The sandbox's state stays in
+`.state/sandbox/` (git-ignored, readable by the user only). Both are encrypted.
 
 ### ntfy
 

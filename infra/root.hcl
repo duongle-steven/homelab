@@ -7,7 +7,8 @@ locals {
   # Production only: the account and OAuth token of `cf auth login` (empty strings for the sandbox, which never calls cf)
   cloudflare   = jsondecode(run_cmd("--terragrunt-global-cache", "--terragrunt-quiet", "${get_repo_root()}/scripts/cloudflare-credentials", local.env))
   state_bucket = "homelab-${local.env}-tfstate"
-  # R2's S3 endpoint, and the command that runs lab (a fake endpoint and a stub in test/state_token_refresh_test.go)
+  # R2's S3 endpoint, and the command that runs lab (a fake endpoint and a stub in test/state_token_refresh_test.go).
+  # HOMELAB_STATE_ENDPOINT redirects only the backend: lab checks a new credential against R2 itself.
   state_endpoint = get_env("HOMELAB_STATE_ENDPOINT", "https://${local.cloudflare.account_id}.r2.cloudflarestorage.com")
   lab            = get_env("HOMELAB_LAB", "go -C '${get_repo_root()}/cli' run ./cmd/lab")
 

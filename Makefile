@@ -52,8 +52,10 @@ dev-clean:
 metal:
 	make -C metal
 
-# Every unit of infra/<env>: Argo CD's bootstrap, OpenBao's key, OpenTofu's secrets (the sandbox's run in make dev)
+# Every unit of infra/<env>: Argo CD's bootstrap, OpenBao's key, OpenTofu's secrets (the sandbox's run in make dev).
+# Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
 infra:
+	go -C cli build -o /dev/null ./cmd/lab
 	cd infra/$(env) && $(terragrunt_apply)
 
 smoke-test:
