@@ -181,3 +181,35 @@ func TestCommandManualRefusesUselessRegex(t *testing.T) {
 		}
 	}
 }
+
+func labCharts(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	var out bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetArgs(append([]string{"test", "charts"}, args...))
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	return out.String(), err
+}
+
+func TestChartsCommand(t *testing.T) {
+	dir := repo(t)
+	write(t, dir, "system/loki/Chart.yaml", "name: loki\n")
+	write(t, dir, "system/kured/Chart.yaml", "name: kured\n")
+	commit(t, dir)
+	out, err := labCharts(t, "--base", "dev")
+	if err != nil || out != "system/kured\nsystem/loki\n" {
+		t.Fatalf("out = %q, err = %v", out, err)
+	}
+}
+
+func TestChartsZeroBaseRendersAll(t *testing.T) {
+	dir := repo(t)
+	write(t, dir, "system/loki/Chart.yaml", "name: loki\n")
+	commit(t, dir)
+	out, err := labCharts(t, "--base", "0000000000000000000000000000000000000000")
+	if err != nil || out != "system/loki\n" {
+		t.Fatalf("out = %q, err = %v", out, err)
+	}
+}
