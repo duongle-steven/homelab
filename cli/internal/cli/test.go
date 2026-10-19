@@ -100,7 +100,7 @@ func newTestChartsCmd() *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
 		Use:   "charts",
-		Short: "Print the charts and app files the basic checks render for the files changed since --base",
+		Short: "Print the charts and app files the basic checks render for the files changed since --base, uncommitted ones included",
 		Long: "One target per line for scripts/render-chart: a chart directory or apps/<name>.yaml. A change to what " +
 			"every render reads (scripts/render-chart, scripts/env-values, infra/*/cluster/config.json, " +
 			"system/argocd/values*.yaml), --all or a --base of forty zeros prints every target.",
@@ -114,7 +114,7 @@ func newTestChartsCmd() *cobra.Command {
 			if base == zeroSHA {
 				all = true
 			} else if !all {
-				if files, err = scope.Changed(root, base); err != nil {
+				if files, err = scope.ChangedWorkingTree(root, base); err != nil {
 					return err
 				}
 			}

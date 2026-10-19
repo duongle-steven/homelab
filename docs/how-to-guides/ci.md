@@ -14,7 +14,7 @@ Run them all locally before a commit (the basic checks), in the dev shell:
 scripts/ci-check all
 ```
 
-`render` renders the charts the branch changes (`cd cli && go run ./cmd/lab test charts` lists them).
+`render` renders the charts the branch changes, uncommitted changes included (`cd cli && go run ./cmd/lab test charts` lists them).
 
 ## A failed run
 
