@@ -41,7 +41,7 @@ reencrypt() {
 			echo "rotate-state-passphrase: cannot read $env/$unit ($1); nothing more changed" >&2
 			exit 1
 		fi
-		# No state, or an object that does not exist (the http backend reads it as serial 0 with nothing in it)
+		# No state, or an object that does not exist (read as an empty state)
 		if [ ! -s "$work/$unit.json" ] || jq -e '.serial == 0 and (.resources | length) == 0' "$work/$unit.json" >/dev/null; then
 			[ "$1" = "with the old passphrase" ] && echo "$env/$unit: no state, skipped"
 			continue

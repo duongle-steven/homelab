@@ -138,8 +138,7 @@ never reaches the cluster.
   to `platform/infra-secrets/values.yaml` (and `values-dev.yaml` if the sandbox has it), and read it from its namespace.
   `scripts/check-secret-stores` refuses a push nobody reads.
 - Rotating one: change it in OpenTofu (for a Cloudflare token, `terragrunt apply -replace=cloudflare_account_token.cert_manager`
-  in `infra/production/cloudflare`; until step 8d the unit cannot apply,
-  [external resources](../installation/production/external-resources.md#cloudflare)), run `make infra env=production`, then
+  in `infra/production/cloudflare`), run `make infra env=production`, then
   `kubectl -n infra-secrets annotate pushsecret <namespace>.<name> force-sync=$(date +%s) --overwrite` or wait an hour,
   and restart the consumer.
 - Removing one: delete its entry, then its OpenBao value with the admin role (`bao kv metadata delete …`).

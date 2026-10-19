@@ -15,11 +15,14 @@ func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "lab",
 		Short:         "Homelab tools",
-		Example:       "  lab test scope --base origin/dev",
+		Example:       "  lab test scope --base origin/dev\n  lab infra state ensure --bucket homelab-production-tfstate",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 	root.AddCommand(newTestCmd())
+	infra := &cobra.Command{Use: "infra", Short: "Manage infrastructure prerequisites"}
+	infra.AddCommand(newInfraStateCmd())
+	root.AddCommand(infra)
 	return root
 }
 
