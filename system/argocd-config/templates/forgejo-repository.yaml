@@ -6,7 +6,8 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: argocd-repo-forgejo
-  namespace: {{ .Release.Namespace }}
+  # Argo CD's namespace (the root ApplicationSet deploys this chart there too)
+  namespace: argocd
 spec:
   secretStoreRef:
     kind: SecretStore

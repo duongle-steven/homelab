@@ -1,7 +1,8 @@
 #!/bin/sh
-# Render system/argocd and apply it once; Argo CD manages itself from then on (system/argocd is in the root
-# ApplicationSet), so the field manager is Argo CD's.
-# Env: KUBECONFIG, CHART (system/argocd), VALUES (file name in CHART), SEED (file used while Forgejo is not running;
+# Render system/argocd and apply it (again whenever infra/_modules/argocd sees a change): Argo CD does not manage
+# itself. The field manager stays Argo CD's, which managed it before step 10b.
+# Env: KUBECONFIG, CHART (system/argocd), VALUES (file name in CHART), REVISION (optional: the commit every homelab
+# source syncs, set-revision.sh), SEED (file used while Forgejo is not running;
 # production's first install syncs from GitHub until Forgejo holds the repository), ENVIRONMENT (prod or dev, for
 # scripts/env-values: the chart gets the same global values Argo CD passes it)
 set -eu
@@ -18,7 +19,7 @@ fi
 # Chart.lock is not in git: resolve the dependencies like scripts/render-chart
 helm dependency update "$CHART" >/dev/null
 manifests=$(mktemp)
-trap 'rm -f "$manifests"' EXIT
+trap 'rm -f "$manifests" "$manifests.rev"' EXIT
 # The global values Argo CD passes from infra/<env>/cluster/config.json (addresses, domain, ...)
 # Captured first: set -e ignores a failing command substitution in a for list (a key missing from config.json)
 values_from_config=$(cd "$CHART/../.." && scripts/env-values "$environment" root)
@@ -40,6 +41,14 @@ fi
 if grep -q seed-repository.invalid "$manifests"; then
   echo "the seed repository placeholder was not replaced" >&2
   exit 1
+fi
+# The sandbox on GitHub Actions syncs one commit (REVISION) instead of branch sandbox
+sh "$(dirname "$0")/set-revision.sh" "${REVISION:-}" < "$manifests" > "$manifests.rev"
+mv "$manifests.rev" "$manifests"
+# Argo CD no longer manages itself: the root ApplicationSet drops Application argocd, whose resources finalizer would
+# delete Argo CD with it. Release it first (nothing to do on a new cluster).
+if kubectl -n argocd get application argocd >/dev/null 2>&1; then
+  kubectl -n argocd patch application argocd --type merge -p '{"metadata":{"finalizers":null}}' >/dev/null
 fi
 # Objects without a namespace belong to argocd, as when Argo CD syncs this chart
 apply() { kubectl apply --namespace argocd --server-side --field-manager argocd-controller --force-conflicts -f -; }

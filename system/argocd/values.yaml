@@ -98,6 +98,9 @@ argocd-apps:
                   revision: &revision master
                   directories:
                     - path: system/*
+                    # Applied by infra/_modules/argocd: Argo CD does not manage itself
+                    - path: system/argocd
+                      exclude: true
                     # Rendered into every namespace by each Application (template below), not on its own
                     - path: system/egress
                       exclude: true
@@ -185,6 +188,11 @@ argocd-apps:
             managedNamespaceMetadata:
               labels:
                 istio.io/dataplane-mode: none
+        {{- else if eq .path.basename "argocd-config" }}
+        # Argo CD's own resources (its Kanidm client, its repository credential) live in its namespace
+        spec:
+          destination:
+            namespace: argocd
         {{- end }}
     # One Application per app-template values file apps/<name>.yaml (apps/matrix/ is a chart, synced by root)
     apps:

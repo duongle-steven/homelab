@@ -24,6 +24,9 @@ argocd-apps:
                   revision: &revision master
                   directories:
                     - path: system/*
+                    # Applied by infra/_modules/argocd: Argo CD does not manage itself
+                    - path: system/argocd
+                      exclude: true
                     - path: system/egress
                       exclude: true
                     # Rendered into every namespace by each Application (template below), not on its own

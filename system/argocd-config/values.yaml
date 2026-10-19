@@ -1,0 +1,4 @@
+# Argo CD passes global.baseDomain (infra/<env>/cluster/config.json); the root ApplicationSet deploys this chart into
+# namespace argocd (its templatePatch in system/argocd/values.yaml)
+global:
+  baseDomain: ""

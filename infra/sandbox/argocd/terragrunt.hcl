@@ -18,4 +18,6 @@ inputs = {
   values      = "values-dev.yaml"
   environment = "dev"
   cluster_id  = dependency.cluster.outputs.cluster_id
+  # GitHub Actions tests one commit (make dev revision=<sha>) instead of branch sandbox
+  revision = get_env("HOMELAB_SANDBOX_REVISION", "")
 }

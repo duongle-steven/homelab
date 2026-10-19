@@ -43,6 +43,7 @@ groups:
       - .envrc
       - Dockerfile
       - system/argocd/**
+      - system/argocd-config/**
       - infra/_modules/argocd/**
       - infra/sandbox/argocd/**
       - infra/_modules/k3d/**

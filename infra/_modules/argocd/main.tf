@@ -1,5 +1,5 @@
-# Bootstrap Argo CD from the repository's system/argocd chart. Applied once and again only when the chart's files
-# or the chosen values change; every later change reaches the cluster through Argo CD's own sync from git.
+# Apply Argo CD from the repository's system/argocd chart, again whenever its files, the values, the revision or the
+# cluster change; Argo CD syncs everything else (system/argocd-config among it), not itself (upstream nixos's model).
 terraform {
   required_version = ">= 1.13"
 }
@@ -41,10 +41,10 @@ variable "seed_repository" {
   description = "Repository the seed syncs from (config.json's seed_repository)"
 }
 
-variable "protect" {
-  type        = bool
-  default     = false
-  description = "Refuse to destroy (production)"
+variable "revision" {
+  type        = string
+  default     = ""
+  description = "Commit or branch every homelab source and generator syncs (set-revision.sh); empty keeps the values file's"
 }
 
 locals {
@@ -58,14 +58,14 @@ locals {
     ENVIRONMENT     = var.environment
     SEED_REPOSITORY = var.seed_repository
     SEED            = var.seed
+    REVISION        = var.revision
   }
   command = "sh ${abspath("${path.module}/bootstrap.sh")}"
 }
 
-# prevent_destroy cannot take a variable: one resource per setting, only one of them exists
+# It has no destroy-time action: destroying it leaves Argo CD running
 resource "terraform_data" "bootstrap" {
-  count            = var.protect ? 0 : 1
-  triggers_replace = [local.hash, var.values, var.seed, var.cluster_id]
+  triggers_replace = [local.hash, var.values, var.seed, var.cluster_id, var.revision]
 
   provisioner "local-exec" {
     command     = local.command
@@ -73,19 +73,8 @@ resource "terraform_data" "bootstrap" {
   }
 }
 
-# Production bootstraps once: Argo CD manages itself afterwards, and a re-run would need a replacement, which
-# prevent_destroy refuses
-resource "terraform_data" "protected" {
-  count            = var.protect ? 1 : 0
-  triggers_replace = [local.hash, var.values, var.seed, var.cluster_id]
-
-  provisioner "local-exec" {
-    command     = local.command
-    environment = local.environment
-  }
-
-  lifecycle {
-    prevent_destroy = true
-    ignore_changes  = [triggers_replace]
-  }
+# The sandbox's bootstrap while Argo CD managed itself (production's unit was never applied)
+moved {
+  from = terraform_data.bootstrap[0]
+  to   = terraform_data.bootstrap
 }
