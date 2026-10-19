@@ -18,32 +18,22 @@
       {
         devShells.default = mkShell {
           packages = [
-            ansible
-            ansible-lint
-            bmake
             chromium
             diffutils
             docker
-            docker-compose
             dyff
             git
             glibcLocales
             go
             gotestsum
-            iproute2
             jq
             k9s
             kanidm_1_11
             kubectl
             kubernetes-helm
-            kustomize
-            libisoburn
-            neovim
             openssh_gssapi
             unstable.opentofu # Drop-in replacement for Terraform (nixos-26.05 ships 1.11)
             unstable.terragrunt
-            p7zip
-            pre-commit
             qrencode
             shellcheck
             unstable.k3d
@@ -53,13 +43,21 @@
             yq-go
 
             (python3.withPackages (p: with p; [
-              jinja2
-              kubernetes
               mkdocs-material
-              netaddr
-              pexpect
-              rich
+              pyyaml # scripts/check-*
             ]))
+          ];
+        };
+
+        # metal/ (Ansible, the PXE server) until step 12 replaces it: nix develop .#metal
+        devShells.metal = mkShell {
+          inputsFrom = [ self.devShells.${system}.default ];
+          packages = [
+            ansible
+            ansible-lint
+            docker-compose
+            libisoburn
+            python3Packages.netaddr # Ansible's ansible.netcommon.ipmath (metal/roles/pxe_server)
           ];
         };
       }

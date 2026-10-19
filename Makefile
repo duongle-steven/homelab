@@ -69,6 +69,3 @@ clean:
 
 docs:
 	mkdocs serve
-
-git-hooks:
-	pre-commit install
