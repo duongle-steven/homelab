@@ -55,3 +55,28 @@ func TestRepositoryMap(t *testing.T) {
 		t.Errorf("test/logs_test.go: %q", main)
 	}
 }
+
+// Every target lab test charts prints is an argument scripts/render-chart takes: a directory with Chart.yaml under
+// system/, platform/ or apps/, or apps/<name>.yaml
+func TestRepositoryChartsAreRenderTargets(t *testing.T) {
+	root, err := filepath.Abs("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets, err := Charts(root, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(targets) < 30 {
+		t.Fatalf("only %d targets: %v", len(targets), targets)
+	}
+	for _, target := range targets {
+		if strings.HasPrefix(target, "apps/") && strings.HasSuffix(target, ".yaml") && !strings.Contains(strings.TrimPrefix(target, "apps/"), "/") {
+			continue
+		}
+		top := strings.SplitN(target, "/", 2)[0]
+		if top != "system" && top != "platform" && top != "apps" || !exists(filepath.Join(root, target, "Chart.yaml")) {
+			t.Errorf("%s is not a render-chart target", target)
+		}
+	}
+}

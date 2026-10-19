@@ -19,7 +19,7 @@ scripts/ci-check all
 ## A failed run
 
 Open the failed job in the pull request's checks: its last step is the `scripts/ci-check` command, which reproduces
-locally. A newer push cancels the older run of a pull request, which then shows as cancelled.
+locally. A newer push cancels the older run of a pull request: its jobs show as cancelled and its `checks` as failed.
 
 ## Protected branches
 

@@ -227,3 +227,18 @@ func TestChartsCommandIncludesWorkingTree(t *testing.T) {
 		t.Fatalf("out = %q, err = %v", out, err)
 	}
 }
+
+// A chart removed on the branch shows up in git diff but is not rendered
+func TestChartsCommandSkipsDeletedChart(t *testing.T) {
+	dir := repo(t)
+	write(t, dir, "system/loki/Chart.yaml", "name: loki\n")
+	commit(t, dir)
+	if err := os.RemoveAll(filepath.Join(dir, "system/loki")); err != nil {
+		t.Fatal(err)
+	}
+	commit(t, dir)
+	out, err := labCharts(t, "--base", "dev")
+	if err != nil || out != "" {
+		t.Fatalf("out = %q, err = %v", out, err)
+	}
+}

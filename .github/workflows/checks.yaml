@@ -37,6 +37,8 @@ jobs:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
           gc-max-store-size-linux: 8G
+          # Only runs on dev and master save: pull request entries (up to 8G each) would evict theirs
+          save: ${{ github.event_name == 'push' }}
       - name: scripts/ci-check ${{ matrix.check }}
         env:
           CHECK: ${{ matrix.check }}
