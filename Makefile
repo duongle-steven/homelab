@@ -11,6 +11,7 @@ terragrunt_apply = terragrunt run --all apply --non-interactive -- -auto-approve
 scope ?= auto
 base ?= origin/dev
 tests ?=
+revision ?=
 lab = cd cli && go run ./cmd/lab test scope
 
 default: metal infra smoke-test clean
@@ -23,8 +24,9 @@ sandbox-checkout:
 		exit 1; \
 	fi
 
-# The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on. Alone tests
-# (TestNodeRestart restarts the node) run after the others
+# The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on; revision=<sha>
+# syncs that commit instead and pushes nothing (GitHub Actions). Alone tests (TestNodeRestart restarts the node) run
+# after the others
 dev: sandbox-checkout
 	@if [ -n "$(tests)" ]; then sel="--tests '$(tests)'"; \
 	elif [ "$(scope)" = full ]; then sel=--full; \
@@ -32,8 +34,8 @@ dev: sandbox-checkout
 	main=$$(eval "$(lab) $$sel") && alone=$$(eval "$(lab) $$sel --alone") || exit 1; \
 	if [ -z "$$main$$alone" ]; then echo "make dev: nothing to test in the sandbox (no change outside test/scopes.yaml's skip)"; exit 0; fi; \
 	echo "make dev: main run '$$main', then alone '$$alone'"; \
-	$(MAKE) sandbox-push && \
-	(cd infra/sandbox && $(terragrunt_apply)) && \
+	if [ -z "$(revision)" ]; then $(MAKE) sandbox-push; fi && \
+	(cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$(revision)" $(terragrunt_apply)) && \
 	if [ -n "$$main" ]; then $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$main" sandbox-refresh smoke-test; fi && \
 	if [ -n "$$alone" ]; then $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; fi
 
