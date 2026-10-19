@@ -94,4 +94,5 @@ The sandbox runs Kubernetes 1.37 and only ever installs from scratch, so it does
 ## Ideas (not planned)
 
 - `cli/` exists with `lab test scope` and upstream's `lab infra state ensure|credentials`; grow it into a Go CLI like upstream `nixos`'s `lab` (`cli/`: cobra, the Cloudflare, OpenBao, Forgejo and Kubernetes SDKs, tests) replacing the shell scripts (`cloudflare-credentials`, `rotate-state-passphrase`, `onboard-user`) once they grow or get hard to test; port upstream's commands where they match.
+- Progressive delivery with Argo Rollouts and Istio (already serving the Gateways and the mesh) splitting traffic by weight: canary or blue-green for stateless apps with two or more replicas (blog, homepage). Today Argo CD applies plain updates: app-template's default `Recreate` (most apps have one replica on a `ReadWriteOnce` PVC), `RollingUpdate` in upstream charts; rollback is a git revert.
 - An external dead man's switch (e.g. healthchecks.io) for the Watchdog: ntfy's delayed message cannot fire when ntfy, the Tunnel or the cluster is down.
