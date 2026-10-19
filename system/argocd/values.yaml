@@ -77,6 +77,11 @@ argo-cd:
     metrics: *metrics
   redis:
     metrics: *metrics
+    # Docker Hub instead of the chart's ecr-public.aws.com mirror, which GitHub Actions runners failed to pull from
+    # (twice, a whole run each); the tag is the one argo-cd 10.10.3 ships and tests
+    image:
+      repository: docker.io/library/redis
+      tag: 8.6.4-alpine
     # The metrics Service and ServiceMonitor scrape this sidecar (without it the target has no endpoints)
     exporter:
       enabled: true

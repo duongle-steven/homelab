@@ -42,7 +42,9 @@ runs:
         nix develop --command sh -c '
           kubectl get pods -A -o wide > sandbox-state/pods.txt 2>&1
           kubectl get events -A --sort-by=.lastTimestamp > sandbox-state/events.txt 2>&1
-          kubectl -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REVISION:.status.sync.revision > sandbox-state/applications.txt 2>&1
+          kubectl -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REVISIONS:.status.sync.revisions > sandbox-state/applications.txt 2>&1
+          # Why an Application is not Synced and Healthy: its conditions, last operation and resources that are not
+          kubectl -n argocd get applications -o yaml | yq ".items[] | select(.status.sync.status != \"Synced\" or .status.health.status != \"Healthy\") | {\"name\": .metadata.name, \"conditions\": .status.conditions, \"operation\": .status.operationState.message, \"resources\": ((.status.resources // []) | map(select(.status != \"Synced\" or (.health.status // \"Healthy\") != \"Healthy\")))}" > sandbox-state/applications-unhealthy.yaml 2>&1
           kubectl get pods -A --no-headers 2>/dev/null | while read -r ns pod ready status rest; do
             case "$status" in Running|Completed) [ "${ready%/*}" = "${ready#*/}" ] && continue ;; esac
             kubectl -n "$ns" logs "$pod" --all-containers --tail=200 > "sandbox-state/$ns.$pod.log" 2>&1
