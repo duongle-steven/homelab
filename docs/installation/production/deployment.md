@@ -20,7 +20,7 @@ Yes it's that simple!
     OpenTofu installs Argo CD (`infra/production/argocd`), and Argo CD does not manage itself: a change to
     `system/argocd` (Argo CD, its ApplicationSets) reaches the cluster with `make infra env=production`. The first
     install syncs from the seed repository; the first `make infra env=production` after Forgejo runs switches Argo CD to
-    `ops/homelab` on Forgejo.
+    `ops/homelab` on Forgejo, and it never switches back (not even while Forgejo restarts).
 
 !!! example
 

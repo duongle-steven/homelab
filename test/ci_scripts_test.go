@@ -2,7 +2,9 @@ package test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,4 +50,41 @@ func lastLine(s string) string {
 		}
 	}
 	return s
+}
+
+// choose-values.sh picks the values file the Argo CD bootstrap applies: the seed only on a first install while Forgejo
+// does not run, never again once Argo CD reads Forgejo, and never because the cluster could not be asked
+func TestArgoCDChooseValues(t *testing.T) {
+	const forgejo = "http://forgejo-http.forgejo:3000/ops/homelab"
+	for _, c := range []struct {
+		name, seed, rootRepo, forgejoPods, want string
+		kubectlFails, fails                  bool
+	}{
+		{"sandbox: no seed", "", "", "", `{"values":"values-dev.yaml","environment":"dev"}`, true, false},
+		{"first install, Forgejo not running", "values-seed.yaml", "", "", `{"values":"values-seed.yaml","environment":"seed"}`, false, false},
+		{"Forgejo running: switch", "values-seed.yaml", "https://github.com/example/homelab", "pod/forgejo-1", `{"values":"values-dev.yaml","environment":"dev"}`, false, false},
+		{"switched, Forgejo restarting: stay", "values-seed.yaml", forgejo, "", `{"values":"values-dev.yaml","environment":"dev"}`, false, false},
+		{"cluster unreachable", "values-seed.yaml", "", "", "", true, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			kubectl := `case "$*" in
+  *applicationset*) echo "$ROOT_REPO" ;;
+  *pods*) echo "$FORGEJO_PODS" ;;
+esac`
+			if c.kubectlFails {
+				kubectl = `echo "unable to connect" >&2; exit 1`
+			}
+			_, env := fakeBin(t, map[string]string{"kubectl": kubectl})
+			cmd := exec.Command("sh", "../infra/_modules/argocd/choose-values.sh")
+			cmd.Env = append(env, "ROOT_REPO="+c.rootRepo, "FORGEJO_PODS="+c.forgejoPods)
+			cmd.Stdin = strings.NewReader(`{"values":"values-dev.yaml","environment":"dev","seed":"` + c.seed + `","forgejo_repository":"` + forgejo + `","kubeconfig":"/dev/null"}`)
+			out, err := cmd.CombinedOutput()
+			if c.fails {
+				require.Error(t, err, string(out))
+				return
+			}
+			require.NoError(t, err, string(out))
+			assert.JSONEq(t, c.want, string(out))
+		})
+	}
 }

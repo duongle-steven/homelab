@@ -1,21 +1,15 @@
 #!/bin/sh
 # Render system/argocd and apply it (again whenever infra/_modules/argocd sees a change): Argo CD does not manage
 # itself. The field manager stays Argo CD's, which managed it before step 10b.
-# Env: KUBECONFIG, CHART (system/argocd), VALUES (file name in CHART), REVISION (optional: the commit every homelab
-# source syncs, set-revision.sh), SEED (file used while Forgejo is not running;
-# production's first install syncs from GitHub until Forgejo holds the repository), ENVIRONMENT (prod or dev, for
-# scripts/env-values: the chart gets the same global values Argo CD passes it)
+# Env: KUBECONFIG, CHART (system/argocd), VALUES (file name in CHART, chosen by choose-values.sh: the seed on
+# production's first install), REVISION (optional: the commit every homelab source syncs, set-revision.sh),
+# ENVIRONMENT (prod, dev or seed, for scripts/env-values: the chart gets the same global values Argo CD passes it)
 set -eu
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 # shellcheck disable=SC2153 # VALUES and ENVIRONMENT come from OpenTofu (set -u fails when one is missing)
 values="$VALUES"
 # shellcheck disable=SC2153
 environment="$ENVIRONMENT"
-if [ -n "${SEED:-}" ] && [ -z "$(kubectl get pods --all-namespaces -l app.kubernetes.io/instance=forgejo \
-  --field-selector status.phase=Running -o name)" ]; then
-  values="$SEED"
-  environment=seed
-fi
 # Chart.lock is not in git: resolve the dependencies like scripts/render-chart
 helm dependency update "$CHART" >/dev/null
 manifests=$(mktemp)

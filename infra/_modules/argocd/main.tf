@@ -47,6 +47,20 @@ variable "revision" {
   description = "Commit or branch every homelab source and generator syncs (set-revision.sh); empty keeps the values file's"
 }
 
+# The values file to apply: the seed on production's first install while Forgejo does not run, never again once Argo
+# CD reads Forgejo (choose-values.sh). A change of choice (Forgejo started) re-applies the bootstrap.
+data "external" "values" {
+  program = ["sh", "${path.module}/choose-values.sh"]
+  query = {
+    values      = var.values
+    environment = var.environment
+    seed        = var.seed
+    kubeconfig  = var.kubeconfig
+    # Where Argo CD reads once switched: the root ApplicationSet's repository in the values file
+    forgejo_repository = try(yamldecode(file("${var.chart}/${var.values}"))["argocd-apps"]["applicationsets"]["root"]["generators"][0]["matrix"]["generators"][0]["git"]["repoURL"], "")
+  }
+}
+
 locals {
   # Helm writes charts/ and Chart.lock: hash only what the repository holds
   files = sort(setunion(fileset(var.chart, "*.yaml"), fileset(var.chart, "templates/**")))
@@ -54,10 +68,9 @@ locals {
   environment = {
     KUBECONFIG      = var.kubeconfig
     CHART           = var.chart
-    VALUES          = var.values
-    ENVIRONMENT     = var.environment
+    VALUES          = data.external.values.result.values
+    ENVIRONMENT     = data.external.values.result.environment
     SEED_REPOSITORY = var.seed_repository
-    SEED            = var.seed
     REVISION        = var.revision
   }
   command = "sh ${abspath("${path.module}/bootstrap.sh")}"
@@ -65,7 +78,7 @@ locals {
 
 # It has no destroy-time action: destroying it leaves Argo CD running
 resource "terraform_data" "bootstrap" {
-  triggers_replace = [local.hash, var.values, var.seed, var.cluster_id, var.revision]
+  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, var.revision]
 
   provisioner "local-exec" {
     command     = local.command
