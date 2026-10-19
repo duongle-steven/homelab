@@ -107,7 +107,7 @@ jobs:
             kubectl get pods -A --no-headers 2>/dev/null | while read -r ns pod ready status rest; do
               case "$status" in Running|Completed) [ "${ready%/*}" = "${ready#*/}" ] && continue ;; esac
               kubectl -n "$ns" logs "$pod" --all-containers --tail=200 > "sandbox-state/$ns.$pod.log" 2>&1
-              # Image pull and mount errors live in the pod's events, which expire after an hour
+              # Image pull and mount errors live in the events of the pod, which expire after an hour
               kubectl -n "$ns" describe pod "$pod" > "sandbox-state/$ns.$pod.describe.txt" 2>&1
             done'
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
