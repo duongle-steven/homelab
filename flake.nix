@@ -18,6 +18,7 @@
       {
         devShells.default = mkShell {
           packages = [
+            actionlint
             chromium
             diffutils
             docker

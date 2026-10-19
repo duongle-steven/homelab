@@ -2,6 +2,9 @@
 # spans directories) matched against the files a branch changes; a file no entry knows runs the whole suite, and
 # `make -C cli check` fails until its component is added here.
 skip:
+  - .github/**
+  - scripts/ci-check
+  - scripts/lint
   - docs/**
   - "**/*.md"
   - mkdocs.yml

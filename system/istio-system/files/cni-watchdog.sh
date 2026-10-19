@@ -19,6 +19,7 @@ kubectl -n istio-system get pods -l app=ztunnel -o jsonpath='{range .items[*]}{.
 		since=$(epoch "$started") || { echo "$node: cannot parse ztunnel's start time $started"; continue; }
 		[ $((now - since)) -gt "$limit" ] || continue
 		cni=$(kubectl -n istio-system get pods -l k8s-app=istio-cni-node --field-selector "spec.nodeName=$node" -o jsonpath='{range .items[*]}{.metadata.name} {.status.containerStatuses[0].state.running.startedAt}{"\n"}{end}') || cni=
+		# shellcheck disable=SC2086 # split into the pod name and its start time
 		set -- $cni
 		if [ $# -ne 2 ]; then
 			echo "$node: ztunnel not Ready, no running istio-cni pod"

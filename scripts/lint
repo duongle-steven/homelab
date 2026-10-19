@@ -1,0 +1,8 @@
+#!/bin/sh
+# yamllint, shellcheck on every tracked shell script (first line a sh or bash shebang) and actionlint on the
+# GitHub Actions workflows; a basic check (scripts/ci-check lint)
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+yamllint -s .
+git ls-files -z | xargs -0 sh -c 'for f; do [ -f "$f" ] && head -n 1 "$f" | grep -qE "^#!.*[/ ](ba)?sh( |$)" && printf "%s\0" "$f"; done' sh | xargs -0 shellcheck
+if [ -d .github/workflows ]; then actionlint; fi

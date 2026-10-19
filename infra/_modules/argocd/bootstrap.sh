@@ -6,7 +6,9 @@
 # scripts/env-values: the chart gets the same global values Argo CD passes it)
 set -eu
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+# shellcheck disable=SC2153 # VALUES and ENVIRONMENT come from OpenTofu (set -u fails when one is missing)
 values="$VALUES"
+# shellcheck disable=SC2153
 environment="$ENVIRONMENT"
 if [ -n "${SEED:-}" ] && [ -z "$(kubectl get pods --all-namespaces -l app.kubernetes.io/instance=forgejo \
   --field-selector status.phase=Running -o name)" ]; then
