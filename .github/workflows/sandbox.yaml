@@ -43,10 +43,12 @@ jobs:
           fetch-depth: 0  # the scope diffs against the base
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || inputs.revision || github.sha }}
-      - name: free disk space, raise inotify limits
+      - name: free disk space, raise inotify limits, allow Chromium's sandbox
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo sysctl -w fs.inotify.max_user_instances=8192 fs.inotify.max_user_watches=1048576
+          # Ubuntu 24.04's AppArmor forbids unprivileged user namespaces, which Chromium's sandbox (the SSO tests) needs
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           df -h /
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702  # v31.11.2
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569  # v7.0.2
