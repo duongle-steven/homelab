@@ -1,7 +1,6 @@
 # Step 10a: GitHub Actions basic checks and protected branches
 
-Status: design approved in chat 2026-10-19, written spec awaiting review. Branch: `feat/ci-checks`, stacked on
-`feat/dev-shell-cleanup` (the trimmed dev shell); its PR targets `dev` once that one is merged.
+Status: approved 2026-10-19. Branch: `feat/ci-checks` from `dev` (the trimmed dev shell of PR #41 is merged).
 
 ## Goal
 
