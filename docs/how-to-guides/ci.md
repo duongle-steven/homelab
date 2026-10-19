@@ -47,3 +47,31 @@ gh api --method DELETE "repos/{owner}/{repo}/rulesets/$id"
 ## Adding a check
 
 Add a case to `scripts/ci-check` and its name to the `checks` list there and to the workflow's matrix.
+
+## The sandbox
+
+`.github/workflows/sandbox.yaml` builds a fresh sandbox on a GitHub-hosted runner and runs the suite with
+`make dev revision=<sha>`: Argo CD syncs that commit (the bootstrap rewrites the homelab repository's revisions,
+`infra/_modules/argocd/set-revision.sh`), so nothing is pushed to branch `sandbox` and a local sandbox is not
+disturbed. A run takes about 45 minutes; it needs no secret (the state passphrase is random).
+
+| Trigger | Runs |
+|---|---|
+| A push to `dev` (a merge) | The whole suite, unless every change since the previous push is skipped (`test/scopes.yaml`) |
+| The label `sandbox` on a pull request | What `make dev` would run for the pull request (its base to its head) |
+| `workflow_dispatch` (Actions tab, or `gh workflow run sandbox.yaml --ref <branch>`) | `scope` `full` or `auto`, or exactly `tests`; `revision` picks another commit |
+
+The check is not required by the ruleset: it runs after the merge, or when a maintainer labels a pull request. Only
+people with write access can label. A new commit on the pull request does not rerun it: remove the label and add it
+again (read the new code first: it runs on the runner). Pull requests from forks get a read-only token, which is all
+the run needs.
+
+A failed run uploads the artifact `sandbox-state`: the `make dev` output, the pods, the events, the Applications and
+the logs of the pods that are not ready.
+
+```sh
+gh run download <run-id> --name sandbox-state
+```
+
+If `dev` breaks after a merge, fix it with a new pull request right away. Before a `dev` → `master` pull request, the
+latest `sandbox` run on `dev` must be green (it is a fresh sandbox, as `make dev-fresh`).

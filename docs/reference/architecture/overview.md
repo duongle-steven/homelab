@@ -38,7 +38,8 @@ Everything is automated, after you edit the configuration files, you just need t
     - Install Linux on all servers in parallel
     - Build a Kubernetes cluster (based on k3s)
 - (2) Bootstrap the `./system` layer:
-    - Install ArgoCD and the root app to manage itself and other layers, from now on ArgoCD will do the rest
+    - Install Argo CD and its ApplicationSets with OpenTofu (`infra/<env>/argocd`, applied again whenever `system/argocd`
+      changes); Argo CD syncs every other layer from git
     - Install the remaining components (storage, monitoring, etc)
 - (3) Build the `./platform` layer (Forgejo, Grafana, SSO, etc)
 - (4) Deploy applications in the `./apps` layer
