@@ -30,16 +30,7 @@ You'll be asked to provide these credentials on first build.
 3. Enable **R2** (R2 Object Storage in the dashboard; it asks for a payment method even on the free tier, which
    OpenTofu's state stays far below).
 4. `terragrunt plan` in `infra/production/cloudflare`, then `terragrunt apply` (`make infra env=production` applies every
-   production unit; until step 8d see the warning below).
-
-!!! warning
-
-    `cf auth login`'s OAuth scopes hold none for account API tokens, so `plan` and `apply` in
-    `infra/production/cloudflare` fail with HTTP 403 on its permission groups and DNS tokens until step 8d. The unit was
-    applied on 2026-10-16 and its state is on R2; the other production units only need the R2 scopes. Until then,
-    `make infra env=production` stops at `cloudflare` and skips `secrets`, which depends on it: apply the others with
-    `cd infra/production && terragrunt run --all apply --filter '!cloudflare'` (`secrets` still reads `cloudflare`'s
-    outputs from its state).
+   production unit).
 
 ### Cloudflare login
 
@@ -49,6 +40,10 @@ token. Log in once, with no `CLOUDFLARE_API_TOKEN` in the environment (`cf` woul
 ```sh
 env -u CLOUDFLARE_API_TOKEN cf auth login --no-browser
 ```
+
+On the consent page, enable **Account API Tokens** (it is off by default): OpenTofu manages the DNS tokens and `lab`
+creates the expiring R2 credentials with it. `cf auth whoami` must list `account_api_tokens:create`; otherwise run
+`cf auth login --force` and enable it.
 
 `--no-browser` prints a link and a code (handy under WSL). `CLOUDFLARE_ACCOUNT_ID` picks the account when the login
 sees several. `make -C infra check` needs no login.
@@ -80,9 +75,13 @@ writes it encrypted.
 
 ### Where state lives
 
-Production's state is on R2: bucket `homelab-production-tfstate` (created on the first `init`), one object per unit
-(`<unit>/tfstate.json`), with no lock (one operator). The sandbox's stays in `.state/sandbox/` (git-ignored, readable
-by the user only). Both are encrypted.
+Production's state is on R2 through its S3 API (OpenTofu's `s3` backend): bucket `homelab-production-tfstate`
+(created on the first `init` by `lab infra state ensure`), one object per unit (`<unit>/tfstate.json`) and a lock file
+(`<unit>/tfstate.json.tflock`) while a command runs. Its credentials last one hour and come from
+`lab infra state credentials` (an account token for that bucket only, created with the `cf` login), so no token is
+written to disk. An interrupted command can leave the lock behind: run `terragrunt force-unlock <ID>` in the unit with
+the ID OpenTofu prints. The sandbox's state stays in `.state/sandbox/` (git-ignored, readable by the user only). Both
+are encrypted.
 
 ### ntfy
 
