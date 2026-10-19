@@ -1,13 +1,10 @@
-# A fresh sandbox and the suite (make dev revision=<sha>, docs/how-to-guides/ci.md): after every push to dev, on every
-# pull request into master (the whole suite; required there by the ruleset protect-master-sandbox), on other pull
-# requests labelled sandbox, and on demand.
+# A fresh sandbox and the suite after every push to dev (the whole suite, unless every change is skipped) and on demand.
+# Pull requests: sandbox-release.yaml (into master, required) and sandbox-label.yaml (others, on the label sandbox).
 name: sandbox
 
 on:
   push:
     branches: [dev]
-  pull_request:
-    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
     inputs:
       scope:
@@ -26,35 +23,20 @@ permissions:
   contents: read
 
 concurrency:
-  # A newer label on a pull request replaces its run; every push and dispatch runs on its own
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Every push and dispatch runs on its own
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   sandbox:
-    # Pull requests: always into master (a release), otherwise when labelled sandbox (the label event only)
-    if: >-
-      github.event_name != 'pull_request' ||
-      (github.event.action != 'labeled' && github.base_ref == 'master') ||
-      (github.event.action == 'labeled' && github.event.label.name == 'sandbox' && github.base_ref != 'master')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    env:
-      # The tests dial the node; the localhost proxy's ports may be taken on the runner
-      HOMELAB_SANDBOX_PROXY: "0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          fetch-depth: 0  # the scope diffs against the base
+          fetch-depth: 0  # the scope diffs against the previous push
           persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || inputs.revision || github.sha }}
-      - name: free disk space, raise inotify limits, allow Chromium's sandbox
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo sysctl -w fs.inotify.max_user_instances=8192 fs.inotify.max_user_watches=1048576
-          # Ubuntu 24.04's AppArmor forbids unprivileged user namespaces, which Chromium's sandbox (the SSO tests) needs
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          df -h /
+          ref: ${{ inputs.revision || github.sha }}
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702  # v31.11.2
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569  # v7.0.2
         with:
@@ -63,55 +45,25 @@ jobs:
           gc-max-store-size-linux: 8G
           # Only runs on dev save (as in checks.yaml)
           save: ${{ github.event_name == 'push' }}
-      - name: make dev
+      - name: what to run
+        id: scope
         env:
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-          BASE_REF: ${{ github.base_ref }}
           SCOPE: ${{ inputs.scope }}
           TESTS: ${{ inputs.tests }}
         run: |
-          set -o pipefail
-          revision=$(git rev-parse HEAD)
-          HOMELAB_STATE_PASSPHRASE=$(head -c 32 /dev/urandom | base64)
-          export HOMELAB_STATE_PASSPHRASE
-          # shellcheck disable=SC2016 # the inner script expands its own arguments
-          scope() { nix develop --command sh -c 'cd cli && go run ./cmd/lab test scope --base "$1" $2' sh "$1" "${2:-}"; }
-          case "$EVENT" in
-            push)
-              # The whole suite, unless every change since the previous push is skipped (a new branch: the whole suite)
-              if [ "$BEFORE" != 0000000000000000000000000000000000000000 ] && [ -z "$(scope "$BEFORE")$(scope "$BEFORE" --alone)" ]; then
-                echo "nothing to test in the sandbox"
-                exit 0
-              fi
-              set -- scope=full ;;
-            pull_request)
-              # A release gets the whole suite; other pull requests what make dev would run
-              if [ "$BASE_REF" = master ]; then set -- scope=full; else set -- "base=$PR_BASE"; fi ;;
-            workflow_dispatch)
-              if [ -n "$TESTS" ]; then set -- "tests=$TESTS"; else set -- "scope=$SCOPE"; fi ;;
-          esac
-          nix develop --command make dev "revision=$revision" "$@" 2>&1 | tee make-dev.log
-      - name: collect the cluster's state
-        if: failure()
-        run: |
-          mkdir -p sandbox-state
-          cp make-dev.log sandbox-state/ 2>/dev/null || true
-          export KUBECONFIG="$PWD/infra/sandbox/kubeconfig.yaml"
-          # shellcheck disable=SC2016 # the inner script expands its own variables
-          nix develop --command sh -c '
-            kubectl get pods -A -o wide > sandbox-state/pods.txt 2>&1
-            kubectl get events -A --sort-by=.lastTimestamp > sandbox-state/events.txt 2>&1
-            kubectl -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REVISION:.status.sync.revision > sandbox-state/applications.txt 2>&1
-            kubectl get pods -A --no-headers 2>/dev/null | while read -r ns pod ready status rest; do
-              case "$status" in Running|Completed) [ "${ready%/*}" = "${ready#*/}" ] && continue ;; esac
-              kubectl -n "$ns" logs "$pod" --all-containers --tail=200 > "sandbox-state/$ns.$pod.log" 2>&1
-              # Image pull and mount errors live in the events of the pod, which expire after an hour
-              kubectl -n "$ns" describe pod "$pod" > "sandbox-state/$ns.$pod.describe.txt" 2>&1
-            done'
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
-        if: failure()
+          if [ "$EVENT" = push ]; then
+            # scripts/sandbox-scope needs the selector (Go), from the dev shell; a failure fails the job
+            args=$(nix develop --command scripts/sandbox-scope "$BEFORE") || { echo "::error::sandbox-scope failed"; exit 1; }
+          elif [ -n "$TESTS" ]; then
+            args="tests=$TESTS"
+          else
+            args="scope=$SCOPE"
+          fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+          [ -n "$args" ] || echo "nothing to test in the sandbox"
+      - uses: ./.github/actions/sandbox
+        if: steps.scope.outputs.args != ''
         with:
-          name: sandbox-state
-          path: sandbox-state/
+          make-args: ${{ steps.scope.outputs.args }}
