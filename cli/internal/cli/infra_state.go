@@ -48,20 +48,32 @@ func newInfraStateCmd() *cobra.Command {
 	credentials := &cobra.Command{
 		Use:   "credentials",
 		Short: "Issue expiring R2 credentials for the OpenTofu backend",
-		Long:  "Emit AWS credential-process JSON using the cf CLI OAuth login. Grants object read/write access to one R2 bucket for one hour. Requires OAuth account token creation and R2 object write scopes. Credentials remain in process memory and expire automatically.",
+		Long:  "Emit AWS credential-process JSON using the cf CLI OAuth login. Grants object read/write access to one R2 bucket for one hour. Requires OAuth account token creation and R2 object write scopes. With --account-id, a credential is cached in $XDG_RUNTIME_DIR (memory-backed, user-only) and reused while it lasts 15 more minutes; credentials expire automatically.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Minute)
 			defer cancel()
-			token, accountID, err := cloudflareLogin(ctx, account)
-			if err != nil {
-				return err
+			create := func(id string) func() (state.R2Credentials, error) {
+				return func() (state.R2Credentials, error) {
+					token, accountID, err := cloudflareLogin(ctx, id)
+					if err != nil {
+						return state.R2Credentials{}, err
+					}
+					api, err := cloudflare.NewWithAPIToken(token)
+					if err != nil {
+						return state.R2Credentials{}, err
+					}
+					return state.CreateR2Credentials(ctx, api, http.DefaultClient, accountID, bucket)
+				}
 			}
-			api, err := cloudflare.NewWithAPIToken(token)
-			if err != nil {
-				return err
+			var result state.R2Credentials
+			var err error
+			if account == "" {
+				// The cache is keyed by account: without --account-id, no reuse
+				result, err = create("")()
+			} else {
+				result, err = state.CachedR2Credentials(os.Getenv("XDG_RUNTIME_DIR"), account, bucket, time.Now(), create(account))
 			}
-			result, err := state.CreateR2Credentials(ctx, api, http.DefaultClient, accountID, bucket)
 			if err != nil {
 				return err
 			}
