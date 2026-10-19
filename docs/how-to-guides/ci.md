@@ -42,6 +42,9 @@ gh api 'repos/{owner}/{repo}/rules/branches/dev'
 gh api --method DELETE "repos/{owner}/{repo}/rulesets/$id"
 ```
 
+The ruleset `protect-master-sandbox` (`.github/rulesets/protect-master-sandbox.json`) adds the check `sandbox` to
+`master`; the same commands apply with its file and name.
+
 `gh` fills `{owner}/{repo}` from the repository you are in.
 
 ## Adding a check
@@ -58,10 +61,11 @@ disturbed. A run takes about 45 minutes; it needs no secret (the state passphras
 | Trigger | Runs |
 |---|---|
 | A push to `dev` (a merge) | The whole suite, unless every change since the previous push is skipped (`test/scopes.yaml`) |
-| The label `sandbox` on a pull request | What `make dev` would run for the pull request (its base to its head) |
+| A pull request into `master` (a release): opened, or a new commit | The whole suite, required by the ruleset `protect-master-sandbox` |
+| The label `sandbox` on another pull request | What `make dev` would run for the pull request (its base to its head) |
 | `workflow_dispatch` (Actions tab, or `gh workflow run sandbox.yaml --ref <branch>`) | `scope` `full` or `auto`, or exactly `tests`; `revision` picks another commit |
 
-The check is not required by the ruleset: it runs after the merge, or when a maintainer labels a pull request. Only
+The check is required only on pull requests into `master`; elsewhere it runs after the merge, or when a maintainer labels a pull request. Only
 people with write access can label. A new commit on the pull request does not rerun it: remove the label and add it
 again (read the new code first: it runs on the runner). Pull requests from forks get a read-only token, which is all
 the run needs.
@@ -73,5 +77,5 @@ the logs of the pods that are not ready.
 gh run download <run-id> --name sandbox-state
 ```
 
-If `dev` breaks after a merge, fix it with a new pull request right away. Before a `dev` → `master` pull request, the
-latest `sandbox` run on `dev` must be green (it is a fresh sandbox, as `make dev-fresh`).
+If `dev` breaks after a merge, fix it with a new pull request right away. A `dev` → `master` pull request runs the whole
+suite on its head and cannot merge until it passes.

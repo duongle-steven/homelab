@@ -1,12 +1,13 @@
-# A fresh sandbox and the suite (make dev revision=<sha>, docs/how-to-guides/ci.md): after every push to dev, on pull
-# requests labelled sandbox, and on demand. Not a required check: it runs after the merge, or when a maintainer asks.
+# A fresh sandbox and the suite (make dev revision=<sha>, docs/how-to-guides/ci.md): after every push to dev, on every
+# pull request into master (the whole suite; required there by the ruleset protect-master-sandbox), on other pull
+# requests labelled sandbox, and on demand.
 name: sandbox
 
 on:
   push:
     branches: [dev]
   pull_request:
-    types: [labeled]
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
     inputs:
       scope:
@@ -31,7 +32,11 @@ concurrency:
 
 jobs:
   sandbox:
-    if: github.event_name != 'pull_request' || github.event.label.name == 'sandbox'
+    # Pull requests: always into master (a release), otherwise when labelled sandbox (the label event only)
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.action != 'labeled' && github.base_ref == 'master') ||
+      (github.event.action == 'labeled' && github.event.label.name == 'sandbox' && github.base_ref != 'master')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -63,6 +68,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
           SCOPE: ${{ inputs.scope }}
           TESTS: ${{ inputs.tests }}
         run: |
@@ -80,7 +86,9 @@ jobs:
                 exit 0
               fi
               set -- scope=full ;;
-            pull_request) set -- "base=$PR_BASE" ;;
+            pull_request)
+              # A release gets the whole suite; other pull requests what make dev would run
+              if [ "$BASE_REF" = master ]; then set -- scope=full; else set -- "base=$PR_BASE"; fi ;;
             workflow_dispatch)
               if [ -n "$TESTS" ]; then set -- "tests=$TESTS"; else set -- "scope=$SCOPE"; fi ;;
           esac
