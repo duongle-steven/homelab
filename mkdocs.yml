@@ -62,6 +62,7 @@ nav:
     - how-to-guides/backup-and-restore.md
     - how-to-guides/alerts.md
     - how-to-guides/logs.md
+    - how-to-guides/sandbox-tests.md
     - how-to-guides/use-both-github-and-forgejo.md
     - how-to-guides/add-or-remove-nodes.md
     - how-to-guides/run-commands-on-multiple-nodes.md

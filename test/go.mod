@@ -1,4 +1,4 @@
-module git.khuedoan.com/ops/homelab
+module github.com/duongle-steven/homelab/test
 
 go 1.26
 
