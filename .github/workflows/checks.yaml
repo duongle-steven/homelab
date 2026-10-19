@@ -12,8 +12,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # A newer push to a pull request replaces its run; runs on dev and master always finish
+  # A newer push to a pull request replaces its run. Each push to dev or master gets its own group (its commit), so
+  # none is cancelled: GitHub keeps one pending run per group and drops an older pending one
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
