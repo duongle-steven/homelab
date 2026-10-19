@@ -18,7 +18,7 @@ default: metal infra smoke-test clean
 # The sandbox's OpenTofu state is .state/ in this checkout (git-ignored): a git worktree has none, and running the
 # sandbox from it would put a new OpenBao key over the running cluster's
 sandbox-checkout:
-	@if [ "$$(git rev-parse --git-dir)" != "$$(git rev-parse --git-common-dir)" ]; then \
+	@if [ "$$(git rev-parse --path-format=absolute --git-dir)" != "$$(git rev-parse --path-format=absolute --git-common-dir)" ]; then \
 		echo "make: run the sandbox from the main checkout ($$(dirname "$$(git rev-parse --path-format=absolute --git-common-dir)")), not a git worktree" >&2; \
 		exit 1; \
 	fi
@@ -63,6 +63,7 @@ metal:
 # Every unit of infra/<env>: Argo CD's bootstrap, OpenBao's key, OpenTofu's secrets (the sandbox's run in make dev).
 # Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
 infra:
+	@if [ "$(env)" = sandbox ]; then $(MAKE) -s sandbox-checkout; fi
 	go -C cli build -o /dev/null ./cmd/lab
 	cd infra/$(env) && $(terragrunt_apply)
 
