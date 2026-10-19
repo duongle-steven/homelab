@@ -85,6 +85,11 @@ argocd-apps:
   applicationsets:
     root:
       namespace: argocd
+      # A directory leaving root deletes its Application but keeps its resources (delete them by hand): when Argo CD
+      # stopped managing itself (step 10b), root dropped Application argocd before the bootstrap could release its
+      # resources finalizer, and Argo CD deleted part of itself
+      syncPolicy:
+        preserveResourcesOnDeletion: true
       goTemplate: true
       goTemplateOptions:
         - missingkey=error
