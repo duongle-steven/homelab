@@ -7,8 +7,9 @@ locals {
   # Production only: the account and OAuth token of `cf auth login` (empty strings for the sandbox, which never calls cf)
   cloudflare   = jsondecode(run_cmd("--terragrunt-global-cache", "--terragrunt-quiet", "${get_repo_root()}/scripts/cloudflare-credentials", local.env))
   state_bucket = "homelab-${local.env}-tfstate"
-  # Cloudflare's API; test/state_token_refresh_test.go points it at a fake R2
-  state_api = get_env("HOMELAB_STATE_API", "https://api.cloudflare.com/client/v4")
+  # R2's S3 endpoint, and the command that runs lab (a fake endpoint and a stub in test/state_token_refresh_test.go)
+  state_endpoint = get_env("HOMELAB_STATE_ENDPOINT", "https://${local.cloudflare.account_id}.r2.cloudflarestorage.com")
+  lab            = get_env("HOMELAB_LAB", "go -C ${get_repo_root()}/cli run ./cmd/lab")
 
   # OpenTofu state encryption (every environment): the passphrase reaches OpenTofu only as TF_VAR_state_passphrase.
   # _PREVIOUS (scripts/rotate-state-passphrase) or HOMELAB_STATE_MIGRATE=1 (unencrypted state) adds a fallback.
@@ -22,21 +23,29 @@ locals {
   state_commands     = ["init", "validate", "plan", "apply", "destroy", "refresh", "import", "output", "show", "state", "console", "taint", "untaint", "providers"]
 }
 
-# Production's state is on R2 (one object per unit, read and written through Cloudflare's API with cf's OAuth token;
-# no lock: one operator); the sandbox's stays local. Both are encrypted (encryption.tf). The token lands in
-# .terragrunt-cache, which is git-ignored and user-only, as upstream's remote_state does.
+# Production's state is on R2 through its S3 API (one object per unit, a lock file while a command runs), with
+# expiring credentials from lab (r2-state.config); the sandbox's stays local. Both are encrypted (encryption.tf).
+# Neither generated file holds a secret.
 generate "backend" {
   path      = "backend.tf"
   if_exists = "overwrite_terragrunt"
   contents  = <<-EOF
     terraform {
     %{~if local.production}
-      backend "http" {
-        address       = "${local.state_api}/accounts/${local.cloudflare.account_id}/r2/buckets/${local.state_bucket}/objects/${local.unit}/tfstate.json"
-        update_method = "PUT"
-        headers = {
-          Authorization = "Bearer ${local.cloudflare.token}"
-        }
+      backend "s3" {
+        bucket                      = "${local.state_bucket}"
+        key                         = "${local.unit}/tfstate.json"
+        region                      = "auto"
+        endpoints                   = { s3 = "${local.state_endpoint}" }
+        use_path_style              = true
+        use_lockfile                = true
+        profile                     = "r2-state"
+        shared_config_files         = ["./r2-state.config"]
+        skip_credentials_validation = true
+        skip_region_validation      = true
+        skip_requesting_account_id  = true
+        skip_metadata_api_check     = true
+        skip_s3_checksum            = true
       }
     %{~else}
       backend "local" {
@@ -44,6 +53,16 @@ generate "backend" {
       }
     %{~endif}
     }
+  EOF
+}
+
+generate "r2_credentials" {
+  path      = "r2-state.config"
+  if_exists = "overwrite_terragrunt"
+  disable   = !local.production
+  contents  = <<-EOF
+    [profile r2-state]
+    credential_process = ${local.lab} infra state credentials --account-id ${local.cloudflare.account_id} --bucket ${local.state_bucket}
   EOF
 }
 
@@ -119,8 +138,8 @@ terraform {
     }
   }
 
-  # The OAuth token in backend.tf changes whenever cf refreshes it, so production's init reconfigures (state moves
-  # between backends with `state push`, never `init -migrate-state`)
+  # Production's init reconfigures, so a backend change (http to s3 in step 8d) never offers to copy state (state
+  # moves between backends with `state push`, never `init -migrate-state`)
   extra_arguments "backend_reconfigure" {
     commands  = ["init"]
     arguments = local.production ? ["-reconfigure"] : []
@@ -129,7 +148,7 @@ terraform {
   before_hook "state_bucket" {
     commands = ["init"]
     if       = local.production
-    execute  = ["${get_repo_root()}/scripts/ensure-state-bucket", local.state_bucket]
+    execute  = ["sh", "-c", "${local.lab} infra state ensure --account-id ${local.cloudflare.account_id} --bucket ${local.state_bucket}"]
   }
 
   extra_arguments "state_passphrase" {

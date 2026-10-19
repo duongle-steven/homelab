@@ -21,7 +21,6 @@ skip:
   - scripts/check-*
   - scripts/render-chart
   - scripts/cloudflare-credentials
-  - scripts/ensure-state-bucket
   - scripts/rotate-state-passphrase
   - scripts/helm-diff
   - scripts/__pycache__/**
