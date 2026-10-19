@@ -4,5 +4,10 @@
 set -eu
 cd "$(git rev-parse --show-toplevel)"
 yamllint -s .
-git ls-files -z | xargs -0 sh -c 'for f; do [ -f "$f" ] && head -n 1 "$f" | grep -qE "^#!.*[/ ](ba)?sh( |$)" && printf "%s\0" "$f"; done' sh | xargs -0 shellcheck
+scripts=$(git ls-files | while IFS= read -r f; do
+	if [ -f "$f" ] && head -n 1 "$f" | grep -qE '^#!.*[/ ](ba)?sh( |$)'; then echo "$f"; fi
+done)
+# One path per line; tracked paths here have no spaces
+# shellcheck disable=SC2086
+shellcheck $scripts
 if [ -d .github/workflows ]; then actionlint; fi
