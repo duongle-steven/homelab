@@ -3,7 +3,8 @@
 # GitHub Actions workflows; a basic check (scripts/ci-check lint)
 set -eu
 cd "$(git rev-parse --show-toplevel)"
-yamllint -s .
+# Tracked files only: make dev writes git-ignored YAML (kubeconfigs, CRD downloads) that is not ours to lint
+git ls-files -z '*.yaml' '*.yml' | xargs -0 yamllint -s
 scripts=$(git ls-files | while IFS= read -r f; do
 	if [ -f "$f" ] && head -n 1 "$f" | grep -qE '^#!.*[/ ](ba)?sh( |$)'; then echo "$f"; fi
 done)
