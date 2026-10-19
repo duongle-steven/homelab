@@ -10,7 +10,8 @@ values=$(get values)
 environment=$(get environment)
 seed=$(get seed)
 if [ -n "$seed" ]; then
-	export KUBECONFIG="$(get kubeconfig)"
+	KUBECONFIG=$(get kubeconfig)
+	export KUBECONFIG
 	root=$(kubectl -n argocd get applicationset root --ignore-not-found \
 		-o jsonpath='{.spec.generators[0].matrix.generators[0].git.repoURL}')
 	if [ "$root" != "$(get forgejo_repository)" ]; then
