@@ -1,9 +1,10 @@
 # Deployment
 
-Open the development shell if you haven't already:
+Open the development shell if you haven't already; `metal/` (Ansible, the PXE server) needs its own, which adds
+Ansible to the default one:
 
 ```sh
-nix develop
+nix develop .#metal
 ```
 
 Build the lab:

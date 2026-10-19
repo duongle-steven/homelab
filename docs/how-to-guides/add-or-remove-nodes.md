@@ -22,7 +22,7 @@ index 7f6474a..1bb2cbc 100644
 +        metal4: {ansible_host: 192.168.0.15, mac: '00:11:22:33:44:55', disk: sda, network_interface: eno1}
 ```
 
-Install the OS and join the cluster:
+Install the OS and join the cluster (in `nix develop .#metal`, which has Ansible):
 
 ```
 make metal
