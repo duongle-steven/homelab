@@ -30,7 +30,11 @@ func TestRepositoryMap(t *testing.T) {
 		{"scripts/env-values", full, "NodeRestart"},
 		{"system/egress/values.yaml", full, "NodeRestart"},
 		{"platform/openbao/values.yaml", "Forgejo|Gateway|Identity|Logs|Monitoring|Ntfy|SSO|Secrets|Smoke", ""},
-		{"platform/kanidm/values.yaml", "ForgejoSeed|GatewayZotLargePush|Identity|SSO|Smoke", ""},
+		{"platform/kanidm/values.yaml", "ForgejoDeploy|GatewayZotLargePush|Identity|SSO|Smoke", ""},
+		// lab's Forgejo deploy runs against the sandbox; its offline parts are skipped
+		{"cli/internal/forgejo/sync.go", "Forgejo|Smoke", ""},
+		{"cli/go.mod", "Forgejo|Smoke", ""},
+		{"cli/internal/guard/verify.go", "", ""},
 		{"platform/forgejo/values.yaml", "Forgejo|GatewayForgejoSSH|SSOForgejo|Smoke", ""},
 		{"apps/paperless.yaml", "SSOPaperless|Smoke", ""},
 		{"apps/blog.yaml", "Smoke", ""},

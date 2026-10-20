@@ -53,6 +53,12 @@ func secretValue(t *testing.T, namespace, name, key string) string {
 	return string(k8s.GetSecret(t, options, name).Data[key])
 }
 
+func configMapValue(t *testing.T, namespace, name, key string) string {
+	options := k8s.NewKubectlOptions("", "", namespace)
+	options.Logger = logger.Discard
+	return k8s.GetConfigMap(t, options, name).Data[key]
+}
+
 func TestSSOGrafana(t *testing.T) {
 	skipUnlessSandbox(t)
 	base := "https://" + grafanaHost

@@ -1,7 +1,7 @@
 {{- /* Skipped by the offline bootstrap render, when external-secrets does not exist yet */}}
 {{- if .Capabilities.APIVersions.Has "external-secrets.io/v1/ExternalSecret" }}
-# Argo CD reads the private GitOps repository on Forgejo (production; harmless in the sandbox, which reads
-# GitHub). Step 10 replaces the admin account with a read-only token in OpenBao.
+# Argo CD reads the GitOps repository on Forgejo with the read-only token lab infra forgejo sync writes (production;
+# in the sandbox, which reads GitHub, the tests read it)
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -21,11 +21,15 @@ spec:
       data:
         type: git
         url: http://forgejo-http.forgejo:3000/ops/homelab
-        username: forgejo_admin
-        password: {{` "{{ .password }}" `}}
+        username: {{` "{{ .username }}" `}}
+        password: {{` "{{ .token }}" `}}
   data:
-    - secretKey: password
+    - secretKey: username
       remoteRef:
-        key: argocd/generated/forgejo-admin
-        property: password
+        key: argocd/forgejo
+        property: username
+    - secretKey: token
+      remoteRef:
+        key: argocd/forgejo
+        property: token
 {{- end }}

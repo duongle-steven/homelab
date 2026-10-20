@@ -52,31 +52,43 @@ func lastLine(s string) string {
 	return s
 }
 
-// choose-values.sh picks the values file the Argo CD bootstrap applies: the seed only on a first install while Forgejo
-// does not run, never again once Argo CD reads Forgejo, and never because the cluster could not be asked
+// choose-values.sh picks the values file the Argo CD bootstrap applies: the seed on a first install until Argo CD's
+// own credential reads ops/homelab's master (Forgejo runs, lab synced the token and pushed), never again once Argo CD
+// reads Forgejo, and never because the cluster could not be asked
 func TestArgoCDChooseValues(t *testing.T) {
 	const forgejo = "http://forgejo-http.forgejo:3000/ops/homelab"
+	const seedValues = `{"values":"values-seed.yaml","environment":"seed"}`
+	const forgejoValues = `{"values":"values-dev.yaml","environment":"dev"}`
 	for _, c := range []struct {
-		name, seed, rootRepo, forgejoPods, want string
-		kubectlFails, fails                  bool
+		name, seed, rootRepo, token, master, want string
+		kubectlFails, execFails, fails           bool
 	}{
-		{"sandbox: no seed", "", "", "", `{"values":"values-dev.yaml","environment":"dev"}`, true, false},
-		{"first install, Forgejo not running", "values-seed.yaml", "", "", `{"values":"values-seed.yaml","environment":"seed"}`, false, false},
-		{"Forgejo running: switch", "values-seed.yaml", "https://github.com/example/homelab", "pod/forgejo-1", `{"values":"values-dev.yaml","environment":"dev"}`, false, false},
-		{"switched, Forgejo restarting: stay", "values-seed.yaml", forgejo, "", `{"values":"values-dev.yaml","environment":"dev"}`, false, false},
-		{"cluster unreachable", "values-seed.yaml", "", "", "", true, true},
+		{name: "sandbox: no seed", want: forgejoValues, kubectlFails: true},
+		{name: "first install, no credential yet", seed: "values-seed.yaml", want: seedValues},
+		{name: "credential, nothing pushed", seed: "values-seed.yaml", token: "t1", want: seedValues},
+		{name: "credential reads master: switch", seed: "values-seed.yaml", rootRepo: "https://github.com/example/homelab", token: "t1", master: "t1", want: forgejoValues},
+		{name: "wrong credential", seed: "values-seed.yaml", token: "t1", master: "t2", want: seedValues},
+		// Review Focus 5: the Secret exists but Forgejo's pod is down
+		{name: "Forgejo down", seed: "values-seed.yaml", token: "t1", master: "t1", execFails: true, want: seedValues},
+		{name: "switched, Forgejo down: stay", seed: "values-seed.yaml", rootRepo: forgejo, execFails: true, want: forgejoValues},
+		{name: "cluster unreachable", seed: "values-seed.yaml", kubectlFails: true, fails: true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			kubectl := `case "$*" in
   *applicationset*) echo "$ROOT_REPO" ;;
-  *pods*) echo "$FORGEJO_PODS" ;;
+  *"get secret argocd-repo-forgejo"*) [ -z "$TOKEN" ] || printf '%s' "$TOKEN" | base64 ;;
+  *exec*) echo "$*" >> "$FIXTURES/exec-args"; [ -z "$EXEC_FAILS" ] || exit 1; [ -n "$MASTER" ] && [ "$(cat)" = "Authorization: token $MASTER" ] ;;
+  *) echo "unexpected kubectl $*" >&2; exit 2 ;;
 esac`
 			if c.kubectlFails {
 				kubectl = `echo "unable to connect" >&2; exit 1`
 			}
-			_, env := fakeBin(t, map[string]string{"kubectl": kubectl})
+			dir, env := fakeBin(t, map[string]string{"kubectl": kubectl})
 			cmd := exec.Command("sh", "../infra/_modules/argocd/choose-values.sh")
-			cmd.Env = append(env, "ROOT_REPO="+c.rootRepo, "FORGEJO_PODS="+c.forgejoPods)
+			cmd.Env = append(env, "ROOT_REPO="+c.rootRepo, "TOKEN="+c.token, "MASTER="+c.master)
+			if c.execFails {
+				cmd.Env = append(cmd.Env, "EXEC_FAILS=1")
+			}
 			cmd.Stdin = strings.NewReader(`{"values":"values-dev.yaml","environment":"dev","seed":"` + c.seed + `","forgejo_repository":"` + forgejo + `","kubeconfig":"/dev/null"}`)
 			out, err := cmd.CombinedOutput()
 			if c.fails {
@@ -85,6 +97,11 @@ esac`
 			}
 			require.NoError(t, err, string(out))
 			assert.JSONEq(t, c.want, string(out))
+			// The token reaches curl as a header on stdin, never as an argument (kubectl's or curl's)
+			args, _ := os.ReadFile(filepath.Join(dir, "exec-args"))
+			if c.token != "" {
+				assert.NotContains(t, string(args), c.token)
+			}
 		})
 	}
 }
@@ -123,35 +140,43 @@ func TestMakeDevRevision(t *testing.T) {
 	assert.Error(t, clean(""), "uncommitted change, no revision")
 }
 
-// make infra env=production applies the checkout: only origin/master without uncommitted changes, unless force=1 (a
-// state migration from another commit)
-func TestMakeInfraProductionCheckout(t *testing.T) {
-	makefile, err := filepath.Abs("../Makefile")
+// make infra env=production deploys in one command: the guards, the infrastructure, Forgejo's org ops, the push, then
+// the Argo CD bootstrap again (the switch to Forgejo on a first install); force=1 applies the infrastructure only
+func TestMakeInfraProduction(t *testing.T) {
+	stubs := map[string]string{
+		"lab":        `echo "lab $*" >> "$FIXTURES/calls"; [ "$3" != verify ] || [ -z "$VERIFY_FAILS" ]`,
+		"terragrunt": `echo "terragrunt $(basename "$PWD") $*" >> "$FIXTURES/calls"`,
+		"go":         `exit 0`,
+	}
+	head, err := exec.Command("git", "rev-parse", "HEAD").Output()
 	require.NoError(t, err)
-	origin, repo := t.TempDir(), t.TempDir()
-	git := func(dir string, args ...string) {
-		out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"}, args...)...).CombinedOutput()
-		require.NoError(t, err, string(out))
+	commit := "--commit " + strings.TrimSpace(string(head))
+	for _, c := range []struct {
+		name string
+		vars []string
+		env  []string
+		want []string
+	}{
+		{"deploy", nil, nil, []string{
+			"lab infra forgejo verify " + commit,
+			"terragrunt production run --all apply --non-interactive -- -auto-approve",
+			"lab infra forgejo sync",
+			"lab infra forgejo push " + commit,
+			"terragrunt argocd apply --non-interactive -- -auto-approve",
+		}},
+		{"force=1", []string{"force=1"}, nil, []string{
+			"terragrunt production run --all apply --non-interactive -- -auto-approve",
+		}},
+		{"guards fail", nil, []string{"VERIFY_FAILS=1"}, []string{"lab infra forgejo verify " + commit}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			dir, env := fakeBin(t, stubs)
+			args := append([]string{"-s", "-C", "..", "infra", "env=production", "lab_cli=" + filepath.Join(dir, "lab"), "terragrunt=" + filepath.Join(dir, "terragrunt")}, c.vars...)
+			cmd := exec.Command("make", args...)
+			cmd.Env = append(env, c.env...)
+			out, _ := cmd.CombinedOutput()
+			calls, _ := os.ReadFile(filepath.Join(dir, "calls"))
+			assert.Equal(t, c.want, strings.Split(strings.TrimSpace(string(calls)), "\n"), string(out))
+		})
 	}
-	git(origin, "init", "-q", "--bare", "-b", "master")
-	git(repo, "init", "-q", "-b", "master")
-	git(repo, "remote", "add", "origin", origin)
-	require.NoError(t, os.WriteFile(filepath.Join(repo, "file"), []byte("1"), 0o644))
-	git(repo, "add", "file")
-	git(repo, "commit", "-q", "-m", "one")
-	git(repo, "push", "-q", "origin", "master")
-	check := func(vars ...string) error {
-		out, err := exec.Command("make", append([]string{"-s", "-f", makefile, "-C", repo, "production-checkout"}, vars...)...).CombinedOutput()
-		t.Log(string(out))
-		return err
-	}
-	assert.NoError(t, check(), "origin/master, clean")
-	require.NoError(t, os.WriteFile(filepath.Join(repo, "file"), []byte("2"), 0o644))
-	assert.Error(t, check(), "uncommitted change")
-	assert.NoError(t, check("force=1"), "uncommitted change, forced")
-	git(repo, "commit", "-q", "-am", "two")
-	assert.Error(t, check(), "a commit not on origin/master")
-	assert.NoError(t, check("force=1"), "a commit not on origin/master, forced")
-	git(repo, "push", "-q", "origin", "master")
-	assert.NoError(t, check(), "pushed")
 }
