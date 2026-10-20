@@ -28,7 +28,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  sandbox:
+  # Not named sandbox: that check is the one protect-master-sandbox requires (sandbox-release.yaml), and a run here
+  # that tests nothing would pass it on the same commit
+  sandbox-dev:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:

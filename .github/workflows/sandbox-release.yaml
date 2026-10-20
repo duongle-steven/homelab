@@ -1,7 +1,7 @@
 # A release: every pull request into master runs the whole suite in a fresh sandbox, and the ruleset
 # protect-master-sandbox requires this job's check "sandbox". Labels never trigger it (a label event would replace a
-# running check with a skipped one, which counts as passing), and a pull request retargeted to master gets it at its
-# next push (or close and reopen it).
+# running check with a skipped one, which counts as passing); a pull request retargeted to master gets it from
+# sandbox-retarget.yaml. No other job may be named sandbox.
 name: sandbox-release
 
 on:

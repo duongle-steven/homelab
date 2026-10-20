@@ -53,7 +53,7 @@ Add a case to `scripts/ci-check` and its name to the `checks` list there and to 
 
 ## The sandbox
 
-Three workflows build a fresh sandbox on a GitHub-hosted runner and run the suite with `make dev revision=<sha>`
+Four workflows build a fresh sandbox on a GitHub-hosted runner and run the suite with `make dev revision=<sha>`
 (their steps are the composite action `.github/actions/sandbox`): Argo CD syncs that commit (the bootstrap rewrites
 the homelab repository's revisions, `infra/_modules/argocd/set-revision.sh`), so nothing is pushed to branch `sandbox`
 and a local sandbox is not disturbed. A run takes about 30 minutes; it needs no secret (the state passphrase is
@@ -64,16 +64,20 @@ random).
 | `sandbox` | A push to `dev` (a merge) | The whole suite, unless every change since the previous push is skipped (`scripts/sandbox-scope`, `test/scopes.yaml`) |
 | `sandbox` | `workflow_dispatch` (Actions tab, or `gh workflow run sandbox.yaml --ref <branch>`) | `scope` `full` or `auto`, or exactly `tests`; `revision` picks another commit |
 | `sandbox-release` | A pull request into `master` (a release): opened, reopened or a new commit | The whole suite; its check `sandbox` is required by the ruleset `protect-master-sandbox` |
+| `sandbox-retarget` | A pull request retargeted to `master` (its base changed) | The whole suite, reported as the check `sandbox` through the checks API |
 | `sandbox-label` | The label `sandbox` on a pull request into anything but `master` | What `make dev` would run for the pull request (its base to its head) |
 
 Labels never trigger `sandbox-release`: a label event would replace the running check with a skipped one, which
-GitHub counts as passing. A pull request retargeted to `master` gets its run at its next push (or close and reopen it).
+GitHub counts as passing. For the same reason no other job is named `sandbox` (`sandbox`'s is `sandbox-dev`): a run
+that tests nothing would pass the required check on the same commit. A pull request retargeted to `master` from a fork
+gets a read-only token, which cannot create the check: push to it (or close and reopen it).
 Only people with write access can label. A new commit on a labelled pull request does not rerun `sandbox-label`:
 remove the label and add it again (read the new code first: it runs on the runner); other labels never cancel it. Pull
 requests from forks get a read-only token, which is all the run needs.
 
 A failed run uploads the artifact `sandbox-state`: the `make dev` output, the pods, the events, the Applications and
-the logs of the pods that are not ready.
+the logs and descriptions of the pods that are not ready, and why each unhealthy Application is unhealthy
+(`applications-unhealthy.yaml`).
 
 ```sh
 gh run download <run-id> --name sandbox-state

@@ -88,3 +88,70 @@ esac`
 		})
 	}
 }
+
+// make dev tests the checkout: with revision=<sha> (GitHub Actions) too, it refuses uncommitted changes and a revision
+// other than HEAD, because the tests and their scope come from the checkout
+func TestMakeDevRevision(t *testing.T) {
+	makefile, err := filepath.Abs("../Makefile")
+	require.NoError(t, err)
+	repo := t.TempDir()
+	git := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid"}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+		return strings.TrimSpace(string(out))
+	}
+	git("init", "-q")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "file"), []byte("1"), 0o644))
+	git("add", "file")
+	git("commit", "-q", "-m", "one")
+	first := git("rev-parse", "HEAD")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "file"), []byte("2"), 0o644))
+	git("commit", "-q", "-am", "two")
+	head := git("rev-parse", "HEAD")
+	clean := func(revision string) error {
+		out, err := exec.Command("make", "-s", "-f", makefile, "-C", repo, "sandbox-clean", "revision="+revision).CombinedOutput()
+		t.Log(string(out))
+		return err
+	}
+	assert.NoError(t, clean(""), "no revision, clean tree")
+	assert.NoError(t, clean(head), "revision is HEAD")
+	assert.NoError(t, clean(head[:12]), "short revision of HEAD")
+	assert.Error(t, clean(first), "revision is not HEAD")
+	assert.Error(t, clean("does-not-exist"), "unknown revision")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "file"), []byte("3"), 0o644))
+	assert.Error(t, clean(head), "uncommitted change")
+	assert.Error(t, clean(""), "uncommitted change, no revision")
+}
+
+// make infra env=production applies the checkout: only origin/master without uncommitted changes, unless force=1 (a
+// state migration from another commit)
+func TestMakeInfraProductionCheckout(t *testing.T) {
+	makefile, err := filepath.Abs("../Makefile")
+	require.NoError(t, err)
+	origin, repo := t.TempDir(), t.TempDir()
+	git := func(dir string, args ...string) {
+		out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.invalid"}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	git(origin, "init", "-q", "--bare", "-b", "master")
+	git(repo, "init", "-q", "-b", "master")
+	git(repo, "remote", "add", "origin", origin)
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "file"), []byte("1"), 0o644))
+	git(repo, "add", "file")
+	git(repo, "commit", "-q", "-m", "one")
+	git(repo, "push", "-q", "origin", "master")
+	check := func(vars ...string) error {
+		out, err := exec.Command("make", append([]string{"-s", "-f", makefile, "-C", repo, "production-checkout"}, vars...)...).CombinedOutput()
+		t.Log(string(out))
+		return err
+	}
+	assert.NoError(t, check(), "origin/master, clean")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "file"), []byte("2"), 0o644))
+	assert.Error(t, check(), "uncommitted change")
+	assert.NoError(t, check("force=1"), "uncommitted change, forced")
+	git(repo, "commit", "-q", "-am", "two")
+	assert.Error(t, check(), "a commit not on origin/master")
+	assert.NoError(t, check("force=1"), "a commit not on origin/master, forced")
+	git(repo, "push", "-q", "origin", "master")
+	assert.NoError(t, check(), "pushed")
+}
