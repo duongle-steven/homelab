@@ -77,13 +77,13 @@ func TestArgoCDChooseValues(t *testing.T) {
 			kubectl := `case "$*" in
   *applicationset*) echo "$ROOT_REPO" ;;
   *"get secret argocd-repo-forgejo"*) [ -z "$TOKEN" ] || printf '%s' "$TOKEN" | base64 ;;
-  *exec*) [ -z "$EXEC_FAILS" ] || exit 1; [ "$(cat)" = "$MASTER" ] && [ -n "$MASTER" ] ;;
+  *exec*) echo "$*" >> "$FIXTURES/exec-args"; [ -z "$EXEC_FAILS" ] || exit 1; [ -n "$MASTER" ] && [ "$(cat)" = "Authorization: token $MASTER" ] ;;
   *) echo "unexpected kubectl $*" >&2; exit 2 ;;
 esac`
 			if c.kubectlFails {
 				kubectl = `echo "unable to connect" >&2; exit 1`
 			}
-			_, env := fakeBin(t, map[string]string{"kubectl": kubectl})
+			dir, env := fakeBin(t, map[string]string{"kubectl": kubectl})
 			cmd := exec.Command("sh", "../infra/_modules/argocd/choose-values.sh")
 			cmd.Env = append(env, "ROOT_REPO="+c.rootRepo, "TOKEN="+c.token, "MASTER="+c.master)
 			if c.execFails {
@@ -97,6 +97,11 @@ esac`
 			}
 			require.NoError(t, err, string(out))
 			assert.JSONEq(t, c.want, string(out))
+			// The token reaches curl as a header on stdin, never as an argument (kubectl's or curl's)
+			args, _ := os.ReadFile(filepath.Join(dir, "exec-args"))
+			if c.token != "" {
+				assert.NotContains(t, string(args), c.token)
+			}
 		})
 	}
 }

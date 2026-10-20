@@ -19,10 +19,10 @@ if [ -n "$seed" ]; then
 		# Argo CD's own credential (lab infra forgejo sync's read-only token) reads ops/homelab's master: Forgejo
 		# runs, the token exists and lab infra forgejo push deployed. The token goes through stdin, not an argument.
 		token=$(kubectl -n argocd get secret argocd-repo-forgejo --ignore-not-found -o jsonpath='{.data.password}')
-		# shellcheck disable=SC2016 # $(cat) runs in Forgejo's pod
-		if [ -z "$token" ] || ! printf '%s' "$token" | base64 -d | kubectl -n forgejo exec -i deploy/forgejo -c forgejo -- \
-			sh -c 'curl -sf -o /dev/null -H "Authorization: token $(cat)" http://localhost:3000/api/v1/repos/ops/homelab/branches/master' \
-			>/dev/null 2>&1; then
+		# curl reads the header from stdin (-H @-), so the token is in no process's arguments
+		if [ -z "$token" ] || ! printf 'Authorization: token %s\n' "$(printf '%s' "$token" | base64 -d)" |
+			kubectl -n forgejo exec -i deploy/forgejo -c forgejo -- \
+			curl -sf -o /dev/null -H @- http://localhost:3000/api/v1/repos/ops/homelab/branches/master >/dev/null 2>&1; then
 			values=$seed
 			environment=seed
 		fi
