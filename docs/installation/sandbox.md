@@ -35,7 +35,7 @@ export KUBECONFIG=$PWD/infra/sandbox/kubeconfig.yaml  # from the repository root
 - <https://draw.127-0-0-1.nip.io>
 - <https://grafana.127-0-0-1.nip.io> ("Sign in with Kanidm", or user `admin` with `kubectl -n grafana get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`)
 - <https://registry.127-0-0-1.nip.io> (zot; log in with Kanidm, then create an API key under your user menu and `docker login registry.127-0-0-1.nip.io -u <username> -p <key>`)
-- <https://git.127-0-0-1.nip.io> (Forgejo; "Sign in with Kanidm", or user `forgejo_admin` with `kubectl -n forgejo get secret forgejo-admin -o jsonpath='{.data.password}' | base64 -d`; the seed Job copies this repository into `ops/homelab`; SSH on `127.0.0.1:22`)
+- <https://git.127-0-0-1.nip.io> (Forgejo; "Sign in with Kanidm", or user `forgejo_admin` with `kubectl -n forgejo get secret forgejo-admin -o jsonpath='{.data.password}' | base64 -d`; `ops/homelab` stays empty until `TestForgejoDeploy` runs `lab infra forgejo sync` and `push`; SSH on `127.0.0.1:22`)
 - <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io>: log in with Kanidm (paperless also has a local `admin`, password in `global-secrets/paperless.admin` and OpenBao `secret/paperless/generated/admin`)
 - <https://drive.127-0-0-1.nip.io> (OpenCloud): log in with Kanidm and accept the consent page once
 - <https://home.127-0-0-1.nip.io>, <https://drop.127-0-0-1.nip.io>, <https://speedtest.127-0-0-1.nip.io>
@@ -161,6 +161,6 @@ make dev-clean  # terragrunt run --all destroy in infra/sandbox: the cluster, th
 - Certificates come from a local CA instead of Let's Encrypt
 - Only accessible from the host machine
 - No Alertmanager, Loki, backups, Woodpecker or Renovate
-- Forgejo runs on SQLite instead of PostgreSQL (CloudNativePG); Argo CD syncs GitHub branch `sandbox` (Forgejo's seed still copies the default branch), not Forgejo
+- Forgejo runs on SQLite instead of PostgreSQL (CloudNativePG); Argo CD syncs GitHub branch `sandbox`, not Forgejo (the tests push a commit with the checkout's tree to `ops/homelab`)
 - No Cloudflare Tunnel: excalidraw uses the LAN Gateway `gateway` instead of `public`
 - No kube-vip: ServiceLB serves the Gateway on the k3d node instead of a kube-vip address
