@@ -124,3 +124,14 @@ func TestSyncRefusesAnAccountItDidNotCreate(t *testing.T) {
 		t.Fatal("the existing account was changed")
 	}
 }
+
+// A team in org ops granting more than sync's permission cannot be fixed by sync: it fails instead of re-adding the
+// collaborator on every run
+func TestSyncRefusesATeamGrant(t *testing.T) {
+	f, ep := newFakeForgejo(t)
+	f.teams["argocd"] = "admin"
+	err := Sync(context.Background(), ep, f.admin, memoryTokens{})
+	if err == nil || !strings.Contains(err.Error(), "team") {
+		t.Fatalf("Sync() = %v", err)
+	}
+}

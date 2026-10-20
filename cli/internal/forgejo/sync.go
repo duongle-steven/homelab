@@ -168,16 +168,31 @@ func ensureUser(c *sdk.Client, name string) error {
 }
 
 func ensureCollaborator(c *sdk.Client, a account) error {
-	result, resp, err := c.CollaboratorPermission(Org, Repo, a.name)
-	if err != nil && !notFound(resp) {
-		return fmt.Errorf("%s's permission on %s/%s: %w", a.name, Org, Repo, err)
+	permission := func() (sdk.AccessMode, error) {
+		result, resp, err := c.CollaboratorPermission(Org, Repo, a.name)
+		if err != nil && !notFound(resp) {
+			return "", fmt.Errorf("%s's permission on %s/%s: %w", a.name, Org, Repo, err)
+		}
+		if notFound(resp) || result == nil {
+			return sdk.AccessModeNone, nil
+		}
+		return result.Permission, nil
 	}
-	if !notFound(resp) && result != nil && result.Permission == a.permission {
-		return nil
+	current, err := permission()
+	if err != nil || current == a.permission {
+		return err
 	}
-	permission := a.permission
-	if _, err := c.AddCollaborator(Org, Repo, a.name, sdk.AddCollaboratorOption{Permission: &permission}); err != nil {
+	desired := a.permission
+	if _, err := c.AddCollaborator(Org, Repo, a.name, sdk.AddCollaboratorOption{Permission: &desired}); err != nil {
 		return fmt.Errorf("make %s a %s collaborator on %s/%s: %w", a.name, a.permission, Org, Repo, err)
+	}
+	// Forgejo reports the highest grant: more than the collaborator's comes from a team (sync owns org ops; none
+	// should grant anything)
+	if current, err = permission(); err != nil {
+		return err
+	}
+	if current != a.permission {
+		return fmt.Errorf("%s has %s on %s/%s through a team or the org, not only %s as a collaborator: remove that grant in Forgejo", a.name, current, Org, Repo, a.permission)
 	}
 	return nil
 }

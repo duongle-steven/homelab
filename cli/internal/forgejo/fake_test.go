@@ -31,13 +31,15 @@ type fakeForgejo struct {
 	org, repo     bool
 	users         map[string]*fakeUser
 	collaborators map[string]string
+	// teams grants a permission through a team (Forgejo reports the higher one)
+	teams         map[string]string
 	protection    map[string]any
 	writes        int
 	nextID        int64
 }
 
 func newFakeForgejo(t *testing.T) (*fakeForgejo, Endpoint) {
-	f := &fakeForgejo{admin: "admin-password", users: map[string]*fakeUser{}, collaborators: map[string]string{}}
+	f := &fakeForgejo{admin: "admin-password", users: map[string]*fakeUser{}, collaborators: map[string]string{}, teams: map[string]string{}}
 	server := httptest.NewServer(f)
 	t.Cleanup(server.Close)
 	return f, Endpoint{URL: server.URL, HTTP: server.Client()}
@@ -141,10 +143,14 @@ func (f *fakeForgejo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		reply(http.StatusOK, map[string]any{"login": parts[2]})
 	case len(parts) == 6 && parts[3] == "collaborators" && parts[5] == "permission" && admin:
+		// As Forgejo: 200 "none" for a user without access, the highest of collaborator and team otherwise
+		rank := map[string]int{"": 0, "none": 0, "read": 1, "write": 2, "admin": 3}
 		permission := f.collaborators[parts[4]]
+		if rank[f.teams[parts[4]]] > rank[permission] {
+			permission = f.teams[parts[4]]
+		}
 		if permission == "" {
-			reply(http.StatusNotFound, nil)
-			return
+			permission = "none"
 		}
 		reply(http.StatusOK, map[string]any{"permission": permission})
 	case len(parts) == 5 && parts[3] == "collaborators" && r.Method == http.MethodPut && admin:
