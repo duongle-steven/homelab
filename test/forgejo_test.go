@@ -1,12 +1,14 @@
 package test
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,6 +90,29 @@ func TestForgejoDeploy(t *testing.T) {
 	assert.Error(t, err, "deploy force-pushed master:\n%s", out)
 	out, err = forgejoGit(t, clone, "deploy", deploy, "push", "--quiet", "origin", ":refs/heads/master")
 	assert.Error(t, err, "deploy deleted master:\n%s", out)
+
+	// The allowlist itself: a write collaborator outside it pushes a branch but not master
+	admin, adminPassword := secretValue(t, "forgejo", "forgejo-admin", "username"), secretValue(t, "forgejo", "forgejo-admin", "password")
+	api := "https://" + forgejoHost + "/api/v1"
+	probe, probePassword := "allowlist-probe", fmt.Sprintf("Probe-%d-pw", time.Now().UnixNano())
+	never := false
+	require.Equal(t, http.StatusCreated, getJSON(t, "POST", api+"/admin/users", nil, admin, adminPassword, map[string]any{
+		"username": probe, "email": probe + "@noreply.invalid", "password": probePassword, "must_change_password": &never,
+	}, nil))
+	t.Cleanup(func() {
+		getJSON(t, "DELETE", api+"/admin/users/"+probe+"?purge=true", nil, admin, adminPassword, nil, nil)
+	})
+	require.Equal(t, http.StatusNoContent, getJSON(t, "PUT", api+"/repos/ops/homelab/collaborators/"+probe, nil, admin, adminPassword,
+		map[string]any{"permission": "write"}, nil))
+	out, err = forgejoGit(t, clone, probe, probePassword, "push", "--quiet", "origin", "HEAD:refs/heads/"+probe)
+	require.NoError(t, err, "a write collaborator could not push a branch:\n%s", out)
+	out, err = forgejoGit(t, clone, probe, probePassword, "push", "--quiet", "origin", "HEAD:refs/heads/master")
+	assert.Error(t, err, "a write collaborator outside the allowlist pushed master:\n%s", out)
+	_, _ = forgejoGit(t, clone, probe, probePassword, "push", "--quiet", "origin", ":refs/heads/"+probe)
+
+	// Site admins are refused too (Forgejo's protection applies to them)
+	out, err = forgejoGit(t, clone, admin, adminPassword, "push", "--quiet", "origin", "HEAD:refs/heads/master")
+	assert.Error(t, err, "%s (a site admin) pushed master:\n%s", admin, out)
 
 	// Argo CD's credential reads master with the read-only token
 	repoSecret := waitForSecret(t, "argocd", "argocd-repo-forgejo")
