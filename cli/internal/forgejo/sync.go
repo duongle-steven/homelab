@@ -153,6 +153,10 @@ func ensureUser(c *sdk.Client, name string) error {
 		}); err != nil {
 			return fmt.Errorf("create user %s: %w", name, err)
 		}
+	} else if user.SourceID != 0 {
+		// Someone signed in with Kanidm under this name before sync created it: never turn that person into the
+		// deploy account (their Kanidm login would keep working)
+		return fmt.Errorf("user %s exists and is not a local account (authentication source %d): rename or delete it in Forgejo, then run sync again", name, user.SourceID)
 	} else if user.Restricted {
 		return nil
 	}
@@ -196,12 +200,15 @@ func ensureProtection(c *sdk.Client) error {
 		return nil
 	}
 	if current.EnablePush && current.EnablePushWhitelist && reflect.DeepEqual(current.PushWhitelistUsernames, allow) &&
-		len(current.PushWhitelistTeams) == 0 && !current.PushWhitelistDeployKeys {
+		len(current.PushWhitelistTeams) == 0 && !current.PushWhitelistDeployKeys &&
+		current.ProtectedFilePatterns == "" && current.UnprotectedFilePatterns == "" {
 		return nil
 	}
-	on, off := true, false
+	// Unprotected file patterns let any writer push matching files outside the allowlist
+	on, off, none := true, false, ""
 	_, _, err = c.EditBranchProtection(Org, Repo, Branch, sdk.EditBranchProtectionOption{
 		EnablePush: &on, EnablePushWhitelist: &on, PushWhitelistUsernames: allow, PushWhitelistTeams: []string{}, PushWhitelistDeployKeys: &off,
+		ProtectedFilePatterns: &none, UnprotectedFilePatterns: &none,
 	})
 	if err != nil {
 		return fmt.Errorf("restore the protection of %s: %w", Branch, err)

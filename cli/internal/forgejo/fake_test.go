@@ -12,6 +12,8 @@ import (
 )
 
 type fakeUser struct {
+	loginName  string
+	sourceID   int64
 	password   string
 	restricted bool
 	tokens     map[int64]fakeToken
@@ -123,10 +125,11 @@ func (f *fakeForgejo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			reply(http.StatusNotFound, nil)
 			return
 		}
-		reply(http.StatusOK, map[string]any{"login": parts[1], "restricted": u.restricted})
+		reply(http.StatusOK, map[string]any{"login": parts[1], "login_name": u.loginName, "source_id": u.sourceID, "restricted": u.restricted})
 	case path == "/admin/users" && r.Method == http.MethodPost && admin:
 		name := body["username"].(string)
-		f.users[name] = &fakeUser{password: body["password"].(string), tokens: map[int64]fakeToken{}}
+		login, _ := body["login_name"].(string)
+		f.users[name] = &fakeUser{loginName: login, password: body["password"].(string), tokens: map[int64]fakeToken{}}
 		reply(http.StatusCreated, map[string]any{"login": name})
 	case len(parts) == 3 && parts[0] == "admin" && parts[1] == "users" && r.Method == http.MethodPatch && admin:
 		u := f.users[parts[2]]
@@ -157,8 +160,11 @@ func (f *fakeForgejo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.protection = body
 		reply(http.StatusCreated, body)
 	case path == "/repos/ops/homelab/branch_protections/master" && r.Method == http.MethodPatch && admin:
+		// As Forgejo: a null field is left unchanged
 		for k, v := range body {
-			f.protection[k] = v
+			if v != nil {
+				f.protection[k] = v
+			}
 		}
 		reply(http.StatusOK, f.protection)
 	case len(parts) >= 3 && parts[0] == "users" && parts[2] == "tokens" && who == parts[1]:

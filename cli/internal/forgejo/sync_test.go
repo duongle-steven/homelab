@@ -3,6 +3,7 @@ package forgejo
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -88,11 +89,16 @@ func TestSyncRestoresTheProtection(t *testing.T) {
 	}
 	f.protection["push_whitelist_usernames"] = []any{"deploy", "someone"}
 	f.collaborators["argocd"] = "write"
+	// Files matching unprotected patterns can be pushed by any writer, outside the allowlist
+	f.protection["unprotected_file_patterns"] = "**"
 	if err := Sync(context.Background(), ep, f.admin, tokens); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.protection["push_whitelist_usernames"]; !reflect.DeepEqual(got, []any{"deploy"}) {
 		t.Errorf("push allowlist = %v", got)
+	}
+	if f.protection["unprotected_file_patterns"] != "" {
+		t.Errorf("unprotected file patterns = %v", f.protection["unprotected_file_patterns"])
 	}
 	if f.collaborators["argocd"] != "read" {
 		t.Errorf("argocd is %s", f.collaborators["argocd"])
@@ -103,5 +109,18 @@ func TestSyncRefusesAWrongAdminPassword(t *testing.T) {
 	_, ep := newFakeForgejo(t)
 	if err := Sync(context.Background(), ep, "wrong", memoryTokens{}); err == nil {
 		t.Fatal("Sync succeeded with a wrong admin password")
+	}
+}
+
+// A Kanidm person who logged in as deploy or argocd before the first sync must not become the deploy account
+func TestSyncRefusesAnAccountItDidNotCreate(t *testing.T) {
+	f, ep := newFakeForgejo(t)
+	f.users["deploy"] = &fakeUser{loginName: "deploy", sourceID: 2, password: "kanidm", tokens: map[int64]fakeToken{}}
+	err := Sync(context.Background(), ep, f.admin, memoryTokens{})
+	if err == nil || !strings.Contains(err.Error(), "not a local account") {
+		t.Fatalf("Sync() = %v", err)
+	}
+	if f.users["deploy"].restricted || f.collaborators["deploy"] != "" {
+		t.Fatal("the existing account was changed")
 	}
 }

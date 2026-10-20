@@ -26,7 +26,9 @@ Yes it's that simple!
     read-only token reads `ops/homelab`'s `master`, then switches to Forgejo and never back (not even while Forgejo
     restarts). `lab infra forgejo push` alone deploys without touching the infrastructure. Only `deploy` can push to
     `master`, and nobody can force-push or delete it, Forgejo's site admins (`forgejo_admin`, `homelab-admins`)
-    included: roll back with a revert through a pull request. `force=1` applies the infrastructure only and deploys
+    included; a site admin can still edit or remove the branch protection itself, a deliberate bypass the next
+    `lab infra forgejo sync` (every `make infra env=production`) undoes. Roll back with a revert through a pull
+    request. `force=1` applies the infrastructure only and deploys
     nothing (a state migration from another commit).
 
 !!! example
