@@ -29,7 +29,17 @@ skip:
   - scripts/rotate-state-passphrase
   - scripts/helm-diff
   - scripts/__pycache__/**
-  - cli/**
+  # lab's offline parts (make -C cli test); its Forgejo deploy runs against the sandbox (the group below)
+  - cli/Makefile
+  - cli/cmd/**
+  - cli/internal/scope/**
+  - cli/internal/state/**
+  - cli/internal/env/**
+  - cli/internal/guard/**
+  - cli/internal/cli/root.go
+  - cli/internal/cli/test*.go
+  - cli/internal/cli/infra_state*.go
+  - cli/internal/cli/cloudflare*.go
 always: Smoke
 alone: [NodeRestart]
 full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|NodeRestart
@@ -78,11 +88,14 @@ groups:
     tests: Secrets|Identity|SSO|Ntfy|Forgejo|Logs|Gateway|Monitoring
   # Forgejo and zot need Kanidm's discovery document at start
   - paths: [platform/kanidm/**, scripts/onboard-user]
-    tests: Identity|SSO|ForgejoSeed|GatewayZotLargePush
+    tests: Identity|SSO|ForgejoDeploy|GatewayZotLargePush
   - paths: [platform/grafana/**]
     tests: SSOGrafana|Logs|Monitoring
   - paths: [platform/forgejo/**]
     tests: Forgejo|SSOForgejo|GatewayForgejoSSH
+  # lab infra forgejo sync and push (TestForgejoDeploy); go.mod pins their SDKs
+  - paths: [cli/internal/forgejo/**, cli/internal/secrets/**, cli/internal/cli/infra_forgejo*.go, cli/go.mod, cli/go.sum]
+    tests: Forgejo
   - paths: [platform/zot/**]
     tests: SSOZot|GatewayZotLargePush
   - paths: [apps/actualbudget.yaml]
