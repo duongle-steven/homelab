@@ -328,12 +328,27 @@ func browserStep(t *testing.T, ctx context.Context, name, account string, action
 	}
 }
 
+// sendKeys types into the field selector matches, again when Kanidm replaced the field between the query and the
+// typing (chromium's "Could not find node with given id"): a slow runner saw the password field swapped right after
+// the TOTP step. The replaced field had received nothing, so typing again sends the keys once.
+func sendKeys(selector, keys string) chromedp.ActionFunc {
+	return func(ctx context.Context) error {
+		for {
+			err := chromedp.SendKeys(selector, keys).Do(ctx)
+			if err == nil || !strings.Contains(err.Error(), "Could not find node with given id") || ctx.Err() != nil {
+				return err
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+}
+
 // kanidmLogin completes Kanidm's login form, which the browser must already show.
 // Kanidm asks for the TOTP code before the password.
 func kanidmLogin(t *testing.T, ctx context.Context, account string, c credentials, password string) {
-	browserStep(t, ctx, "username", account, chromedp.SendKeys(`input#username`, account+"\n"), chromedp.WaitVisible(`input#totp`))
-	browserStep(t, ctx, "totp", account, chromedp.SendKeys(`input#totp`, clock.code(t, account, c)+"\n"), chromedp.WaitVisible(`input#password`))
-	browserStep(t, ctx, "password", account, chromedp.SendKeys(`input#password`, password+"\n"))
+	browserStep(t, ctx, "username", account, sendKeys(`input#username`, account+"\n"), chromedp.WaitVisible(`input#totp`))
+	browserStep(t, ctx, "totp", account, sendKeys(`input#totp`, clock.code(t, account, c)+"\n"), chromedp.WaitVisible(`input#password`))
+	browserStep(t, ctx, "password", account, sendKeys(`input#password`, password+"\n"))
 }
 
 // pkcePair returns a random PKCE verifier and its S256 challenge; Kanidm requires PKCE for every client.
