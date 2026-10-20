@@ -55,7 +55,7 @@ func newInfraForgejoCmd() *cobra.Command {
 	sync := &cobra.Command{
 		Use:   "sync",
 		Short: "Provision org ops on Forgejo: ops/homelab, deploy and argocd, master's protection, their tokens in OpenBao",
-		Long:  "Idempotent: what is right is kept, what is wrong is fixed, what is missing is created. Waits up to 30 minutes for Forgejo. No secret is printed.",
+		Long:  "Idempotent: what is right is kept, what is wrong is fixed, what is missing is created. On a first install it waits up to 30 minutes for OpenBao, Forgejo and its admin Secret, then up to 10 more for Argo CD's repository Secret. No secret is printed.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			e, err := forgejoEnv(cmd)
@@ -64,25 +64,36 @@ func newInfraForgejoCmd() *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 35*time.Minute)
 			defer cancel()
-			s, err := openSession(ctx, e)
-			if err != nil {
+			// A first install: OpenBao, Forgejo and its admin Secret appear while Argo CD syncs (about 20 minutes)
+			syncCtx, syncCancel := context.WithTimeout(ctx, 30*time.Minute)
+			defer syncCancel()
+			var s *session
+			if err := retryUntil(syncCtx, 10*time.Second, "OpenBao", func() (err error) {
+				s, err = openSession(syncCtx, e)
+				return err
+			}); err != nil {
 				return err
 			}
 			defer func() { _ = s.close(context.Background()) }()
-			admin, err := s.kube.CoreV1().Secrets("forgejo").Get(ctx, "forgejo-admin", metav1.GetOptions{})
-			if err != nil {
-				return fmt.Errorf("forgejo/forgejo-admin: %w", err)
+			var password string
+			if err := retryUntil(syncCtx, 10*time.Second, "the Secret forgejo/forgejo-admin", func() error {
+				admin, err := s.kube.CoreV1().Secrets("forgejo").Get(syncCtx, "forgejo-admin", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				password = string(admin.Data["password"])
+				return nil
+			}); err != nil {
+				return err
 			}
-			syncCtx, syncCancel := context.WithTimeout(ctx, 30*time.Minute)
-			defer syncCancel()
-			if err := forgejo.Sync(syncCtx, s.ep, string(admin.Data["password"]), s.store); err != nil {
+			if err := forgejo.Sync(syncCtx, s.ep, password, s.store); err != nil {
 				return err
 			}
 			argocd, err := s.store.Read(ctx, forgejo.ArgoCDPath)
 			if err != nil {
 				return err
 			}
-			if err := refreshArgoCDCredential(ctx, s.kube, s.dyn, argocd["token"], 5*time.Minute); err != nil {
+			if err := refreshArgoCDCredential(ctx, s.kube, s.dyn, argocd["token"], 10*time.Minute); err != nil {
 				return err
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "Forgejo's org ops is in sync.")
@@ -239,11 +250,23 @@ func refreshArgoCDCredential(ctx context.Context, kube kubernetes.Interface, dyn
 	if ok, err := current(); err != nil || ok {
 		return err
 	}
-	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"annotations": map[string]string{"force-sync": time.Now().Format(time.RFC3339Nano)}}})
-	if _, err := dyn.Resource(externalSecrets).Namespace("argocd").Patch(ctx, "argocd-repo-forgejo", types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-		return fmt.Errorf("force-sync argocd/argocd-repo-forgejo: %w", err)
-	}
 	deadline := time.Now().Add(timeout)
+	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"annotations": map[string]string{"force-sync": time.Now().Format(time.RFC3339Nano)}}})
+	// On a first install Argo CD creates the ExternalSecret only once it has synced argocd-config
+	for {
+		_, err := dyn.Resource(externalSecrets).Namespace("argocd").Patch(ctx, "argocd-repo-forgejo", types.MergePatchType, patch, metav1.PatchOptions{})
+		if err == nil {
+			break
+		}
+		if !apierrors.IsNotFound(err) || time.Now().After(deadline) {
+			return fmt.Errorf("force-sync argocd/argocd-repo-forgejo: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
 	for {
 		ok, err := current()
 		if err != nil || ok {
@@ -256,6 +279,22 @@ func refreshArgoCDCredential(ctx context.Context, kube kubernetes.Interface, dyn
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(time.Second):
+		}
+	}
+}
+
+// retryUntil calls fn every interval until it succeeds or ctx ends (a first install: the cluster syncs for about
+// 20 minutes before OpenBao, Forgejo's admin Secret and Argo CD's ExternalSecret exist).
+func retryUntil(ctx context.Context, interval time.Duration, what string, fn func() error) error {
+	for {
+		err := fn()
+		if err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("waiting for %s: %w (last error: %v)", what, ctx.Err(), err)
+		case <-time.After(interval):
 		}
 	}
 }

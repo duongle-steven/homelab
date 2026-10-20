@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -72,5 +74,50 @@ func TestRefreshArgoCDCredentialTimesOut(t *testing.T) {
 		map[schema.GroupVersionResource]string{externalSecrets: "ExternalSecretList"}, externalSecret())
 	if err := refreshArgoCDCredential(context.Background(), kube, dyn, "new", 2*time.Second); err == nil {
 		t.Fatal("no error while the Secret never got the token")
+	}
+}
+
+func TestRetryUntil(t *testing.T) {
+	calls := 0
+	err := retryUntil(context.Background(), 10*time.Millisecond, "OpenBao", func() error {
+		calls++
+		if calls < 3 {
+			return errors.New("not yet")
+		}
+		return nil
+	})
+	if err != nil || calls != 3 {
+		t.Fatalf("retryUntil() = %v after %d calls", err, calls)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	err = retryUntil(ctx, 10*time.Millisecond, "OpenBao", func() error { return errors.New("sealed") })
+	if err == nil || !strings.Contains(err.Error(), "OpenBao") || !strings.Contains(err.Error(), "sealed") {
+		t.Fatalf("retryUntil() after the deadline = %v", err)
+	}
+}
+
+// On a first install Argo CD creates the ExternalSecret only after its first sync: the refresh waits for it
+func TestRefreshArgoCDCredentialWaitsForTheExternalSecret(t *testing.T) {
+	kube := fake.NewClientset()
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{externalSecrets: "ExternalSecretList"})
+	dyn.PrependReactor("patch", "externalsecrets", func(k8stesting.Action) (bool, runtime.Object, error) {
+		// A patch before Argo CD created the ExternalSecret is NotFound, as on a real API server
+		if _, err := dyn.Tracker().Get(externalSecrets, "argocd", "argocd-repo-forgejo"); err != nil {
+			return true, nil, err
+		}
+		_, err := kube.CoreV1().Secrets("argocd").Create(context.Background(), &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "argocd", Name: "argocd-repo-forgejo"},
+			Data:       map[string][]byte{"password": []byte("new")},
+		}, metav1.CreateOptions{})
+		return true, externalSecret(), err
+	})
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		_, _ = dyn.Resource(externalSecrets).Namespace("argocd").Create(context.Background(), externalSecret(), metav1.CreateOptions{})
+	}()
+	if err := refreshArgoCDCredential(context.Background(), kube, dyn, "new", 10*time.Second); err != nil {
+		t.Fatal(err)
 	}
 }
