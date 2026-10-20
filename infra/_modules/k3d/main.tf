@@ -35,6 +35,12 @@ variable "proxy_bind" {
   default = "127.0.0.1"
 }
 
+variable "proxy" {
+  type        = bool
+  default     = true
+  description = "Forward 127.0.0.1:80/443/22 to the node (the browser under WSL); GitHub Actions turns it off, the tests dial the node"
+}
+
 locals {
   config   = abspath("${path.module}/k3d.yaml")
   manifest = "${var.manifest_dir}/gateway-api-${var.gateway_api_version}.yaml"
@@ -70,6 +76,7 @@ data "external" "node" {
 }
 
 resource "terraform_data" "proxy" {
+  count            = var.proxy ? 1 : 0
   triggers_replace = [data.external.node.result.ip, var.proxy_bind]
   input            = { name = local.proxy }
 
@@ -94,6 +101,11 @@ resource "terraform_data" "proxy" {
     when    = destroy
     command = "docker rm -f ${self.input.name} >/dev/null 2>&1 || true"
   }
+}
+
+moved {
+  from = terraform_data.proxy
+  to   = terraform_data.proxy[0]
 }
 
 # Changes whenever the cluster is recreated: the argocd unit bootstraps again

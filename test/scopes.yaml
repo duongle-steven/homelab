@@ -5,6 +5,7 @@ skip:
   - .github/**
   - scripts/ci-check
   - scripts/lint
+  - scripts/sandbox-scope
   - docs/**
   - "**/*.md"
   - mkdocs.yml
@@ -17,6 +18,8 @@ skip:
   - .yamllint.yaml
   # Offline tests and their scripts: the basic checks run them
   - test/state_*_test.go
+  - test/ci_scripts_test.go
+  - test/argocd_revision_test.go
   - test/cni_watchdog_test.go
   - test/apps_test.go
   - scripts/check-*
@@ -43,6 +46,7 @@ groups:
       - .envrc
       - Dockerfile
       - system/argocd/**
+      - system/argocd-config/**
       - infra/_modules/argocd/**
       - infra/sandbox/argocd/**
       - infra/_modules/k3d/**

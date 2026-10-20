@@ -14,8 +14,8 @@ for kind in Gateway HTTPRoute TCPRoute BackendTLSPolicy ReferenceGrant; do
 done
 # Charts that check for CronJob (renovate)
 set -- "$@" --api-versions batch/v1/CronJob
-# Templates rendered only once their CRDs exist (system/argocd's Kanidm client and Forgejo repository): Argo CD
-# passes the cluster's APIs, the bootstrap does not
+# Templates rendered only once their CRDs exist (Kanidm clients such as system/argocd-config's, ExternalSecrets): Argo
+# CD passes the cluster's APIs
 set -- "$@" --api-versions kaniop.rs/v1beta1/KanidmOAuth2Client --api-versions external-secrets.io/v1/ExternalSecret \
   --api-versions external-secrets.io/v1/SecretStore
 # Charts that create Prometheus monitors only when the cluster serves them (kube-prometheus-stack's CRDs)
@@ -63,5 +63,9 @@ done
 unset IFS
 [ -f "$target/values.yaml" ] && set -- "$@" -f "$target/values.yaml"
 [ "$env" != prod ] && [ -f "$target/values-$env.yaml" ] && set -- "$@" -f "$target/values-$env.yaml"
-helm dependency update "$target" >/dev/null
+# Downloads the dependencies only when charts/ lacks one or holds another version: renders (and the offline tests that
+# use them) need no network once the charts are there
+if helm dependency list "$target" 2>/dev/null | awk 'NR > 1 && NF && $NF != "ok" { stale = 1 } END { exit !stale }'; then
+  helm dependency update "$target" >/dev/null
+fi
 helm template "$name" "$target" --namespace "$name" --include-crds "$@"

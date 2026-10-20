@@ -1,0 +1,71 @@
+# A fresh sandbox and the suite after every push to dev (the whole suite, unless every change is skipped) and on demand.
+# Pull requests: sandbox-release.yaml (into master, required) and sandbox-label.yaml (others, on the label sandbox).
+name: sandbox
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: full, or auto (what changed since dev)
+        default: full
+        type: choice
+        options: [full, auto]
+      tests:
+        description: exactly these tests (a go test -run regex); empty for the scope
+        default: ""
+      revision:
+        description: commit to test (default the branch's head)
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  # Every push and dispatch runs on its own
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  # Not named sandbox: that check is the one protect-master-sandbox requires (sandbox-release.yaml), and a run here
+  # that tests nothing would pass it on the same commit
+  sandbox-dev:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0  # the scope diffs against the previous push
+          persist-credentials: false
+          ref: ${{ inputs.revision || github.sha }}
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702  # v31.11.2
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569  # v7.0.2
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 8G
+          # Only runs on dev save (as in checks.yaml)
+          save: ${{ github.event_name == 'push' }}
+      - name: what to run
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          SCOPE: ${{ inputs.scope }}
+          TESTS: ${{ inputs.tests }}
+        run: |
+          if [ "$EVENT" = push ]; then
+            # scripts/sandbox-scope needs the selector (Go), from the dev shell; a failure fails the job
+            args=$(nix develop --command scripts/sandbox-scope "$BEFORE") || { echo "::error::sandbox-scope failed"; exit 1; }
+          elif [ -n "$TESTS" ]; then
+            args="tests=$TESTS"
+          else
+            args="scope=$SCOPE"
+          fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+          [ -n "$args" ] || echo "nothing to test in the sandbox"
+      - uses: ./.github/actions/sandbox
+        if: steps.scope.outputs.args != ''
+        with:
+          make-args: ${{ steps.scope.outputs.args }}

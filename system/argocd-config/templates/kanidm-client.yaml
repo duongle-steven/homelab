@@ -4,7 +4,8 @@ apiVersion: kaniop.rs/v1beta1
 kind: KanidmOAuth2Client
 metadata:
   name: argocd
-  namespace: {{ .Release.Namespace }}
+  # Argo CD's namespace (the root ApplicationSet deploys this chart there too)
+  namespace: argocd
 spec:
   kanidmRef:
     name: kanidm

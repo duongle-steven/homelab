@@ -42,8 +42,46 @@ gh api 'repos/{owner}/{repo}/rules/branches/dev'
 gh api --method DELETE "repos/{owner}/{repo}/rulesets/$id"
 ```
 
+The ruleset `protect-master-sandbox` (`.github/rulesets/protect-master-sandbox.json`) adds the check `sandbox` to
+`master`; the same commands apply with its file and name.
+
 `gh` fills `{owner}/{repo}` from the repository you are in.
 
 ## Adding a check
 
 Add a case to `scripts/ci-check` and its name to the `checks` list there and to the workflow's matrix.
+
+## The sandbox
+
+Four workflows build a fresh sandbox on a GitHub-hosted runner and run the suite with `make dev revision=<sha>`
+(their steps are the composite action `.github/actions/sandbox`): Argo CD syncs that commit (the bootstrap rewrites
+the homelab repository's revisions, `infra/_modules/argocd/set-revision.sh`), so nothing is pushed to branch `sandbox`
+and a local sandbox is not disturbed. A run takes about 30 minutes; it needs no secret (the state passphrase is
+random).
+
+| Workflow | Trigger | Runs |
+|---|---|---|
+| `sandbox` | A push to `dev` (a merge) | The whole suite, unless every change since the previous push is skipped (`scripts/sandbox-scope`, `test/scopes.yaml`) |
+| `sandbox` | `workflow_dispatch` (Actions tab, or `gh workflow run sandbox.yaml --ref <branch>`) | `scope` `full` or `auto`, or exactly `tests`; `revision` picks another commit |
+| `sandbox-release` | A pull request into `master` (a release): opened, reopened or a new commit | The whole suite; its check `sandbox` is required by the ruleset `protect-master-sandbox` |
+| `sandbox-retarget` | A pull request retargeted to `master` (its base changed) | The whole suite, reported as the check `sandbox` through the checks API |
+| `sandbox-label` | The label `sandbox` on a pull request into anything but `master` | What `make dev` would run for the pull request (its base to its head) |
+
+Labels never trigger `sandbox-release`: a label event would replace the running check with a skipped one, which
+GitHub counts as passing. For the same reason no other job is named `sandbox` (`sandbox`'s is `sandbox-dev`): a run
+that tests nothing would pass the required check on the same commit. A pull request retargeted to `master` from a fork
+gets a read-only token, which cannot create the check: push to it (or close and reopen it).
+Only people with write access can label. A new commit on a labelled pull request does not rerun `sandbox-label`:
+remove the label and add it again (read the new code first: it runs on the runner); other labels never cancel it. Pull
+requests from forks get a read-only token, which is all the run needs.
+
+A failed run uploads the artifact `sandbox-state`: the `make dev` output, the pods, the events, the Applications and
+the logs and descriptions of the pods that are not ready, and why each unhealthy Application is unhealthy
+(`applications-unhealthy.yaml`).
+
+```sh
+gh run download <run-id> --name sandbox-state
+```
+
+If `dev` breaks after a merge, fix it with a new pull request right away. A `dev` → `master` pull request runs the whole
+suite on its head and cannot merge until it passes.

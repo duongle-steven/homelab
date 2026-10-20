@@ -3,11 +3,10 @@ package test
 import (
 	"crypto/tls"
 	"fmt"
+	"net/http"
 	"os"
 	"testing"
 	"time"
-
-	http_helper "github.com/gruntwork-io/terratest/modules/http-helper"
 )
 
 type smokeApp struct {
@@ -61,17 +60,27 @@ func TestSmoke(t *testing.T) {
 				InsecureSkipVerify: os.Getenv("INSECURE_SKIP_VERIFY") != "",
 			}
 
-			// Test the endpoint, this will only fail if we timeout waiting for the service to return a 200 response
-			http_helper.HttpGetWithRetryWithCustomValidation(
-				t,
-				fmt.Sprintf("https://%s", host),
-				&tlsConfig,
-				30,
-				60*time.Second,
-				func(statusCode int, body string) bool {
-					return statusCode == 200
-				},
-			)
+			// The endpoint must answer 200 within 30 minutes; sandbox hosts are dialled on the node (dialSandbox)
+			client := &http.Client{
+				Timeout:   30 * time.Second,
+				Transport: &http.Transport{TLSClientConfig: &tlsConfig, DialContext: dialSandbox},
+			}
+			url := fmt.Sprintf("https://%s", host)
+			for attempt := 1; ; attempt++ {
+				resp, err := client.Get(url)
+				if err == nil {
+					resp.Body.Close()
+					if resp.StatusCode == http.StatusOK {
+						return
+					}
+					err = fmt.Errorf("status %d", resp.StatusCode)
+				}
+				if attempt == 30 {
+					t.Fatalf("GET %s: %v", url, err)
+				}
+				t.Logf("GET %s: %v; retrying in a minute", url, err)
+				time.Sleep(time.Minute)
+			}
 		})
 	}
 }

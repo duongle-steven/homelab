@@ -11,6 +11,7 @@ terragrunt_apply = terragrunt run --all apply --non-interactive -- -auto-approve
 scope ?= auto
 base ?= origin/dev
 tests ?=
+revision ?=
 lab = cd cli && go run ./cmd/lab test scope
 
 default: metal infra smoke-test clean
@@ -23,17 +24,18 @@ sandbox-checkout:
 		exit 1; \
 	fi
 
-# The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on. Alone tests
-# (TestNodeRestart restarts the node) run after the others
-dev: sandbox-checkout
+# The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on; revision=<sha>
+# syncs that commit instead and pushes nothing (GitHub Actions). Alone tests (TestNodeRestart restarts the node) run
+# after the others
+dev: sandbox-checkout sandbox-clean
 	@if [ -n "$(tests)" ]; then sel="--tests '$(tests)'"; \
 	elif [ "$(scope)" = full ]; then sel=--full; \
 	else git fetch -q origin dev || echo "make dev: git fetch failed, comparing with the local $(base)" >&2; sel="--base $(base)"; fi; \
 	main=$$(eval "$(lab) $$sel") && alone=$$(eval "$(lab) $$sel --alone") || exit 1; \
 	if [ -z "$$main$$alone" ]; then echo "make dev: nothing to test in the sandbox (no change outside test/scopes.yaml's skip)"; exit 0; fi; \
 	echo "make dev: main run '$$main', then alone '$$alone'"; \
-	$(MAKE) sandbox-push && \
-	(cd infra/sandbox && $(terragrunt_apply)) && \
+	if [ -z "$(revision)" ]; then $(MAKE) sandbox-push; fi && \
+	(cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$$([ -z "$(revision)" ] || git rev-parse HEAD)" $(terragrunt_apply)) && \
 	if [ -n "$$main" ]; then $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$main" sandbox-refresh smoke-test; fi && \
 	if [ -n "$$alone" ]; then $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; fi
 
@@ -42,17 +44,34 @@ dev-fresh:
 	$(MAKE) dev-clean
 	$(MAKE) dev scope=full
 
-sandbox-push:
+# make dev tests the checkout (the tests and their scope come from it): the commit at HEAD, which revision= must name
+sandbox-clean:
 	@if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
 		echo "commit your changes first: make dev tests the commit at HEAD"; \
 		git status --short --untracked-files=no; exit 1; \
 	fi
+	@if [ -n "$(revision)" ] && [ "$$(git rev-parse --verify -q '$(revision)^{commit}')" != "$$(git rev-parse HEAD)" ]; then \
+		echo "make dev: revision=$(revision) is not HEAD: check that commit out (the tests and their scope come from the checkout)"; \
+		exit 1; \
+	fi
+
+sandbox-push: sandbox-clean
 	git push --force origin HEAD:sandbox
 
 # An existing sandbox picks up the new commit now instead of at the next poll; on a fresh one there is nothing yet
 sandbox-refresh:
 	-@kubectl -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1
 	-@kubectl -n argocd annotate applications --all argocd.argoproj.io/refresh=normal --overwrite >/dev/null 2>&1
+
+# Production applies origin/master (system/argocd included, which Argo CD does not sync): check it out with no changes;
+# force=1 applies another commit (a state migration). Step 10c's deploy push keeps the same rule for what Argo CD syncs.
+production-checkout:
+	@if [ "$(force)" = 1 ]; then exit 0; fi; \
+	git fetch -q origin master || { echo "make infra: cannot fetch origin/master" >&2; exit 1; }; \
+	if [ -n "$$(git status --porcelain --untracked-files=no)" ] || [ "$$(git rev-parse HEAD)" != "$$(git rev-parse origin/master)" ]; then \
+		echo "make infra env=production applies origin/master: check it out with no changes (force=1 applies this commit anyway)" >&2; \
+		exit 1; \
+	fi
 
 dev-clean: sandbox-checkout
 	cd infra/sandbox && terragrunt run --all destroy --non-interactive -- -auto-approve
@@ -64,6 +83,7 @@ metal:
 # Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
 infra:
 	@if [ "$(env)" = sandbox ]; then $(MAKE) -s sandbox-checkout; fi
+	@if [ "$(env)" = production ]; then $(MAKE) -s production-checkout; fi
 	go -C cli build -o /dev/null ./cmd/lab
 	cd infra/$(env) && $(terragrunt_apply)
 

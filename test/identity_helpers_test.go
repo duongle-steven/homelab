@@ -90,21 +90,25 @@ func nodeAddressFromInspect(out string) (string, error) {
 	return addr, nil
 }
 
+// dialSandbox sends the sandbox's hosts (*.127-0-0-1.nip.io) to the k3d node instead of the localhost proxy, which
+// GitHub Actions does not run; other hosts (production) are dialled as they are
+func dialSandbox(ctx context.Context, network, addr string) (net.Conn, error) {
+	if host, port, err := net.SplitHostPort(addr); err == nil && strings.HasSuffix(host, ".127-0-0-1.nip.io") {
+		node, err := lookupSandboxAddress()
+		if err != nil {
+			return nil, err
+		}
+		addr = net.JoinHostPort(node, port)
+	}
+	return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, addr)
+}
+
 // The sandbox uses a local CA; these tests only ever run against it.
 var insecureClient = &http.Client{
 	Timeout: 30 * time.Second,
 	Transport: &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			if host, port, err := net.SplitHostPort(addr); err == nil && strings.HasSuffix(host, ".127-0-0-1.nip.io") {
-				node, err := lookupSandboxAddress()
-				if err != nil {
-					return nil, err
-				}
-				addr = net.JoinHostPort(node, port)
-			}
-			return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, addr)
-		},
+		DialContext:     dialSandbox,
 	},
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }

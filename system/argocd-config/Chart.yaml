@@ -1,0 +1,4 @@
+apiVersion: v2
+name: argocd-config
+description: Argo CD's resources that need other components' CRDs (its Kanidm client, the Forgejo repository credential); Argo CD syncs them, infra/_modules/argocd applies Argo CD itself
+version: 0.0.0

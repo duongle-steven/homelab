@@ -1,0 +1,61 @@
+# A pull request retargeted to master: sandbox-release.yaml does not see it (no opened, synchronize or reopened event),
+# so this runs the whole suite and reports it as the check "sandbox" that the ruleset protect-master-sandbox requires,
+# created through the checks API (GitHub Actions' token, so the same integration). Other edits (title, body) skip this
+# job, whose own name is not required. A pull request from a fork gets a read-only token: push to it instead.
+name: sandbox-retarget
+
+on:
+  pull_request:
+    branches: [master]
+    types: [edited]
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  # Only another retarget replaces a running check: other edits get their own (skipped) group
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.changes.base.ref.from != '' }}
+  cancel-in-progress: true
+
+jobs:
+  sandbox-retarget:
+    if: github.event.changes.base.ref.from != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: start the check sandbox
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          id=$(gh api "repos/$REPO/check-runs" -f name=sandbox -f head_sha="$SHA" -f status=in_progress \
+            -f details_url="$URL" --jq .id)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702  # v31.11.2
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569  # v7.0.2
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 8G
+          save: false  # only runs on dev save (sandbox.yaml, checks.yaml)
+      - uses: ./.github/actions/sandbox
+        with:
+          make-args: scope=full
+      - name: finish the check sandbox
+        # A run killed before this step leaves the check in progress, which blocks the merge
+        if: always() && steps.check.outputs.id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ID: ${{ steps.check.outputs.id }}
+          CONCLUSION: ${{ job.status }}
+        run: gh api -X PATCH "repos/$REPO/check-runs/$ID" -f status=completed -f conclusion="$CONCLUSION" >/dev/null

@@ -1,0 +1,58 @@
+# The sandbox on a GitHub-hosted runner (docs/how-to-guides/ci.md), after the caller checked out the commit and installed
+# Nix with its cache: prepare the runner, run make dev revision=<that commit> with the caller's arguments in the dev
+# shell, and keep the cluster's state when it fails.
+# Callers: sandbox.yaml (dev, dispatch), sandbox-release.yaml (pull requests into master), sandbox-label.yaml.
+name: sandbox
+description: A fresh sandbox and make dev against the checked-out commit
+inputs:
+  make-args:
+    description: make dev arguments besides revision (scope=full, base=<sha>, tests=<regex>), space-separated
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: free disk space, raise inotify limits, allow Chromium's sandbox
+      shell: bash
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        sudo sysctl -w fs.inotify.max_user_instances=8192 fs.inotify.max_user_watches=1048576
+        # Ubuntu 24.04's AppArmor forbids unprivileged user namespaces, which Chromium's sandbox (the SSO tests) needs
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        df -h /
+    - name: make dev
+      shell: bash
+      env:
+        MAKE_ARGS: ${{ inputs.make-args }}
+        # The tests dial the node; the localhost proxy's ports may be taken on the runner
+        HOMELAB_SANDBOX_PROXY: "0"
+      run: |
+        set -o pipefail
+        HOMELAB_STATE_PASSPHRASE=$(head -c 32 /dev/urandom | base64)
+        export HOMELAB_STATE_PASSPHRASE
+        # shellcheck disable=SC2086 # MAKE_ARGS is a list of make variables without spaces inside one
+        nix develop --command make dev "revision=$(git rev-parse HEAD)" $MAKE_ARGS 2>&1 | tee make-dev.log
+    - name: collect the cluster's state
+      if: failure()
+      shell: bash
+      run: |
+        mkdir -p sandbox-state
+        cp make-dev.log sandbox-state/ 2>/dev/null || true
+        export KUBECONFIG="$PWD/infra/sandbox/kubeconfig.yaml"
+        # shellcheck disable=SC2016 # the inner script expands its own variables
+        nix develop --command sh -c '
+          kubectl get pods -A -o wide > sandbox-state/pods.txt 2>&1
+          kubectl get events -A --sort-by=.lastTimestamp > sandbox-state/events.txt 2>&1
+          kubectl -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REVISIONS:.status.sync.revisions > sandbox-state/applications.txt 2>&1
+          # Why an Application is not Synced and Healthy: its conditions, last operation and resources that are not
+          kubectl -n argocd get applications -o yaml | yq ".items[] | select(.status.sync.status != \"Synced\" or .status.health.status != \"Healthy\") | {\"name\": .metadata.name, \"conditions\": .status.conditions, \"operation\": .status.operationState.message, \"resources\": ((.status.resources // []) | map(select(.status != \"Synced\" or (.health.status // \"Healthy\") != \"Healthy\")))}" > sandbox-state/applications-unhealthy.yaml 2>&1
+          kubectl get pods -A --no-headers 2>/dev/null | while read -r ns pod ready status rest; do
+            case "$status" in Running|Completed) [ "${ready%/*}" = "${ready#*/}" ] && continue ;; esac
+            kubectl -n "$ns" logs "$pod" --all-containers --tail=200 > "sandbox-state/$ns.$pod.log" 2>&1
+            # Image pull and mount errors live in the events of the pod, which expire after an hour
+            kubectl -n "$ns" describe pod "$pod" > "sandbox-state/$ns.$pod.describe.txt" 2>&1
+          done'
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+      if: failure()
+      with:
+        name: sandbox-state
+        path: sandbox-state/

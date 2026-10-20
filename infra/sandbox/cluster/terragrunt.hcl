@@ -8,4 +8,6 @@ terraform {
 
 inputs = {
   manifest_dir = get_terragrunt_dir()
+  # HOMELAB_SANDBOX_PROXY=0 (GitHub Actions): no localhost proxy, its ports may be taken on the runner
+  proxy = get_env("HOMELAB_SANDBOX_PROXY", "1") != "0"
 }

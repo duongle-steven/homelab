@@ -63,10 +63,12 @@ argo-cd:
     # templates/httproute.yaml: the chart's route does not template its host names
     httproute:
       enabled: false
+    # The metrics Services; their ServiceMonitors are in system/argocd-config (the bootstrap renders this chart before
+    # monitoring's CRDs exist, so the chart's own would never be applied)
     metrics: &metrics
       enabled: true
       serviceMonitor:
-        enabled: true
+        enabled: false
   dex:
     enabled: false
   controller:
@@ -75,6 +77,11 @@ argo-cd:
     metrics: *metrics
   redis:
     metrics: *metrics
+    # Docker Hub instead of the chart's ecr-public.aws.com mirror, which GitHub Actions runners failed to pull from
+    # (twice, a whole run each); the tag is the one argo-cd 10.10.3 ships and tests
+    image:
+      repository: docker.io/library/redis
+      tag: 8.6.4-alpine
     # The metrics Service and ServiceMonitor scrape this sidecar (without it the target has no endpoints)
     exporter:
       enabled: true
@@ -85,6 +92,11 @@ argocd-apps:
   applicationsets:
     root:
       namespace: argocd
+      # A directory leaving root deletes its Application but keeps its resources (delete them by hand): when Argo CD
+      # stopped managing itself (step 10b), root dropped Application argocd before the bootstrap could release its
+      # resources finalizer, and Argo CD deleted part of itself
+      syncPolicy:
+        preserveResourcesOnDeletion: true
       goTemplate: true
       goTemplateOptions:
         - missingkey=error
@@ -98,6 +110,9 @@ argocd-apps:
                   revision: &revision master
                   directories:
                     - path: system/*
+                    # Applied by infra/_modules/argocd: Argo CD does not manage itself
+                    - path: system/argocd
+                      exclude: true
                     # Rendered into every namespace by each Application (template below), not on its own
                     - path: system/egress
                       exclude: true
@@ -185,6 +200,11 @@ argocd-apps:
             managedNamespaceMetadata:
               labels:
                 istio.io/dataplane-mode: none
+        {{- else if eq .path.basename "argocd-config" }}
+        # Argo CD's own resources (its Kanidm client, its repository credential) live in its namespace
+        spec:
+          destination:
+            namespace: argocd
         {{- end }}
     # One Application per app-template values file apps/<name>.yaml (apps/matrix/ is a chart, synced by root)
     apps:
