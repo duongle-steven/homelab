@@ -119,3 +119,19 @@ func TestGitKeepsTheTokenOutOfArguments(t *testing.T) {
 		}
 	}
 }
+
+// The checkout's hooks run in the user's repository: they must not run with deploy's token in their environment
+func TestPushRunsNoHooks(t *testing.T) {
+	ep, checkout, head := local(t)
+	marker := filepath.Join(t.TempDir(), "hook-ran")
+	hook := filepath.Join(checkout, ".git", "hooks", "pre-push")
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\nenv > "+marker+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Push(context.Background(), ep, checkout, "secret-token", head); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("the pre-push hook ran during the deploy push")
+	}
+}

@@ -23,7 +23,8 @@ func (ep Endpoint) git(ctx context.Context, dir, token string, args ...string) (
 		cleanup()
 		return nil, nil, err
 	}
-	full := []string{"-C", dir, "-c", "credential.helper="}
+	// No hooks: they are the checkout's code and would run with the token in their environment
+	full := []string{"-C", dir, "-c", "credential.helper=", "-c", "core.hooksPath=/dev/null"}
 	for _, c := range ep.Git {
 		full = append(full, "-c", c)
 	}
