@@ -76,13 +76,15 @@ metal:
 # infrastructure, Forgejo's org ops, the push of this commit to ops/homelab, then the bootstrap again (the switch to
 # Forgejo on a first install). force=1 applies the infrastructure only and deploys nothing (a state migration).
 # Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
+# The commit make infra started from: verify and push refuse another (a git pull during the apply)
+infra: deploy_commit := $(shell git rev-parse HEAD)
 infra:
 	@if [ "$(env)" = sandbox ]; then $(MAKE) -s sandbox-checkout; fi
 	go -C cli build -o /dev/null ./cmd/lab
-	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then $(lab_cli) infra forgejo verify; fi
+	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then $(lab_cli) infra forgejo verify --commit $(deploy_commit); fi
 	cd infra/$(env) && $(terragrunt_apply)
 	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then \
-		$(lab_cli) infra forgejo sync && $(lab_cli) infra forgejo push && \
+		$(lab_cli) infra forgejo sync && $(lab_cli) infra forgejo push --commit $(deploy_commit) && \
 		(cd infra/production/argocd && $(terragrunt) apply --non-interactive -- -auto-approve); \
 	fi
 

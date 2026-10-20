@@ -144,10 +144,13 @@ func TestMakeDevRevision(t *testing.T) {
 // the Argo CD bootstrap again (the switch to Forgejo on a first install); force=1 applies the infrastructure only
 func TestMakeInfraProduction(t *testing.T) {
 	stubs := map[string]string{
-		"lab":        `echo "lab $*" >> "$FIXTURES/calls"; [ "$*" != "infra forgejo verify" ] || [ -z "$VERIFY_FAILS" ]`,
+		"lab":        `echo "lab $*" >> "$FIXTURES/calls"; [ "$3" != verify ] || [ -z "$VERIFY_FAILS" ]`,
 		"terragrunt": `echo "terragrunt $(basename "$PWD") $*" >> "$FIXTURES/calls"`,
 		"go":         `exit 0`,
 	}
+	head, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	require.NoError(t, err)
+	commit := "--commit " + strings.TrimSpace(string(head))
 	for _, c := range []struct {
 		name string
 		vars []string
@@ -155,16 +158,16 @@ func TestMakeInfraProduction(t *testing.T) {
 		want []string
 	}{
 		{"deploy", nil, nil, []string{
-			"lab infra forgejo verify",
+			"lab infra forgejo verify " + commit,
 			"terragrunt production run --all apply --non-interactive -- -auto-approve",
 			"lab infra forgejo sync",
-			"lab infra forgejo push",
+			"lab infra forgejo push " + commit,
 			"terragrunt argocd apply --non-interactive -- -auto-approve",
 		}},
 		{"force=1", []string{"force=1"}, nil, []string{
 			"terragrunt production run --all apply --non-interactive -- -auto-approve",
 		}},
-		{"guards fail", nil, []string{"VERIFY_FAILS=1"}, []string{"lab infra forgejo verify"}},
+		{"guards fail", nil, []string{"VERIFY_FAILS=1"}, []string{"lab infra forgejo verify " + commit}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			dir, env := fakeBin(t, stubs)

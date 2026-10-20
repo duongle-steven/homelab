@@ -146,3 +146,39 @@ func TestVerifyFailsWhenGitHubFails(t *testing.T) {
 		t.Fatal("an API error passed the guard")
 	}
 }
+
+// make infra applies infra/ and renders system/argocd from the working tree: an untracked file there would reach
+// production without being in the verified commit (OpenTofu's lock files excepted: they are not committed)
+func TestVerifyRefusesUntrackedInfrastructure(t *testing.T) {
+	// The lock-file case reaches GitHub: answer at once
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { http.Error(w, "no", http.StatusTeapot) }))
+	defer server.Close()
+	gh := GitHub{BaseURL: server.URL, HTTP: server.Client()}
+	clone, _ := repos(t)
+	lock := filepath.Join(clone, "infra", "production", "argocd", ".terraform.lock.hcl")
+	if err := os.MkdirAll(filepath.Dir(lock), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lock, []byte("lock"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Verify(context.Background(), clone, "owner/homelab", gh); err == nil || strings.Contains(err.Error(), "untracked") {
+		t.Fatalf("a lock file was refused or the guards stopped early: %v", err)
+	}
+	for _, path := range []string{"infra/production/extra.tf", "system/argocd/templates/extra.yaml"} {
+		file := filepath.Join(clone, path)
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, err := Verify(context.Background(), clone, "owner/homelab", gh)
+		if err == nil || !strings.Contains(err.Error(), "untracked") || !strings.Contains(err.Error(), path) {
+			t.Fatalf("an untracked %s: %v", path, err)
+		}
+		if err := os.Remove(file); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

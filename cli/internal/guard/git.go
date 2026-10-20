@@ -27,6 +27,15 @@ func releaseCommit(root string) (string, error) {
 	if status != "" {
 		return "", fmt.Errorf("uncommitted changes: production deploys only origin/master as it is\n%s", status)
 	}
+	// make infra applies infra/ and renders system/argocd from the working tree, so an untracked file there would
+	// reach production outside the verified commit; OpenTofu's lock files are not committed
+	untracked, err := git(root, "ls-files", "--others", "--exclude-standard", "--", "infra", "system/argocd", ":(exclude,glob)**/.terraform.lock.hcl")
+	if err != nil {
+		return "", err
+	}
+	if untracked != "" {
+		return "", fmt.Errorf("untracked files would reach production outside the commit: commit or remove them\n%s", untracked)
+	}
 	if _, err := git(root, "fetch", "--quiet", "origin", "master"); err != nil {
 		return "", err
 	}

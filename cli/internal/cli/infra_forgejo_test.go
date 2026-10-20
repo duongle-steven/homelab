@@ -121,3 +121,17 @@ func TestRefreshArgoCDCredentialWaitsForTheExternalSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// make infra passes the commit it started from to verify and push: a checkout that moved during the apply (a git
+// pull) must not deploy a commit other than the one applied
+func TestSameCommit(t *testing.T) {
+	if err := sameCommit("abc", ""); err != nil {
+		t.Fatalf("no --commit: %v", err)
+	}
+	if err := sameCommit("abc", "abc"); err != nil {
+		t.Fatalf("the same commit: %v", err)
+	}
+	if err := sameCommit("def", "abc"); err == nil || !strings.Contains(err.Error(), "moved") {
+		t.Fatalf("a moved checkout: %v", err)
+	}
+}

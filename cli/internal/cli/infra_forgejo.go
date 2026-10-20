@@ -31,6 +31,7 @@ func newInfraForgejoCmd() *cobra.Command {
 		Long:  "Production's Argo CD syncs ops/homelab on Forgejo, which changes only through push. --env sandbox targets the sandbox's Forgejo (the tests) and skips the guards.",
 	}
 	group.PersistentFlags().String("env", "production", "production, or sandbox (the tests)")
+	group.PersistentFlags().String("commit", "", "refuse unless HEAD is this commit (make infra passes the one it applied)")
 	verify := &cobra.Command{
 		Use:   "verify",
 		Short: "Check that HEAD may be deployed to production",
@@ -44,7 +45,7 @@ func newInfraForgejoCmd() *cobra.Command {
 			if e.Name != "production" {
 				return fmt.Errorf("verify guards production only")
 			}
-			head, err := verifyProduction(cmd.Context(), e)
+			head, err := verifyProduction(cmd, e)
 			if err != nil {
 				return err
 			}
@@ -112,7 +113,7 @@ func newInfraForgejoCmd() *cobra.Command {
 			}
 			var commit string
 			if e.Name == "production" {
-				if commit, err = verifyProduction(cmd.Context(), e); err != nil {
+				if commit, err = verifyProduction(cmd, e); err != nil {
 					return err
 				}
 			}
@@ -167,14 +168,30 @@ func forgejoEnv(cmd *cobra.Command) (env.Env, error) {
 	return env.Load(root, name)
 }
 
-func verifyProduction(ctx context.Context, e env.Env) (string, error) {
+func verifyProduction(cmd *cobra.Command, e env.Env) (string, error) {
 	repository, err := e.GitHubRepository()
 	if err != nil {
 		return "", err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	expected, err := cmd.Flags().GetString("commit")
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(cmd.Context(), 2*time.Minute)
 	defer cancel()
-	return guard.Verify(ctx, e.Root, repository, guard.GitHub{BaseURL: "https://api.github.com", HTTP: &http.Client{Timeout: 30 * time.Second}})
+	head, err := guard.Verify(ctx, e.Root, repository, guard.GitHub{BaseURL: "https://api.github.com", HTTP: &http.Client{Timeout: 30 * time.Second}})
+	if err != nil {
+		return "", err
+	}
+	return head, sameCommit(head, expected)
+}
+
+// sameCommit refuses a HEAD other than expected (when given): the checkout moved since make infra started.
+func sameCommit(head, expected string) error {
+	if expected != "" && head != expected {
+		return fmt.Errorf("the checkout moved from %.12s to %.12s since make infra started: run it again", expected, head)
+	}
+	return nil
 }
 
 var externalSecrets = schema.GroupVersionResource{Group: "external-secrets.io", Version: "v1", Resource: "externalsecrets"}
