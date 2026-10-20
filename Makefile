@@ -6,13 +6,15 @@ env ?= production
 KUBECONFIG = $(shell pwd)/infra/$(env)/kubeconfig.yaml
 KUBE_CONFIG_PATH = $(KUBECONFIG)
 smoke_filter ?= Smoke
-terragrunt_apply = terragrunt run --all apply --non-interactive -- -auto-approve
+terragrunt = terragrunt
+terragrunt_apply = $(terragrunt) run --all apply --non-interactive -- -auto-approve
 # make dev: the sandbox tests the branch's changes can affect (test/scopes.yaml), or scope=full, or tests=<regex>
 scope ?= auto
 base ?= origin/dev
 tests ?=
 revision ?=
-lab = cd cli && go run ./cmd/lab test scope
+lab_cli = cd cli && go run ./cmd/lab
+lab = $(lab_cli) test scope
 
 default: metal infra smoke-test clean
 
@@ -63,16 +65,6 @@ sandbox-refresh:
 	-@kubectl -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1
 	-@kubectl -n argocd annotate applications --all argocd.argoproj.io/refresh=normal --overwrite >/dev/null 2>&1
 
-# Production applies origin/master (system/argocd included, which Argo CD does not sync): check it out with no changes;
-# force=1 applies another commit (a state migration). Step 10c's deploy push keeps the same rule for what Argo CD syncs.
-production-checkout:
-	@if [ "$(force)" = 1 ]; then exit 0; fi; \
-	git fetch -q origin master || { echo "make infra: cannot fetch origin/master" >&2; exit 1; }; \
-	if [ -n "$$(git status --porcelain --untracked-files=no)" ] || [ "$$(git rev-parse HEAD)" != "$$(git rev-parse origin/master)" ]; then \
-		echo "make infra env=production applies origin/master: check it out with no changes (force=1 applies this commit anyway)" >&2; \
-		exit 1; \
-	fi
-
 dev-clean: sandbox-checkout
 	cd infra/sandbox && terragrunt run --all destroy --non-interactive -- -auto-approve
 
@@ -80,12 +72,19 @@ metal:
 	make -C metal
 
 # Every unit of infra/<env>: Argo CD's bootstrap, OpenBao's key, OpenTofu's secrets (the sandbox's run in make dev).
+# Production deploys in the same command: the guards (origin/master, checks, the merged pull request's sandbox), the
+# infrastructure, Forgejo's org ops, the push of this commit to ops/homelab, then the bootstrap again (the switch to
+# Forgejo on a first install). force=1 applies the infrastructure only and deploys nothing (a state migration).
 # Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
 infra:
 	@if [ "$(env)" = sandbox ]; then $(MAKE) -s sandbox-checkout; fi
-	@if [ "$(env)" = production ]; then $(MAKE) -s production-checkout; fi
 	go -C cli build -o /dev/null ./cmd/lab
+	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then $(lab_cli) infra forgejo verify; fi
 	cd infra/$(env) && $(terragrunt_apply)
+	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then \
+		$(lab_cli) infra forgejo sync && $(lab_cli) infra forgejo push && \
+		(cd infra/production/argocd && $(terragrunt) apply --non-interactive -- -auto-approve); \
+	fi
 
 smoke-test:
 	make -C test filter="$(smoke_filter)"

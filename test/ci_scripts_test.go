@@ -135,35 +135,40 @@ func TestMakeDevRevision(t *testing.T) {
 	assert.Error(t, clean(""), "uncommitted change, no revision")
 }
 
-// make infra env=production applies the checkout: only origin/master without uncommitted changes, unless force=1 (a
-// state migration from another commit)
-func TestMakeInfraProductionCheckout(t *testing.T) {
-	makefile, err := filepath.Abs("../Makefile")
-	require.NoError(t, err)
-	origin, repo := t.TempDir(), t.TempDir()
-	git := func(dir string, args ...string) {
-		out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"}, args...)...).CombinedOutput()
-		require.NoError(t, err, string(out))
+// make infra env=production deploys in one command: the guards, the infrastructure, Forgejo's org ops, the push, then
+// the Argo CD bootstrap again (the switch to Forgejo on a first install); force=1 applies the infrastructure only
+func TestMakeInfraProduction(t *testing.T) {
+	stubs := map[string]string{
+		"lab":        `echo "lab $*" >> "$FIXTURES/calls"; [ "$*" != "infra forgejo verify" ] || [ -z "$VERIFY_FAILS" ]`,
+		"terragrunt": `echo "terragrunt $(basename "$PWD") $*" >> "$FIXTURES/calls"`,
+		"go":         `exit 0`,
 	}
-	git(origin, "init", "-q", "--bare", "-b", "master")
-	git(repo, "init", "-q", "-b", "master")
-	git(repo, "remote", "add", "origin", origin)
-	require.NoError(t, os.WriteFile(filepath.Join(repo, "file"), []byte("1"), 0o644))
-	git(repo, "add", "file")
-	git(repo, "commit", "-q", "-m", "one")
-	git(repo, "push", "-q", "origin", "master")
-	check := func(vars ...string) error {
-		out, err := exec.Command("make", append([]string{"-s", "-f", makefile, "-C", repo, "production-checkout"}, vars...)...).CombinedOutput()
-		t.Log(string(out))
-		return err
+	for _, c := range []struct {
+		name string
+		vars []string
+		env  []string
+		want []string
+	}{
+		{"deploy", nil, nil, []string{
+			"lab infra forgejo verify",
+			"terragrunt production run --all apply --non-interactive -- -auto-approve",
+			"lab infra forgejo sync",
+			"lab infra forgejo push",
+			"terragrunt argocd apply --non-interactive -- -auto-approve",
+		}},
+		{"force=1", []string{"force=1"}, nil, []string{
+			"terragrunt production run --all apply --non-interactive -- -auto-approve",
+		}},
+		{"guards fail", nil, []string{"VERIFY_FAILS=1"}, []string{"lab infra forgejo verify"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			dir, env := fakeBin(t, stubs)
+			args := append([]string{"-s", "-C", "..", "infra", "env=production", "lab_cli=" + filepath.Join(dir, "lab"), "terragrunt=" + filepath.Join(dir, "terragrunt")}, c.vars...)
+			cmd := exec.Command("make", args...)
+			cmd.Env = append(env, c.env...)
+			out, _ := cmd.CombinedOutput()
+			calls, _ := os.ReadFile(filepath.Join(dir, "calls"))
+			assert.Equal(t, c.want, strings.Split(strings.TrimSpace(string(calls)), "\n"), string(out))
+		})
 	}
-	assert.NoError(t, check(), "origin/master, clean")
-	require.NoError(t, os.WriteFile(filepath.Join(repo, "file"), []byte("2"), 0o644))
-	assert.Error(t, check(), "uncommitted change")
-	assert.NoError(t, check("force=1"), "uncommitted change, forced")
-	git(repo, "commit", "-q", "-am", "two")
-	assert.Error(t, check(), "a commit not on origin/master")
-	assert.NoError(t, check("force=1"), "a commit not on origin/master, forced")
-	git(repo, "push", "-q", "origin", "master")
-	assert.NoError(t, check(), "pushed")
 }
