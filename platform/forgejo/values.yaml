@@ -10,7 +10,7 @@ database:
 forgejo:
   fullnameOverride: forgejo
   image:
-    # Chart defaults, restated for templates/seed-job.yaml
+    # The chart defaults, pinned
     registry: code.forgejo.org
     repository: forgejo/forgejo
     # The chart defaults to the LTS release; the rootless image gets the -rootless suffix

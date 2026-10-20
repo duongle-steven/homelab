@@ -52,31 +52,43 @@ func lastLine(s string) string {
 	return s
 }
 
-// choose-values.sh picks the values file the Argo CD bootstrap applies: the seed only on a first install while Forgejo
-// does not run, never again once Argo CD reads Forgejo, and never because the cluster could not be asked
+// choose-values.sh picks the values file the Argo CD bootstrap applies: the seed on a first install until Argo CD's
+// own credential reads ops/homelab's master (Forgejo runs, lab synced the token and pushed), never again once Argo CD
+// reads Forgejo, and never because the cluster could not be asked
 func TestArgoCDChooseValues(t *testing.T) {
 	const forgejo = "http://forgejo-http.forgejo:3000/ops/homelab"
+	const seedValues = `{"values":"values-seed.yaml","environment":"seed"}`
+	const forgejoValues = `{"values":"values-dev.yaml","environment":"dev"}`
 	for _, c := range []struct {
-		name, seed, rootRepo, forgejoPods, want string
-		kubectlFails, fails                  bool
+		name, seed, rootRepo, token, master, want string
+		kubectlFails, execFails, fails           bool
 	}{
-		{"sandbox: no seed", "", "", "", `{"values":"values-dev.yaml","environment":"dev"}`, true, false},
-		{"first install, Forgejo not running", "values-seed.yaml", "", "", `{"values":"values-seed.yaml","environment":"seed"}`, false, false},
-		{"Forgejo running: switch", "values-seed.yaml", "https://github.com/example/homelab", "pod/forgejo-1", `{"values":"values-dev.yaml","environment":"dev"}`, false, false},
-		{"switched, Forgejo restarting: stay", "values-seed.yaml", forgejo, "", `{"values":"values-dev.yaml","environment":"dev"}`, false, false},
-		{"cluster unreachable", "values-seed.yaml", "", "", "", true, true},
+		{name: "sandbox: no seed", want: forgejoValues, kubectlFails: true},
+		{name: "first install, no credential yet", seed: "values-seed.yaml", want: seedValues},
+		{name: "credential, nothing pushed", seed: "values-seed.yaml", token: "t1", want: seedValues},
+		{name: "credential reads master: switch", seed: "values-seed.yaml", rootRepo: "https://github.com/example/homelab", token: "t1", master: "t1", want: forgejoValues},
+		{name: "wrong credential", seed: "values-seed.yaml", token: "t1", master: "t2", want: seedValues},
+		// Review Focus 5: the Secret exists but Forgejo's pod is down
+		{name: "Forgejo down", seed: "values-seed.yaml", token: "t1", master: "t1", execFails: true, want: seedValues},
+		{name: "switched, Forgejo down: stay", seed: "values-seed.yaml", rootRepo: forgejo, execFails: true, want: forgejoValues},
+		{name: "cluster unreachable", seed: "values-seed.yaml", kubectlFails: true, fails: true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			kubectl := `case "$*" in
   *applicationset*) echo "$ROOT_REPO" ;;
-  *pods*) echo "$FORGEJO_PODS" ;;
+  *"get secret argocd-repo-forgejo"*) [ -z "$TOKEN" ] || printf '%s' "$TOKEN" | base64 ;;
+  *exec*) [ -z "$EXEC_FAILS" ] || exit 1; [ "$(cat)" = "$MASTER" ] && [ -n "$MASTER" ] ;;
+  *) echo "unexpected kubectl $*" >&2; exit 2 ;;
 esac`
 			if c.kubectlFails {
 				kubectl = `echo "unable to connect" >&2; exit 1`
 			}
 			_, env := fakeBin(t, map[string]string{"kubectl": kubectl})
 			cmd := exec.Command("sh", "../infra/_modules/argocd/choose-values.sh")
-			cmd.Env = append(env, "ROOT_REPO="+c.rootRepo, "FORGEJO_PODS="+c.forgejoPods)
+			cmd.Env = append(env, "ROOT_REPO="+c.rootRepo, "TOKEN="+c.token, "MASTER="+c.master)
+			if c.execFails {
+				cmd.Env = append(cmd.Env, "EXEC_FAILS=1")
+			}
 			cmd.Stdin = strings.NewReader(`{"values":"values-dev.yaml","environment":"dev","seed":"` + c.seed + `","forgejo_repository":"` + forgejo + `","kubeconfig":"/dev/null"}`)
 			out, err := cmd.CombinedOutput()
 			if c.fails {

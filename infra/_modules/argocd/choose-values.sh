@@ -1,8 +1,9 @@
 #!/bin/sh
 # Which values file the Argo CD bootstrap applies (OpenTofu's external data source: a JSON query on stdin, a JSON object
 # on stdout). Without a seed it is the given one. With a seed (production's first install syncs the seed repository on
-# GitHub until Forgejo holds ops/homelab), the seed only while Forgejo does not run and Argo CD has never read Forgejo:
-# once switched, a Forgejo restart must not send production back to the seed. A cluster that cannot be asked fails.
+# GitHub until Forgejo holds ops/homelab), the seed only until Argo CD's own credential reads ops/homelab's master on
+# Forgejo, and never again once Argo CD reads Forgejo: a Forgejo restart must not send production back to the seed. A
+# cluster that cannot be asked fails.
 set -eu
 query=$(cat)
 get() { printf '%s' "$query" | jq -r --arg k "$1" '.[$k] // ""'; }
@@ -15,9 +16,13 @@ if [ -n "$seed" ]; then
 	root=$(kubectl -n argocd get applicationset root --ignore-not-found \
 		-o jsonpath='{.spec.generators[0].matrix.generators[0].git.repoURL}')
 	if [ "$root" != "$(get forgejo_repository)" ]; then
-		running=$(kubectl get pods --all-namespaces -l app.kubernetes.io/instance=forgejo \
-			--field-selector status.phase=Running -o name)
-		if [ -z "$running" ]; then
+		# Argo CD's own credential (lab infra forgejo sync's read-only token) reads ops/homelab's master: Forgejo
+		# runs, the token exists and lab infra forgejo push deployed. The token goes through stdin, not an argument.
+		token=$(kubectl -n argocd get secret argocd-repo-forgejo --ignore-not-found -o jsonpath='{.data.password}')
+		# shellcheck disable=SC2016 # $(cat) runs in Forgejo's pod
+		if [ -z "$token" ] || ! printf '%s' "$token" | base64 -d | kubectl -n forgejo exec -i deploy/forgejo -c forgejo -- \
+			sh -c 'curl -sf -o /dev/null -H "Authorization: token $(cat)" http://localhost:3000/api/v1/repos/ops/homelab/branches/master' \
+			>/dev/null 2>&1; then
 			values=$seed
 			environment=seed
 		fi

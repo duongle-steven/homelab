@@ -6,8 +6,7 @@ secrets:
   - name: forgejo.admin
     key: password
     special: true
-    # Argo CD reads the GitOps repository with it
-    destinations: [forgejo/generated/admin, argocd/generated/forgejo-admin]
+    destinations: [forgejo/generated/admin]
   - name: woodpecker.agent
     key: secret
     destinations: [woodpecker/generated/agent]
