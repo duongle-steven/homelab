@@ -16,7 +16,8 @@ check() {
 				scripts/render-chart "$t" >/dev/null
 				scripts/render-chart "$t" dev >/dev/null
 			done ;;
-		go) (cd test && go vet ./... && go test -run "$offline_tests" ./...) ;;
+		# -count=1: the offline tests run scripts and make, whose files go test's cache does not see
+		go) (cd test && go vet ./... && go test -count=1 -run "$offline_tests" ./...) ;;
 		cli) make -C cli test check ;;
 		infra) env -u HOMELAB_STATE_PASSPHRASE make -C infra check ;;
 		docs) mkdocs build --strict ;;
