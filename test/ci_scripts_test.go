@@ -96,7 +96,7 @@ func TestMakeDevRevision(t *testing.T) {
 	require.NoError(t, err)
 	repo := t.TempDir()
 	git := func(args ...string) string {
-		out, err := exec.Command("git", append([]string{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid"}, args...)...).CombinedOutput()
+		out, err := exec.Command("git", append([]string{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"}, args...)...).CombinedOutput()
 		require.NoError(t, err, string(out))
 		return strings.TrimSpace(string(out))
 	}
@@ -130,7 +130,7 @@ func TestMakeInfraProductionCheckout(t *testing.T) {
 	require.NoError(t, err)
 	origin, repo := t.TempDir(), t.TempDir()
 	git := func(dir string, args ...string) {
-		out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.invalid"}, args...)...).CombinedOutput()
+		out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"}, args...)...).CombinedOutput()
 		require.NoError(t, err, string(out))
 	}
 	git(origin, "init", "-q", "--bare", "-b", "master")
