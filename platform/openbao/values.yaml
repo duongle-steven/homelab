@@ -84,7 +84,7 @@ openbao:
               }
             }
           }
-          # platform/global-secrets pushes generated secrets, only to secret/<namespace>/generated/: it never reaches what
+          # platform/generated-secrets pushes generated secrets, only to secret/<namespace>/generated/: it never reaches what
           # others write (OpenTofu, step 8b). External Secrets reads a path and its metadata before it writes them, so
           # the writer reads too; IfNotExists keeps existing values. No delete
           request "writer" {
@@ -94,7 +94,7 @@ openbao:
               policy = "path \"secret/data/+/generated/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/+/generated/*\" { capabilities = [\"create\", \"read\", \"update\"] }"
             }
           }
-          # OpenTofu's secrets (platform/infra-secrets): every branch except what platform/global-secrets generates.
+          # OpenTofu's secrets (platform/infra-secrets): every branch except what platform/generated-secrets generates.
           # The allow uses + too: OpenBao picks the highest-priority matching path, and secret/data/* would outrank
           # the longer deny (fewer + segments)
           request "infra" {
@@ -132,7 +132,7 @@ openbao:
             path      = "auth/kubernetes/role/writer"
             data = {
               bound_service_account_names      = ["default"]
-              bound_service_account_namespaces = ["global-secrets"]
+              bound_service_account_namespaces = ["generated-secrets"]
               token_policies                   = ["writer"]
               audience                         = "openbao"
               token_ttl                        = "10m"

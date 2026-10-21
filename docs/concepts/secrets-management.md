@@ -54,7 +54,7 @@ spec:
 
 `scripts/check-secret-stores` refuses, before merge, an `ExternalSecret` that reads another store or another
 namespace's branch, and a generated secret that nobody reads or that is read but never pushed. A secret two namespaces
-need is pushed to both branches (`destinations` in `platform/global-secrets/values.yaml`).
+need is pushed to both branches (`destinations` in `platform/generated-secrets/values.yaml`).
 
 ## Unsealing and configuration
 
@@ -94,11 +94,11 @@ Anyone who can create tokens for `openbao-admin` or exec into OpenBao's pod (clu
 
 ## Generated secrets
 
-Random secrets (admin passwords and other random app secrets; kaniop generates the OAuth2 client secrets) are listed in `platform/global-secrets/values.yaml`. For each one, an external-secrets `Password` generator creates a Secret in namespace `global-secrets` once (`refreshPolicy: CreatedOnce`: a later reconcile never regenerates it, which would leave it different from OpenBao's value), and a `PushSecret` writes it to each of its `destinations` in OpenBao (`updatePolicy: IfNotExists`: an existing value is never replaced, a missing one is pushed again within an hour).
+Random secrets (admin passwords and other random app secrets; kaniop generates the OAuth2 client secrets) are listed in `platform/generated-secrets/values.yaml`. For each one, an external-secrets `Password` generator creates a Secret in namespace `global-secrets` once (`refreshPolicy: CreatedOnce`: a later reconcile never regenerates it, which would leave it different from OpenBao's value), and a `PushSecret` writes it to each of its `destinations` in OpenBao (`updatePolicy: IfNotExists`: an existing value is never replaced, a missing one is pushed again within an hour).
 
-```yaml title="./platform/global-secrets/values.yaml"
+```yaml title="./platform/generated-secrets/values.yaml"
 --8<--
-./platform/global-secrets/values.yaml
+./platform/generated-secrets/values.yaml
 --8<--
 ```
 
