@@ -21,4 +21,6 @@ terraform {
 inputs = {
   secrets = dependency.cloudflare.outputs.secrets
   protect = true
+  # Renovate's GitHub App key, only when given (docs/how-to-guides/renovate.md): the state keeps it
+  github_app_key = get_env("HOMELAB_GITHUB_APP_KEY", "") == "" ? "" : file(get_env("HOMELAB_GITHUB_APP_KEY"))
 }

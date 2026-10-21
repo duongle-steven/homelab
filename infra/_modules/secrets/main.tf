@@ -33,6 +33,18 @@ variable "protect" {
   description = "Refuse to replace or destroy the WireGuard key (production): every peer would need the new public key"
 }
 
+variable "github_app_key" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Renovate's GitHub App private key (production; docs/how-to-guides/renovate.md): given once, then kept"
+}
+
+module "github_app_key" {
+  source = "../kept-value"
+  value  = var.github_app_key
+}
+
 # The cluster's WireGuard key (apps/wireguard.yaml); peers need its public key (output)
 resource "wireguard_asymmetric_key" "wireguard" {}
 
@@ -51,6 +63,7 @@ locals {
   secrets = merge(
     var.secrets,
     { "wireguard/private-key" = { "private-key" = wireguard_asymmetric_key.wireguard.private_key } },
+    module.github_app_key.value == "" ? {} : { "renovate/github-app" = { "private-key" = module.github_app_key.value } },
   )
   manifest = yamlencode({
     apiVersion = "v1"
