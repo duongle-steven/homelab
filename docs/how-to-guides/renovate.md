@@ -2,8 +2,11 @@
 
 Renovate runs in the production cluster (`platform/renovate`, daily at 05:00) and opens pull requests into `dev` on
 GitHub as the GitHub App `duongle-lab-renovate`. Its pull requests run `checks` and, labelled `sandbox`, the sandbox.
-The App's private key goes through OpenTofu into OpenBao; External Secrets mints a one-hour installation token from it
-every 30 minutes (`renovate-secret`).
+The App's private key goes through OpenTofu into OpenBao and External Secrets into the Secret `renovate-github-app`.
+Each run mints its own installation token: the CronJob's initContainer `github-token` (the only container that mounts
+the key; `platform/renovate/files/github-token.js`) signs a JWT and asks GitHub for a token with Renovate's
+permissions, the Renovate container reads it from memory and revokes it when the run ends, failed or not. A refused
+token fails the Job with GitHub's status and message (`kubectl -n renovate logs job/<job> -c github-token`).
 
 ## Create the App (once)
 

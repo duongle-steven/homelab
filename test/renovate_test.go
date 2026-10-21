@@ -21,20 +21,31 @@ func renderRenovate(t *testing.T, expr string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// Renovate's token comes from our GitHub App, scoped to homelab and minted again every 30 minutes (never created
-// once: it expires after an hour); its CronJob runs at 05:00 local time
+// Renovate's token is minted per run in its own pod (docs/superpowers/specs/2026-10-20-renovate-design.md, decision 2):
+// only the initContainer mounts the App's key, the token lives in memory, the pod has no service account token, ESO
+// mints nothing; its CronJob runs at 05:00 local time
 func TestRenovateGitHubApp(t *testing.T) {
+	pod := `select(.kind == "CronJob") | .spec.jobTemplate.spec.template.spec`
+	keyVolume := renderRenovate(t, pod+` | .volumes[] | select(.secret.secretName == "renovate-github-app") | .name`)
+	require.NotEmpty(t, keyVolume, "no volume holds the App's key")
+	assert.Equal(t, "github-token", renderRenovate(t, pod+` | [.initContainers[], .containers[]] | map(select(.volumeMounts[]?.name == "`+keyVolume+`")) | map(.name) | join(",")`),
+		"only the initContainer may mount the App's key")
+	assert.Equal(t, "Memory", renderRenovate(t, pod+` | .volumes[] | select(.name == "github-token") | .emptyDir.medium`))
+	assert.Equal(t, "github-token", renderRenovate(t, pod+` | .containers[0].volumeMounts[] | select(.mountPath == "/github-token") | .name`))
+	assert.Equal(t, "renovate", renderRenovate(t, pod+` | .serviceAccountName`))
+	assert.Equal(t, "false", renderRenovate(t, `select(.kind == "ServiceAccount" and .metadata.name == "renovate") | .automountServiceAccountToken`))
 	assert.Equal(t, `{"checks":"read","contents":"write","issues":"write","pull_requests":"write","statuses":"read","workflows":"write"}`,
-		renderRenovate(t, `select(.kind == "GithubAccessToken") | .spec.permissions | to_entries | sort_by(.key) | from_entries | to_json(0)`))
-	token := `select(.kind == "ExternalSecret" and .spec.target.name == "renovate-secret")`
-	assert.Equal(t, "30m", renderRenovate(t, token+` | .spec.refreshInterval`))
-	assert.Contains(t, []string{"Periodic", "null"}, renderRenovate(t, token+` | .spec.refreshPolicy`))
-	assert.Equal(t, "GithubAccessToken", renderRenovate(t, token+` | .spec.dataFrom[0].sourceRef.generatorRef.kind`))
+		renderRenovate(t, pod+` | .initContainers[] | select(.name == "github-token") | .env[] | select(.name == "PERMISSIONS") | .value | from_json | to_entries | sort_by(.key) | from_entries | to_json(0)`))
+	assert.Equal(t, renderRenovate(t, pod+` | .containers[0].image`), renderRenovate(t, pod+` | .initContainers[] | select(.name == "github-token") | .image`),
+		"the initContainer runs Renovate's own image")
+	args := renderRenovate(t, pod+` | .containers[0].args[0]`)
+	assert.Contains(t, args, "trap")
+	assert.Contains(t, args, "github-token.js revoke")
+	all := renderRenovate(t, `.`)
+	assert.NotContains(t, all, "GithubAccessToken")
+	assert.NotContains(t, all, "forgejo")
 	assert.Equal(t, "0 5 * * *", renderRenovate(t, `select(.kind == "CronJob") | .spec.schedule`))
 	assert.Equal(t, "Asia/Ho_Chi_Minh", renderRenovate(t, `select(.kind == "CronJob") | .spec.timeZone`))
-	all := renderRenovate(t, `.`)
-	assert.NotContains(t, all, "forgejo")
-	assert.NotContains(t, all, "renovate/forgejo")
 }
 
 // Renovate runs in production only
@@ -46,25 +57,18 @@ func TestRenovateNotInTheSandbox(t *testing.T) {
 	assert.NotContains(t, string(out), "platform/renovate")
 }
 
-// ESO's controller mints the token (GithubAccessToken calls api.github.com from namespace external-secrets), so that
-// namespace reaches GitHub, not only Renovate's
+// ESO mints nothing for Renovate, so it stays off the internet: its controller reads every Secret
 func TestRenovateTokenEgress(t *testing.T) {
-	cmd := exec.Command("yq", `.internet."external-secrets"[].port`, "system/egress/values.yaml")
+	cmd := exec.Command("yq", `.internet | has("external-secrets")`, "system/egress/values.yaml")
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
-	assert.Contains(t, strings.Fields(string(out)), "443")
+	assert.Equal(t, "false", strings.TrimSpace(string(out)))
 }
 
-// Review findings: the token covers every repository the App is installed on (adding one is a change on GitHub
-// only), Renovate's image follows its chart (no frozen tag override), and Renovate reads its schedules in the
+// Review findings: Renovate reads its schedules in the
 // environment's time zone, so lockFileMaintenance's "before 5am on monday" matches the 05:00 run
 func TestRenovateConfig(t *testing.T) {
-	assert.Equal(t, "null", renderRenovate(t, `select(.kind == "GithubAccessToken") | .spec.repositories`))
-	values, err := exec.Command("yq", ".renovate.image", "../platform/renovate/values.yaml").CombinedOutput()
-	require.NoError(t, err, string(values))
-	assert.Equal(t, "null", strings.TrimSpace(string(values)), "an image override freezes Renovate's image when its chart moves")
-
 	global := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(renderRenovate(t, `select(.kind == "ConfigMap" and .metadata.name == "renovate-config") | .data["config.json"]`)), &global))
 	timezone, err := exec.Command("jq", "-r", ".timezone", "../infra/production/cluster/config.json").CombinedOutput()
@@ -98,6 +102,7 @@ func TestRenovateManagers(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(raw, &extract))
 	deps := map[string]map[string]string{} // package file → dependency → version
+	found := map[string]int{}              // package file and dependency → how many times
 	managers := map[string]bool{}
 	for _, repo := range extract.Repositories {
 		for manager, files := range repo.PackageFiles {
@@ -108,6 +113,7 @@ func TestRenovateManagers(t *testing.T) {
 				}
 				for _, d := range f.Deps {
 					deps[f.PackageFile][d.DepName] = d.CurrentValue
+					found[f.PackageFile+" "+d.DepName]++
 				}
 			}
 		}
@@ -128,6 +134,8 @@ func TestRenovateManagers(t *testing.T) {
 		assert.Contains(t, deps[file], "app-template", "%s: the app-template pin is not managed", file)
 	}
 	assert.True(t, managers["nix"], "flake.lock is not managed")
+	// Renovate's image and its initContainer's: one update moves both
+	assert.Equal(t, 2, found["platform/renovate/values.yaml ghcr.io/renovatebot/renovate"], "Renovate's two images are not both managed")
 	assert.Contains(t, deps["infra/_modules/k3d/k3d.yaml"], "rancher/k3s", "the sandbox's k3s is not managed")
 	assert.Contains(t, deps["infra/_modules/k3d/main.tf"], "kubernetes-sigs/gateway-api", "the Gateway API CRDs are not managed")
 }

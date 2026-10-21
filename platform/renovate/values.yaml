@@ -1,15 +1,72 @@
 # Renovate on GitHub as our App duongle-lab-renovate (docs/how-to-guides/renovate.md); production only. The IDs are
-# not secrets: ESO's GithubAccessToken generator needs them as literals.
-githubApp:
-  appID: "5406416"
-  installationID: "173635875"
+# not secrets.
 renovate:
-  # The image is the chart's appVersion: no override, so a chart update moves it too
+  # Pinned here (the chart's appVersion otherwise) so the initContainer below runs the same image: keep both equal
+  # (test/renovate_test.go); Renovate's helm-values manager updates both
+  image:
+    registry: ghcr.io
+    repository: renovatebot/renovate
+    tag: 44.172.0
+  # Renovate's pod reaches no Kubernetes API (templates/github-app.yaml)
+  serviceAccount:
+    name: renovate
   cronjob:
     schedule: '0 5 * * *'
     # The chart cannot read global.timezone (like kured): keep it and "timezone" below equal to config.json's timezone
     timeZone: Asia/Ho_Chi_Minh
     concurrencyPolicy: Forbid
+    # One installation token per run, minted from the App's key, which only this container mounts
+    initContainers:
+      - name: github-token
+        image: ghcr.io/renovatebot/renovate:44.172.0
+        command: [node, /scripts/github-token.js, mint]
+        env:
+          - name: APP_ID
+            value: "5406416"
+          - name: INSTALLATION_ID
+            value: "173635875"
+          # Only what Renovate needs, on every repository the App is installed on
+          - name: PERMISSIONS
+            value: '{"contents":"write","pull_requests":"write","workflows":"write","issues":"write","checks":"read","statuses":"read"}'
+          - name: KEY_FILE
+            value: /github-app/private-key
+          - name: TOKEN_FILE
+            value: /github-token/token
+        volumeMounts:
+          - name: github-app
+            mountPath: /github-app
+            readOnly: true
+          - name: github-token
+            mountPath: /github-token
+          - name: github-token-script
+            mountPath: /scripts
+            readOnly: true
+    # The token ends with the run, failed or not (a killed pod's token expires within the hour)
+    preCommand: |
+      RENOVATE_TOKEN=$(cat /github-token/token)
+      export RENOVATE_TOKEN
+      trap 'TOKEN_FILE=/github-token/token node /scripts/github-token.js revoke || true' EXIT
+  extraVolumes:
+    - name: github-app
+      secret:
+        secretName: renovate-github-app
+        # The image runs as uid 12021 in group 0
+        defaultMode: 0440
+    - name: github-token
+      emptyDir:
+        medium: Memory
+        sizeLimit: 1Mi
+    - name: github-token-script
+      configMap:
+        name: renovate-github-token
+  # The Renovate container: the token and the script, never the key
+  extraVolumeMounts:
+    - name: github-token
+      mountPath: /github-token
+      readOnly: true
+    - name: github-token-script
+      mountPath: /scripts
+      readOnly: true
   renovate:
     config: |
       {
@@ -21,4 +78,3 @@ renovate:
         "timezone": "Asia/Ho_Chi_Minh",
         "gitAuthor": "duongle-lab-renovate[bot] <345657674+duongle-lab-renovate[bot]@users.noreply.github.com>"
       }
-  existingSecret: renovate-secret

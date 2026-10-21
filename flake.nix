@@ -32,6 +32,7 @@
             kanidm_1_11
             kubectl
             kubernetes-helm
+            nodejs_24 # platform/renovate's token script (test/renovate_test.go), the major in Renovate's image
             openssh_gssapi
             unstable.opentofu # Drop-in replacement for Terraform (nixos-26.05 ships 1.11)
             unstable.terragrunt
