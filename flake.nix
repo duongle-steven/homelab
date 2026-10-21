@@ -36,6 +36,7 @@
             unstable.opentofu # Drop-in replacement for Terraform (nixos-26.05 ships 1.11)
             unstable.terragrunt
             qrencode
+            renovate # renovate-config-validator (scripts/lint)
             shellcheck
             unstable.k3d
             (callPackage ./nix/cloudflare-cf.nix { }) # cf: Cloudflare's CLI, its OAuth login gives OpenTofu its token

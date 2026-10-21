@@ -1,19 +1,19 @@
+// Renovate (platform/renovate, docs/how-to-guides/renovate.md): pull requests into dev, labelled sandbox so the
+// sandbox runs before a merge; nothing merges automatically
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:base"
-  ],
-  "packageRules": [
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended'],
+  baseBranchPatterns: ['dev'],
+  labels: ['sandbox'],
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ['before 5am on monday'],
+  },
+  packageRules: [
     {
-      "matchPackagePatterns": [
-        "*"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
-      "groupName": "all non-major dependencies",
-      "groupSlug": "all-minor-patch"
-    }
-  ]
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'all non-major dependencies',
+      groupSlug: 'all-minor-patch',
+    },
+  ],
 }
