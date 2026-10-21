@@ -1,6 +1,7 @@
 # Step 10d: Renovate on GitHub through our own GitHub App
 
-Status: design approved in chat 2026-10-20, written spec awaiting review. Branch: `feat/renovate` from `dev`.
+Status: design approved in chat 2026-10-20; decision 2 revised in chat 2026-10-21 (the token is minted in Renovate's
+pod, not by ESO's generator, so ESO needs no internet). Branch: `feat/renovate` from `dev`.
 
 ## Goal
 
@@ -19,8 +20,12 @@ tokens that live one hour.
   typed in. A GitHub App's private key cannot be created through an API (only in GitHub's UI, or the manifest flow,
   which also needs a browser): it is the first secret a person brings in, next to the state passphrase (the only
   secret that must be kept). It can be regenerated on GitHub at any time.
-- External Secrets 2.12 has the generator `GithubAccessToken` (App ID, installation ID, private key from a Secret,
-  optional `permissions` and `repositories`).
+- External Secrets 2.12 has the generator `GithubAccessToken`, but it runs in ESO's controller, which reads every
+  Secret: with default-deny egress (step 6d-2) it would need the internet, so it is not used (decision 2).
+- GitHub mints an installation token for a JWT signed with the App's key (`POST /app/installations/<id>/access_tokens`,
+  optional `permissions`), and a token revokes itself (`DELETE /installation/token`). The Renovate chart has
+  `cronjob.initContainers`, `cronjob.preCommand` (before `renovate`, in one `bash -c` with `set -e`), `extraVolumes` and
+  `extraVolumeMounts`.
 - Production does not exist before step 12; the sandbox takes no secret from outside.
 - Today every push to `dev` runs the whole sandbox suite and none cancels another, and the maintainer labels every
   own pull request `sandbox` although `make dev` already ran the same scope locally.
@@ -33,14 +38,17 @@ tokens that live one hour.
    `-replace`). It joins the `secrets` map as `renovate/github-app` (property `private-key`), so it reaches OpenBao
    like the WireGuard key (`infra-secrets` → `platform/infra-secrets`). The file can be deleted after the first
    apply.
-2. **Token (A):** an ExternalSecret in namespace `renovate` copies `renovate/github-app` into a Secret; a
-   `GithubAccessToken` generator (App ID and installation ID from `platform/renovate/values.yaml`, which ESO needs as
-   literals; neither is secret) mints an installation token with only `contents`, `pull_requests`, `workflows`,
-   `issues` (write) and `checks`, `statuses` (read), for repository `homelab` only; a second ExternalSecret writes it
-   into `renovate-secret` (`RENOVATE_TOKEN`) with `refreshPolicy: Periodic` and `refreshInterval: 30m`, so a run
-   starts with at least 30 minutes left. ESO mints a new token at every refresh; old ones expire on their own. Unlike
-   `platform/global-secrets` (`CreatedOnce`), this ExternalSecret must never be created once only: the token would
-   expire after an hour.
+2. **Token, minted per run in Renovate's pod:** an ExternalSecret in namespace `renovate` copies
+   `renovate/github-app` into the Secret `renovate-github-app` (ESO reads OpenBao as usual and needs no internet). The
+   CronJob's initContainer `github-token` (Renovate's own image: node signs the JWT, no other image to pin; the script
+   in a ConfigMap) mounts only that Secret, signs a JWT that lives 9 minutes, mints an installation token with only
+   `contents`, `pull_requests`, `workflows`, `issues` (write) and `checks`, `statuses` (read) for every repository
+   the App is installed on, and writes it to an `emptyDir` in memory. The Renovate container never mounts the key:
+   its `preCommand` reads the token into `RENOVATE_TOKEN` and traps `EXIT` to revoke it (`DELETE
+   /installation/token`), so the token ends with the run, failed or not (a killed pod's token expires within the
+   hour). The pod has `automountServiceAccountToken: false`. App ID and installation ID live in
+   `platform/renovate/values.yaml` (neither is secret). NetworkPolicies apply to the whole pod: `renovate` keeps 443
+   (Renovate reaches many registries), `external-secrets` gets no internet.
 3. **The App** (created by hand, documented): `duongle-lab-renovate`, permissions Contents, Pull requests, Workflows,
    Issues (the Dependency Dashboard) read and write, Commit statuses and Checks read, Metadata read; no webhook;
    installed on "Only select repositories": `homelab`. Renovate's `autodiscover` lists exactly the installation's
@@ -68,27 +76,29 @@ tokens that live one hour.
 
 ## Failure handling
 
-- A wrong App ID, installation ID, key or permission: the generator fails and `renovate-secret` is not written; the
-  CronJob's pod waits for its Secret. The proof below catches this before production.
-- A run longer than the token's remaining life fails part-way; the next day's run continues (Renovate is
-  idempotent).
+- A wrong App ID, installation ID, key or permission: the initContainer fails with GitHub's status and message (never
+  the key, the JWT or a token), the Job fails and Renovate does not start. The proof below catches this before
+  production. The key not yet given: the pod waits for its Secret.
+- A run longer than an hour fails part-way; the next day's run continues (Renovate is idempotent).
 - OpenBao loses its data (no backup before step 11): the next `make infra env=production` writes the key again from
   the state. A lost or leaked key: generate a new one on GitHub, delete the old, apply with `-replace`.
 
 ## Proof (once, not a permanent test)
 
 On the sandbox, with the key written to its OpenBao by the admin role: apply `platform/renovate` rendered for
-production into namespace `renovate`, run its CronJob once (`kubectl create job --from=cronjob/...`), and see that the
-generator mints a token (our IDs, key and permissions match the App), Renovate runs with our config and opens a
-pull request into `dev` labelled `sandbox` without a permission error, and that pull request runs `checks` and
-`sandbox-label` (the App's label triggers workflows); and that a `force-sync` of the token's ExternalSecret writes a
-different token (hashes compared, never printed), which proves our `refreshPolicy` lets ESO mint again. Then delete
-the namespace and the key from the sandbox. Whether ESO refreshes on schedule is ESO's concern.
+production into namespace `renovate` and run its CronJob once (`kubectl create job --from=cronjob/...`) with
+`RENOVATE_DRY_RUN=lookup`: the initContainer mints a token (our IDs, key and permissions match the App), Renovate
+logs in and reads `homelab` with our config, and once the Job ends the token is revoked (a GitHub API call with it
+returns 401; the token is read from the pod's log of a hash only, never printed). The real run that opens a pull
+request into `dev` labelled `sandbox` waits for the next `dev` → `master` release: Renovate reads `renovate.json5`
+from the default branch. Then delete the namespace and the key from the sandbox.
 
 ## Tests
 
-- Offline (basic checks): `platform/renovate` rendered for production has the generator's permissions and
-  repository, `refreshPolicy` Periodic (or unset) with `refreshInterval: 30m`, the CronJob's 05:00 and `timeZone`, and no Forgejo leftovers; the sandbox does not deploy
+- Offline (basic checks): `platform/renovate` rendered for production mounts the key only in the initContainer, the
+  token's `emptyDir` in memory, `automountServiceAccountToken: false`, no `GithubAccessToken`, the CronJob's 05:00
+  and `timeZone`; the mint script against a fake GitHub API signs a valid RS256 JWT for the App ID, asks for exactly
+  the six permissions, writes the token, prints neither the token nor the key, and fails on an API error; and no Forgejo leftovers; the sandbox does not deploy
   it; `renovate-config-validator` (nixpkgs `renovate`, in the dev shell and `scripts/lint`) accepts `renovate.json5`
   and the global config.
 - State test: `infra/_modules/secrets` keeps the stored key when a later apply passes none, and `-replace` takes a
