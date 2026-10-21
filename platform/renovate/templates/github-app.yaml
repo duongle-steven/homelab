@@ -1,0 +1,63 @@
+# The App's private key (OpenTofu → infra-secrets → OpenBao renovate/github-app) for ESO's generator
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: renovate-github-app
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretStoreRef:
+    kind: SecretStore
+    name: openbao
+  target:
+    name: renovate-github-app
+  data:
+    - secretKey: private-key
+      remoteRef:
+        key: renovate/github-app
+        property: private-key
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: GithubAccessToken
+metadata:
+  name: renovate
+  namespace: {{ .Release.Namespace }}
+spec:
+  appID: {{ .Values.githubApp.appID | quote }}
+  installID: {{ .Values.githubApp.installationID | quote }}
+  # Narrower than the App: only what Renovate needs, only homelab
+  repositories: [homelab]
+  permissions:
+    contents: write
+    pull_requests: write
+    workflows: write
+    issues: write
+    checks: read
+    statuses: read
+  auth:
+    privateKey:
+      secretRef:
+        name: renovate-github-app
+        key: private-key
+---
+# An installation token lives an hour: mint a new one every 30 minutes (Periodic; never CreatedOnce), so a run starts
+# with at least 30 minutes left
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.renovate.existingSecret }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  refreshPolicy: Periodic
+  refreshInterval: 30m
+  target:
+    name: {{ .Values.renovate.existingSecret }}
+    template:
+      engineVersion: v2
+      data:
+        RENOVATE_TOKEN: {{` "{{ .token }}" `}}
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: GithubAccessToken
+          name: renovate

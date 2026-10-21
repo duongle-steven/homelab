@@ -1,11 +1,24 @@
+# Renovate on GitHub as our App duongle-lab-renovate (docs/how-to-guides/renovate.md); production only. The IDs are
+# not secrets: ESO's GithubAccessToken generator needs them as literals.
+githubApp:
+  appID: "5406416"
+  installationID: "173635875"
 renovate:
+  image:
+    tag: 44.172.0
   cronjob:
-    schedule: '0 9 * * *'  # Everyday at 09:00
+    schedule: '0 5 * * *'
+    # The chart cannot read global.timezone (like kured): keep it equal to config.json's timezone
+    timeZone: Asia/Ho_Chi_Minh
+    concurrencyPolicy: Forbid
   renovate:
     config: |
       {
-        "platform": "forgejo",
-        "gitAuthor": "Renovate Bot <bot@renovateapp.com>",
-        "autodiscover": true
+        "platform": "github",
+        "autodiscover": true,
+        "autodiscoverFilter": ["duongle-steven/*"],
+        "onboarding": false,
+        "requireConfig": "required",
+        "gitAuthor": "duongle-lab-renovate[bot] <345657674+duongle-lab-renovate[bot]@users.noreply.github.com>"
       }
   existingSecret: renovate-secret
