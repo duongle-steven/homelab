@@ -174,7 +174,7 @@ func TestSSOZot(t *testing.T) {
 	}
 
 	t.Run("ci", func(t *testing.T) {
-		password := secretValue(t, "global-secrets", "registry.ci", "password")
+		password := generatedValue(t, "zot/generated/ci", "password")
 		assert.Equal(t, http.StatusAccepted, getJSON(t, "POST", upload, nil, "ci", password, nil, nil))
 	})
 

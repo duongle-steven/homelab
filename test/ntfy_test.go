@@ -39,9 +39,9 @@ func waitForNtfy(t *testing.T) {
 	}, 20*time.Minute, 15*time.Second, "ntfy does not answer through the Gateway")
 }
 
-// ntfyToken is a user's ntfy token: the generated value with ntfy's tk_ prefix
+// ntfyToken is a user's ntfy token: the generated value in OpenBao with ntfy's tk_ prefix
 func ntfyToken(t *testing.T, user string) string {
-	return "tk_" + secretValue(t, "global-secrets", "ntfy."+user+"-token", "token")
+	return "tk_" + generatedValue(t, "ntfy/generated/"+user+"-token", "token")
 }
 
 // Published through the Tunnel in production: nothing without credentials

@@ -1,6 +1,8 @@
 package test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -61,7 +63,18 @@ func waitForUnsealed(t *testing.T) {
 	}, 30*time.Minute, 10*time.Second, "OpenBao is not initialised and unsealed")
 }
 
-// grafanaAdmin reads Grafana's admin password from its branch, as Grafana's namespace, once global-secrets has
+// generatedValue is a generated secret as every app reads it, from OpenBao (secret/<path>, admin role), once pushed
+func generatedValue(t *testing.T, path, property string) string {
+	t.Helper()
+	var value string
+	require.Eventually(t, func() bool {
+		value = baoValueE(path, property)
+		return value != ""
+	}, 20*time.Minute, 15*time.Second, "secret/%s is not pushed", path)
+	return value
+}
+
+// grafanaAdmin reads Grafana's admin password from its branch, as Grafana's namespace, once generated-secrets has
 // pushed it
 func grafanaAdmin(t *testing.T) string {
 	var password string
@@ -100,7 +113,7 @@ func admin(t *testing.T, args ...string) string {
 	return out
 }
 
-// The writer is global-secrets' default service account only, and reaches only secret/<namespace>/generated/: it reads
+// The writer is generated-secrets' default service account only, and reaches only secret/<namespace>/generated/: it reads
 // and writes nothing else and deletes nothing
 func TestSecretsWriterRole(t *testing.T) {
 	secretsSandboxOnly(t)
@@ -119,11 +132,11 @@ func TestSecretsWriterRole(t *testing.T) {
 		{"kv", "delete", "secret/grafana/generated/admin"},
 		{"kv", "metadata", "delete", "secret/grafana/generated/admin"},
 	} {
-		out, err := bao(t, "writer", "global-secrets", "default", args...)
+		out, err := bao(t, "writer", "generated-secrets", "default", args...)
 		assert.Error(t, err, "writer: bao %v", args)
 		assert.Contains(t, out, "permission denied", "writer: bao %v", args)
 	}
-	out, err = bao(t, "writer", "global-secrets", "default", "kv", "get", "-field=password", "secret/grafana/generated/admin")
+	out, err = bao(t, "writer", "generated-secrets", "default", "kv", "get", "-field=password", "secret/grafana/generated/admin")
 	require.NoError(t, err, "the writer reads generated paths (External Secrets checks before it pushes)")
 	assert.NotEmpty(t, out)
 }
@@ -148,12 +161,11 @@ func TestSecretsAdmin(t *testing.T) {
 	}
 }
 
-// Grafana's admin Secret comes from OpenBao and equals the generated value
+// Grafana's admin Secret comes from OpenBao and equals its generated value there
 func TestSecretsReachConsumers(t *testing.T) {
 	secretsSandboxOnly(t)
 	waitForUnsealed(t)
-	generated := secretValue(t, "global-secrets", "grafana.admin", "password")
-	assert.Equal(t, generated, grafanaAdmin(t), "OpenBao's value differs from the generated one")
+	generated := generatedValue(t, "grafana/generated/admin", "password")
 	require.Eventually(t, func() bool {
 		return secretValue(t, "grafana", "grafana-admin", "admin-password") == generated
 	}, 20*time.Minute, 15*time.Second, "grafana-admin does not hold the generated password")
@@ -221,4 +233,40 @@ func TestSecretsInfraPush(t *testing.T) {
 		"force-sync="+fmt.Sprint(time.Now().UnixNano()), "--overwrite")
 	assert.Eventually(t, func() bool { return read() == want }, 5*time.Minute, 10*time.Second,
 		"the lost value was not pushed again")
+}
+
+// Generated secrets live only in OpenBao: no Secret in generated-secrets, a push again leaves every value as it is,
+// one entry's destinations hold the same value, and a destination deleted (a rotation) is written again
+func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
+	secretsSandboxOnly(t)
+	waitForUnsealed(t)
+	options := k8s.NewKubectlOptions("", "", "generated-secrets")
+	options.Logger = logger.Discard
+	secrets, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "secrets", "-o", "name")
+	require.NoError(t, err)
+	assert.Empty(t, strings.TrimSpace(secrets), "a Secret in generated-secrets")
+
+	hash := func(path, property string) string {
+		sum := sha256.Sum256([]byte(generatedValue(t, path, property)))
+		return hex.EncodeToString(sum[:])
+	}
+	// Both destinations of one entry: the same push wrote them
+	assert.Equal(t, hash("ntfy/generated/alerts-token", "token"), hash("monitoring-system/generated/ntfy", "token"))
+
+	before := hash("grafana/generated/admin", "password")
+	forceSync := func(name string) {
+		_, err := k8s.RunKubectlAndGetOutputE(t, options, "annotate", "pushsecret", name, fmt.Sprintf("force-sync=%d", time.Now().UnixNano()), "--overwrite")
+		require.NoError(t, err)
+	}
+	for range 2 {
+		forceSync("grafana.admin")
+		time.Sleep(20 * time.Second)
+		assert.Equal(t, before, hash("grafana/generated/admin", "password"), "a push replaced an existing value")
+	}
+
+	// A rotation: the destination deleted, the next push writes a new value
+	probe := hash("woodpecker/generated/agent", "secret")
+	admin(t, "kv", "metadata", "delete", "secret/woodpecker/generated/agent")
+	forceSync("woodpecker.agent")
+	assert.NotEqual(t, probe, hash("woodpecker/generated/agent", "secret"), "the deleted destination was not written again")
 }

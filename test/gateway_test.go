@@ -139,7 +139,7 @@ func TestGatewayZotLargePush(t *testing.T) {
 	gatewaySandboxOnly(t)
 	base := "https://" + registryHost
 	waitForApp(t, base+"/livez")
-	password := secretValue(t, "global-secrets", "registry.ci", "password")
+	password := generatedValue(t, "zot/generated/ci", "password")
 
 	// Same content every run, so zot stores a single copy
 	blob := make([]byte, 200<<20)

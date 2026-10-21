@@ -43,11 +43,20 @@ func forgejoGit(t *testing.T, dir, user, secret string, args ...string) (string,
 
 func baoValue(t *testing.T, path, property string) string {
 	t.Helper()
-	// The tests read OpenBao the documented way: an admin login inside OpenBao's pod, the token never printed
+	value := baoValueE(path, property)
+	require.NotEmpty(t, value, "secret/%s#%s", path, property)
+	return value
+}
+
+// baoValueE reads OpenBao the documented way: an admin login inside OpenBao's pod, the token never printed; empty on
+// any error
+func baoValueE(path, property string) string {
 	script := "kubectl -n openbao create token openbao-admin --audience=openbao --duration=10m | kubectl -n openbao exec -i openbao-0 -c openbao -- " +
 		"sh -c 'export BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=admin jwt=-); bao kv get -field=" + property + " secret/" + path + "; bao token revoke -self >/dev/null'"
 	out, err := exec.Command("sh", "-c", script).Output()
-	require.NoError(t, err)
+	if err != nil {
+		return ""
+	}
 	return strings.TrimSpace(string(out))
 }
 
