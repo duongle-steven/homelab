@@ -41,9 +41,3 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 14a | `scope.SplitTerms` ignores escaped parentheses and an alternation sign inside a character class; no term uses them yet | any |
 | dev shell cleanup | `metal/roles/pxe_server/templates/dnsmasq.conf.j2` uses `ansible.netcommon.ipmath`, which nixpkgs' Ansible does not ship (it moved to `ansible.utils`): `metal/` fails before and after the cleanup | 12 (replaces `metal/`) |
 | dev shell cleanup | `.woodpecker/static-checks.yaml` still runs the removed `TestToolsVersions` and pre-commit | 10c (Woodpecker) |
-| 10d | ESO's controller reaches the whole internet on 443 (GithubAccessToken needs GitHub): narrow to GitHub's `/meta` ranges or document the tradeoff in the networking docs | any |
-| 10d | `HOMELAB_GITHUB_APP_KEY` with a relative path resolves from the unit's directory, not the caller's: say "absolute path" or `abspath` it | any |
-| 10d | A rebased Renovate pull request keeps its old `sandbox-label` result until the label is removed and added again | any |
-| 10d | `scripts/sandbox-last-passed` queries runs without a `created` lower bound | any |
-| 10d | Spec decision 3 still names the App `homelab-renovate` (it is `duongle-lab-renovate`) | any |
-| 10d | Versions outside Renovate's managers (k3s's image in `infra/_modules/k3d`, the Gateway API CRDs) are bumped by hand | any |

@@ -72,7 +72,7 @@ GitHub counts as passing. For the same reason no other job is named `sandbox` (`
 that tests nothing would pass the required check on the same commit. A pull request retargeted to `master` from a fork
 gets a read-only token, which cannot create the check: push to it (or close and reopen it).
 Labelling needs Triage or more on the repository. A new commit on a labelled pull request does not rerun
-`sandbox-label`: remove the label and add it again (read the new code first: it runs on the runner); other labels never
+`sandbox-label` (except Renovate's own commits on its labelled pull requests): remove the label and add it again (read the new code first: it runs on the runner); other labels never
 cancel it. Pull requests from forks get a read-only token, which is all the run needs.
 
 Label your own pull requests only when they change what the local sandbox cannot prove (the first install, CI):

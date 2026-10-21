@@ -26,7 +26,8 @@ App ID, installation ID and bot id are not secrets: they live in `platform/renov
 HOMELAB_GITHUB_APP_KEY=~/Downloads/<app-name>.<date>.private-key.pem make infra env=production
 ```
 
-OpenTofu keeps the key in its encrypted state (`infra/production/secrets`); later runs need no file, so delete it.
+A relative path is resolved where `make` runs. OpenTofu keeps the key in its encrypted state (`infra/production/secrets`);
+later runs need no file, so delete it.
 If the unit was applied before the key existed, apply once with the key and
 `-replace=module.github_app_key.terraform_data.kept` in `infra/production/secrets`
 (`terragrunt apply -replace=...`); the plain run refuses rather than ignoring the key.
@@ -45,9 +46,10 @@ Delete the old key on GitHub once Renovate ran with the new one.
 
 `renovate.json5` adds to Renovate's defaults (charts, `values*.yaml` images, Go, OpenTofu providers, GitHub Actions):
 the images in `apps/*.yaml`, the app-template pin in `system/argocd/values*.yaml` (a regex manager) and `flake.lock`
-(the nix manager, every Monday's lock file maintenance; schedules use the time zone in the global config). Versions held
-elsewhere (k3s's image in `infra/_modules/k3d`, the Gateway API CRDs) are still bumped by hand. `TestRenovateManagers`
-checks what Renovate finds, offline.
+(the nix manager, every Monday's lock file maintenance; schedules use the time zone in the global config), and the
+sandbox's k3s image and Gateway API CRDs (`infra/_modules/k3d`, regex managers). `TestRenovateManagers` checks what
+Renovate finds, offline. A new commit from Renovate on its labelled pull request (a rebase, a newer version) runs
+`sandbox-label` again.
 
 ## Add a repository
 

@@ -128,4 +128,20 @@ func TestRenovateManagers(t *testing.T) {
 		assert.Contains(t, deps[file], "app-template", "%s: the app-template pin is not managed", file)
 	}
 	assert.True(t, managers["nix"], "flake.lock is not managed")
+	assert.Contains(t, deps["infra/_modules/k3d/k3d.yaml"], "rancher/k3s", "the sandbox's k3s is not managed")
+	assert.Contains(t, deps["infra/_modules/k3d/main.tf"], "kubernetes-sigs/gateway-api", "the Gateway API CRDs are not managed")
+}
+
+// A Renovate pull request labelled sandbox runs it again when Renovate pushes to it (a rebase, a newer version), so
+// its result is never stale; anyone else's new commit still needs the label again. The bot is Renovate's gitAuthor.
+func TestRenovateLabelRerun(t *testing.T) {
+	types, err := exec.Command("yq", `.on.pull_request.types | join(",")`, "../.github/workflows/sandbox-label.yaml").CombinedOutput()
+	require.NoError(t, err, string(types))
+	assert.Equal(t, "labeled,synchronize", strings.TrimSpace(string(types)))
+	global := map[string]any{}
+	require.NoError(t, json.Unmarshal([]byte(renderRenovate(t, `select(.kind == "ConfigMap" and .metadata.name == "renovate-config") | .data["config.json"]`)), &global))
+	bot := strings.Fields(global["gitAuthor"].(string))[0]
+	workflow, err := os.ReadFile("../.github/workflows/sandbox-label.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, 2, strings.Count(string(workflow), "'"+bot+"'"), "the job's if and its concurrency group name the bot %s", bot)
 }

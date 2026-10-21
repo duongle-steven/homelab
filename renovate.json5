@@ -24,6 +24,22 @@
       matchStrings: ['repoURL: (?<registryUrl>https://\\S+)\\s+chart: (?<depName>\\S+)\\s+targetRevision: (?<currentValue>\\d\\S*)'],
       datasourceTemplate: 'helm',
     },
+    {
+      // The sandbox's k3s (the one Kubernetes version the tests run; production's k3s comes with step 12)
+      customType: 'regex',
+      managerFilePatterns: ['/^infra/_modules/k3d/k3d\\.yaml$/'],
+      matchStrings: ['image: (?<depName>rancher/k3s):(?<currentValue>\\S+)'],
+      datasourceTemplate: 'docker',
+      versioningTemplate: 'regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-k3s(?<build>\\d+)$',
+    },
+    {
+      // The Gateway API CRDs the sandbox installs (k3s's packaged ones are disabled)
+      customType: 'regex',
+      managerFilePatterns: ['/^infra/_modules/k3d/main\\.tf$/'],
+      matchStrings: ['variable "gateway_api_version" \\{\\s+type\\s+= string\\s+default\\s+= "(?<currentValue>v[^"]+)"'],
+      depNameTemplate: 'kubernetes-sigs/gateway-api',
+      datasourceTemplate: 'github-releases',
+    },
   ],
   packageRules: [
     {

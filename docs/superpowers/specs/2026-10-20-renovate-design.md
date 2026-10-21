@@ -41,7 +41,7 @@ tokens that live one hour.
    starts with at least 30 minutes left. ESO mints a new token at every refresh; old ones expire on their own. Unlike
    `platform/global-secrets` (`CreatedOnce`), this ExternalSecret must never be created once only: the token would
    expire after an hour.
-3. **The App** (created by hand, documented): `homelab-renovate`, permissions Contents, Pull requests, Workflows,
+3. **The App** (created by hand, documented): `duongle-lab-renovate`, permissions Contents, Pull requests, Workflows,
    Issues (the Dependency Dashboard) read and write, Commit statuses and Checks read, Metadata read; no webhook;
    installed on "Only select repositories": `homelab`. Renovate's `autodiscover` lists exactly the installation's
    repositories; `autodiscoverFilter: ["duongle-steven/*"]` guards against an installation elsewhere. Adding a

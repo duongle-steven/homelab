@@ -65,7 +65,7 @@ func TestCISandboxLastPassed(t *testing.T) {
 			require.NoError(t, err, out)
 			assert.Equal(t, c.want, lastLine(out))
 			calls, _ := os.ReadFile(filepath.Join(dir, "calls"))
-			for _, want := range []string{"repos/example/homelab/actions/workflows/sandbox.yaml/runs", "branch=dev", "event=push", "status=success"} {
+			for _, want := range []string{"repos/example/homelab/actions/workflows/sandbox.yaml/runs", "branch=dev", "event=push", "status=success", "created=>="} {
 				assert.Contains(t, string(calls), want)
 			}
 		})
@@ -174,12 +174,14 @@ func TestMakeDevRevision(t *testing.T) {
 func TestMakeInfraProduction(t *testing.T) {
 	stubs := map[string]string{
 		"lab":        `echo "lab $*" >> "$FIXTURES/calls"; [ "$3" != verify ] || [ -z "$VERIFY_FAILS" ]`,
-		"terragrunt": `echo "terragrunt $(basename "$PWD") $*" >> "$FIXTURES/calls"`,
+		"terragrunt": `echo "terragrunt $(basename "$PWD") $*${HOMELAB_GITHUB_APP_KEY:+ key=$HOMELAB_GITHUB_APP_KEY}" >> "$FIXTURES/calls"`,
 		"go":         `exit 0`,
 	}
 	head, err := exec.Command("git", "rev-parse", "HEAD").Output()
 	require.NoError(t, err)
 	commit := "--commit " + strings.TrimSpace(string(head))
+	root, err := filepath.Abs("..")
+	require.NoError(t, err)
 	for _, c := range []struct {
 		name string
 		vars []string
@@ -197,6 +199,10 @@ func TestMakeInfraProduction(t *testing.T) {
 			"terragrunt production run --all apply --non-interactive -- -auto-approve",
 		}},
 		{"guards fail", nil, []string{"VERIFY_FAILS=1"}, []string{"lab infra forgejo verify " + commit}},
+		// A relative key path names a file where make runs, not in the unit's directory
+		{"relative key path", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=keys/app.pem"}, []string{
+			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/keys/app.pem",
+		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			dir, env := fakeBin(t, stubs)
