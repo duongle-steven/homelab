@@ -67,7 +67,7 @@ func baoValueE(path, property string) (string, error) {
 // permanentBaoError tells a read that cannot succeed later (the path exists without that property) from one that may
 // (not pushed yet, OpenBao restarting)
 func permanentBaoError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "not present in secret")
+	return err != nil && strings.Contains(err.Error(), "not present in map")
 }
 
 // TestForgejoDeploy runs lab infra forgejo sync twice and push, as make infra env=production does, against the
