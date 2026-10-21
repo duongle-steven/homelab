@@ -43,6 +43,35 @@ func TestCISandboxScope(t *testing.T) {
 	}
 }
 
+// A push to dev cancels the run of an older one (sandbox.yaml's concurrency): the next run's scope diffs against the
+// last push whose run succeeded, so a cancelled or failed run's changes are not lost behind a push that skips
+func TestCISandboxLastPassed(t *testing.T) {
+	for _, c := range []struct {
+		name, gh, want string
+		fails          bool
+	}{
+		{"a run passed", `echo '{"total_count":3,"workflow_runs":[{"head_sha":"2222222222222222222222222222222222222222"}]}'`, "2222222222222222222222222222222222222222", false},
+		{"none passed: the whole suite", `echo '{"total_count":0,"workflow_runs":[]}'`, "0000000000000000000000000000000000000000", false},
+		{"API error", `echo "HTTP 502" >&2; exit 1`, "", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			dir, env := fakeBin(t, map[string]string{"gh": `printf '%s ' "$@" >> "$FIXTURES/calls"
+` + c.gh})
+			out, err := runScript(t, append(env, "GITHUB_REPOSITORY=example/homelab"), "sandbox-last-passed")
+			if c.fails {
+				require.Error(t, err, out)
+				return
+			}
+			require.NoError(t, err, out)
+			assert.Equal(t, c.want, lastLine(out))
+			calls, _ := os.ReadFile(filepath.Join(dir, "calls"))
+			for _, want := range []string{"repos/example/homelab/actions/workflows/sandbox.yaml/runs", "branch=dev", "event=push", "status=success"} {
+				assert.Contains(t, string(calls), want)
+			}
+		})
+	}
+}
+
 func lastLine(s string) string {
 	for i := len(s) - 1; i >= 0; i-- {
 		if s[i] == '\n' {

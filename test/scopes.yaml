@@ -6,6 +6,7 @@ skip:
   - scripts/ci-check
   - scripts/lint
   - scripts/sandbox-scope
+  - scripts/sandbox-last-passed
   - docs/**
   - "**/*.md"
   - mkdocs.yml

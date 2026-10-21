@@ -61,7 +61,7 @@ random).
 
 | Workflow | Trigger | Runs |
 |---|---|---|
-| `sandbox` | A push to `dev` (a merge) | The whole suite, unless every change since the previous push is skipped (`scripts/sandbox-scope`, `test/scopes.yaml`) |
+| `sandbox` | A push to `dev` (a merge) | The whole suite, unless every change since the last push whose run passed is skipped (`scripts/sandbox-last-passed`, `scripts/sandbox-scope`, `test/scopes.yaml`); a newer push cancels the run |
 | `sandbox` | `workflow_dispatch` (Actions tab, or `gh workflow run sandbox.yaml --ref <branch>`) | `scope` `full` or `auto`, or exactly `tests`; `revision` picks another commit |
 | `sandbox-release` | A pull request into `master` (a release): opened, reopened or a new commit | The whole suite; its check `sandbox` is required by the ruleset `protect-master-sandbox` |
 | `sandbox-retarget` | A pull request retargeted to `master` (its base changed) | The whole suite, reported as the check `sandbox` through the checks API |
