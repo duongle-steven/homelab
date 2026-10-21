@@ -38,9 +38,23 @@ func TestRenovateGitHubApp(t *testing.T) {
 		renderRenovate(t, pod+` | .initContainers[] | select(.name == "github-token") | .env[] | select(.name == "PERMISSIONS") | .value | from_json | to_entries | sort_by(.key) | from_entries | to_json(0)`))
 	assert.Equal(t, renderRenovate(t, pod+` | .containers[0].image`), renderRenovate(t, pod+` | .initContainers[] | select(.name == "github-token") | .image`),
 		"the initContainer runs Renovate's own image")
+	// No container but the initContainer names the key's Secret: not through a volume, env or envFrom
+	assert.Equal(t, "github-token", renderRenovate(t, pod+` | [.initContainers[], .containers[]] | map(select(
+		([.volumeMounts[]?.name] | any_c(. == "`+keyVolume+`")) or (to_yaml | test("renovate-github-app")))) | map(.name) | join(",")`))
+	// The token is revoked on every exit: an EXIT trap set before renovate runs (set -e would skip a revoke after it)
 	args := renderRenovate(t, pod+` | .containers[0].args[0]`)
-	assert.Contains(t, args, "trap")
-	assert.Contains(t, args, "github-token.js revoke")
+	assert.Regexp(t, `(?s)trap '[^']*github-token\.js revoke[^']*' EXIT\n.*\nrenovate\s*$`, args)
+
+	// A failed run is retried once (the token script retries GitHub's passing trouble), and a run ends before its one-hour token does
+	assert.Equal(t, "1", renderRenovate(t, `select(.kind == "CronJob") | .spec.jobTemplate.spec.backoffLimit`))
+	assert.Equal(t, "3300", renderRenovate(t, `select(.kind == "CronJob") | .spec.jobTemplate.spec.activeDeadlineSeconds`))
+	// The image's user and group (the key's defaultMode 0440 needs gid 0), no privileges
+	assert.Equal(t, `{"runAsGroup":0,"runAsNonRoot":true,"runAsUser":12021,"seccompProfile":{"type":"RuntimeDefault"}}`,
+		renderRenovate(t, pod+` | .securityContext | to_entries | sort_by(.key) | from_entries | to_json(0)`))
+	for _, container := range []string{".initContainers[0]", ".containers[0]"} {
+		assert.Equal(t, `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}`,
+			renderRenovate(t, pod+` | `+container+` | .securityContext | to_entries | sort_by(.key) | from_entries | to_json(0)`), container)
+	}
 	all := renderRenovate(t, `.`)
 	assert.NotContains(t, all, "GithubAccessToken")
 	assert.NotContains(t, all, "forgejo")

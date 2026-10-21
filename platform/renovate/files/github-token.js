@@ -2,7 +2,9 @@
 //   mint    (the CronJob's initContainer): signs a JWT with the App's key (KEY_FILE), asks GitHub for an installation
 //           token with only PERMISSIONS (JSON) and writes it to TOKEN_FILE
 //   revoke  (the Renovate container, when the run ends): revokes the token in TOKEN_FILE
-// Prints neither the key, the JWT nor the token; GitHub's refusal fails with its status and message.
+// Prints neither the key, the JWT nor the token. Passing trouble (the network, GitHub's 5xx or 429) is retried three
+// times (after 10, 30 and 90 seconds; RETRY_DELAYS in milliseconds for the tests); a refusal (4xx: the key, the App
+// or a permission is wrong) fails at once with GitHub's status and message.
 'use strict';
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -41,10 +43,27 @@ async function request(method, path, token, body) {
   return { status: response.status, json };
 }
 
+const delays = (process.env.RETRY_DELAYS || '10000,30000,90000').split(',').map(Number);
+
 async function mint() {
   const permissions = JSON.parse(env('PERMISSIONS'));
-  const token = jwt(env('APP_ID'), fs.readFileSync(env('KEY_FILE')));
-  const { status, json } = await request('POST', `/app/installations/${env('INSTALLATION_ID')}/access_tokens`, token, { permissions });
+  const key = fs.readFileSync(env('KEY_FILE'));
+  let status;
+  let json;
+  for (let attempt = 0; ; attempt++) {
+    let trouble;
+    try {
+      // A new JWT for every attempt: the last one may come minutes after the first
+      ({ status, json } = await request('POST', `/app/installations/${env('INSTALLATION_ID')}/access_tokens`, jwt(env('APP_ID'), key), { permissions }));
+      if (status === 201 || (status < 500 && status !== 429)) break;
+      trouble = `${status} ${json.message ?? ''}`.trim();
+    } catch (error) {
+      trouble = error.message;
+    }
+    if (attempt === delays.length) throw new Error(`GitHub did not mint the installation token: ${trouble}`);
+    console.error(`GitHub did not mint the installation token (${trouble}): retrying in ${delays[attempt] / 1000} s`);
+    await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+  }
   if (status !== 201 || typeof json.token !== 'string') {
     throw new Error(`GitHub refused the installation token: ${status} ${json.message ?? ''}`.trim());
   }

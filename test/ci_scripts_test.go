@@ -203,6 +203,15 @@ func TestMakeInfraProduction(t *testing.T) {
 		{"relative key path", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=keys/app.pem"}, []string{
 			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/keys/app.pem",
 		}},
+		{"relative key path on the command line", []string{"force=1", "HOMELAB_GITHUB_APP_KEY=keys/app.pem"}, nil, []string{
+			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/keys/app.pem",
+		}},
+		{"quoted ~/ key path", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=~/keys/app.pem", "HOME=/home/someone"}, []string{
+			"terragrunt production run --all apply --non-interactive -- -auto-approve key=/home/someone/keys/app.pem",
+		}},
+		{"key path with a space", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=my keys/app.pem"}, []string{
+			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/my keys/app.pem",
+		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			dir, env := fakeBin(t, stubs)

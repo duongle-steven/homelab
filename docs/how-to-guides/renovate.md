@@ -5,8 +5,11 @@ GitHub as the GitHub App `duongle-lab-renovate`. Its pull requests run `checks` 
 The App's private key goes through OpenTofu into OpenBao and External Secrets into the Secret `renovate-github-app`.
 Each run mints its own installation token: the CronJob's initContainer `github-token` (the only container that mounts
 the key; `platform/renovate/files/github-token.js`) signs a JWT and asks GitHub for a token with Renovate's
-permissions, the Renovate container reads it from memory and revokes it when the run ends, failed or not. A refused
-token fails the Job with GitHub's status and message (`kubectl -n renovate logs job/<job> -c github-token`).
+permissions, the Renovate container reads it from memory and revokes it when the run ends, failed or not. Passing
+trouble (the network, GitHub's 5xx or 429) is retried three times; a refused token (a wrong key, App ID or permission)
+fails the Job at once with GitHub's status and message (`kubectl -n renovate logs job/<job> -c github-token`). A
+failed run is retried once, a run stops after 55 minutes (its token lives an hour), and a failed Job reaches ntfy
+(`KubeJobFailed`). The pod runs as the image's user (uid 12021, gid 0) without privileges or a service account token.
 
 ## Create the App (once)
 
@@ -29,7 +32,7 @@ App ID, installation ID and bot id are not secrets: they live in `platform/renov
 HOMELAB_GITHUB_APP_KEY=~/Downloads/<app-name>.<date>.private-key.pem make infra env=production
 ```
 
-A relative path is resolved where `make` runs. OpenTofu keeps the key in its encrypted state (`infra/production/secrets`);
+The path may come before `make` or after it, relative (to where `make` runs), absolute or `~/`, spaces included. OpenTofu keeps the key in its encrypted state (`infra/production/secrets`);
 later runs need no file, so delete it.
 If the unit was applied before the key existed, apply once with the key and
 `-replace=module.github_app_key.terraform_data.kept` in `infra/production/secrets`

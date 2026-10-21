@@ -30,6 +30,8 @@ type fakeGitHub struct {
 	t           *testing.T
 	key         *rsa.PublicKey
 	status      int
+	failFirst   []int // statuses answered before status, one per attempt
+	attempts    int
 	permissions map[string]string
 	revoked     []string
 	jwt         string
@@ -38,6 +40,12 @@ type fakeGitHub struct {
 func (f *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodPost && r.URL.Path == "/app/installations/173635875/access_tokens":
+		f.attempts++
+		if f.attempts <= len(f.failFirst) {
+			w.WriteHeader(f.failFirst[f.attempts-1])
+			_, _ = io.WriteString(w, `{"message":"try again"}`)
+			return
+		}
 		f.jwt = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		parts := strings.Split(f.jwt, ".")
 		if !assert.Len(f.t, parts, 3) {
@@ -93,6 +101,7 @@ func runTokenScript(t *testing.T, api, dir string, args ...string) (string, erro
 		"GITHUB_API="+api,
 		"KEY_FILE="+filepath.Join(dir, "private-key"),
 		"TOKEN_FILE="+filepath.Join(dir, "token"),
+		"RETRY_DELAYS=10,10,10", // milliseconds: the script's own are 10, 30 and 90 seconds
 	)
 	for _, name := range []string{"APP_ID", "INSTALLATION_ID", "PERMISSIONS"} {
 		cmd.Env = append(cmd.Env, name+"="+renderRenovate(t,
@@ -142,8 +151,34 @@ func TestRenovateTokenScript(t *testing.T) {
 		}
 	})
 
-	t.Run("refused", func(t *testing.T) {
+	// GitHub's or the network's passing trouble is retried, three times at most
+	t.Run("retried", func(t *testing.T) {
 		require.NoError(t, os.Remove(filepath.Join(dir, "token")))
+		github := &fakeGitHub{t: t, key: &key.PublicKey, status: http.StatusCreated,
+			failFirst: []int{http.StatusServiceUnavailable, http.StatusTooManyRequests}}
+		server := httptest.NewServer(github)
+		defer server.Close()
+		out, err := runTokenScript(t, server.URL, dir, "mint")
+		require.NoError(t, err, out)
+		assert.Equal(t, 3, github.attempts)
+		assert.FileExists(t, filepath.Join(dir, "token"))
+	})
+
+	t.Run("still failing", func(t *testing.T) {
+		require.NoError(t, os.Remove(filepath.Join(dir, "token")))
+		github := &fakeGitHub{t: t, key: &key.PublicKey, status: http.StatusCreated,
+			failFirst: []int{http.StatusBadGateway, http.StatusBadGateway, http.StatusBadGateway, http.StatusBadGateway}}
+		server := httptest.NewServer(github)
+		defer server.Close()
+		out, err := runTokenScript(t, server.URL, dir, "mint")
+		require.Error(t, err, out)
+		assert.Equal(t, 4, github.attempts, "one attempt and three retries")
+		assert.Contains(t, out, "502")
+		assert.NoFileExists(t, filepath.Join(dir, "token"))
+	})
+
+	// A wrong key, App or permission does not get better: no retry
+	t.Run("refused", func(t *testing.T) {
 		github := &fakeGitHub{t: t, key: &key.PublicKey, status: http.StatusUnprocessableEntity}
 		server := httptest.NewServer(github)
 		defer server.Close()
@@ -151,6 +186,7 @@ func TestRenovateTokenScript(t *testing.T) {
 		require.Error(t, err, out)
 		assert.Contains(t, out, "422")
 		assert.Contains(t, out, "not granted")
+		assert.Equal(t, 1, github.attempts)
 		assert.NoFileExists(t, filepath.Join(dir, "token"))
 	})
 
