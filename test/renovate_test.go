@@ -43,3 +43,13 @@ func TestRenovateNotInTheSandbox(t *testing.T) {
 	require.NoError(t, err, string(out))
 	assert.NotContains(t, string(out), "platform/renovate")
 }
+
+// ESO's controller mints the token (GithubAccessToken calls api.github.com from namespace external-secrets), so that
+// namespace reaches GitHub, not only Renovate's
+func TestRenovateTokenEgress(t *testing.T) {
+	cmd := exec.Command("yq", `.internet."external-secrets"[].port`, "system/egress/values.yaml")
+	cmd.Dir = ".."
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Contains(t, strings.Fields(string(out)), "443")
+}
