@@ -1,0 +1,14 @@
+{{- range concat .Values.secrets .Values.extraSecrets }}
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  length: {{ .length | default 32 }}
+  digits: 6
+  symbols: {{ if .special }}6{{ else }}0{{ end }}
+  allowRepeat: true
+  noUpper: false
+{{- end }}

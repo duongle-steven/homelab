@@ -17,7 +17,7 @@ func TestCISandboxScope(t *testing.T) {
 	const before = "1111111111111111111111111111111111111111"
 	for _, c := range []struct {
 		name, lab, before, want string
-		fails                    bool
+		fails                   bool
 	}{
 		{"changes to test", `[ "$5" = --alone ] && echo NodeRestart || echo Smoke`, before, "scope=full", false},
 		{"every change skipped", `echo`, before, "", false},
@@ -90,7 +90,7 @@ func TestArgoCDChooseValues(t *testing.T) {
 	const forgejoValues = `{"values":"values-dev.yaml","environment":"dev"}`
 	for _, c := range []struct {
 		name, seed, rootRepo, token, master, want string
-		kubectlFails, execFails, fails           bool
+		kubectlFails, execFails, fails            bool
 	}{
 		{name: "sandbox: no seed", want: forgejoValues, kubectlFails: true},
 		{name: "first install, no credential yet", seed: "values-seed.yaml", want: seedValues},

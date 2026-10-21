@@ -1,7 +1,8 @@
-# Random secrets generated once per cluster (Password generators, Secrets in this namespace) and pushed once to each
-# reader's branch of OpenBao, secret/<namespace>/generated/<name>, the only paths the writer reaches
-# (templates/push-secrets.yaml); readers use their namespace's SecretStore openbao.
-# Never rotated automatically; see docs/concepts/secrets-management.md.
+# Random secrets generated for this cluster and written straight into OpenBao, once per destination
+# (secret/<namespace>/generated/<name>, the only paths the writer reaches): a Password generator and a PushSecret
+# each (templates/), no Secret in this namespace. Readers use their namespace's SecretStore openbao. A value two
+# namespaces need is two destinations of one entry, written by the same push; a destination added later gets the
+# existing value by hand first (docs/concepts/secrets-management.md). Never rotated automatically.
 secrets:
   - name: forgejo.admin
     key: password

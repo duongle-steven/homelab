@@ -4,7 +4,7 @@
 # changed since $BASE (default origin/dev; lab test charts).
 set -eu
 cd "$(git rev-parse --show-toplevel)"
-offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestIstioCNIWatchdog|TestState|TestArgoCD(Revision|RootPreservesResources)|TestCISandboxScope|TestCISandboxLastPassed|TestArgoCDServiceMonitors|TestArgoCDChooseValues|TestMakeDevRevision|TestMakeInfraProduction|TestGlobalSecretsCreatedOnce|TestKeptValue|TestRenovate'
+offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestIstioCNIWatchdog|TestState|TestArgoCD(Revision|RootPreservesResources)|TestCISandboxScope|TestCISandboxLastPassed|TestArgoCDServiceMonitors|TestArgoCDChooseValues|TestMakeDevRevision|TestMakeInfraProduction|TestGeneratedSecrets|TestKeptValue|TestRenovate'
 checks='render go cli infra docs mesh env-config secret-stores lint'
 
 check() {
@@ -17,7 +17,8 @@ check() {
 				scripts/render-chart "$t" dev >/dev/null
 			done ;;
 		# -count=1: the offline tests run scripts and make, whose files go test's cache does not see
-		go) (cd test && go vet ./... && go test -count=1 -run "$offline_tests" ./...) ;;
+		go) (cd test && unformatted=$(gofmt -l .) && { [ -z "$unformatted" ] || { echo "gofmt: $unformatted" >&2; exit 1; }; } &&
+			go vet ./... && go test -count=1 -run "$offline_tests" ./...) ;;
 		cli) make -C cli test check ;;
 		infra) env -u HOMELAB_STATE_PASSPHRASE make -C infra check ;;
 		docs) mkdocs build --strict ;;

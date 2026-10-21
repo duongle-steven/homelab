@@ -8,7 +8,8 @@ Cloudflare Tunnel. Nothing is readable or writable without a user: `phone` reads
 1. Install ntfy ([Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy) or
    [iOS](https://apps.apple.com/app/ntfy/id1625396347)).
 2. Settings → Users → add server `https://ntfy.<domain>`, user `phone`, password:
-   `kubectl -n global-secrets get secret ntfy.phone-password -o jsonpath='{.data.password}' | base64 -d`
+   `secret/ntfy/generated/phone-password`, property `password`, read from OpenBao with
+   [the admin role](../concepts/secrets-management.md#reading-a-generated-value)
 3. Subscribe to topic `alerts` on that server.
 
 iOS gets instant notifications through ntfy.sh, which only receives a poll request (a hash of the topic), never the

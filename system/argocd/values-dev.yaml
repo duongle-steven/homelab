@@ -33,7 +33,7 @@ argocd-apps:
                     - path: system/loki
                     - path: platform/external-secrets
                     - path: platform/openbao
-                    - path: platform/global-secrets
+                    - path: platform/generated-secrets
                     - path: platform/infra-secrets
                     - path: platform/kanidm
                     - path: platform/grafana
