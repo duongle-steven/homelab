@@ -124,8 +124,18 @@ writes in its namespace.
 ### Adding a destination
 
 A destination added to an existing entry would get a new value (the push writes a missing destination with what it
-generates). Copy the existing value there first with the admin role (`bao kv get` the old destination, `bao kv put`
-the new one), then add it to `values.yaml`: the push finds it and leaves it.
+generates). Copy the existing value there first, inside OpenBao's pod so it never reaches your terminal, and mark the
+copy as External Secrets' (it refuses to write a path without that mark later); then add the destination to
+`values.yaml`: the push finds it and leaves it. For `ntfy.alerts-token` gaining `<namespace>/generated/ntfy`:
+
+```sh
+kubectl -n openbao create token openbao-admin --audience=openbao --duration=10m |
+  kubectl -n openbao exec -i openbao-0 -c openbao -- \
+    sh -c 'export BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=admin jwt=-) &&
+      bao kv get -field=token secret/ntfy/generated/alerts-token | bao kv put secret/<namespace>/generated/ntfy token=- &&
+      bao kv metadata put -custom-metadata=managed-by=external-secrets secret/<namespace>/generated/ntfy;
+      bao token revoke -self >/dev/null'
+```
 
 ### Rotating
 

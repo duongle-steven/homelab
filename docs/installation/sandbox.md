@@ -23,6 +23,11 @@ make dev
 
     The first build takes about 25 minutes. Running `make dev` again on an existing sandbox takes about a minute.
 
+!!! warning
+
+    A sandbox built before step 8e (namespace `global-secrets`) needs `make dev-fresh` once: its OpenBao configured
+    itself on first start with role `writer` bound to `global-secrets`, so `generated-secrets` cannot push to it.
+
 ## Explore
 
 `make` uses the sandbox kubeconfig automatically. For `kubectl` in your own shell, point it at the same file first:

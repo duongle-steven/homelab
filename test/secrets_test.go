@@ -63,15 +63,21 @@ func waitForUnsealed(t *testing.T) {
 	}, 30*time.Minute, 10*time.Second, "OpenBao is not initialised and unsealed")
 }
 
-// generatedValue is a generated secret as every app reads it, from OpenBao (secret/<path>, admin role), once pushed
+// generatedValue is a generated secret as every app reads it, from OpenBao (secret/<path>, admin role), once pushed:
+// it waits up to 20 minutes for the push, and fails at once on a property the path does not hold
 func generatedValue(t *testing.T, path, property string) string {
 	t.Helper()
-	var value string
-	require.Eventually(t, func() bool {
-		value = baoValueE(path, property)
-		return value != ""
-	}, 20*time.Minute, 15*time.Second, "secret/%s is not pushed", path)
-	return value
+	deadline := time.Now().Add(20 * time.Minute)
+	for {
+		value, err := baoValueE(path, property)
+		if err == nil && value != "" {
+			return value
+		}
+		if permanentBaoError(err) || time.Now().After(deadline) {
+			require.FailNowf(t, "generated value not readable", "secret/%s#%s: %v", path, property, err)
+		}
+		time.Sleep(15 * time.Second)
+	}
 }
 
 // grafanaAdmin reads Grafana's admin password from its branch, as Grafana's namespace, once generated-secrets has
@@ -266,13 +272,21 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 	assert.Equal(t, hash("ntfy/generated/alerts-token", "token"), hash("monitoring-system/generated/ntfy", "token"))
 
 	before := hash("grafana/generated/admin", "password")
+	// forceSync returns once the PushSecret has synced since the annotation (its syncedResourceVersion follows the
+	// annotations), so a comparison after it saw a push
 	forceSync := func(name string) {
+		synced := func() string {
+			out, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "pushsecret", name, "-o", "jsonpath={.status.syncedResourceVersion}")
+			require.NoError(t, err)
+			return out
+		}
+		previous := synced()
 		_, err := k8s.RunKubectlAndGetOutputE(t, options, "annotate", "pushsecret", name, fmt.Sprintf("force-sync=%d", time.Now().UnixNano()), "--overwrite")
 		require.NoError(t, err)
+		require.Eventually(t, func() bool { return synced() != previous }, 2*time.Minute, 2*time.Second, "PushSecret %s did not sync", name)
 	}
 	for range 2 {
 		forceSync("grafana.admin")
-		time.Sleep(20 * time.Second)
 		assert.Equal(t, before, hash("grafana/generated/admin", "password"), "a push replaced an existing value")
 	}
 
@@ -282,4 +296,18 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 	admin(t, "kv", "metadata", "delete", "secret/woodpecker/generated/agent")
 	forceSync("woodpecker.agent")
 	assert.NotEqual(t, probe, hash("woodpecker/generated/agent", "secret"), "the deleted destination was not written again")
+}
+
+// A path or property that cannot appear fails at once with OpenBao's message, not after generatedValue's 20 minutes
+func TestSecretsGeneratedValueErrors(t *testing.T) {
+	secretsSandboxOnly(t)
+	waitForUnsealed(t)
+	generatedValue(t, "grafana/generated/admin", "password") // pushed by now
+	_, err := baoValueE("grafana/generated/admin", "no-such-property")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no-such-property")
+	assert.True(t, permanentBaoError(err), "a missing property is not passing trouble: %v", err)
+	_, err = baoValueE("grafana/generated/no-such-entry", "password")
+	require.Error(t, err)
+	assert.False(t, permanentBaoError(err), "a path not pushed yet may still come: %v", err)
 }

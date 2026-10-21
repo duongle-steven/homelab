@@ -41,11 +41,5 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 14a | `scope.SplitTerms` ignores escaped parentheses and an alternation sign inside a character class; no term uses them yet | any |
 | dev shell cleanup | `metal/roles/pxe_server/templates/dnsmasq.conf.j2` uses `ansible.netcommon.ipmath`, which nixpkgs' Ansible does not ship (it moved to `ansible.utils`): `metal/` fails before and after the cleanup | 12 (replaces `metal/`) |
 | dev shell cleanup | `.woodpecker/static-checks.yaml` still runs the removed `TestToolsVersions` and pre-commit | 10c (Woodpecker) |
-| 8e | `TestSecretsGeneratedOnlyInOpenBao`'s "unchanged after force-sync" waits a fixed 20 s instead of for the PushSecret's next sync (`status.syncedResourceVersion`/`refreshTime`) | any |
-| 8e | `baoValueE` returns "" on any error: a wrong path or property waits 20 minutes in `generatedValue` and reports "not pushed"; the in-pod script's status is `bao token revoke`'s | any |
-| 8e | "Adding a destination": a path written with `bao kv put` lacks `managed-by: external-secrets`, so ESO refuses a later write there; give one in-pod pipe plus `bao kv metadata put -custom-metadata=managed-by=external-secrets` | any |
-| 8e | `scripts/check-secret-stores`' `generators_only` branch and its docstring line are dead code (no generator-only ExternalSecret is left) | any |
-| 8e | "A sandbox built before 8e needs `make dev-fresh` once" is only in CLAUDE.md's roadmap, not in its Sandbox section or `docs/installation/sandbox.md` | any |
 | 8e | `make dev-fresh` on the workstation hits the main run's 60-minute `go test` timeout (the first sync's waits count inside the tests) | any |
 | 8e | Browser SSO tests flake on Kanidm's login page (OpenCloud, Grafana, paperless: "login page never loaded", `chrome-error`); a rerun passes | any |
-| 8e | `test/*.go` is not `gofmt`-checked by `scripts/ci-check` (`test/ci_scripts_test.go` is misaligned on `dev`) | any |

@@ -43,21 +43,31 @@ func forgejoGit(t *testing.T, dir, user, secret string, args ...string) (string,
 
 func baoValue(t *testing.T, path, property string) string {
 	t.Helper()
-	value := baoValueE(path, property)
+	value, err := baoValueE(path, property)
+	require.NoError(t, err)
 	require.NotEmpty(t, value, "secret/%s#%s", path, property)
 	return value
 }
 
-// baoValueE reads OpenBao the documented way: an admin login inside OpenBao's pod, the token never printed; empty on
-// any error
-func baoValueE(path, property string) string {
+// baoValueE reads OpenBao the documented way: an admin login inside OpenBao's pod, the token never printed. Its error
+// carries OpenBao's message (never a value): the in-pod script exits with bao kv get's status, revoking the token
+// either way
+func baoValueE(path, property string) (string, error) {
 	script := "kubectl -n openbao create token openbao-admin --audience=openbao --duration=10m | kubectl -n openbao exec -i openbao-0 -c openbao -- " +
-		"sh -c 'export BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=admin jwt=-); bao kv get -field=" + property + " secret/" + path + "; bao token revoke -self >/dev/null'"
-	out, err := exec.Command("sh", "-c", script).Output()
-	if err != nil {
-		return ""
+		"sh -c 'export BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=admin jwt=-) && bao kv get -field=" + property + " secret/" + path + "; s=$?; bao token revoke -self >/dev/null 2>&1; exit $s'"
+	var stdout, stderr strings.Builder
+	cmd := exec.Command("sh", "-c", script)
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("secret/%s#%s: %w: %s", path, property, err, strings.TrimSpace(stderr.String()))
 	}
-	return strings.TrimSpace(string(out))
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+// permanentBaoError tells a read that cannot succeed later (the path exists without that property) from one that may
+// (not pushed yet, OpenBao restarting)
+func permanentBaoError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "not present in secret")
 }
 
 // TestForgejoDeploy runs lab infra forgejo sync twice and push, as make infra env=production does, against the
