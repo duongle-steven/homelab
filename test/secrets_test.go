@@ -250,6 +250,18 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 		sum := sha256.Sum256([]byte(generatedValue(t, path, property)))
 		return hex.EncodeToString(sum[:])
 	}
+	// Every destination of every entry holds a value under the entry's key (values.yaml and the sandbox's extras)
+	for _, file := range []string{"values.yaml", "values-dev.yaml"} {
+		out, err := exec.Command("yq", "-o=json", "-I=0", "(.secrets // []) + (.extraSecrets // [])", "../platform/generated-secrets/"+file).Output()
+		require.NoError(t, err, file)
+		var entries []generatedEntry
+		require.NoError(t, json.Unmarshal(out, &entries), file)
+		for _, e := range entries {
+			for _, destination := range e.Destinations {
+				assert.NotEmpty(t, hash(destination, e.Key), "%s: %s#%s", e.Name, destination, e.Key)
+			}
+		}
+	}
 	// Both destinations of one entry: the same push wrote them
 	assert.Equal(t, hash("ntfy/generated/alerts-token", "token"), hash("monitoring-system/generated/ntfy", "token"))
 
@@ -264,7 +276,8 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 		assert.Equal(t, before, hash("grafana/generated/admin", "password"), "a push replaced an existing value")
 	}
 
-	// A rotation: the destination deleted, the next push writes a new value
+	// A rotation: the destination deleted, the next push writes a new value. The probe must be an entry no sandbox
+	// component reads (Woodpecker is production only): its reader would keep the old value
 	probe := hash("woodpecker/generated/agent", "secret")
 	admin(t, "kv", "metadata", "delete", "secret/woodpecker/generated/agent")
 	forceSync("woodpecker.agent")

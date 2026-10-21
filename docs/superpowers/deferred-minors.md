@@ -19,7 +19,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | #31 (7b) | woodpecker's and zot's config changes do not roll their pods | 10 (Git and CI) |
 | #31 (7b) | `scripts/check-env-config`'s untemplated-global check knows only four keys | any |
 | #32 (7c) | `.direnv/` and `site/` are not git-ignored | any |
-| #34 (8a) | Two destinations of one generated secret can drift if one is lost after its source Secret was regenerated (`Replace` would overwrite restored values) | 11 (backups) |
+| #34 (8a) | Two destinations of one generated secret drift if only one is lost (a partial restore): the push gives the lost one a new value (8e removed the copy that regenerated; restore both, or copy the survivor's value first) | 11 (backups) |
 | #34 (8a) | `TestSecretsAudience` matches the plugin's "invalid audience" message | any |
 | 8b | `infra/_modules/secrets/wait-namespace.sh` names OpenBao and `platform/openbao` (copied) instead of `infra-secrets` | any |
 | 8b | `apply-secrets.sh`'s kubectl errors are hidden (OpenTofu suppresses output when `MANIFEST` is sensitive) | any |
@@ -41,3 +41,11 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 14a | `scope.SplitTerms` ignores escaped parentheses and an alternation sign inside a character class; no term uses them yet | any |
 | dev shell cleanup | `metal/roles/pxe_server/templates/dnsmasq.conf.j2` uses `ansible.netcommon.ipmath`, which nixpkgs' Ansible does not ship (it moved to `ansible.utils`): `metal/` fails before and after the cleanup | 12 (replaces `metal/`) |
 | dev shell cleanup | `.woodpecker/static-checks.yaml` still runs the removed `TestToolsVersions` and pre-commit | 10c (Woodpecker) |
+| 8e | `TestSecretsGeneratedOnlyInOpenBao`'s "unchanged after force-sync" waits a fixed 20 s instead of for the PushSecret's next sync (`status.syncedResourceVersion`/`refreshTime`) | any |
+| 8e | `baoValueE` returns "" on any error: a wrong path or property waits 20 minutes in `generatedValue` and reports "not pushed"; the in-pod script's status is `bao token revoke`'s | any |
+| 8e | "Adding a destination": a path written with `bao kv put` lacks `managed-by: external-secrets`, so ESO refuses a later write there; give one in-pod pipe plus `bao kv metadata put -custom-metadata=managed-by=external-secrets` | any |
+| 8e | `scripts/check-secret-stores`' `generators_only` branch and its docstring line are dead code (no generator-only ExternalSecret is left) | any |
+| 8e | "A sandbox built before 8e needs `make dev-fresh` once" is only in CLAUDE.md's roadmap, not in its Sandbox section or `docs/installation/sandbox.md` | any |
+| 8e | `make dev-fresh` on the workstation hits the main run's 60-minute `go test` timeout (the first sync's waits count inside the tests) | any |
+| 8e | Browser SSO tests flake on Kanidm's login page (OpenCloud, Grafana, paperless: "login page never loaded", `chrome-error`); a rerun passes | any |
+| 8e | `test/*.go` is not `gofmt`-checked by `scripts/ci-check` (`test/ci_scripts_test.go` is misaligned on `dev`) | any |

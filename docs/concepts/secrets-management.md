@@ -133,10 +133,20 @@ They are never rotated automatically: both sides of a client secret would have t
 passwords are stored in the app's database on first start (roadmap step 11b automates what can be). To rotate one
 by hand:
 
-1. With the admin role: `bao kv metadata delete secret/<namespace>/generated/<name>` for every destination of the
-   entry (all of them, so the next push writes one new value to each).
+1. Delete every destination of the entry **in one command**, so no push runs between the deletions (a push between
+   them would write a value to the first and, later, a different one to the second). For `ntfy.alerts-token`:
+
+    ```sh
+    kubectl -n openbao create token openbao-admin --audience=openbao --duration=10m |
+      kubectl -n openbao exec -i openbao-0 -c openbao -- \
+        sh -c 'export BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=admin jwt=-) &&
+          bao kv metadata delete secret/ntfy/generated/alerts-token &&
+          bao kv metadata delete secret/monitoring-system/generated/ntfy; bao token revoke -self >/dev/null'
+    ```
+
 2. `kubectl -n generated-secrets annotate pushsecret <name> force-sync=$(date +%s) --overwrite` pushes it at once
-   (otherwise within an hour).
+   (otherwise within an hour). For an entry with several destinations, check that they hold the same value
+   afterwards (compare `bao kv get -field=<key> ... | sha256sum` of each, never the values on screen).
 3. Refresh the ExternalSecrets that read it in each destination's namespace, which otherwise keep the old value for
    up to an hour (for example `kubectl -n zot annotate externalsecret zot-auth force-sync=$(date +%s) --overwrite`),
    then restart every app that uses it (for example `kubectl -n zot rollout restart statefulset/zot`).
