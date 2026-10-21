@@ -1,7 +1,10 @@
 package test
 
 import (
+	"encoding/json"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -23,7 +26,6 @@ func renderRenovate(t *testing.T, expr string) string {
 func TestRenovateGitHubApp(t *testing.T) {
 	assert.Equal(t, `{"checks":"read","contents":"write","issues":"write","pull_requests":"write","statuses":"read","workflows":"write"}`,
 		renderRenovate(t, `select(.kind == "GithubAccessToken") | .spec.permissions | to_entries | sort_by(.key) | from_entries | to_json(0)`))
-	assert.Equal(t, `["homelab"]`, renderRenovate(t, `select(.kind == "GithubAccessToken") | .spec.repositories | to_json(0)`))
 	token := `select(.kind == "ExternalSecret" and .spec.target.name == "renovate-secret")`
 	assert.Equal(t, "30m", renderRenovate(t, token+` | .spec.refreshInterval`))
 	assert.Contains(t, []string{"Periodic", "null"}, renderRenovate(t, token+` | .spec.refreshPolicy`))
@@ -52,4 +54,78 @@ func TestRenovateTokenEgress(t *testing.T) {
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 	assert.Contains(t, strings.Fields(string(out)), "443")
+}
+
+// Review findings: the token covers every repository the App is installed on (adding one is a change on GitHub
+// only), Renovate's image follows its chart (no frozen tag override), and Renovate reads its schedules in the
+// environment's time zone, so lockFileMaintenance's "before 5am on monday" matches the 05:00 run
+func TestRenovateConfig(t *testing.T) {
+	assert.Equal(t, "null", renderRenovate(t, `select(.kind == "GithubAccessToken") | .spec.repositories`))
+	values, err := exec.Command("yq", ".renovate.image", "../platform/renovate/values.yaml").CombinedOutput()
+	require.NoError(t, err, string(values))
+	assert.Equal(t, "null", strings.TrimSpace(string(values)), "an image override freezes Renovate's image when its chart moves")
+
+	global := map[string]any{}
+	require.NoError(t, json.Unmarshal([]byte(renderRenovate(t, `select(.kind == "ConfigMap" and .metadata.name == "renovate-config") | .data["config.json"]`)), &global))
+	timezone, err := exec.Command("jq", "-r", ".timezone", "../infra/production/cluster/config.json").CombinedOutput()
+	require.NoError(t, err, string(timezone))
+	assert.Equal(t, strings.TrimSpace(string(timezone)), global["timezone"], "Renovate's schedules run in UTC otherwise")
+	assert.Equal(t, strings.TrimSpace(string(timezone)), renderRenovate(t, `select(.kind == "CronJob") | .spec.timeZone`))
+}
+
+// Renovate finds what this repository pins: every app file's images (but our own registry's), the app-template chart in each of the root
+// values files, and the flake's inputs (renovate --platform=local, extraction only: no network, no token)
+func TestRenovateManagers(t *testing.T) {
+	report := filepath.Join(t.TempDir(), "extract.json")
+	cmd := exec.Command("renovate", "--report-type=file", "--report-path="+report)
+	cmd.Dir = ".."
+	cmd.Env = append(os.Environ(), "LOG_LEVEL=warn", "RENOVATE_PLATFORM=local", "RENOVATE_DRY_RUN=extract",
+		"RENOVATE_ONBOARDING=false", "RENOVATE_REQUIRE_CONFIG=optional")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	raw, err := os.ReadFile(report)
+	require.NoError(t, err)
+	var extract struct {
+		Repositories map[string]struct {
+			PackageFiles map[string][]struct {
+				PackageFile string `json:"packageFile"`
+				Deps        []struct {
+					DepName      string `json:"depName"`
+					CurrentValue string `json:"currentValue"`
+				} `json:"deps"`
+			} `json:"packageFiles"`
+		} `json:"repositories"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &extract))
+	deps := map[string]map[string]string{} // package file → dependency → version
+	managers := map[string]bool{}
+	for _, repo := range extract.Repositories {
+		for manager, files := range repo.PackageFiles {
+			managers[manager] = true
+			for _, f := range files {
+				if deps[f.PackageFile] == nil {
+					deps[f.PackageFile] = map[string]string{}
+				}
+				for _, d := range f.Deps {
+					deps[f.PackageFile][d.DepName] = d.CurrentValue
+				}
+			}
+		}
+	}
+
+	apps, err := filepath.Glob("../apps/*.yaml")
+	require.NoError(t, err)
+	for _, app := range apps {
+		// A templated repository is our own registry (blog), which Renovate cannot look up
+		images, err := exec.Command("yq", `[.. | select(has("repository") and has("tag")) | .repository | select(test("[{]") | not)] | .[]`, app).CombinedOutput()
+		require.NoError(t, err, string(images))
+		file := strings.TrimPrefix(app, "../")
+		for _, image := range strings.Fields(string(images)) {
+			assert.Contains(t, deps[file], image, "%s: image %s is not managed", file, image)
+		}
+	}
+	for _, file := range []string{"system/argocd/values.yaml", "system/argocd/values-dev.yaml", "system/argocd/values-seed.yaml"} {
+		assert.Contains(t, deps[file], "app-template", "%s: the app-template pin is not managed", file)
+	}
+	assert.True(t, managers["nix"], "flake.lock is not managed")
 }

@@ -41,6 +41,14 @@ HOMELAB_GITHUB_APP_KEY=<new.pem> terragrunt apply -replace=module.github_app_key
 
 Delete the old key on GitHub once Renovate ran with the new one.
 
+## What it updates
+
+`renovate.json5` adds to Renovate's defaults (charts, `values*.yaml` images, Go, OpenTofu providers, GitHub Actions):
+the images in `apps/*.yaml`, the app-template pin in `system/argocd/values*.yaml` (a regex manager) and `flake.lock`
+(the nix manager, every Monday's lock file maintenance; schedules use the time zone in the global config). Versions held
+elsewhere (k3s's image in `infra/_modules/k3d`, the Gateway API CRDs) are still bumped by hand. `TestRenovateManagers`
+checks what Renovate finds, offline.
+
 ## Add a repository
 
 Install the App on it (App → Configure → Repository access) and add a `renovate.json5`; the next run finds it

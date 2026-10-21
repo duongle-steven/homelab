@@ -9,6 +9,22 @@
     enabled: true,
     schedule: ['before 5am on monday'],
   },
+  // app-template values files (apps/*.yaml) besides the default values*.yaml
+  'helm-values': {
+    managerFilePatterns: ['/^apps/[^/]+\\.ya?ml$/'],
+  },
+  nix: {
+    enabled: true,
+  },
+  customManagers: [
+    {
+      // The app-template chart pinned in the apps ApplicationSet (restated in values-dev.yaml and values-seed.yaml)
+      customType: 'regex',
+      managerFilePatterns: ['/^system/argocd/values(-[a-z]+)?\\.yaml$/'],
+      matchStrings: ['repoURL: (?<registryUrl>https://\\S+)\\s+chart: (?<depName>\\S+)\\s+targetRevision: (?<currentValue>\\d\\S*)'],
+      datasourceTemplate: 'helm',
+    },
+  ],
   packageRules: [
     {
       matchUpdateTypes: ['minor', 'patch'],

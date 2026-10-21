@@ -4,11 +4,10 @@ githubApp:
   appID: "5406416"
   installationID: "173635875"
 renovate:
-  image:
-    tag: 44.172.0
+  # The image is the chart's appVersion: no override, so a chart update moves it too
   cronjob:
     schedule: '0 5 * * *'
-    # The chart cannot read global.timezone (like kured): keep it equal to config.json's timezone
+    # The chart cannot read global.timezone (like kured): keep it and "timezone" below equal to config.json's timezone
     timeZone: Asia/Ho_Chi_Minh
     concurrencyPolicy: Forbid
   renovate:
@@ -19,6 +18,7 @@ renovate:
         "autodiscoverFilter": ["duongle-steven/*"],
         "onboarding": false,
         "requireConfig": "required",
+        "timezone": "Asia/Ho_Chi_Minh",
         "gitAuthor": "duongle-lab-renovate[bot] <345657674+duongle-lab-renovate[bot]@users.noreply.github.com>"
       }
   existingSecret: renovate-secret

@@ -24,8 +24,8 @@ metadata:
 spec:
   appID: {{ .Values.githubApp.appID | quote }}
   installID: {{ .Values.githubApp.installationID | quote }}
-  # Narrower than the App: only what Renovate needs, only homelab
-  repositories: [homelab]
+  # Narrower than the App: only what Renovate needs. Every repository the App is installed on (no repositories list):
+  # adding one to Renovate is a change on GitHub only (docs/how-to-guides/renovate.md)
   permissions:
     contents: write
     pull_requests: write
