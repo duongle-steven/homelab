@@ -13,7 +13,7 @@ internet:
   external-dns: [{port: 443}]  # Cloudflare API
   cloudflared: [{port: 443}, {port: 7844}, {port: 7844, protocol: UDP}]  # Cloudflare edge
   forgejo: [{port: 443}]  # seed clone, mirrors
-  renovate: [{port: 80}, {port: 443}]
+  renovate: [{port: 443}]  # GitHub
   woodpecker: [{port: 80}, {port: 443}]  # pipelines
   ollama: [{port: 443}]  # models
   matrix: [{port: 443}, {port: 8448}]  # federation

@@ -1,9 +1,10 @@
 #!/bin/sh
 # What the sandbox workflow runs after a push to dev (.github/workflows/sandbox.yaml): prints "scope=full" (the make dev
-# argument) unless every change since <before> is skipped (test/scopes.yaml), nothing then. A failing selector fails
-# the script: an error must never read as "nothing to test". A new branch (forty zeros) runs the whole suite.
+# argument) unless every change since <base> is skipped (test/scopes.yaml), nothing then. A failing selector fails
+# the script: an error must never read as "nothing to test". Forty zeros (no push passed yet) run the whole suite.
+# <base> is the last push that passed (scripts/sandbox-last-passed).
 set -eu
-before=${1:?usage: sandbox-scope <previous commit>}
+before=${1:?usage: sandbox-scope <base commit>}
 if [ "$before" = 0000000000000000000000000000000000000000 ]; then
 	echo scope=full
 	exit 0

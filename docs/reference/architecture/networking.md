@@ -53,3 +53,6 @@ When a node restarts, the kubelet recreates its pods while the node's ztunnel ma
 ## Egress
 
 Every namespace Argo CD manages (except `istio-system` and `rook-ceph`) gets `system/egress`: egress is denied except to the cluster (pod and Service ranges: DNS, the Gateway, pods outside the mesh), the Kubernetes API (the node network, port 6443) and the LAN Gateway's VIP. Namespaces listed in `system/egress/values.yaml` also reach the internet (any address except the private ranges) on their ports, and `monitoring-system` the nodes' metrics ports. Nothing reaches the rest of the LAN. Traffic between meshed pods and in-cluster DNS go through ztunnel and are governed by the mesh's AuthorizationPolicies, not by these policies. k3s's network policy controller applies policies to a new pod asynchronously, so a pod's first seconds are not yet restricted.
+
+ESO's controller reads every namespace's Secrets, so it never reaches the internet: anything that needs a token from
+outside mints it in its own namespace (Renovate's GitHub token, in Renovate's pod; `docs/how-to-guides/renovate.md`).

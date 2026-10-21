@@ -6,6 +6,7 @@ skip:
   - scripts/ci-check
   - scripts/lint
   - scripts/sandbox-scope
+  - scripts/sandbox-last-passed
   - docs/**
   - "**/*.md"
   - mkdocs.yml
@@ -21,6 +22,8 @@ skip:
   - test/ci_scripts_test.go
   - test/argocd_revision_test.go
   - test/global_secrets_test.go
+  - test/kept_value_test.go
+  - test/renovate_test.go
   - test/cni_watchdog_test.go
   - test/apps_test.go
   - scripts/check-*
@@ -82,6 +85,7 @@ groups:
       - platform/infra-secrets/**
       - infra/_modules/openbao/**
       - infra/_modules/secrets/**
+      - infra/_modules/kept-value/**
       - infra/sandbox/openbao/**
       - infra/sandbox/secrets/**
     # Every component that reads a secret through ESO

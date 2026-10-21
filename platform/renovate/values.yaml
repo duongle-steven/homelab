@@ -1,11 +1,101 @@
+# Renovate on GitHub as our App duongle-lab-renovate (docs/how-to-guides/renovate.md); production only. The IDs are
+# not secrets.
 renovate:
+  # Pinned here (the chart's appVersion otherwise) so the initContainer below runs the same image: keep both equal
+  # (test/renovate_test.go); Renovate's helm-values manager updates both
+  image:
+    registry: ghcr.io
+    repository: renovatebot/renovate
+    tag: 44.172.0
+  # Renovate's pod reaches no Kubernetes API (templates/github-app.yaml)
+  serviceAccount:
+    name: renovate
   cronjob:
-    schedule: '0 9 * * *'  # Everyday at 09:00
+    schedule: '0 5 * * *'
+    # The chart cannot read global.timezone (like kured): keep it and "timezone" below equal to config.json's timezone
+    timeZone: Asia/Ho_Chi_Minh
+    concurrencyPolicy: Forbid
+    # One retry of a failed run (a crash, a node restart), with a new token. The token script retries GitHub's passing
+    # trouble itself and never a refusal; a failed Job reaches ntfy (KubeJobFailed)
+    jobBackoffLimit: 1
+    # The run ends before its one-hour token does (Renovate never refreshes it); the next day's run continues
+    activeDeadlineSeconds: 3300
+    # One installation token per run, minted from the App's key, which only this container mounts
+    initContainers:
+      - name: github-token
+        image: ghcr.io/renovatebot/renovate:44.172.0
+        command: [node, /scripts/github-token.js, mint]
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        env:
+          - name: APP_ID
+            value: "5406416"
+          - name: INSTALLATION_ID
+            value: "173635875"
+          # Only what Renovate needs, on every repository the App is installed on
+          - name: PERMISSIONS
+            value: '{"contents":"write","pull_requests":"write","workflows":"write","issues":"write","checks":"read","statuses":"read"}'
+          - name: KEY_FILE
+            value: /github-app/private-key
+          - name: TOKEN_FILE
+            value: /github-token/token
+        volumeMounts:
+          - name: github-app
+            mountPath: /github-app
+            readOnly: true
+          - name: github-token
+            mountPath: /github-token
+          - name: github-token-script
+            mountPath: /scripts
+            readOnly: true
+    # The token ends with the run, failed or not (a killed pod's token expires within the hour)
+    preCommand: |
+      RENOVATE_TOKEN=$(cat /github-token/token)
+      export RENOVATE_TOKEN
+      trap 'TOKEN_FILE=/github-token/token node /scripts/github-token.js revoke || true' EXIT
+  extraVolumes:
+    - name: github-app
+      secret:
+        secretName: renovate-github-app
+        # Read by group 0: the pod runs as uid 12021, gid 0 (securityContext below)
+        defaultMode: 0440
+    - name: github-token
+      emptyDir:
+        medium: Memory
+        sizeLimit: 1Mi
+    - name: github-token-script
+      configMap:
+        name: renovate-github-token
+  # The pod runs as the image's user and group, set here so the key's defaultMode keeps working if the image changes
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 12021
+    runAsGroup: 0
+    seccompProfile:
+      type: RuntimeDefault
+  # The Renovate container: the token and the script, never the key
+  extraVolumeMounts:
+    - name: github-token
+      mountPath: /github-token
+      readOnly: true
+    - name: github-token-script
+      mountPath: /scripts
+      readOnly: true
   renovate:
+    # The Renovate container
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
     config: |
       {
-        "platform": "forgejo",
-        "gitAuthor": "Renovate Bot <bot@renovateapp.com>",
-        "autodiscover": true
+        "platform": "github",
+        "autodiscover": true,
+        "autodiscoverFilter": ["duongle-steven/*"],
+        "onboarding": false,
+        "requireConfig": "required",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "gitAuthor": "duongle-lab-renovate[bot] <345657674+duongle-lab-renovate[bot]@users.noreply.github.com>"
       }
-  existingSecret: renovate-secret

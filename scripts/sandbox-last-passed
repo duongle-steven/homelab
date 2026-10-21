@@ -1,0 +1,13 @@
+#!/bin/sh
+# The last push to dev whose sandbox run succeeded (.github/workflows/sandbox.yaml): the base the next push's scope
+# diffs against, since a push cancels an older push's run. A cancelled or failed run's changes then reach the next
+# run, even one whose own push changes only skipped files. Forty zeros (the whole suite) when none passed; an API
+# error fails, never reads as "nothing to test". Needs GITHUB_REPOSITORY and GH_TOKEN (actions: read).
+set -eu
+# The last 90 days only (an older pass runs the whole suite), so the query stays short. Captured first: set -e ignores
+# a failure on the left of a pipe
+since=$(date -u -d '90 days ago' +%Y-%m-%d)
+runs=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/sandbox.yaml/runs" \
+	-f branch=dev -f event=push -f status=success -f "created=>=$since" -f per_page=1)
+sha=$(printf '%s' "$runs" | jq -r '.workflow_runs[0].head_sha // empty')
+echo "${sha:-0000000000000000000000000000000000000000}"

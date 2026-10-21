@@ -61,7 +61,7 @@ random).
 
 | Workflow | Trigger | Runs |
 |---|---|---|
-| `sandbox` | A push to `dev` (a merge) | The whole suite, unless every change since the previous push is skipped (`scripts/sandbox-scope`, `test/scopes.yaml`) |
+| `sandbox` | A push to `dev` (a merge) | The whole suite, unless every change since the last push whose run passed is skipped (`scripts/sandbox-last-passed`, `scripts/sandbox-scope`, `test/scopes.yaml`); a newer push cancels the run |
 | `sandbox` | `workflow_dispatch` (Actions tab, or `gh workflow run sandbox.yaml --ref <branch>`) | `scope` `full` or `auto`, or exactly `tests`; `revision` picks another commit |
 | `sandbox-release` | A pull request into `master` (a release): opened, reopened or a new commit | The whole suite; its check `sandbox` is required by the ruleset `protect-master-sandbox` |
 | `sandbox-retarget` | A pull request retargeted to `master` (its base changed) | The whole suite, reported as the check `sandbox` through the checks API |
@@ -71,9 +71,13 @@ Labels never trigger `sandbox-release`: a label event would replace the running 
 GitHub counts as passing. For the same reason no other job is named `sandbox` (`sandbox`'s is `sandbox-dev`): a run
 that tests nothing would pass the required check on the same commit. A pull request retargeted to `master` from a fork
 gets a read-only token, which cannot create the check: push to it (or close and reopen it).
-Only people with write access can label. A new commit on a labelled pull request does not rerun `sandbox-label`:
-remove the label and add it again (read the new code first: it runs on the runner); other labels never cancel it. Pull
-requests from forks get a read-only token, which is all the run needs.
+Labelling needs Triage or more on the repository. A new commit on a labelled pull request does not rerun
+`sandbox-label` (except Renovate's own commits on its labelled pull requests): remove the label and add it again (read the new code first: it runs on the runner); other labels never
+cancel it. Pull requests from forks get a read-only token, which is all the run needs.
+
+Label your own pull requests only when they change what the local sandbox cannot prove (the first install, CI):
+`make dev` already ran their scope. Renovate labels its pull requests itself (`renovate.json5`; its App has Issues and
+Pull requests write, and a label added by an App triggers workflows), because nobody runs `make dev` for them.
 
 A failed run uploads the artifact `sandbox-state`: the `make dev` output, the pods, the events, the Applications and
 the logs and descriptions of the pods that are not ready, and why each unhealthy Application is unhealthy

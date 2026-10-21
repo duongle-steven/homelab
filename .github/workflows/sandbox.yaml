@@ -21,11 +21,14 @@ on:
 
 permissions:
   contents: read
+  actions: read  # scripts/sandbox-last-passed
 
 concurrency:
-  # Every push and dispatch runs on its own
-  group: ${{ github.workflow }}-${{ github.run_id }}
-  cancel-in-progress: false
+  # A push to dev cancels the run of an older push (the newest dev covers it: its scope diffs against the last push
+  # that passed, scripts/sandbox-last-passed; test an older commit with revision); a manual run gets a group of its
+  # own, so neither cancels the other
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   # Not named sandbox: that check is the one protect-master-sandbox requires (sandbox-release.yaml), and a run here
@@ -51,13 +54,15 @@ jobs:
         id: scope
         env:
           EVENT: ${{ github.event_name }}
-          BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
           SCOPE: ${{ inputs.scope }}
           TESTS: ${{ inputs.tests }}
         run: |
           if [ "$EVENT" = push ]; then
+            # Since the last push that passed, not the previous push: that one's run may have been cancelled
+            base=$(scripts/sandbox-last-passed) || { echo "::error::sandbox-last-passed failed"; exit 1; }
             # scripts/sandbox-scope needs the selector (Go), from the dev shell; a failure fails the job
-            args=$(nix develop --command scripts/sandbox-scope "$BEFORE") || { echo "::error::sandbox-scope failed"; exit 1; }
+            args=$(nix develop --command scripts/sandbox-scope "$base") || { echo "::error::sandbox-scope failed"; exit 1; }
           elif [ -n "$TESTS" ]; then
             args="tests=$TESTS"
           else

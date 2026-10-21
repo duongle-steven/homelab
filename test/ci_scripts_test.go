@@ -43,6 +43,35 @@ func TestCISandboxScope(t *testing.T) {
 	}
 }
 
+// A push to dev cancels the run of an older one (sandbox.yaml's concurrency): the next run's scope diffs against the
+// last push whose run succeeded, so a cancelled or failed run's changes are not lost behind a push that skips
+func TestCISandboxLastPassed(t *testing.T) {
+	for _, c := range []struct {
+		name, gh, want string
+		fails          bool
+	}{
+		{"a run passed", `echo '{"total_count":3,"workflow_runs":[{"head_sha":"2222222222222222222222222222222222222222"}]}'`, "2222222222222222222222222222222222222222", false},
+		{"none passed: the whole suite", `echo '{"total_count":0,"workflow_runs":[]}'`, "0000000000000000000000000000000000000000", false},
+		{"API error", `echo "HTTP 502" >&2; exit 1`, "", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			dir, env := fakeBin(t, map[string]string{"gh": `printf '%s ' "$@" >> "$FIXTURES/calls"
+` + c.gh})
+			out, err := runScript(t, append(env, "GITHUB_REPOSITORY=example/homelab"), "sandbox-last-passed")
+			if c.fails {
+				require.Error(t, err, out)
+				return
+			}
+			require.NoError(t, err, out)
+			assert.Equal(t, c.want, lastLine(out))
+			calls, _ := os.ReadFile(filepath.Join(dir, "calls"))
+			for _, want := range []string{"repos/example/homelab/actions/workflows/sandbox.yaml/runs", "branch=dev", "event=push", "status=success", "created=>="} {
+				assert.Contains(t, string(calls), want)
+			}
+		})
+	}
+}
+
 func lastLine(s string) string {
 	for i := len(s) - 1; i >= 0; i-- {
 		if s[i] == '\n' {
@@ -145,12 +174,14 @@ func TestMakeDevRevision(t *testing.T) {
 func TestMakeInfraProduction(t *testing.T) {
 	stubs := map[string]string{
 		"lab":        `echo "lab $*" >> "$FIXTURES/calls"; [ "$3" != verify ] || [ -z "$VERIFY_FAILS" ]`,
-		"terragrunt": `echo "terragrunt $(basename "$PWD") $*" >> "$FIXTURES/calls"`,
+		"terragrunt": `echo "terragrunt $(basename "$PWD") $*${HOMELAB_GITHUB_APP_KEY:+ key=$HOMELAB_GITHUB_APP_KEY}" >> "$FIXTURES/calls"`,
 		"go":         `exit 0`,
 	}
 	head, err := exec.Command("git", "rev-parse", "HEAD").Output()
 	require.NoError(t, err)
 	commit := "--commit " + strings.TrimSpace(string(head))
+	root, err := filepath.Abs("..")
+	require.NoError(t, err)
 	for _, c := range []struct {
 		name string
 		vars []string
@@ -168,6 +199,19 @@ func TestMakeInfraProduction(t *testing.T) {
 			"terragrunt production run --all apply --non-interactive -- -auto-approve",
 		}},
 		{"guards fail", nil, []string{"VERIFY_FAILS=1"}, []string{"lab infra forgejo verify " + commit}},
+		// A relative key path names a file where make runs, not in the unit's directory
+		{"relative key path", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=keys/app.pem"}, []string{
+			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/keys/app.pem",
+		}},
+		{"relative key path on the command line", []string{"force=1", "HOMELAB_GITHUB_APP_KEY=keys/app.pem"}, nil, []string{
+			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/keys/app.pem",
+		}},
+		{"quoted ~/ key path", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=~/keys/app.pem", "HOME=/home/someone"}, []string{
+			"terragrunt production run --all apply --non-interactive -- -auto-approve key=/home/someone/keys/app.pem",
+		}},
+		{"key path with a space", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=my keys/app.pem"}, []string{
+			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/my keys/app.pem",
+		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			dir, env := fakeBin(t, stubs)

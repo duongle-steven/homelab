@@ -10,3 +10,5 @@ secrets:
     properties: [credentials.json]
   - path: wireguard/private-key
     properties: [private-key]
+  - path: renovate/github-app
+    properties: [private-key]

@@ -1,23 +1,31 @@
 # On request: a pull request into anything but master labelled sandbox runs what make dev would run for it (its base
-# to its head). A new commit does not rerun it: remove the label and add it again. Not required by any ruleset.
+# to its head). A new commit does not rerun it (remove the label and add it again), except on Renovate's own labelled
+# pull requests (its bot, platform/renovate's gitAuthor), which nobody tests by hand. Not required by any ruleset.
 name: sandbox-label
 
 on:
   pull_request:
     branches-ignore: [master]
-    types: [labeled]
+    types: [labeled, synchronize]
 
 permissions:
   contents: read
 
 concurrency:
-  # Only another sandbox label replaces a running check: other labels get their own (skipped) group
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.label.name }}
+  # Only another sandbox label, or Renovate's new commit, replaces a running check: other labels and other people's
+  # commits get their own (skipped) group
+  group: >-
+    ${{ github.workflow }}-${{ github.ref }}-${{ github.event.action == 'synchronize'
+    && (github.event.pull_request.user.login == 'duongle-lab-renovate[bot]' && 'sandbox' || github.run_id)
+    || github.event.label.name }}
   cancel-in-progress: true
 
 jobs:
   sandbox-label:
-    if: github.event.label.name == 'sandbox'
+    if: >-
+      github.event.action == 'labeled' && github.event.label.name == 'sandbox'
+      || github.event.action == 'synchronize' && github.event.pull_request.user.login == 'duongle-lab-renovate[bot]'
+      && contains(github.event.pull_request.labels.*.name, 'sandbox')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:

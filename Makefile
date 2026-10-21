@@ -78,6 +78,11 @@ metal:
 # Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
 # The commit make infra started from: verify and push refuse another (a git pull during the apply)
 infra: deploy_commit := $(shell git rev-parse HEAD)
+# Renovate's GitHub App key (docs/how-to-guides/renovate.md), from the environment or the command line: a relative path
+# names a file where make runs, not in the unit's directory (infra/production/secrets); a quoted ~/ is the home
+# directory. Whole-string tests, so a path may hold spaces.
+app_key_path = $(if $(filter /%,$(firstword $(1))),$(1),$(if $(filter ~/%,$(firstword $(1))),$(HOME)/$(patsubst ~/%,%,$(1)),$(CURDIR)/$(1)))
+infra: override HOMELAB_GITHUB_APP_KEY := $(if $(HOMELAB_GITHUB_APP_KEY),$(call app_key_path,$(HOMELAB_GITHUB_APP_KEY)))
 infra:
 	@if [ "$(env)" = sandbox ]; then $(MAKE) -s sandbox-checkout; fi
 	go -C cli build -o /dev/null ./cmd/lab

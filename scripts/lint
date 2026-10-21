@@ -11,3 +11,9 @@ git ls-files -z | xargs -0 sh -c 'for f do
 	if [ -f "$f" ] && head -n 1 "$f" | grep -qE "^#!.*[/ ](ba)?sh( |$)"; then printf "%s\0" "$f"; fi
 done' sh | xargs -0 -r shellcheck
 if [ -d .github/workflows ]; then actionlint; fi
+# Renovate's repository config (renovate.json5, found in the current directory) and the global one in
+# platform/renovate, each validated as its kind (docs/how-to-guides/renovate.md)
+global=$(mktemp --suffix=.json)
+trap 'rm -f "$global"' EXIT
+yq '.renovate.renovate.config' platform/renovate/values.yaml > "$global"
+RENOVATE_CONFIG_FILE="$global" renovate-config-validator --strict
