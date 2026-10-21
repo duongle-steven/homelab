@@ -41,3 +41,8 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 14a | `scope.SplitTerms` ignores escaped parentheses and an alternation sign inside a character class; no term uses them yet | any |
 | dev shell cleanup | `metal/roles/pxe_server/templates/dnsmasq.conf.j2` uses `ansible.netcommon.ipmath`, which nixpkgs' Ansible does not ship (it moved to `ansible.utils`): `metal/` fails before and after the cleanup | 12 (replaces `metal/`) |
 | dev shell cleanup | `.woodpecker/static-checks.yaml` still runs the removed `TestToolsVersions` and pre-commit | 10c (Woodpecker) |
+| 10d | Renovate's CronJob keeps Kubernetes' `backoffLimit` 6: a refused token or a failed run retries up to 6 times, each with a new token and a full run (`cronjob.jobBackoffLimit: 0`) | any |
+| 10d | A Renovate run longer than its one-hour token gets 401s halfway (no `activeDeadlineSeconds`; Renovate does not refresh `RENOVATE_TOKEN`) | any |
+| 10d | The App key's `defaultMode: 0440` relies on the image's gid 0; neither Renovate container sets a `securityContext` (runAsUser/Group, no privilege escalation, drop ALL, RuntimeDefault) | any |
+| 10d | `make infra env=production HOMELAB_GITHUB_APP_KEY=rel.pem` (a command-line variable) keeps a relative path: only the environment form is resolved; a path with spaces breaks `abspath` | any |
+| 10d | `TestRenovateGitHubApp` checks the key only through volume mounts (not `env`/`envFrom`) and the revoke only by substrings (not `trap … EXIT` before `renovate`) | any |
