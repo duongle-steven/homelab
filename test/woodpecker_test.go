@@ -15,8 +15,11 @@ func renderWoodpecker(t *testing.T, env, expr string) string {
 	t.Helper()
 	cmd := exec.Command("sh", "-c", `scripts/render-chart platform/woodpecker $1 | yq -N "$0"`, expr, env)
 	cmd.Dir = ".."
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, string(out))
+	// stdout only: helm may report a chart it pulled on stderr
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	require.NoError(t, err, stderr.String())
 	return strings.TrimSpace(string(out))
 }
 
@@ -68,8 +71,11 @@ func TestWoodpeckerRender(t *testing.T) {
 func TestWoodpeckerForgejoTeams(t *testing.T) {
 	cmd := exec.Command("sh", "-c", `scripts/render-chart platform/forgejo | grep -E "gitea admin auth (add|update)-oauth"`)
 	cmd.Dir = ".."
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, string(out))
+	// stdout only: on a cold cache helm reports the chart it pulled on stderr, with the same words
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	require.NoError(t, err, stderr.String())
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	require.Len(t, lines, 2, "the init script adds or updates the login source")
 	mapping := regexp.MustCompile(`--group-team-map '([^']*)'`)
