@@ -33,11 +33,29 @@ var (
 type Client struct {
 	Dyn  dynamic.Interface
 	Kube kubernetes.Interface
+	// StatsSummary is a node's kubelet summary (/stats/summary), through the API server's node proxy
+	StatsSummary func(ctx context.Context, node string) ([]byte, error)
+	Now          func() time.Time
+	// Poll is how often a wait looks again
+	Poll time.Duration
+	// PortForward forwards a local port to a Service (the sandbox's S3 server) and returns its URL
+	PortForward func(ctx context.Context, namespace, service string, port int) (url string, stop func(), err error)
+	// ListBucket sums the sizes of a bucket's objects
+	ListBucket func(ctx context.Context, creds Credentials, bucket string) (int64, error)
 }
 
 // New returns a Client on these clients.
 func New(dyn dynamic.Interface, kube kubernetes.Interface) *Client {
-	return &Client{Dyn: dyn, Kube: kube}
+	return &Client{
+		Dyn:  dyn,
+		Kube: kube,
+		StatsSummary: func(ctx context.Context, node string) ([]byte, error) {
+			return kube.CoreV1().RESTClient().Get().AbsPath("/api/v1/nodes", node, "proxy/stats/summary").DoRaw(ctx)
+		},
+		Now:        time.Now,
+		Poll:       5 * time.Second,
+		ListBucket: listBucket,
+	}
 }
 
 // Run is one Velero backup: a scheduled off-site copy (Schedule) or one app's push (App).

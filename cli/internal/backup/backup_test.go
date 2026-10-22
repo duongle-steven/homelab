@@ -49,7 +49,9 @@ func fakeClient(objects ...runtime.Object) (*Client, *dynamicfake.FakeDynamicCli
 		StorageLocations: "BackupStorageLocationList",
 	}, objects...)
 	kube := fake.NewClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "kube-system", CreationTimestamp: metav1.NewTime(t0)}})
-	return New(dyn, kube), dyn
+	c := New(dyn, kube)
+	c.Poll = 10 * time.Millisecond
+	return c, dyn
 }
 
 func TestRunsNewestFirst(t *testing.T) {

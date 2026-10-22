@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -89,6 +90,54 @@ func newBackupCmd() *cobra.Command {
 		},
 	})
 	group.AddCommand(&cobra.Command{
+		Use:   "push <app>",
+		Short: "Copy one app's labelled volumes off-site now, after showing their size",
+		Long: "For the apps labelled manual (Actual Budget, paperless, OpenCloud), or before a risky change to a daily one. " +
+			"It prints the volumes' size and the bucket's against R2's 10 GB free tier, asks, then waits for Velero (up to an hour).",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app := args[0]
+			c, err := newBackupClient(cmd)
+			if err != nil {
+				return err
+			}
+			ctx := cmd.Context()
+			readOnly, err := c.Mode(ctx)
+			if err != nil {
+				return err
+			}
+			if readOnly {
+				return fmt.Errorf("location default is read-only: lab backup enable first")
+			}
+			volumes, err := c.VolumeBytes(ctx, app)
+			if err != nil {
+				return err
+			}
+			if volumes == 0 {
+				return fmt.Errorf("%s has no mounted volume labelled homelab/backup daily or manual", app)
+			}
+			bucket, err := c.BucketBytes(ctx)
+			if err != nil {
+				return err
+			}
+			after := volumes + bucket
+			fmt.Fprintf(cmd.OutOrStdout(), "%s: volumes %s, bucket %s now: after %s of 10 GB free on R2 (deduplication makes the real growth smaller)\n",
+				app, gb(volumes), gb(bucket), gb(after))
+			if after > backup.FreeTier {
+				fmt.Fprintln(cmd.OutOrStdout(), "Over R2's free tier: each GB beyond it costs about $0.015 a month.")
+			}
+			if err := confirm(cmd, fmt.Sprintf("Copy %s's volumes off-site?", app)); err != nil {
+				return err
+			}
+			run, err := c.Push(ctx, app, time.Hour)
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Backup %s completed.\n", run.Name)
+			return err
+		},
+	})
+	group.AddCommand(&cobra.Command{
 		Use:   "disable",
 		Short: "Make the location read-only and pause the schedules (before a restore)",
 		Args:  cobra.NoArgs,
@@ -125,7 +174,16 @@ var newBackupClient = func(cmd *cobra.Command) (*backup.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return backup.New(dyn, kube), nil
+	c := backup.New(dyn, kube)
+	c.PortForward = func(ctx context.Context, namespace, service string, port int) (string, func(), error) {
+		return portForward(ctx, config, kube, namespace, service, port)
+	}
+	return c, nil
+}
+
+// gb prints bytes in decimal gigabytes, as R2 bills
+func gb(bytes int64) string {
+	return fmt.Sprintf("%.1f GB", float64(bytes)/1e9)
 }
 
 // stdinIsTerminal reports whether a person can answer on stdin (tests replace it).

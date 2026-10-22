@@ -5,18 +5,26 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/duongle-steven/homelab/cli/internal/backup"
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 func fakeBackupClient(t *testing.T, objects ...runtime.Object) *dynamicfake.FakeDynamicClient {
+	dyn, _ := fakeBackup(t, objects...)
+	return dyn
+}
+
+func fakeBackup(t *testing.T, objects ...runtime.Object) (*dynamicfake.FakeDynamicClient, *backup.Client) {
 	t.Helper()
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
 		backup.Backups:          "BackupList",
@@ -28,7 +36,7 @@ func fakeBackupClient(t *testing.T, objects ...runtime.Object) *dynamicfake.Fake
 	previous := newBackupClient
 	newBackupClient = func(*cobra.Command) (*backup.Client, error) { return client, nil }
 	t.Cleanup(func() { newBackupClient = previous })
-	return dyn
+	return dyn, client
 }
 
 func veleroLocation(mode string) *unstructured.Unstructured {
@@ -108,5 +116,86 @@ func TestDisableNeedsNoConfirmation(t *testing.T) {
 	}
 	if mode := accessMode(t, dyn); mode != "ReadOnly" {
 		t.Fatalf("accessMode = %s", mode)
+	}
+}
+
+// sizedClient answers the size queries of lab backup push: the app's volumes 1.2 GB, the bucket 3.0 GB
+func sizedClient(t *testing.T) (*dynamicfake.FakeDynamicClient, *backup.Client) {
+	t.Helper()
+	dyn, c := fakeBackup(t, veleroLocation("ReadWrite"))
+	c.Poll = time.Millisecond
+	ctx := context.Background()
+	if _, err := c.Kube.CoreV1().PersistentVolumeClaims("paperless").Create(ctx, &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "paperless", Name: "paperless-data", Labels: map[string]string{"homelab/backup": "manual"}},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Kube.CoreV1().Nodes().Create(ctx, &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	c.StatsSummary = func(context.Context, string) ([]byte, error) {
+		return []byte(`{"pods":[{"volume":[{"usedBytes":1200000000,"pvcRef":{"name":"paperless-data","namespace":"paperless"}}]}]}`), nil
+	}
+	if _, err := c.Kube.CoreV1().Secrets(backup.Namespace).Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: backup.Namespace, Name: "velero-credentials"},
+		Data:       map[string][]byte{"cloud": []byte("[default]\naws_access_key_id = a\naws_secret_access_key = b\nendpoint_url = https://example.r2.cloudflarestorage.com\n")},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	c.ListBucket = func(context.Context, backup.Credentials, string) (int64, error) { return 3_000_000_000, nil }
+	return dyn, c
+}
+
+func backupsCreated(dyn *dynamicfake.FakeDynamicClient) int {
+	n := 0
+	for _, a := range dyn.Actions() {
+		if a.GetVerb() == "create" && a.GetResource().Resource == "backups" {
+			n++
+		}
+	}
+	return n
+}
+
+// The person sees the size before group manual reaches R2 (spec decision 7)
+func TestPushPrintsSizeAndAsks(t *testing.T) {
+	dyn, _ := sizedClient(t)
+	out, err := runLab(t, "n\n", true, "backup", "push", "paperless", "--env", "sandbox")
+	if err == nil {
+		t.Fatal("answering no must fail")
+	}
+	for _, want := range []string{"volumes 1.2 GB", "bucket 3.0 GB", "after 4.2 GB of 10 GB free", "[y/N]"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output lacks %q:\n%s", want, out)
+		}
+	}
+	if n := backupsCreated(dyn); n != 0 {
+		t.Fatalf("%d backups created after no", n)
+	}
+}
+
+func TestPushRefusesWithoutConfirmation(t *testing.T) {
+	dyn, _ := sizedClient(t)
+	_, err := runLab(t, "", false, "backup", "push", "paperless", "--env", "sandbox")
+	if err == nil || !strings.Contains(err.Error(), "--yes") {
+		t.Fatalf("err = %v, want one naming --yes", err)
+	}
+	if n := backupsCreated(dyn); n != 0 {
+		t.Fatalf("%d backups created without confirmation", n)
+	}
+}
+
+func TestPushWithYesCreatesTheBackup(t *testing.T) {
+	dyn, _ := sizedClient(t)
+	dyn.PrependReactor("create", "backups", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		u := action.(k8stesting.CreateAction).GetObject().(*unstructured.Unstructured)
+		_ = unstructured.SetNestedField(u.Object, "Completed", "status", "phase")
+		return false, nil, nil
+	})
+	out, err := runLab(t, "", false, "backup", "push", "paperless", "--env", "sandbox", "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if n := backupsCreated(dyn); n != 1 {
+		t.Fatalf("%d backups created", n)
 	}
 }
