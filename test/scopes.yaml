@@ -135,6 +135,7 @@ groups:
       - infra/Makefile
       - infra/production/**
       - infra/_modules/cloudflare/**
+      - infra/_modules/backup/**
       - metal/**
       - test/benchmark/**
       - scripts/argocd-admin-password
