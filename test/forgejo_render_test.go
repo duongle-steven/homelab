@@ -26,6 +26,11 @@ func TestForgejoDatabaseBeforeForgejo(t *testing.T) {
 				return strings.TrimSpace(string(out))
 			}
 			assert.Equal(t, "-1", wave("Cluster", "forgejo-db"))
+			// forgejo-db only becomes healthy once the operator reaches its status port and, in production, its
+			// replicas reach the primary: the mesh policies that allow both come with it, or the sync deadlocks
+			assert.Equal(t, "-1", wave("AuthorizationPolicy", "allow"))
+			assert.Equal(t, "-1", wave("AuthorizationPolicy", "allow-cnpg-status"))
+			assert.Equal(t, "-1", wave("PeerAuthentication", "forgejo-db-status"))
 			assert.Equal(t, "0", wave("Deployment", "forgejo"))
 		})
 	}

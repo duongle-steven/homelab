@@ -32,6 +32,9 @@ kind: PeerAuthentication
 metadata:
   name: forgejo-db-status
   namespace: {{ $.Release.Namespace }}
+  annotations:
+    # With forgejo-db, which waits for it to become healthy
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   selector:
     matchLabels:
