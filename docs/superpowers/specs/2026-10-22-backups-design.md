@@ -1,6 +1,6 @@
 # Step 11a: backups
 
-Status: design approved in chat 2026-10-22. Branch: `feat/backups` from `dev`.
+Status: design approved in chat 2026-10-22, amended while planning (decisions 5, 8 and 9; approved in chat). Branch: `feat/backups` from `dev`.
 
 ## Goal
 
@@ -95,8 +95,9 @@ Each backup must be restorable, not just a file copy of a running database:
   any second, but Forgejo's repositories live on `forgejo-data`, which only has the backup moments, and the two must
   match. So Forgejo could only go back to those moments anyway; point-in-time would buy an exact match instead of
   a `forgejo doctor` run, at the price of a second restore path. CloudNativePG stays as the database operator.
-- **SQLite apps** (Kanidm, Forgejo in the sandbox, Woodpecker, ntfy): use the app's own online backup if it has
-  one (Kanidm does). Otherwise accept a crash-consistent snapshot, which SQLite recovers from.
+- **SQLite apps** (Kanidm, Woodpecker, ntfy): a crash-consistent snapshot, which SQLite recovers from. kaniop 0.19's
+  own Kanidm backups (`KanidmBackupSchedule`) need an S3 repository of their own, a second restore path, so Kanidm
+  goes through Velero like the rest, unless the planning spike shows kaniop cannot take a restored volume.
 - **Restoring OpenBao and the apps:** they come from the same backup run. Their passwords have to match, which also
   settles deferred minor #34 for a full restore.
 
@@ -118,7 +119,8 @@ Each backup must be restorable, not just a file copy of a running database:
   - It asks for confirmation, then creates the Velero Backup and waits for it.
 - **`lab backup restore`:** a whole-cluster restore after a fresh install, on a cluster Argo CD has already built from
   git.
-  - The person picks the backup run. Its default is the newest one that completed.
+  - The person picks the backup run. Its default is the newest one that completed before this cluster was created,
+    never a backup the new cluster made of its own empty volumes.
   - Order: OpenBao first, from its raft snapshot. Then each group A volume, with that app's workloads stopped and its
     empty volume replaced. Then the apps start.
   - Group B apps are restored too when that run contains them.
@@ -128,24 +130,26 @@ Each backup must be restorable, not just a file copy of a running database:
 
 ### 8. Restore never destroys the backups
 
-- **Read-only mode:** `make infra env=production restore=1` puts Velero's location in `ReadOnly` and turns the
-  schedules off, as upstream's `backup_read_only` does.
-- **The mode must stick:** it stays on until the person clears it. A later `make infra` without the flag must not
-  switch the schedules back on by accident. The builder chooses where that state lives.
-- **Anti-goal: expiry must not eat the last good backups.** A cluster dead for more than 30 days would otherwise
-  delete them through Velero's expiry the moment the location becomes writable again. Before switching back to
-  normal, the restore procedure keeps the backup it restored from (a longer expiry, or another mechanism).
-- **Before switching back:** the first new scheduled backup must not run before the restored data was checked. The
-  docs say how to check it.
+- **Read-only by default:** git declares Velero's location `ReadOnly` and every schedule paused, and Argo CD ignores
+  those two fields. Every new cluster therefore starts unable to write or delete backups, with no flag to remember:
+  Argo CD installs Velero as soon as the cluster exists, before anyone could pass one (upstream's `backup_read_only`
+  is a flag, and `make infra restore=1` was this spec's first idea).
+- **`lab backup enable`** switches the location to `ReadWrite` and the schedules on: once on a brand-new homelab, or
+  after a restore was checked (the docs say how). `lab backup disable` switches back. The switch lives in the
+  cluster and survives later syncs.
+- **A cluster never enabled is noticed:** an alert fires when no backup succeeded for 26 hours.
+- **Anti-goal: expiry must not eat the last good backups.** Retention is by count, not by age: Velero's own expiry is
+  set far out, and a prune job keeps the newest 30 completed backups of each schedule and of each app, and runs only
+  while the location is writable. A cluster dead for months loses nothing.
 
 ### 9. The sandbox proves the path
 
 The sandbox has no R2 and no Ceph.
 
-- **S3:** a small S3-compatible server in the sandbox, sandbox only, maintained upstream and pinned. MinIO's community
-  edition is no longer maintained. Garage or similar is the builder's call.
-- **Velero:** file-system backup through the node agent on local-path. The production CSI data-mover path is only
-  rendered.
+- **S3:** versitygw in the sandbox, sandbox only, pinned. MinIO's community edition is no longer maintained.
+- **CSI snapshots:** csi-driver-host-path and snapshot-controller, the sandbox's default StorageClass. The local
+  snapshots and Velero's CSI data mover then run in the sandbox as in production; only Ceph's specifics stay on the
+  production checklist.
 - **Forgejo on PostgreSQL:** the sandbox runs Forgejo on CloudNativePG as production does (instead of SQLite), so
   the test restores both of Forgejo's volumes. This removes "CloudNativePG and Forgejo on PostgreSQL were only
   rendered" from the production checklist. Measured 2026-10-22: about 4.7 GiB of the workstation's memory is free;
@@ -155,15 +159,15 @@ The sandbox has no R2 and no Ceph.
   1. It writes a marker into Forgejo (a repository with a commit, and an issue) and a key into OpenBao.
   2. It takes a backup, then deletes the app's volume and the key.
   3. `lab backup restore` brings back the repository, its commit, the issue and the key, and Forgejo works.
-  4. It shows that `restore=1` leaves the bucket unchanged.
+  4. It shows that a fresh cluster is read-only and deletes nothing.
   5. It shows that `lab backup push` prints the size and asks before uploading.
 - **Isolation:** the test must not disturb the other tests. A raft snapshot restore rolls back all of OpenBao, so it
   either runs alone, as `TestNodeRestart` does, or restores only what it wrote since the snapshot. The builder
   decides.
 - **Wiring:** a `test/scopes.yaml` entry, the Argo CD lists for `system/velero`, and resource limits sized to the
   sandbox's free memory, measured before and after.
-- **Production checklist** (CLAUDE.md), for what the sandbox cannot run: Ceph snapshots, the CSI data mover, R2,
-  and the hourly local layer.
+- **Production checklist** (CLAUDE.md), for what the sandbox cannot run: Ceph's snapshots and their space, the data
+  mover on Ceph, R2 and its token, the first `lab backup enable`.
 
 ### 10. Docs
 
@@ -172,7 +176,7 @@ The sandbox has no R2 and no Ceph.
   - groups A, B and C, and how to add an app to A or B;
   - checking R2 usage;
   - restoring one app;
-  - restoring the whole cluster on new hardware, end to end: OpenTofu state, passphrase, `restore=1`,
+  - restoring the whole cluster on new hardware, end to end: OpenTofu state, passphrase, the cluster read-only,
     `lab backup restore`, checking, leaving read-only.
 - **Other docs:** a decision record (Velero, volumes only), the roadmap line 11a in CLAUDE.md, the production
   checklist, and `secrets-management.md` (where the repository password lives).
