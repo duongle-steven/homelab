@@ -199,6 +199,15 @@ func TestMakeInfraProduction(t *testing.T) {
 			"terragrunt production run --all apply --non-interactive -- -auto-approve",
 		}},
 		{"guards fail", nil, []string{"VERIFY_FAILS=1"}, []string{"lab infra forgejo verify " + commit}},
+		// GitHub is down (docs/how-to-guides/deploy-to-forgejo.md): no verify, push says why; the reason's quotes stay
+		// out of the shell
+		{"break-glass", []string{`break_glass=GitHub "outage"; true`}, nil, []string{
+			"terragrunt production run --all apply --non-interactive -- -auto-approve",
+			"lab infra forgejo sync",
+			"lab infra forgejo push " + commit + ` --break-glass=GitHub "outage"; true`,
+			"terragrunt argocd apply --non-interactive -- -auto-approve",
+		}},
+		{"break-glass with force=1", []string{"force=1", "break_glass=outage"}, nil, []string{""}},
 		// A relative key path names a file where make runs, not in the unit's directory
 		{"relative key path", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=keys/app.pem"}, []string{
 			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/keys/app.pem",

@@ -3,9 +3,16 @@ package cli
 import (
 	"context"
 	"errors"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/duongle-steven/homelab/cli/internal/env"
+	"github.com/spf13/cobra"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -133,5 +140,73 @@ func TestSameCommit(t *testing.T) {
 	}
 	if err := sameCommit("def", "abc"); err == nil || !strings.Contains(err.Error(), "moved") {
 		t.Fatalf("a moved checkout: %v", err)
+	}
+}
+
+// pushCmd is push's flags around pushCommit, with args set
+func pushCmd(t *testing.T, args ...string) *cobra.Command {
+	t.Helper()
+	cmd := &cobra.Command{}
+	cmd.Flags().String("break-glass", "", "")
+	cmd.Flags().String("commit", "", "")
+	cmd.SetOut(io.Discard)
+	if err := cmd.Flags().Parse(args); err != nil {
+		t.Fatal(err)
+	}
+	return cmd
+}
+
+// cleanRepo is a checkout with one commit, whose origin cannot be reached (GitHub is down)
+func cleanRepo(t *testing.T) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	for _, args := range [][]string{
+		{"init", "-q", "-b", "master"},
+		{"remote", "add", "origin", "https://unreachable.invalid/homelab.git"},
+		{"-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "fix"},
+	} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	head, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir, strings.TrimSpace(string(head))
+}
+
+// docs/superpowers/specs/2026-10-21-woodpecker-design.md, decision 10
+func TestPushCommitBreakGlass(t *testing.T) {
+	root, head := cleanRepo(t)
+	production, sandbox := env.Env{Name: "production", Root: root}, env.Env{Name: "sandbox", Root: root}
+	verified := false
+	verify := func(*cobra.Command, env.Env) (string, error) { verified = true; return "verified", nil }
+
+	if got, err := pushCommit(pushCmd(t), production, verify); err != nil || got != "verified" || !verified {
+		t.Fatalf("without --break-glass: %q, %v, verified %v", got, err, verified)
+	}
+	verified = false
+	got, err := pushCommit(pushCmd(t, "--break-glass=GitHub outage"), production, verify)
+	if err != nil || got != head || verified {
+		t.Fatalf("--break-glass: %q, %v, verified %v; want %s without verify", got, err, verified, head)
+	}
+	if _, err := pushCommit(pushCmd(t, "--break-glass=  "), production, verify); err == nil || !strings.Contains(err.Error(), "reason") {
+		t.Fatalf("an empty reason: %v", err)
+	}
+	if _, err := pushCommit(pushCmd(t, "--break-glass=x"), sandbox, verify); err == nil || !strings.Contains(err.Error(), "production") {
+		t.Fatalf("the sandbox: %v", err)
+	}
+	if _, err := pushCommit(pushCmd(t, "--break-glass=x", "--commit=0123456789abcdef"), production, verify); err == nil || !strings.Contains(err.Error(), "moved") {
+		t.Fatalf("another commit than make infra's: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "file"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("git", "-C", root, "add", "file").CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	if _, err := pushCommit(pushCmd(t, "--break-glass=x"), production, verify); err == nil || !strings.Contains(err.Error(), "uncommitted") {
+		t.Fatalf("a dirty checkout: %v", err)
 	}
 }
