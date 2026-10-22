@@ -48,3 +48,4 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 10e | `make infra break_glass=` passes the reason through make's expansion: a `$` in it is mangled (no injection: the shell reads it from the environment) | any |
 | 10e | `lab infra forgejo sync` creates orgs `ops` and `ci` private but never fixes one made public by hand | any |
 | 10e | `cli/internal/cli/test_test.go` is not gofmt'd (`ci-check` runs gofmt on `test/` only) | any |
+| 10e | `TestNodeRestart` once took about 23 minutes (more than its 20): the watchdog had to restart istio-cni three times; a rerun passed in 10 | 12 (nodes) |
