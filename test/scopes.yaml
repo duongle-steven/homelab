@@ -49,8 +49,8 @@ skip:
   - cli/internal/cli/infra_state*.go
   - cli/internal/cli/cloudflare*.go
 always: Smoke
-alone: [NodeRestart]
-full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|NodeRestart
+alone: [NodeRestart, BackupRestore]
+full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|NodeRestart|BackupRestore
 groups:
   - paths:
       - Makefile
@@ -80,9 +80,9 @@ groups:
     tests: Mesh|Gateway|Egress|Identity|NodeRestart
   - paths: [system/cert-manager/**]
     tests: Gateway|Identity|SSO
-  # Until TestBackup (lab backup restore) exists: the components it needs come up
-  - paths: [system/velero/**, cli/internal/backup/**, cli/internal/cli/backup*.go]
-    tests: Smoke|Secrets
+  # Velero, the hourly snapshots and lab backup (OpenBao's snapshot is in the secrets group)
+  - paths: [system/velero/**, cli/internal/backup/**, cli/internal/cli/backup*.go, test/backup_test.go]
+    tests: BackupRestore
   - paths: [system/loki/**]
     tests: Logs
   - paths: [system/monitoring-system/**]
@@ -99,14 +99,14 @@ groups:
       - infra/sandbox/openbao/**
       - infra/sandbox/secrets/**
     # Every component that reads a secret through ESO
-    tests: Secrets|Identity|SSO|Ntfy|Forgejo|Logs|Gateway|Monitoring|Woodpecker
+    tests: Secrets|Identity|SSO|Ntfy|Forgejo|Logs|Gateway|Monitoring|Woodpecker|BackupRestore
   # Forgejo and zot need Kanidm's discovery document at start
   - paths: [platform/kanidm/**, scripts/onboard-user]
     tests: Identity|SSO|ForgejoDeploy|GatewayZotLargePush|Woodpecker
   - paths: [platform/grafana/**]
     tests: SSOGrafana|Logs|Monitoring
   - paths: [platform/forgejo/**, platform/cloudnative-pg/**]
-    tests: Forgejo|SSOForgejo|GatewayForgejoSSH|Woodpecker
+    tests: Forgejo|SSOForgejo|GatewayForgejoSSH|Woodpecker|BackupRestore
   # lab infra forgejo sync and push (TestForgejoDeploy); go.mod pins their SDKs
   - paths: [cli/internal/forgejo/**, cli/internal/secrets/**, cli/internal/cli/infra_forgejo*.go, cli/go.mod, cli/go.sum]
     tests: Forgejo|Woodpecker
