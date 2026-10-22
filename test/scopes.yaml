@@ -81,7 +81,7 @@ groups:
   - paths: [system/cert-manager/**]
     tests: Gateway|Identity|SSO
   # Until TestBackup (lab backup restore) exists: the components it needs come up
-  - paths: [system/velero/**]
+  - paths: [system/velero/**, cli/internal/backup/**, cli/internal/cli/backup*.go]
     tests: Smoke|Secrets
   - paths: [system/loki/**]
     tests: Logs

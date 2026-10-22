@@ -3,19 +3,20 @@ module github.com/duongle-steven/homelab/cli
 go 1.26.0
 
 require (
+	codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3 v3.0.0
 	github.com/aws/aws-sdk-go-v2 v1.47.3
 	github.com/bmatcuk/doublestar/v4 v4.10.3
 	github.com/cloudflare/cloudflare-go v0.119.0
 	github.com/openbao/openbao/api/v2 v2.7.1
 	github.com/spf13/cobra v1.10.2
 	go.yaml.in/yaml/v3 v3.0.5
+	golang.org/x/term v0.45.0
 	k8s.io/api v0.37.1
 	k8s.io/apimachinery v0.37.1
 	k8s.io/client-go v0.37.1
 )
 
 require (
-	codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3 v3.0.0 // indirect
 	github.com/42wim/httpsig v1.2.3 // indirect
 	github.com/aws/smithy-go v1.28.5 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -72,7 +73,6 @@ require (
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
