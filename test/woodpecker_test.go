@@ -50,6 +50,8 @@ func TestWoodpeckerRender(t *testing.T) {
 				"POD_AFFINITY", "RUNTIME_CLASS", "POD_TOLERATIONS"} {
 				assert.Equal(t, "false", env(agent, "WOODPECKER_BACKEND_K8S_"+allow+"_ALLOW_FROM_STEP"), allow)
 			}
+			assert.Equal(t, "false", env(agent, "WOODPECKER_BACKEND_K8S_ALLOW_NATIVE_SECRETS"))
+			assert.Equal(t, "false", renderWoodpecker(t, e, `select(.kind == "ServiceAccount" and .metadata.name == "default") | .automountServiceAccountToken`))
 			// The chart's own agent Secret is not rendered: the value comes from OpenBao
 			assert.Empty(t, renderWoodpecker(t, e, `select(.kind == "Secret" and .metadata.name == "woodpecker-default-agent-secret") | .metadata.name`))
 			assert.Equal(t, "woodpecker/generated/agent", renderWoodpecker(t, e,

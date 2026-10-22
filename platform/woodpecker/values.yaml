@@ -23,6 +23,8 @@ woodpecker:
       WOODPECKER_BACKEND_K8S_POD_AFFINITY_ALLOW_FROM_STEP: false
       WOODPECKER_BACKEND_K8S_RUNTIME_CLASS_ALLOW_FROM_STEP: false
       WOODPECKER_BACKEND_K8S_POD_TOLERATIONS_ALLOW_FROM_STEP: false
+      # No step reads a Secret of this namespace (woodpecker-secret holds the Forgejo client and the agent secret)
+      WOODPECKER_BACKEND_K8S_ALLOW_NATIVE_SECRETS: false
   server:
     createAgentSecret: false
     resources:

@@ -16,7 +16,14 @@ that membership from Kanidm's groups at every Forgejo login:
 | `homelab-editors` | team `developers` | runs pipelines of the repositories they create or join |
 | anyone else       | none              | refused                                                 |
 
-Leaving the Kanidm group takes effect at the person's next Forgejo login; until then their Woodpecker session lasts.
+Leaving the Kanidm group takes effect at the person's next Forgejo login; until then their Woodpecker session lasts,
+and personal tokens they created outlive it: when offboarding, also delete their Woodpecker user (an admin, Settings →
+Users) as you delete their zot API keys.
+
+Org secrets reach every repository of `ci`, so anyone who can push a pipeline there can read them (masking hides
+them from logs only). For zot's `ci` account that grants nothing new: `homelab-editors` already read, create and
+update every repository in zot with their own Kanidm login (`platform/zot/values.yaml`). Give an org secret only
+what every `ci` member may hold; anything narrower belongs in one repository's secrets, set by its admin.
 
 ## Bring a repository
 
@@ -60,7 +67,8 @@ read -rs WOODPECKER_TOKEN && export WOODPECKER_TOKEN    # paste it; nothing echo
 ci=https://ci.<domain>
 org=$(curl -fsS -H "Authorization: Bearer $WOODPECKER_TOKEN" "$ci/api/repos/lookup/ci/<repository>" | jq .org_id)
 secret() {   # name, value on stdin
-  jq -Rc --arg name "$1" '{name: $name, value: ., events: ["push", "tag", "manual"]}' |
+  # push and tag only: a manual run lets any writer of a repository start one with the secrets
+  jq -Rc --arg name "$1" '{name: $name, value: ., events: ["push", "tag"]}' |
     curl -fsS -o /dev/null -H "Authorization: Bearer $WOODPECKER_TOKEN" -H 'Content-Type: application/json' \
       -d @- "$ci/api/orgs/$org/secrets"
 }

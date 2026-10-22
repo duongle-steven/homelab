@@ -41,20 +41,20 @@ type fakeToken struct {
 
 // fakeForgejo implements the API calls Sync makes, in memory; writes counts every mutating request.
 type fakeForgejo struct {
-	mu            sync.Mutex
-	admin         string
+	mu    sync.Mutex
+	admin string
 	// orgs holds each org's visibility
 	orgs          map[string]string
 	repo          bool
 	users         map[string]*fakeUser
 	collaborators map[string]string
 	// teams grants a permission through a team (Forgejo reports the higher one)
-	teams         map[string]string
-	protection    map[string]any
-	orgTeams      map[int64]*fakeTeam
-	apps          map[int64]*fakeApp
-	writes        int
-	nextID        int64
+	teams      map[string]string
+	protection map[string]any
+	orgTeams   map[int64]*fakeTeam
+	apps       map[int64]*fakeApp
+	writes     int
+	nextID     int64
 }
 
 func newFakeForgejo(t *testing.T) (*fakeForgejo, Endpoint) {
@@ -101,13 +101,29 @@ func (f *fakeForgejo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var body map[string]any
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+	}
 	if r.URL.Path == "/api/healthz" {
 		reply(http.StatusOK, map[string]string{"status": "pass"})
 		return
 	}
 	if path == "/version" {
 		reply(http.StatusOK, map[string]string{"version": "16.0.6"})
+		return
+	}
+	if r.URL.Path == "/login/oauth/access_token" && r.Method == http.MethodPost {
+		// As Forgejo with a code it never issued: refused either way, "invalid client secret" for a wrong secret.
+		// It changes nothing, so it is no write
+		f.writes--
+		_ = r.ParseForm()
+		description := "client is not authorized"
+		for _, app := range f.apps {
+			if app.clientID == r.PostForm.Get("client_id") && app.secret != r.PostForm.Get("client_secret") {
+				description = "invalid client secret"
+			}
+		}
+		reply(http.StatusBadRequest, map[string]string{"error": "unauthorized_client", "error_description": description})
 		return
 	}
 	who := f.who(r)
@@ -314,7 +330,9 @@ func page(r *http.Request, list []map[string]any) []map[string]any {
 
 type memoryTokens map[string]map[string]string
 
-func (m memoryTokens) Read(_ context.Context, path string) (map[string]string, error) { return m[path], nil }
+func (m memoryTokens) Read(_ context.Context, path string) (map[string]string, error) {
+	return m[path], nil
+}
 func (m memoryTokens) Write(_ context.Context, path string, data map[string]string) error {
 	m[path] = data
 	return nil

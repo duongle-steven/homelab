@@ -220,10 +220,14 @@ func TestSyncCreatesWoodpeckerClient(t *testing.T) {
 
 func TestSyncReplacesWoodpeckerClient(t *testing.T) {
 	for name, change := range map[string]func(f *fakeForgejo, tokens memoryTokens){
-		"redirect changed in Forgejo": func(f *fakeForgejo, _ memoryTokens) { woodpeckerApps(f)[0].redirects = []string{"https://evil.test/authorize"} },
-		"public client":               func(f *fakeForgejo, _ memoryTokens) { woodpeckerApps(f)[0].confidential = false },
-		"OpenBao lost the secret":     func(_ *fakeForgejo, tokens memoryTokens) { delete(tokens, WoodpeckerPath) },
-		"another client id stored":    func(_ *fakeForgejo, tokens memoryTokens) { tokens[WoodpeckerPath]["client_id"] = "stale" },
+		"redirect changed in Forgejo": func(f *fakeForgejo, _ memoryTokens) {
+			woodpeckerApps(f)[0].redirects = []string{"https://evil.test/authorize"}
+		},
+		"public client":            func(f *fakeForgejo, _ memoryTokens) { woodpeckerApps(f)[0].confidential = false },
+		"OpenBao lost the secret":  func(_ *fakeForgejo, tokens memoryTokens) { delete(tokens, WoodpeckerPath) },
+		"another client id stored": func(_ *fakeForgejo, tokens memoryTokens) { tokens[WoodpeckerPath]["client_id"] = "stale" },
+		// Regenerated in Forgejo, or OpenBao's write failed after an update: the id matches, the secret does not
+		"secret regenerated in Forgejo": func(f *fakeForgejo, _ memoryTokens) { woodpeckerApps(f)[0].secret = "regenerated" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			f, ep := newFakeForgejo(t)

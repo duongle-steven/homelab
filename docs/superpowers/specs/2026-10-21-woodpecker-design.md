@@ -74,7 +74,8 @@ The sandbox proves it end to end with a test repository; the blog's own reposito
     Forgejo), but `verify` needs GitHub. `lab infra forgejo push --break-glass=<reason>` (production only) skips
     `verify`'s GitHub checks and nothing else: no uncommitted changes, HEAD must fast-forward what Forgejo's `master`
     holds (never forced), the reason is printed and required (non-empty). `make infra env=production
-    break_glass=<reason>` passes it and skips `verify`. Afterwards the same commit reaches GitHub's `master` through
+    break_glass=<reason>` runs `verify --break-glass` (the same checks against Forgejo, before anything is applied)
+    and passes it to `push`. Afterwards the same commit reaches GitHub's `master` through
     a branch, a PR into `dev` and the release PR (merge commits keep it an ancestor, so the next normal push
     fast-forwards). `docs/how-to-guides/deploy-to-forgejo.md` gets a break-glass section: what works without GitHub
     (Forgejo, Argo CD for charts and images already cached; OpenTofu needs R2, so with no internet only `push`

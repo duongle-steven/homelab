@@ -107,3 +107,19 @@ func SandboxCommit(ctx context.Context, ep Endpoint, root, token string) (string
 	}
 	return ep.output(ctx, root, token, args...)
 }
+
+// FastForwards refuses a commit that does not descend from ops/homelab's master (an empty repository accepts any):
+// a break-glass deploy checks it before applying anything, since the push that would refuse it comes last.
+func FastForwards(ctx context.Context, ep Endpoint, root, token, commit string) error {
+	deployed, err := Deployed(ctx, ep, root, token)
+	if err != nil || deployed == "" {
+		return err
+	}
+	if _, err := ep.output(ctx, root, token, "fetch", "--quiet", ep.RepositoryURL(), Branch); err != nil {
+		return err
+	}
+	if _, err := ep.output(ctx, root, token, "merge-base", "--is-ancestor", deployed, commit); err != nil {
+		return fmt.Errorf("%.12s does not descend from ops/homelab's master %.12s: deploy a commit on top of it", commit, deployed)
+	}
+	return nil
+}

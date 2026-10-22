@@ -43,11 +43,12 @@ GitHub checks, and nothing else:
 ```sh
 direnv exec . scripts/ci-check all             # the checks GitHub would have run, locally
 git switch -c fix/<what> && git commit ...     # a branch: master stays GitHub's
-make infra env=production break_glass="<why>"  # no verify; the infrastructure, sync, the push, the bootstrap
+make infra env=production break_glass="<why>"  # verify without GitHub, the infrastructure, sync, the push, the bootstrap
 ```
 
-The push still refuses uncommitted changes, untracked files under `infra/` or `system/argocd/` and anything that is
-not a fast-forward of what `ops/homelab`'s `master` holds; it prints the reason. `break_glass` cannot be combined
+Before anything is applied, `verify --break-glass` still refuses uncommitted changes, untracked files under `infra/`
+or `system/argocd/` and a commit that does not descend from what `ops/homelab`'s `master` holds (so production never
+runs infrastructure from a commit the push would then refuse); the push prints the reason. `break_glass` cannot be combined
 with `force=1`. When GitHub is back, push the branch and open a pull request into `dev` that says why, then the
 release pull request into `master`: merge commits only (never squash or rebase), so `master` contains the deployed
 commit and the next normal deploy fast-forwards.

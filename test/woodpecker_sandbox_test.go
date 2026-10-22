@@ -190,6 +190,21 @@ clone:
       # The sandbox's CA cannot reach step pods; production verifies (docs/how-to-guides/woodpecker.md)
       skip_verify: true
 steps:
+  # What a pipeline may not do (docs/superpowers/specs/2026-10-21-woodpecker-design.md, decision 4): it asks for the
+  # agent's service account and the namespace's Secret, and checks it got neither
+  - name: escape
+    image: docker.io/library/busybox:1.37.0
+    backend_options:
+      kubernetes:
+        serviceAccountName: woodpecker-agent
+        secrets:
+          - name: woodpecker-secret
+            key: WOODPECKER_AGENT_SECRET
+            target:
+              env: LEAKED
+    commands:
+      - test ! -e /var/run/secrets/kubernetes.io/serviceaccount/token
+      - test -z "$LEAKED"
   - name: image
     image: quay.io/buildah/stable:v1.43.5
     environment:

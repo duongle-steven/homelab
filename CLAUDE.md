@@ -89,7 +89,7 @@ The sandbox runs Kubernetes 1.37 and only ever installs from scratch, so it does
 - Forgejo does not start while Kanidm is unreachable: its init container registers the Kanidm login source at every start and needs Kanidm's discovery document. Argo CD syncs from Forgejo, so bring Kanidm back first after an outage.
 - zot exits at start when Kanidm is unreachable (OIDC discovery), so a Kanidm outage plus a zot restart also stops `ci` and API-key pulls and pushes.
 - The first person to log in to Actual Budget with OpenID becomes its server owner: add yourself to `homelab-budget` and log in first.
-- Removing someone from Kanidm or a group does not revoke their zot API keys (zot keeps the groups from their last login); delete their keys in zot when offboarding.
+- Removing someone from Kanidm or a group does not revoke their zot API keys (zot keeps the groups from their last login); delete their keys in zot when offboarding; the same holds for their Woodpecker personal tokens and session: delete their Woodpecker user too.
 - Argo CD editors may exec only into apps listed in `system/argocd/values.yaml` (`apps/*`); add new apps there.
 
 ## Ideas (not planned)

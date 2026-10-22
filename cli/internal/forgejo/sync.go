@@ -7,9 +7,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
+	"strings"
 	"time"
 
 	sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -81,7 +84,7 @@ func Sync(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens,
 	if err := ensureCIOrg(admin); err != nil {
 		return err
 	}
-	return ensureWoodpeckerClient(ctx, admin, tokens, woodpeckerCallback)
+	return ensureWoodpeckerClient(ctx, ep, admin, tokens, woodpeckerCallback)
 }
 
 func newClient(ctx context.Context, ep Endpoint, auth sdk.ClientOption) (*sdk.Client, error) {
@@ -355,9 +358,9 @@ func ensureCIOrg(c *sdk.Client) error {
 }
 
 // ensureWoodpeckerClient keeps Forgejo's OAuth2 application woodpecker (forgejo_admin's) and its credentials in
-// OpenBao in step. Forgejo shows a client secret only when it issues one, so a client whose secret OpenBao lost is
-// updated, which issues a new one.
-func ensureWoodpeckerClient(ctx context.Context, c *sdk.Client, tokens Tokens, callback string) error {
+// OpenBao in step. Forgejo shows a client secret only when it issues one, so a client whose secret OpenBao lost, or
+// holds no longer (regenerated in Forgejo, or a write that failed after an update), is updated, which issues a new one.
+func ensureWoodpeckerClient(ctx context.Context, ep Endpoint, c *sdk.Client, tokens Tokens, callback string) error {
 	var found *sdk.Oauth2
 	for page := 1; ; page++ {
 		apps, _, err := c.ListOauth2(sdk.ListOauth2Option{ListOptions: sdk.ListOptions{Page: page, PageSize: 50}})
@@ -384,7 +387,10 @@ func ensureWoodpeckerClient(ctx context.Context, c *sdk.Client, tokens Tokens, c
 	desired := sdk.CreateOauth2Option{Name: woodpeckerApp, ConfidentialClient: true, RedirectURIs: []string{callback}}
 	if found != nil && found.ConfidentialClient && reflect.DeepEqual(found.RedirectURIs, desired.RedirectURIs) &&
 		stored["client_id"] == found.ClientID && stored["client_secret"] != "" && stored["redirect_uri"] == callback {
-		return nil
+		current, err := clientSecretCurrent(ctx, ep, stored["client_id"], stored["client_secret"], callback)
+		if err != nil || current {
+			return err
+		}
 	}
 	var app *sdk.Oauth2
 	if found == nil {
@@ -399,4 +405,30 @@ func ensureWoodpeckerClient(ctx context.Context, c *sdk.Client, tokens Tokens, c
 		return fmt.Errorf("Forgejo returned incomplete credentials for OAuth2 application %s", woodpeckerApp)
 	}
 	return tokens.Write(ctx, WoodpeckerPath, map[string]string{"client_id": app.ClientID, "client_secret": app.ClientSecret, "redirect_uri": callback})
+}
+
+// clientSecretCurrent asks Forgejo's token endpoint whether secret is the client's: with a code that cannot exist,
+// Forgejo refuses either way, saying "invalid client secret" only for a wrong secret.
+func clientSecretCurrent(ctx context.Context, ep Endpoint, id, secret, callback string) (bool, error) {
+	form := url.Values{"grant_type": {"authorization_code"}, "code": {"lab-sync-probe"}, "redirect_uri": {callback},
+		"client_id": {id}, "client_secret": {secret}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ep.URL+"/login/oauth/access_token", strings.NewReader(form.Encode()))
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := ep.HTTP.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("check %s's client secret against Forgejo: %w", woodpeckerApp, err)
+	}
+	defer resp.Body.Close()
+	var answer struct {
+		Error       string `json:"error"`
+		Description string `json:"error_description"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&answer)
+	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnauthorized {
+		return false, fmt.Errorf("check %s's client secret against Forgejo: %s", woodpeckerApp, resp.Status)
+	}
+	return !strings.Contains(answer.Description, "invalid client secret"), nil
 }
