@@ -20,6 +20,10 @@ spec:
       owner: forgejo
   storage:
     size: {{ .size }}
+  # Its volumes are backed up off-site daily, from the same run as forgejo-data (docs/how-to-guides/backup-and-restore.md)
+  inheritedMetadata:
+    labels:
+      homelab/backup: daily
 ---
 # The CloudNativePG operator stays out of the ambient mesh (the API server calls its webhooks), but it polls each
 # instance's status port in plaintext; strict mTLS would refuse it

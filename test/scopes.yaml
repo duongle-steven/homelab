@@ -23,6 +23,8 @@ skip:
   - test/generated_secrets_test.go
   - test/woodpecker_test.go
   - test/forgejo_render_test.go
+  - test/backup_groups_test.go
+  - test/fixtures/**
   - test/kept_value_test.go
   - test/renovate_test.go
   - test/cni_watchdog_test.go

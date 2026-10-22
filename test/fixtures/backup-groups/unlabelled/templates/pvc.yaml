@@ -1,0 +1,10 @@
+# A PVC without the label homelab/backup: scripts/check-backup-groups must refuse it (test/backup_groups_test.go)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: forgotten
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi

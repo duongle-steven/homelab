@@ -10,6 +10,10 @@ openbao:
     updateStrategyType: RollingUpdate
     dataStorage:
       size: 1Gi
+      # Not copied as files: its hourly raft snapshot (openbao-snapshots) is the consistent copy
+      # (docs/how-to-guides/backup-and-restore.md)
+      labels:
+        homelab/backup: none
     # OpenTofu's unit infra/<env>/openbao writes this Secret; the pod waits for it
     volumes:
       - name: unseal

@@ -1,0 +1,19 @@
+# Dendrite's volumes under their chart's names: its chart cannot label them, so they are created here with their backup
+# group (docs/how-to-guides/backup-and-restore.md) and given to it as existing claims (values.yaml)
+{{- range $name, $group := dict "media" "daily" "jetstream" "daily" "search" "none" }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $.Release.Name }}-dendrite-{{ $name }}-pvc
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    homelab/backup: {{ $group }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+{{- end }}

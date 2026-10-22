@@ -11,6 +11,10 @@ spec:
       replicas: 1
   storage:
     volumeClaimTemplate:
+      metadata:
+        # Backed up off-site daily (docs/how-to-guides/backup-and-restore.md)
+        labels:
+          homelab/backup: daily
       spec:
         accessModes:
           - ReadWriteOnce

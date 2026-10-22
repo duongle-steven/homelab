@@ -26,6 +26,9 @@ loki:
     replicas: 1
     persistence:
       size: 10Gi
+      # Not backed up: logs are not worth their space off-site (docs/how-to-guides/backup-and-restore.md)
+      labels:
+        homelab/backup: none
   read:
     replicas: 0
   write:

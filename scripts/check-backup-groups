@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""Checks that every volume claim declares its backup group (docs/how-to-guides/backup-and-restore.md).
+
+Every PersistentVolumeClaim a component renders (production and sandbox) carries the label homelab/backup, with
+value daily (Velero's daily copy off-site, and hourly local snapshots), manual (local snapshots; off-site only
+through `lab backup push`) or none. Claims come from PVCs, StatefulSets' volumeClaimTemplates, CloudNativePG
+Clusters (inheritedMetadata) and kaniop's Kanidm (its volumeClaimTemplate). The value must match EXPECTED; a claim
+EXPECTED does not name is none, so a new volume is backed up only when someone says so here.
+
+Usage: scripts/check-backup-groups [<chart dir | apps/<name>.yaml> ...]   (default: every component)
+"""
+import glob
+import os
+import subprocess
+import sys
+import time
+
+import yaml
+
+LABEL = "homelab/backup"
+GROUPS = {"daily", "manual", "none"}
+# <target>:<claim> -> group; every other claim is none (docs/superpowers/specs/2026-10-22-backups-design.md, decision 4)
+EXPECTED = {
+    "platform/kanidm:kanidm-data": "daily",
+    "platform/forgejo:forgejo-data": "daily",
+    "platform/forgejo:forgejo-db": "daily",
+    "platform/woodpecker:data": "daily",
+    "apps/ntfy.yaml:ntfy": "daily",
+    # Dendrite's uploads and its JetStream queues; the search index is rebuilt
+    "apps/matrix:matrix-dendrite-media-pvc": "daily",
+    "apps/matrix:matrix-dendrite-jetstream-pvc": "daily",
+    "apps/matrix:data": "daily",
+    "apps/actualbudget.yaml:actualbudget-data": "manual",
+    "apps/paperless.yaml:paperless-data": "manual",
+    "apps/opencloud.yaml:opencloud-config": "manual",
+    "apps/opencloud.yaml:opencloud-data": "manual",
+}
+
+# <target>:<claim> a chart cannot label (no labels on its claim and no existing-claim option that keeps it in a
+# StatefulSet), with the reason: Velero selects by label, so an unlabelled claim is never backed up (group none)
+UNLABELLED = {
+    "platform/zot:zot-pvc": "zot's chart renders volumeClaimTemplates without labels; images are rebuilt (none)",
+}
+
+
+class Loader(yaml.SafeLoader):
+    """SafeLoader that reads a bare `=` (YAML 1.1's value tag, used by some charts) as a string."""
+
+
+Loader.add_constructor("tag:yaml.org,2002:value", lambda loader, node: loader.construct_scalar(node))
+
+
+def render(target, env):
+    # Chart downloads sometimes reset the connection: try three times
+    for attempt in range(3):
+        out = subprocess.run(["scripts/render-chart", target, env], capture_output=True, text=True)
+        if out.returncode == 0:
+            return [d for d in yaml.load_all(out.stdout, Loader=Loader) if d]
+        time.sleep(5)
+    sys.exit(f"render failed: {target} {env}\n{out.stderr}")
+
+
+def targets():
+    for d in sorted(glob.glob("system/*/") + glob.glob("platform/*/")):
+        if os.path.exists(os.path.join(d, "Chart.yaml")):
+            yield d.rstrip("/")
+    yield "apps/matrix"
+    yield from sorted(glob.glob("apps/*.yaml"))
+
+
+def claims(doc):
+    """(claim name, its labels) for every volume claim the document creates."""
+    kind = doc.get("kind")
+    meta = doc.get("metadata") or {}
+    spec = doc.get("spec") or {}
+    if kind == "PersistentVolumeClaim":
+        yield meta.get("name"), meta.get("labels") or {}
+    elif kind == "StatefulSet":
+        for t in spec.get("volumeClaimTemplates") or []:
+            m = t.get("metadata") or {}
+            yield m.get("name"), m.get("labels") or {}
+    elif kind == "Cluster" and doc.get("apiVersion", "").startswith("postgresql.cnpg.io/"):
+        yield meta.get("name"), (spec.get("inheritedMetadata") or {}).get("labels") or {}
+    elif kind == "Kanidm" and doc.get("apiVersion", "").startswith("kaniop.rs/"):
+        template = (spec.get("storage") or {}).get("volumeClaimTemplate") or {}
+        yield "kanidm-data", (template.get("metadata") or {}).get("labels") or {}
+
+
+def main(args):
+    failures = 0
+    seen = set()
+    for target in args or list(targets()):
+        for env in ("prod", "dev"):
+            for doc in render(target, env):
+                for name, labels in claims(doc):
+                    key = f"{target}:{name}"
+                    group = labels.get(LABEL)
+                    want = EXPECTED.get(key, "none")
+                    seen.add(key)
+                    if key in UNLABELLED and group is None:
+                        print(f"ok   {key} ({env}): none, unlabelled: {UNLABELLED[key]}")
+                    elif group not in GROUPS:
+                        print(f"FAIL {key} ({env}): label {LABEL} missing or not one of {sorted(GROUPS)}", file=sys.stderr)
+                        failures += 1
+                    elif group != want:
+                        print(f"FAIL {key} ({env}): {LABEL}={group}, expected {want}", file=sys.stderr)
+                        failures += 1
+                    else:
+                        print(f"ok   {key} ({env}): {group}")
+    if not args:
+        for key in sorted(set(EXPECTED) - seen):
+            print(f"FAIL {key}: in EXPECTED but no component renders it", file=sys.stderr)
+            failures += 1
+    print(f"check-backup-groups: {failures} failures")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
