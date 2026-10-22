@@ -85,8 +85,9 @@ infra: deploy_commit := $(shell git rev-parse HEAD)
 # directory. Whole-string tests, so a path may hold spaces.
 app_key_path = $(if $(filter /%,$(firstword $(1))),$(1),$(if $(filter ~/%,$(firstword $(1))),$(HOME)/$(patsubst ~/%,%,$(1)),$(CURDIR)/$(1)))
 infra: override HOMELAB_GITHUB_APP_KEY := $(if $(HOMELAB_GITHUB_APP_KEY),$(call app_key_path,$(HOMELAB_GITHUB_APP_KEY)))
-# The reason reaches lab through the environment, so no quote in it reaches the shell
-infra: export HOMELAB_BREAK_GLASS := $(break_glass)
+# The reason reaches lab through the environment, so no quote in it reaches the shell; $(value) keeps make from
+# expanding a $ in it
+infra: export HOMELAB_BREAK_GLASS := $(value break_glass)
 infra:
 	@if [ -n "$$HOMELAB_BREAK_GLASS" ] && { [ "$(force)" = 1 ] || [ "$(env)" != production ]; }; then \
 		echo "break_glass deploys production and cannot be combined with force=1" >&2; exit 1; fi

@@ -370,7 +370,27 @@ func TestWoodpecker(t *testing.T) {
 	}
 
 	// zot serves the image
-	assert.Equal(t, http.StatusOK, getJSON(t, "HEAD", "https://"+registryHost+"/v2/"+name+"/manifests/"+commit.Commit.SHA, nil,
-		"ci", baoValue(t, "zot/generated/ci", "password"), nil, nil,
-		"Accept", "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"))
+	req, err := http.NewRequest(http.MethodHead, "https://"+registryHost+"/v2/"+name+"/manifests/"+commit.Commit.SHA, nil)
+	require.NoError(t, err)
+	req.SetBasicAuth("ci", baoValue(t, "zot/generated/ci", "password"))
+	req.Header.Set("Accept", "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json")
+	resp, err := insecureClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, "zot does not serve the probe's image")
+	digest := resp.Header.Get("Docker-Content-Digest")
+	require.NotEmpty(t, digest)
+
+	// The probe image removed again: zot's ci cannot delete, an admin's API key can
+	cookies = appLogin(t, "dev-admin", ensureCredentials(t, "dev-admin"), "https://"+registryHost+"/zot/auth/login?provider=oidc&callback_ui=/", registryHost)
+	var key struct {
+		APIKey string `json:"apiKey"`
+		UUID   string `json:"uuid"`
+	}
+	require.Equal(t, http.StatusCreated, getJSON(t, "POST", "https://"+registryHost+"/zot/auth/apikey", cookies, "", "",
+		map[string]any{"label": fmt.Sprintf("woodpecker-test-%d", time.Now().UnixNano()), "scopes": []string{}}, &key,
+		"X-ZOT-API-CLIENT", "zot-ui"))
+	defer getJSON(t, "DELETE", "https://"+registryHost+"/zot/auth/apikey?id="+key.UUID, cookies, "", "", nil, nil, "X-ZOT-API-CLIENT", "zot-ui")
+	assert.Equal(t, http.StatusAccepted, getJSON(t, "DELETE", "https://"+registryHost+"/v2/"+name+"/manifests/"+digest, nil,
+		"dev-admin", key.APIKey, nil, nil), "the probe's image was not deleted")
 }

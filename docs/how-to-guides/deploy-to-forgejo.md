@@ -18,6 +18,7 @@ Both refuse anything but `origin/master` checked out without changes (and no unt
 declares other orgs, teams or repositories. Running it again keeps what is right, fixes what is wrong and creates
 what is missing:
 
+- orgs `ops` and `ci`, private (made private again if someone changed that);
 - `ops/homelab`, private, default branch `master`, created empty: the first deploy fills it;
 - local users `deploy` (write) and `argocd` (read), restricted to the repositories they collaborate on; `sync`
   refuses a user of that name who signed in with Kanidm, and a team granting either of them more;
@@ -25,7 +26,7 @@ what is missing:
   (they can still edit the protection, which the next `sync` restores);
 - their tokens in OpenBao: `secret/forgejo/deploy` (the push) and `secret/argocd/forgejo` (Argo CD's read-only
   credential, `argocd-repo-forgejo`);
-- org `ci`, private, and its team `developers` (write on code and pull requests, may create repositories in `ci`,
+- in org `ci`, its team `developers` (write on code and pull requests, may create repositories in `ci`,
   not all of them): Woodpecker admits only `ci`'s members, and Forgejo's Kanidm login source makes `homelab-admins`
   its owners and `homelab-editors` its developers ([Woodpecker](woodpecker.md)); no team of `ci` reaches `ops`;
 - the OAuth2 application `woodpecker` (confidential, redirect `https://ci.<domain>/authorize`) and its credentials in

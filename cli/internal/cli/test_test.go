@@ -221,7 +221,7 @@ func TestChartsCommandIncludesWorkingTree(t *testing.T) {
 	write(t, dir, "system/kured/Chart.yaml", "name: kured\n")
 	commit(t, dir)
 	write(t, dir, "system/kured/values.yaml", "a: 2\n") // untracked
-	write(t, dir, "system/loki/values.yaml", "a: 3\n") // tracked on dev, modified, not staged
+	write(t, dir, "system/loki/values.yaml", "a: 3\n")  // tracked on dev, modified, not staged
 	out, err := labCharts(t, "--base", "HEAD")
 	if err != nil || out != "system/kured\nsystem/loki\n" {
 		t.Fatalf("out = %q, err = %v", out, err)

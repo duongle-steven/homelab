@@ -140,6 +140,11 @@ func (f *fakeForgejo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		reply(http.StatusOK, map[string]any{"username": parts[1], "visibility": f.orgs[parts[1]]})
+	case len(parts) == 2 && parts[0] == "orgs" && r.Method == http.MethodPatch && admin:
+		if visibility, ok := body["visibility"].(string); ok {
+			f.orgs[parts[1]] = visibility
+		}
+		reply(http.StatusOK, map[string]any{"username": parts[1], "visibility": f.orgs[parts[1]]})
 	case path == "/orgs" && r.Method == http.MethodPost && admin:
 		name := body["username"].(string)
 		visibility, _ := body["visibility"].(string)

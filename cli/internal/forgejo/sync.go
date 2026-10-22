@@ -117,14 +117,23 @@ func waitReady(ctx context.Context, ep Endpoint) error {
 
 func notFound(resp *sdk.Response) bool { return resp != nil && resp.StatusCode == http.StatusNotFound }
 
+// ensureOrg creates org name private, or makes it private again (someone changed its visibility in Forgejo)
 func ensureOrg(c *sdk.Client, name string) error {
-	if _, resp, err := c.GetOrg(name); err != nil {
+	org, resp, err := c.GetOrg(name)
+	if err != nil {
 		if !notFound(resp) {
 			return fmt.Errorf("org %s: %w", name, err)
 		}
 		if _, _, err := c.CreateOrg(sdk.CreateOrgOption{Name: name, Visibility: sdk.VisibleTypePrivate}); err != nil {
 			return fmt.Errorf("create org %s: %w", name, err)
 		}
+		return nil
+	}
+	if org.Visibility == string(sdk.VisibleTypePrivate) {
+		return nil
+	}
+	if _, err := c.EditOrg(name, sdk.EditOrgOption{Visibility: sdk.VisibleTypePrivate}); err != nil {
+		return fmt.Errorf("make org %s private: %w", name, err)
 	}
 	return nil
 }

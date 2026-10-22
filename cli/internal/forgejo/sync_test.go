@@ -279,3 +279,19 @@ func TestSyncKeepsCIOutOfOps(t *testing.T) {
 		}
 	}
 }
+
+// An org made public by hand is made private again (ops/homelab's org and Woodpecker's)
+func TestSyncMakesOrgsPrivate(t *testing.T) {
+	f, ep := newFakeForgejo(t)
+	tokens := memoryTokens{}
+	if err := Sync(context.Background(), ep, f.admin, tokens, callback); err != nil {
+		t.Fatal(err)
+	}
+	f.orgs[Org], f.orgs[CIOrg] = "public", "limited"
+	if err := Sync(context.Background(), ep, f.admin, tokens, callback); err != nil {
+		t.Fatal(err)
+	}
+	if f.orgs[Org] != "private" || f.orgs[CIOrg] != "private" {
+		t.Fatalf("orgs = %v", f.orgs)
+	}
+}

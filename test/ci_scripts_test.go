@@ -208,6 +208,13 @@ func TestMakeInfraProduction(t *testing.T) {
 			"lab infra forgejo push " + commit + ` --break-glass=GitHub "outage"; true`,
 			"terragrunt argocd apply --non-interactive -- -auto-approve",
 		}},
+		{"break-glass reason with a dollar sign", []string{`break_glass=$HOME is down`}, nil, []string{
+			"lab infra forgejo verify " + commit + ` --break-glass=$HOME is down`,
+			"terragrunt production run --all apply --non-interactive -- -auto-approve",
+			"lab infra forgejo sync",
+			"lab infra forgejo push " + commit + ` --break-glass=$HOME is down`,
+			"terragrunt argocd apply --non-interactive -- -auto-approve",
+		}},
 		{"break-glass with force=1", []string{"force=1", "break_glass=outage"}, nil, []string{""}},
 		{"break-glass refused by verify", []string{"break_glass=outage"}, []string{"VERIFY_FAILS=1"}, []string{
 			"lab infra forgejo verify " + commit + " --break-glass=outage",

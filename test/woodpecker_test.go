@@ -49,6 +49,7 @@ func TestWoodpeckerRender(t *testing.T) {
 				renderWoodpecker(t, e, server+` | [.envFrom[].secretRef.name] | sort | join(",")`))
 			assert.Equal(t, "woodpecker-agent", renderWoodpecker(t, e, agent+` | [.envFrom[].secretRef.name] | join(",")`))
 			assert.Equal(t, "true", env(agent, "WOODPECKER_BACKEND_K8S_USER_NAMESPACES"))
+			assert.Equal(t, "60", env(agent, "WOODPECKER_CONNECT_RETRY_COUNT"))
 			for _, allow := range []string{"SERVICE_ACCOUNT_NAME", "POD_NODE_SELECTOR", "POD_LABELS", "POD_ANNOTATIONS",
 				"POD_AFFINITY", "RUNTIME_CLASS", "POD_TOLERATIONS"} {
 				assert.Equal(t, "false", env(agent, "WOODPECKER_BACKEND_K8S_"+allow+"_ALLOW_FROM_STEP"), allow)
