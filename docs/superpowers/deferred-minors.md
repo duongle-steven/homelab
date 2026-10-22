@@ -45,3 +45,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 10e | Woodpecker's server generates a temporary `WOODPECKER_GRPC_SECRET` at each start (agents sign in again with the agent secret) | 11b |
 | 10e | Woodpecker's agent restarts once or twice at a fresh start until the server's gRPC port answers (`broken pipe`) | any |
 | 10e | `TestWoodpecker` leaves its probe image in the sandbox's zot (`ci` cannot delete) | any |
+| 10e | `make infra break_glass=` passes the reason through make's expansion: a `$` in it is mangled (no injection: the shell reads it from the environment) | any |
+| 10e | `lab infra forgejo sync` creates orgs `ops` and `ci` private but never fixes one made public by hand | any |
+| 10e | `cli/internal/cli/test_test.go` is not gofmt'd (`ci-check` runs gofmt on `test/` only) | any |
