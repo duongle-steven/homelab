@@ -37,8 +37,9 @@ The sandbox proves it end to end with a test repository; the blog's own reposito
 1. **Sign-in only for members of Forgejo org `ci`:** `WOODPECKER_OPEN: true` with `WOODPECKER_ORGS: ci` (a user
    outside the org cannot register). `lab infra forgejo sync` creates the private org `ci` and its team `developers`
    (write on code and pull requests, may create org repositories, not all repositories); Forgejo's login source maps
-   the Kanidm groups `homelab-admins` and `homelab-editors` to `ci/developers` (`groupTeamMap`,
-   `groupTeamMapRemoval: true`, so leaving the group in Kanidm drops the membership at the next login).
+   `homelab-admins` to `ci/Owners` (Woodpecker lets only org admins set org secrets) and `homelab-editors` to
+   `ci/developers` (`groupTeamMap`, `groupTeamMapRemoval: true`, so leaving the group in Kanidm drops the membership
+   at the next login).
    `homelab-users` and outsiders cannot sign in. `WOODPECKER_ADMIN: forgejo_admin` stays.
 2. **The OAuth client from `lab infra forgejo sync`**, ported from upstream: the Forgejo OAuth2 application
    `woodpecker` (confidential, redirect `https://ci.<domain>/authorize`), its credentials written to
@@ -62,13 +63,24 @@ The sandbox proves it end to end with a test repository; the blog's own reposito
    needs seccomp and AppArmor unconfined.
 6. **zot's credentials for pipelines:** an org secret `registry_password` in Woodpecker's org `ci` (with
    `registry_username: ci`), set with the admin role by a documented command (the value read from OpenBao, never
-   printed). Pipelines use `from_secret`. Rotation (11b) changes it there too.
+   printed) by a member of `homelab-admins`. Pipelines use `from_secret`. Rotation (11b) changes it there too.
 7. **The sandbox runs Woodpecker** (`system/argocd/values-dev.yaml`, `values-dev.yaml`: one agent, the dev CA for
    the server; Forgejo's clone and zot's push skip TLS verification only in the sandbox's test pipeline, since step
    pods cannot mount the CA). Its `woodpecker/forgejo` appears when `lab infra forgejo sync --env sandbox` runs;
    until then the server waits for its Secret.
 8. **`.woodpecker/` removed** from this repository (fixes the "dev shell cleanup" minor).
 9. **Versions:** the latest chart and server, agent and Buildah images, pinned.
+10. **Break-glass when GitHub or the internet is down** (asked in chat): production keeps running (Argo CD reads
+    Forgejo), but `verify` needs GitHub. `lab infra forgejo push --break-glass=<reason>` (production only) skips
+    `verify`'s GitHub checks and nothing else: no uncommitted changes, HEAD must fast-forward what Forgejo's `master`
+    holds (never forced), the reason is printed and required (non-empty). `make infra env=production
+    break_glass=<reason>` passes it and skips `verify`. Afterwards the same commit reaches GitHub's `master` through
+    a branch, a PR into `dev` and the release PR (merge commits keep it an ancestor, so the next normal push
+    fast-forwards). `docs/how-to-guides/deploy-to-forgejo.md` gets a break-glass section: what works without GitHub
+    (Forgejo, Argo CD for charts and images already cached; OpenTofu needs R2, so with no internet only `push`
+    works, never `make infra`), that charts on `*.github.io` and images on `ghcr.io` also depend on GitHub, and the
+    last resort without any push (pause an Application's auto-sync in Argo CD, `kubectl`, then resume after the fix
+    lands in git).
 
 ## Failure handling
 
@@ -91,6 +103,9 @@ The sandbox proves it end to end with a test repository; the blog's own reposito
   serves the tag; the step pods ran without privilege and in a user namespace; cleanup removes the repository, the
   Woodpecker repository and the image.
 - `TestForgejoDeploy` also checks the OAuth client in OpenBao and that a second sync keeps it.
+- `lab` unit tests for `--break-glass`: refused for the sandbox and with an empty reason; with a reason, no GitHub
+  call is made and a HEAD that does not fast-forward Forgejo's `master` is still refused; `make infra`'s offline test
+  (`TestMakeInfraProduction`) passes `break_glass` and skips `verify`.
 
 ## Documentation
 
