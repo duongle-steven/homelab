@@ -1,0 +1,752 @@
+package backup
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
+)
+
+// Source is where a restore takes a volume from.
+type Source string
+
+const (
+	// Offsite is a Velero backup (R2, or the sandbox's S3 server).
+	Offsite Source = "offsite"
+	// Local is the newest hourly VolumeSnapshot at or before a time, on the nodes' disks: no internet needed.
+	Local Source = "local"
+)
+
+// The other operators' resources a restore drives.
+var (
+	Applications    = schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "applications"}
+	CNPGClusters    = schema.GroupVersionResource{Group: "postgresql.cnpg.io", Version: "v1", Resource: "clusters"}
+	Kanidms         = schema.GroupVersionResource{Group: "kaniop.rs", Version: "v1beta1", Resource: "kanidms"}
+	VolumeSnapshots = schema.GroupVersionResource{Group: "snapshot.storage.k8s.io", Version: "v1", Resource: "volumesnapshots"}
+	ExternalSecrets = schema.GroupVersionResource{Group: "external-secrets.io", Version: "v1", Resource: "externalsecrets"}
+)
+
+// Plan is a whole-cluster restore: the scheduled run for every app with a daily volume (OpenBao first), and each
+// app's own newest push from before this cluster for its manual volumes.
+type Plan struct {
+	Run    Run
+	Apps   []string
+	Pushes map[string]Run
+}
+
+// PlanCluster lists what RestoreCluster restores from run. Argo CD has already created every app's (empty) claims
+// from git, so their labels say which apps hold daily and manual volumes.
+func (c *Client) PlanCluster(ctx context.Context, run Run) (Plan, error) {
+	if run.App != "" {
+		return Plan{Run: run, Apps: []string{run.App}}, nil
+	}
+	claims, err := c.Kube.CoreV1().PersistentVolumeClaims("").List(ctx, metav1.ListOptions{LabelSelector: "homelab/backup in (daily,manual)"})
+	if err != nil {
+		return Plan{}, err
+	}
+	daily, manual := map[string]bool{}, map[string]bool{}
+	for _, p := range claims.Items {
+		if p.Labels["homelab/backup"] == "daily" {
+			daily[p.Namespace] = true
+		} else {
+			manual[p.Namespace] = true
+		}
+	}
+	plan := Plan{Run: run, Pushes: map[string]Run{}}
+	for ns := range daily {
+		plan.Apps = append(plan.Apps, ns)
+	}
+	// OpenBao first: every other app reads its secrets
+	sort.Slice(plan.Apps, func(i, j int) bool {
+		if (plan.Apps[i] == "openbao") != (plan.Apps[j] == "openbao") {
+			return plan.Apps[i] == "openbao"
+		}
+		return plan.Apps[i] < plan.Apps[j]
+	})
+	runs, err := c.Runs(ctx)
+	if err != nil {
+		return Plan{}, err
+	}
+	created, err := c.ClusterCreated(ctx)
+	if err != nil {
+		return Plan{}, err
+	}
+	// Runs is newest first: each manual app's newest push from before this cluster
+	for ns := range manual {
+		for _, r := range runs {
+			if r.App == ns && r.Phase == "Completed" && r.Started.Before(created) {
+				plan.Pushes[ns] = r
+				break
+			}
+		}
+	}
+	return plan, nil
+}
+
+// RestoreCluster restores a fresh cluster from plan, then makes every reader take the restored secrets. It refuses a
+// writable location: until the restored data is checked, nothing may write or prune backups.
+func (c *Client) RestoreCluster(ctx context.Context, plan Plan) error {
+	readOnly, err := c.Mode(ctx)
+	if err != nil {
+		return err
+	}
+	if !readOnly {
+		return fmt.Errorf("location default is writable: lab backup disable first (a restore needs it read-only)")
+	}
+	for _, app := range plan.Apps {
+		if err := c.RestoreApp(ctx, app, Offsite, time.Time{}, plan.Run); err != nil {
+			return err
+		}
+	}
+	apps := make([]string, 0, len(plan.Pushes))
+	for app := range plan.Pushes {
+		apps = append(apps, app)
+	}
+	sort.Strings(apps)
+	for _, app := range apps {
+		if err := c.RestoreApp(ctx, app, Offsite, time.Time{}, plan.Pushes[app]); err != nil {
+			return err
+		}
+	}
+	return c.refreshReaders(ctx)
+}
+
+// RestoreApp replaces one app's volumes: from run's off-site copy, or from the newest local snapshot at or before
+// at. Argo CD's automated sync stays paused until the app runs on the restored volumes; on an error it stays paused,
+// with the app stopped, and the error says so.
+func (c *Client) RestoreApp(ctx context.Context, app string, src Source, at time.Time, run Run) error {
+	groups := []string{"daily", "manual"}
+	if src == Offsite && run.App == "" {
+		// A scheduled run holds only daily volumes
+		groups = []string{"daily"}
+	}
+	claims, err := c.Kube.CoreV1().PersistentVolumeClaims(app).List(ctx, metav1.ListOptions{LabelSelector: "homelab/backup in (" + strings.Join(groups, ",") + ")"})
+	if err != nil {
+		return err
+	}
+	if len(claims.Items) == 0 {
+		return fmt.Errorf("%s has no claim labelled homelab/backup %s", app, strings.Join(groups, " or "))
+	}
+	sources := map[string]string{}
+	if src == Local {
+		// Every snapshot is chosen before anything is touched
+		for _, p := range claims.Items {
+			name, err := c.snapshotAt(ctx, app, p.Name, at)
+			if err != nil {
+				return err
+			}
+			sources[p.Name] = name
+		}
+	}
+	automated, err := c.pause(ctx, app)
+	if err != nil {
+		return err
+	}
+	stopped := paused(app)
+	s, err := c.stop(ctx, app, claims.Items)
+	if err != nil {
+		return stopped(err)
+	}
+	if err := c.replace(ctx, app, src, run, claims.Items, sources); err != nil {
+		return stopped(err)
+	}
+	if err := c.start(ctx, app, s); err != nil {
+		return stopped(err)
+	}
+	if s.openbao {
+		if err := c.restoreOpenBao(ctx); err != nil {
+			return stopped(err)
+		}
+	}
+	if s.kanidm {
+		if err := c.refreshKaniop(ctx, app); err != nil {
+			return stopped(err)
+		}
+	}
+	if err := c.resume(ctx, app, automated); err != nil {
+		return stopped(err)
+	}
+	return c.waitHealthy(ctx, app)
+}
+
+func paused(app string) func(error) error {
+	return func(err error) error {
+		return fmt.Errorf("%w\nApplication %s stays paused and its workloads may be stopped: fix the cause, then run the restore again (or resume its sync in Argo CD)", err, app)
+	}
+}
+
+func (c *Client) patch(ctx context.Context, gvr schema.GroupVersionResource, namespace, name string, patch any) error {
+	data, err := json.Marshal(patch)
+	if err != nil {
+		return err
+	}
+	if _, err := c.Dyn.Resource(gvr).Namespace(namespace).Patch(ctx, name, types.MergePatchType, data, metav1.PatchOptions{}); err != nil {
+		return fmt.Errorf("patch %s.%s %s/%s: %w", gvr.Resource, gvr.Group, namespace, name, err)
+	}
+	return nil
+}
+
+// pause removes the Application's automated sync and returns it (the ApplicationSets ignore that field)
+func (c *Client) pause(ctx context.Context, app string) (map[string]any, error) {
+	a, err := c.Dyn.Resource(Applications).Namespace("argocd").Get(ctx, app, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("Application %s: %w", app, err)
+	}
+	automated, _, _ := unstructured.NestedMap(a.Object, "spec", "syncPolicy", "automated")
+	return automated, c.patch(ctx, Applications, "argocd", app, map[string]any{"spec": map[string]any{"syncPolicy": map[string]any{"automated": nil}}})
+}
+
+func (c *Client) resume(ctx context.Context, app string, automated map[string]any) error {
+	if automated == nil {
+		return nil
+	}
+	return c.patch(ctx, Applications, "argocd", app, map[string]any{"spec": map[string]any{"syncPolicy": map[string]any{"automated": automated}}})
+}
+
+// stoppedApp is what stop changed, for start to put back
+type stoppedApp struct {
+	deployments  map[string]int32
+	statefulSets map[string]int32
+	kanidms      map[string][]any
+	clusters     []string
+	cronJobs     []string
+	openbao      bool
+	kanidm       bool
+}
+
+func scale(replicas int32) []byte {
+	return []byte(fmt.Sprintf(`{"spec":{"replicas":%d}}`, replicas))
+}
+
+// stop takes the app off its volumes: Deployments and StatefulSets to 0, kaniop's Kanidm through its replicas,
+// CloudNativePG clusters hibernated, CronJobs suspended; then it waits for no pod to mount the claims.
+func (c *Client) stop(ctx context.Context, app string, claims []corev1.PersistentVolumeClaim) (*stoppedApp, error) {
+	s := &stoppedApp{deployments: map[string]int32{}, statefulSets: map[string]int32{}, kanidms: map[string][]any{}}
+	apps := c.Kube.AppsV1()
+	deployments, err := apps.Deployments(app).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range deployments.Items {
+		if r := ptr.Deref(d.Spec.Replicas, 1); r > 0 {
+			if _, err := apps.Deployments(app).Patch(ctx, d.Name, types.MergePatchType, scale(0), metav1.PatchOptions{}); err != nil {
+				return nil, err
+			}
+			s.deployments[d.Name] = r
+		}
+	}
+	kanidms, err := c.Dyn.Resource(Kanidms).Namespace(app).List(ctx, metav1.ListOptions{})
+	if err == nil {
+		for _, k := range kanidms.Items {
+			groups, _, _ := unstructured.NestedSlice(k.Object, "spec", "replicaGroups")
+			s.kanidms[k.GetName()] = groups
+			zero := make([]any, 0, len(groups))
+			for _, g := range groups {
+				m := map[string]any{}
+				for key, v := range g.(map[string]any) {
+					m[key] = v
+				}
+				m["replicas"] = int64(0)
+				zero = append(zero, m)
+			}
+			if err := c.patch(ctx, Kanidms, app, k.GetName(), map[string]any{"spec": map[string]any{"replicaGroups": zero}}); err != nil {
+				return nil, err
+			}
+			s.kanidm = true
+		}
+	}
+	statefulSets, err := apps.StatefulSets(app).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, st := range statefulSets.Items {
+		if ownedBy(st.OwnerReferences, "Kanidm") {
+			continue
+		}
+		if st.Name == "openbao" {
+			s.openbao = true
+		}
+		if r := ptr.Deref(st.Spec.Replicas, 1); r > 0 {
+			if _, err := apps.StatefulSets(app).Patch(ctx, st.Name, types.MergePatchType, scale(0), metav1.PatchOptions{}); err != nil {
+				return nil, err
+			}
+			s.statefulSets[st.Name] = r
+		}
+	}
+	if app == "openbao" {
+		s.openbao = true
+	}
+	clusters, err := c.Dyn.Resource(CNPGClusters).Namespace(app).List(ctx, metav1.ListOptions{})
+	if err == nil {
+		for _, cl := range clusters.Items {
+			if err := c.patch(ctx, CNPGClusters, app, cl.GetName(), map[string]any{"metadata": map[string]any{"annotations": map[string]any{"cnpg.io/hibernation": "on"}}}); err != nil {
+				return nil, err
+			}
+			s.clusters = append(s.clusters, cl.GetName())
+		}
+	}
+	cronJobs, err := c.Kube.BatchV1().CronJobs(app).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, cj := range cronJobs.Items {
+		if !ptr.Deref(cj.Spec.Suspend, false) {
+			if _, err := c.Kube.BatchV1().CronJobs(app).Patch(ctx, cj.Name, types.MergePatchType, []byte(`{"spec":{"suspend":true}}`), metav1.PatchOptions{}); err != nil {
+				return nil, err
+			}
+			s.cronJobs = append(s.cronJobs, cj.Name)
+		}
+	}
+	names := map[string]bool{}
+	for _, p := range claims {
+		names[p.Name] = true
+	}
+	return s, c.until(ctx, "no pod of "+app+" mounting its claims", func() (bool, error) {
+		pods, err := c.Kube.CoreV1().Pods(app).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		for _, p := range pods.Items {
+			if p.Status.Phase == corev1.PodSucceeded || p.Status.Phase == corev1.PodFailed {
+				continue
+			}
+			for _, v := range p.Spec.Volumes {
+				if v.PersistentVolumeClaim != nil && names[v.PersistentVolumeClaim.ClaimName] {
+					return false, nil
+				}
+			}
+		}
+		return true, nil
+	})
+}
+
+func ownedBy(refs []metav1.OwnerReference, kind string) bool {
+	for _, r := range refs {
+		if r.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// start puts back what stop changed, the clusters' reconciliation first
+func (c *Client) start(ctx context.Context, app string, s *stoppedApp) error {
+	for _, name := range s.clusters {
+		if err := c.patch(ctx, CNPGClusters, app, name, map[string]any{"metadata": map[string]any{"annotations": map[string]any{"cnpg.io/hibernation": nil}}}); err != nil {
+			return err
+		}
+	}
+	for name, groups := range s.kanidms {
+		if err := c.patch(ctx, Kanidms, app, name, map[string]any{"spec": map[string]any{"replicaGroups": groups}}); err != nil {
+			return err
+		}
+	}
+	apps := c.Kube.AppsV1()
+	for name, r := range s.statefulSets {
+		if _, err := apps.StatefulSets(app).Patch(ctx, name, types.MergePatchType, scale(r), metav1.PatchOptions{}); err != nil {
+			return err
+		}
+	}
+	for name, r := range s.deployments {
+		if _, err := apps.Deployments(app).Patch(ctx, name, types.MergePatchType, scale(r), metav1.PatchOptions{}); err != nil {
+			return err
+		}
+	}
+	for _, name := range s.cronJobs {
+		if _, err := c.Kube.BatchV1().CronJobs(app).Patch(ctx, name, types.MergePatchType, []byte(`{"spec":{"suspend":false}}`), metav1.PatchOptions{}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// replace deletes the claims and restores them, keeping CloudNativePG from declaring its cluster lost meanwhile and
+// giving restored claims back the owner references Velero drops
+func (c *Client) replace(ctx context.Context, app string, src Source, run Run, claims []corev1.PersistentVolumeClaim, sources map[string]string) error {
+	clusters, _ := c.Dyn.Resource(CNPGClusters).Namespace(app).List(ctx, metav1.ListOptions{})
+	var cnpg []string
+	if clusters != nil {
+		for _, cl := range clusters.Items {
+			cnpg = append(cnpg, cl.GetName())
+			if err := c.patch(ctx, CNPGClusters, app, cl.GetName(), map[string]any{"metadata": map[string]any{"annotations": map[string]any{"cnpg.io/reconciliationLoop": "disabled"}}}); err != nil {
+				return err
+			}
+		}
+	}
+	pvcs := c.Kube.CoreV1().PersistentVolumeClaims(app)
+	for _, p := range claims {
+		if err := pvcs.Delete(ctx, p.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	for _, p := range claims {
+		name := p.Name
+		if err := c.until(ctx, "claim "+app+"/"+name+" deleted", func() (bool, error) {
+			_, err := pvcs.Get(ctx, name, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				return true, nil
+			}
+			return false, err
+		}); err != nil {
+			return err
+		}
+	}
+	switch src {
+	case Offsite:
+		if err := c.veleroRestore(ctx, app, run); err != nil {
+			return err
+		}
+	case Local:
+		for _, p := range claims {
+			if _, err := pvcs.Create(ctx, fromSnapshot(p, sources[p.Name]), metav1.CreateOptions{}); err != nil {
+				return fmt.Errorf("claim %s/%s from snapshot %s: %w", app, p.Name, sources[p.Name], err)
+			}
+		}
+	default:
+		return fmt.Errorf("unknown source %q (offsite or local)", src)
+	}
+	for _, p := range claims {
+		if len(p.OwnerReferences) == 0 {
+			continue
+		}
+		restored, err := pvcs.Get(ctx, p.Name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("restored claim %s/%s: %w", app, p.Name, err)
+		}
+		if len(restored.OwnerReferences) == 0 {
+			data, err := json.Marshal(map[string]any{"metadata": map[string]any{"ownerReferences": p.OwnerReferences}})
+			if err != nil {
+				return err
+			}
+			if _, err := pvcs.Patch(ctx, p.Name, types.MergePatchType, data, metav1.PatchOptions{}); err != nil {
+				return err
+			}
+		}
+	}
+	for _, name := range cnpg {
+		if err := c.patch(ctx, CNPGClusters, app, name, map[string]any{"metadata": map[string]any{"annotations": map[string]any{"cnpg.io/reconciliationLoop": nil}}}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// fromSnapshot is the claim again, with its metadata and spec, its data from snapshot
+func fromSnapshot(p corev1.PersistentVolumeClaim, snapshot string) *corev1.PersistentVolumeClaim {
+	annotations := map[string]string{}
+	for k, v := range p.Annotations {
+		// The provisioner's and binder's own, set again on the new claim
+		if strings.HasPrefix(k, "pv.kubernetes.io/") || strings.HasPrefix(k, "volume.kubernetes.io/") || strings.HasPrefix(k, "volume.beta.kubernetes.io/") {
+			continue
+		}
+		annotations[k] = v
+	}
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       p.Namespace,
+			Name:            p.Name,
+			Labels:          p.Labels,
+			Annotations:     annotations,
+			OwnerReferences: p.OwnerReferences,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes:      p.Spec.AccessModes,
+			Resources:        p.Spec.Resources,
+			StorageClassName: p.Spec.StorageClassName,
+			VolumeMode:       p.Spec.VolumeMode,
+			DataSource:       &corev1.TypedLocalObjectReference{APIGroup: ptr.To("snapshot.storage.k8s.io"), Kind: "VolumeSnapshot", Name: snapshot},
+		},
+	}
+}
+
+// snapshotAt is the newest ready hourly snapshot of the claim taken at or before at (zero: now)
+func (c *Client) snapshotAt(ctx context.Context, app, claim string, at time.Time) (string, error) {
+	if at.IsZero() {
+		at = c.Now()
+	}
+	list, err := c.Dyn.Resource(VolumeSnapshots).Namespace(app).List(ctx, metav1.ListOptions{LabelSelector: "homelab/snapshot=hourly,homelab/pvc=" + claim})
+	if err != nil {
+		return "", fmt.Errorf("volumesnapshots of %s/%s: %w", app, claim, err)
+	}
+	best, bestTime := "", time.Time{}
+	for _, s := range list.Items {
+		ready, _, _ := unstructured.NestedBool(s.Object, "status", "readyToUse")
+		created := s.GetCreationTimestamp().Time
+		if ready && !created.After(at) && created.After(bestTime) {
+			best, bestTime = s.GetName(), created
+		}
+	}
+	if best == "" {
+		return "", fmt.Errorf("no ready snapshot of %s/%s at or before %s (lab backup list; or --from offsite)", app, claim, at.Format(time.RFC3339))
+	}
+	return best, nil
+}
+
+func (c *Client) veleroRestore(ctx context.Context, app string, run Run) error {
+	if run.Name == "" {
+		return fmt.Errorf("no backup to restore %s from", app)
+	}
+	name := fmt.Sprintf("%s-%s-%s", app, run.Name, c.Now().UTC().Format("20060102150405"))
+	if len(name) > 63 {
+		name = name[len(name)-63:]
+		name = strings.TrimLeft(name, "-.")
+	}
+	r := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{
+		"backupName":         run.Name,
+		"includedNamespaces": []any{app},
+		"includedResources":  []any{"persistentvolumeclaims", "persistentvolumes"},
+	}}}
+	r.SetAPIVersion("velero.io/v1")
+	r.SetKind("Restore")
+	r.SetNamespace(Namespace)
+	r.SetName(name)
+	if _, err := c.Dyn.Resource(Restores).Namespace(Namespace).Create(ctx, r, metav1.CreateOptions{}); err != nil {
+		return fmt.Errorf("create restores.velero.io %s: %w", name, err)
+	}
+	return c.until(ctx, "restore "+name, func() (bool, error) {
+		u, err := c.Dyn.Resource(Restores).Namespace(Namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return false, nil
+		}
+		phase, _, _ := unstructured.NestedString(u.Object, "status", "phase")
+		switch phase {
+		case "Completed":
+			return true, nil
+		case "Failed", "PartiallyFailed", "FailedValidation":
+			return false, fmt.Errorf("restore %s %s (kubectl -n %s describe restores.velero.io %s)", name, phase, Namespace, name)
+		}
+		return false, nil
+	})
+}
+
+// restoreOpenBao replaces OpenBao's data with its restored raft snapshot, through a Job as the admin role: the
+// snapshot's volume is not OpenBao's own
+func (c *Client) restoreOpenBao(ctx context.Context) error {
+	const ns = "openbao"
+	cron, err := c.Kube.BatchV1().CronJobs(ns).Get(ctx, "openbao-snapshot", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("CronJob openbao/openbao-snapshot (its image): %w", err)
+	}
+	if err := c.until(ctx, "OpenBao ready", func() (bool, error) {
+		st, err := c.Kube.AppsV1().StatefulSets(ns).Get(ctx, "openbao", metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return err == nil && st.Status.ReadyReplicas >= ptr.Deref(st.Spec.Replicas, 1), err
+	}); err != nil {
+		return err
+	}
+	image := cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Image
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: "openbao-restore-" + c.Now().UTC().Format("20060102150405")},
+		Spec: batchv1.JobSpec{
+			BackoffLimit:            ptr.To[int32](0),
+			TTLSecondsAfterFinished: ptr.To[int32](3600),
+			Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{
+				ServiceAccountName:           "openbao-admin",
+				AutomountServiceAccountToken: ptr.To(false),
+				RestartPolicy:                corev1.RestartPolicyNever,
+				SecurityContext:              cron.Spec.JobTemplate.Spec.Template.Spec.SecurityContext,
+				Containers: []corev1.Container{{
+					Name:    "restore",
+					Image:   image,
+					Command: []string{"sh", "-ec"},
+					Args: []string{`export BAO_TOKEN="$(bao write -field=token auth/kubernetes/login role=admin jwt=@/var/run/secrets/openbao/token)"; ` +
+						`bao operator raft snapshot restore -force /snapshots/raft.snap`},
+					Env:          []corev1.EnvVar{{Name: "BAO_ADDR", Value: "http://openbao.openbao:8200"}},
+					VolumeMounts: []corev1.VolumeMount{{Name: "snapshots", MountPath: "/snapshots", ReadOnly: true}, {Name: "token", MountPath: "/var/run/secrets/openbao", ReadOnly: true}},
+					SecurityContext: &corev1.SecurityContext{
+						AllowPrivilegeEscalation: ptr.To(false),
+						ReadOnlyRootFilesystem:   ptr.To(true),
+						Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+					},
+				}},
+				Volumes: []corev1.Volume{
+					{Name: "snapshots", VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "openbao-snapshots"}}},
+					{Name: "token", VolumeSource: corev1.VolumeSource{Projected: &corev1.ProjectedVolumeSource{Sources: []corev1.VolumeProjection{{
+						ServiceAccountToken: &corev1.ServiceAccountTokenProjection{Audience: "openbao", ExpirationSeconds: ptr.To[int64](600), Path: "token"},
+					}}}}},
+				},
+			}},
+		},
+	}
+	jobs := c.Kube.BatchV1().Jobs(ns)
+	if _, err := jobs.Create(ctx, job, metav1.CreateOptions{}); err != nil {
+		return fmt.Errorf("Job %s: %w", job.Name, err)
+	}
+	return c.until(ctx, "Job openbao/"+job.Name, func() (bool, error) {
+		j, err := jobs.Get(ctx, job.Name, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		if j.Status.Failed > 0 {
+			return false, fmt.Errorf("OpenBao's snapshot restore failed (kubectl -n openbao logs job/%s)", job.Name)
+		}
+		return j.Status.Succeeded > 0, nil
+	})
+}
+
+// refreshKaniop deletes the Secrets kaniop writes only when they are missing (Kanidm's admin passwords, every OAuth2
+// client's), so it writes them again from the restored data, then restarts their readers
+func (c *Client) refreshKaniop(ctx context.Context, app string) error {
+	secrets, err := c.Kube.CoreV1().Secrets("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	var gone []corev1.Secret
+	for _, s := range secrets.Items {
+		if (s.Namespace == app && s.Name == "kanidm-admin-passwords") || strings.HasSuffix(s.Name, "-kanidm-oauth2-credentials") {
+			if err := c.Kube.CoreV1().Secrets(s.Namespace).Delete(ctx, s.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+			gone = append(gone, s)
+		}
+	}
+	namespaces := map[string]bool{}
+	for _, s := range gone {
+		ns, name := s.Namespace, s.Name
+		if err := c.until(ctx, "kaniop's Secret "+ns+"/"+name, func() (bool, error) {
+			_, err := c.Kube.CoreV1().Secrets(ns).Get(ctx, name, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return err == nil, err
+		}); err != nil {
+			return err
+		}
+		if ns != app {
+			namespaces[ns] = true
+		}
+	}
+	for ns := range namespaces {
+		if err := c.restartWorkloads(ctx, ns); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// refreshReaders makes every ExternalSecret read OpenBao again and restarts the workloads outside OpenBao, Argo CD
+// and the system, so every reader runs on the restored secrets
+func (c *Client) refreshReaders(ctx context.Context) error {
+	list, err := c.Dyn.Resource(ExternalSecrets).Namespace("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("list externalsecrets: %w", err)
+	}
+	stamp := c.Now().UTC().Format(time.RFC3339)
+	for _, es := range list.Items {
+		if err := c.patch(ctx, ExternalSecrets, es.GetNamespace(), es.GetName(), map[string]any{"metadata": map[string]any{"annotations": map[string]any{"force-sync": stamp}}}); err != nil {
+			return err
+		}
+	}
+	namespaces, err := c.Kube.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, ns := range namespaces.Items {
+		switch ns.Name {
+		case "openbao", "argocd", "kube-system", "kube-public", "kube-node-lease", "default", "istio-system":
+			continue
+		}
+		if err := c.restartWorkloads(ctx, ns.Name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// restartWorkloads is kubectl rollout restart for every Deployment and StatefulSet in the namespace
+func (c *Client) restartWorkloads(ctx context.Context, ns string) error {
+	patch := []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":%q}}}}}`, c.Now().UTC().Format(time.RFC3339)))
+	apps := c.Kube.AppsV1()
+	deployments, err := apps.Deployments(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, d := range deployments.Items {
+		if _, err := apps.Deployments(ns).Patch(ctx, d.Name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+			return err
+		}
+	}
+	statefulSets, err := apps.StatefulSets(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, s := range statefulSets.Items {
+		if ownedBy(s.OwnerReferences, "Kanidm") {
+			continue
+		}
+		if _, err := apps.StatefulSets(ns).Patch(ctx, s.Name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// waitHealthy waits for the Application to be Synced and Healthy, restarting the app's pods that crash-looped while
+// their database was away (Forgejo's init container), once each
+func (c *Client) waitHealthy(ctx context.Context, app string) error {
+	restarted := map[string]bool{}
+	return c.until(ctx, "Application "+app+" Synced and Healthy", func() (bool, error) {
+		pods, err := c.Kube.CoreV1().Pods(app).List(ctx, metav1.ListOptions{})
+		if err == nil {
+			for _, p := range pods.Items {
+				if !restarted[p.Name] && crashLooping(p) {
+					restarted[p.Name] = true
+					_ = c.Kube.CoreV1().Pods(app).Delete(ctx, p.Name, metav1.DeleteOptions{})
+				}
+			}
+		}
+		a, err := c.Dyn.Resource(Applications).Namespace("argocd").Get(ctx, app, metav1.GetOptions{})
+		if err != nil {
+			return false, nil
+		}
+		sync, _, _ := unstructured.NestedString(a.Object, "status", "sync", "status")
+		health, _, _ := unstructured.NestedString(a.Object, "status", "health", "status")
+		return sync == "Synced" && health == "Healthy", nil
+	})
+}
+
+func crashLooping(p corev1.Pod) bool {
+	for _, s := range append(p.Status.InitContainerStatuses, p.Status.ContainerStatuses...) {
+		if s.State.Waiting != nil && s.State.Waiting.Reason == "CrashLoopBackOff" {
+			return true
+		}
+	}
+	return false
+}
+
+// until polls done every c.Poll for up to c.Wait; an error from done ends it
+func (c *Client) until(ctx context.Context, what string, done func() (bool, error)) error {
+	ctx, cancel := context.WithTimeout(ctx, c.Wait)
+	defer cancel()
+	for {
+		ok, err := done()
+		if err != nil {
+			return err
+		}
+		if ok {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return fmt.Errorf("waited %s for %s", c.Wait, what)
+			}
+			return ctx.Err()
+		case <-time.After(c.Poll):
+		}
+	}
+}

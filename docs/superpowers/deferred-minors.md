@@ -19,11 +19,10 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | #31 (7b) | woodpecker's and zot's config changes do not roll their pods (the woodpecker chart passes `podAnnotations` without `tpl`; Secrets ESO refreshes never would) | 11b (Reloader or explicit restarts) |
 | #31 (7b) | `scripts/check-env-config`'s untemplated-global check knows only four keys | any |
 | #32 (7c) | `.direnv/` and `site/` are not git-ignored | any |
-| #34 (8a) | Two destinations of one generated secret drift if only one is lost (a partial restore): the push gives the lost one a new value (8e removed the copy that regenerated; restore both, or copy the survivor's value first) | 11 (backups) |
 | #34 (8a) | `TestSecretsAudience` matches the plugin's "invalid audience" message | any |
 | 8b | `infra/_modules/secrets/wait-namespace.sh` names OpenBao and `platform/openbao` (copied) instead of `infra-secrets` | any |
 | 8b | `apply-secrets.sh`'s kubectl errors are hidden (OpenTofu suppresses output when `MANIFEST` is sensitive) | any |
-| 8b | Losing `secrets/tfstate.json` on R2 (or the state passphrase) silently creates a new WireGuard key, which `Replace` pushes over OpenBao's | 11 (backups) |
+| 8b | Losing `secrets/tfstate.json` on R2 (or the state passphrase) silently creates a new WireGuard key, which `Replace` pushes over OpenBao's (11a's backups hold volumes, not OpenTofu's state) | 11b |
 | 8b | Removing an `infra-secrets` entry leaves its Secret in the namespace; the docs' removal steps omit `kubectl delete secret` | any |
 | 8b | `TestNtfyWatchdogScheduled` does not prove that heartbeats replace one scheduled message | any |
 | 8b | `InfoInhibitor` reaches phones: the Alertmanager config override drops the chart's `null` receiver | any |
