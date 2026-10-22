@@ -1,5 +1,7 @@
-{{- /* The vendored manifests (files/), placed in this namespace instead of default */}}
+{{- /* The vendored manifests (files/), placed in this namespace instead of default, with the volumes' data where k3d
+mounts the host's disk: the node container's own overlayfs refuses idmapped mounts (pods in user namespaces, like
+Woodpecker's steps) */}}
 {{- range $path, $_ := .Files.Glob "files/*.yaml" }}
 ---
-{{ $.Files.Get $path | replace "namespace: default" (printf "namespace: %s" $.Release.Namespace) }}
+{{ $.Files.Get $path | replace "namespace: default" (printf "namespace: %s" $.Release.Namespace) | replace "path: /var/lib/csi-hostpath-data/" "path: /var/lib/rancher/k3s/storage/csi-hostpath" }}
 {{- end }}

@@ -79,3 +79,15 @@ func TestArgoCDBackupSync(t *testing.T) {
 		assert.Regexp(t, `(?s)eq \.path\.basename "velero".*kind: BackupStorageLocation\s+jsonPointers: \[/spec/accessMode\].*kind: Schedule\s+jsonPointers: \[/spec/paused\]`, patch)
 	}
 }
+
+// csi-hostpath keeps volumes where k3d mounts the host's disk: the node container's own overlayfs refuses the
+// idmapped mounts of pods in user namespaces (Woodpecker's steps failed with MOUNT_ATTR_IDMAP)
+func TestCSIHostPathDataOnNodeDisk(t *testing.T) {
+	cmd := exec.Command("sh", "-c", `scripts/render-chart system/csi-hostpath dev | yq -N 'select(.kind == "StatefulSet" or .kind == "DaemonSet") | .spec.template.spec.volumes[] | select(.name == "csi-data-dir") | .hostPath.path'`)
+	cmd.Dir = ".."
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	require.NoError(t, err, stderr.String())
+	assert.Equal(t, "/var/lib/rancher/k3s/storage/csi-hostpath", strings.TrimSpace(string(out)))
+}
