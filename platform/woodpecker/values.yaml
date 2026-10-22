@@ -1,20 +1,47 @@
 woodpecker:
   agent:
     replicaCount: 2
+    # The agent secret comes from OpenBao (woodpecker-agent), not the chart's Secret
+    mapAgentSecret: false
+    extraSecretNamesForEnvFrom:
+      - woodpecker-agent
+    resources:
+      requests: {cpu: 10m, memory: 64Mi}
     env:
       WOODPECKER_BACKEND_K8S_STORAGE_RWX: false
       # Agents will spawn pods to run workflow steps using the
       # Kubernetes backend instead of running them directly on
       # the agent pod, so we can run many workflows per agent.
       WOODPECKER_MAX_WORKFLOWS: 10
+      # Step pods: root inside is an unprivileged user on the node; pipelines cannot pick a service account, node,
+      # labels, annotations, affinity, runtime class or tolerations (docs/superpowers/specs/2026-10-21-woodpecker-design.md)
+      WOODPECKER_BACKEND_K8S_USER_NAMESPACES: true
+      WOODPECKER_BACKEND_K8S_SERVICE_ACCOUNT_NAME_ALLOW_FROM_STEP: false
+      WOODPECKER_BACKEND_K8S_POD_NODE_SELECTOR_ALLOW_FROM_STEP: false
+      WOODPECKER_BACKEND_K8S_POD_LABELS_ALLOW_FROM_STEP: false
+      WOODPECKER_BACKEND_K8S_POD_ANNOTATIONS_ALLOW_FROM_STEP: false
+      WOODPECKER_BACKEND_K8S_POD_AFFINITY_ALLOW_FROM_STEP: false
+      WOODPECKER_BACKEND_K8S_RUNTIME_CLASS_ALLOW_FROM_STEP: false
+      WOODPECKER_BACKEND_K8S_POD_TOLERATIONS_ALLOW_FROM_STEP: false
   server:
+    createAgentSecret: false
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+    persistentVolume:
+      size: 2Gi
     env:
-      WOODPECKER_WEBHOOK_HOST: http://woodpecker-server.woodpecker
+      # The chart's placeholder: env wins over envFrom, so it would hide woodpecker-environment's host
+      WOODPECKER_HOST: null
+      WOODPECKER_EXPERT_WEBHOOK_HOST: http://woodpecker-server.woodpecker
       WOODPECKER_FORGEJO: true
       WOODPECKER_OPEN: true
+      # Only members of Forgejo org ci register (Kanidm homelab-admins and homelab-editors, platform/forgejo)
+      WOODPECKER_ORGS: ci
       WOODPECKER_ADMIN: forgejo_admin
-    # WOODPECKER_HOST and WOODPECKER_FORGEJO_URL (templates/environment.yaml)
+    # WOODPECKER_HOST and WOODPECKER_FORGEJO_URL (templates/environment.yaml); the Forgejo client and the agent
+    # secret from OpenBao (templates/secret.yaml)
     extraSecretNamesForEnvFrom:
       - woodpecker-environment
+      - woodpecker-secret
 # Host label: ci.<global.baseDomain>
 host: ci

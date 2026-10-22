@@ -39,6 +39,7 @@ argocd-apps:
                     - path: platform/grafana
                     - path: platform/zot
                     - path: platform/forgejo
+                    - path: platform/woodpecker
               - git: &config
                   repoURL: *repoURL
                   revision: *revision
