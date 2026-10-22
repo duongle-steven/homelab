@@ -1,5 +1,9 @@
 external-secrets:
   webhook:
+    # On a fresh install apps sync before the webhook has an endpoint: Fail made the API server refuse their
+    # SecretStore and ExternalSecrets, and Argo CD then waited forever for workloads needing those Secrets. The
+    # controller still reports an invalid one in its status
+    failurePolicy: Ignore
     # The API server (outside the mesh) calls it: keep it out of the mesh's strict mTLS
     podLabels:
       istio.io/dataplane-mode: none
