@@ -25,6 +25,7 @@ const (
 	paperlessHost = "paperless.127-0-0-1.nip.io"
 	forgejoHost   = "git.127-0-0-1.nip.io"
 	opencloudHost = "drive.127-0-0-1.nip.io"
+	ciHost        = "ci.127-0-0-1.nip.io"
 )
 
 func skipUnlessSandbox(t *testing.T) {

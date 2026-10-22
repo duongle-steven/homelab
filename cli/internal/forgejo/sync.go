@@ -1,5 +1,6 @@
-// Package forgejo provisions the GitOps repository ops/homelab on Forgejo and deploys to it (upstream nixos's
-// lab infra forgejo, without its developers team and Woodpecker client).
+// Package forgejo provisions the GitOps repository ops/homelab on Forgejo and deploys to it, and provisions
+// Woodpecker's org ci and OAuth client (upstream nixos's lab infra forgejo; its developers team lives in ci here, so
+// no team grants anything on ops/homelab).
 package forgejo
 
 import (
@@ -20,6 +21,13 @@ const (
 	Branch     = "master"
 	DeployPath = "forgejo/deploy"
 	ArgoCDPath = "argocd/forgejo"
+
+	// CIOrg is the org whose members may sign in to Woodpecker (WOODPECKER_ORGS); Forgejo's Kanidm login source
+	// maps homelab-admins to its Owners and homelab-editors to CITeam
+	CIOrg          = "ci"
+	CITeam         = "developers"
+	WoodpeckerPath = "woodpecker/forgejo"
+	woodpeckerApp  = "woodpecker"
 )
 
 // Tokens is where Sync keeps the accounts' tokens (OpenBao).
@@ -41,9 +49,9 @@ var accounts = []account{
 	{name: "argocd", permission: sdk.AccessModeRead, token: "argocd", scope: sdk.AccessTokenScopeRepositoryRead, path: ArgoCDPath},
 }
 
-// Sync makes org ops match the design: what is right is kept, what is wrong is fixed, what is missing is created.
-// It waits for Forgejo until ctx ends.
-func Sync(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens) error {
+// Sync makes orgs ops and ci and Woodpecker's OAuth client (redirect woodpeckerCallback) match the design: what is
+// right is kept, what is wrong is fixed, what is missing is created. It waits for Forgejo until ctx ends.
+func Sync(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens, woodpeckerCallback string) error {
 	if err := waitReady(ctx, ep); err != nil {
 		return err
 	}
@@ -70,7 +78,10 @@ func Sync(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens)
 			return err
 		}
 	}
-	return nil
+	if err := ensureCIOrg(admin); err != nil {
+		return err
+	}
+	return ensureWoodpeckerClient(ctx, admin, tokens, woodpeckerCallback)
 }
 
 func newClient(ctx context.Context, ep Endpoint, auth sdk.ClientOption) (*sdk.Client, error) {
@@ -103,15 +114,21 @@ func waitReady(ctx context.Context, ep Endpoint) error {
 
 func notFound(resp *sdk.Response) bool { return resp != nil && resp.StatusCode == http.StatusNotFound }
 
-func ensureRepository(c *sdk.Client) error {
-	if _, resp, err := c.GetOrg(Org); err != nil {
+func ensureOrg(c *sdk.Client, name string) error {
+	if _, resp, err := c.GetOrg(name); err != nil {
 		if !notFound(resp) {
-			return fmt.Errorf("org %s: %w", Org, err)
+			return fmt.Errorf("org %s: %w", name, err)
 		}
-		private := sdk.VisibleTypePrivate
-		if _, _, err := c.CreateOrg(sdk.CreateOrgOption{Name: Org, Visibility: private}); err != nil {
-			return fmt.Errorf("create org %s: %w", Org, err)
+		if _, _, err := c.CreateOrg(sdk.CreateOrgOption{Name: name, Visibility: sdk.VisibleTypePrivate}); err != nil {
+			return fmt.Errorf("create org %s: %w", name, err)
 		}
+	}
+	return nil
+}
+
+func ensureRepository(c *sdk.Client) error {
+	if err := ensureOrg(c, Org); err != nil {
+		return err
 	}
 	if _, resp, err := c.GetRepo(Org, Repo); err != nil {
 		if !notFound(resp) {
@@ -297,4 +314,89 @@ func ensureToken(ctx context.Context, ep Endpoint, admin *sdk.Client, tokens Tok
 		return fmt.Errorf("Forgejo returned an empty token for %s", a.name)
 	}
 	return tokens.Write(ctx, a.path, map[string]string{"username": a.name, "token": created.Token})
+}
+
+// ensureCIOrg creates org ci and its team developers: write on code and pull requests of the repositories it is given
+// or creates, never all of the org's
+func ensureCIOrg(c *sdk.Client) error {
+	if err := ensureOrg(c, CIOrg); err != nil {
+		return err
+	}
+	units := map[string]string{"repo.code": "write", "repo.pulls": "write"}
+	var team *sdk.Team
+	for page := 1; team == nil; page++ {
+		teams, _, err := c.ListOrgTeams(CIOrg, sdk.ListTeamsOptions{ListOptions: sdk.ListOptions{Page: page, PageSize: 50}})
+		if err != nil {
+			return fmt.Errorf("teams of org %s: %w", CIOrg, err)
+		}
+		for _, t := range teams {
+			if t.Name == CITeam {
+				team = t
+			}
+		}
+		if len(teams) < 50 {
+			break
+		}
+	}
+	if team == nil {
+		if _, _, err := c.CreateTeam(CIOrg, sdk.CreateTeamOption{Name: CITeam, Permission: sdk.AccessModeWrite, CanCreateOrgRepo: true, UnitsMap: units}); err != nil {
+			return fmt.Errorf("create team %s/%s: %w", CIOrg, CITeam, err)
+		}
+		return nil
+	}
+	if team.Permission == sdk.AccessModeWrite && team.CanCreateOrgRepo && !team.IncludesAllRepositories && reflect.DeepEqual(team.UnitsMap, units) {
+		return nil
+	}
+	on, off := true, false
+	if _, err := c.EditTeam(team.ID, sdk.EditTeamOption{Name: CITeam, Permission: sdk.AccessModeWrite, CanCreateOrgRepo: &on, IncludesAllRepositories: &off, UnitsMap: units}); err != nil {
+		return fmt.Errorf("restore team %s/%s: %w", CIOrg, CITeam, err)
+	}
+	return nil
+}
+
+// ensureWoodpeckerClient keeps Forgejo's OAuth2 application woodpecker (forgejo_admin's) and its credentials in
+// OpenBao in step. Forgejo shows a client secret only when it issues one, so a client whose secret OpenBao lost is
+// updated, which issues a new one.
+func ensureWoodpeckerClient(ctx context.Context, c *sdk.Client, tokens Tokens, callback string) error {
+	var found *sdk.Oauth2
+	for page := 1; ; page++ {
+		apps, _, err := c.ListOauth2(sdk.ListOauth2Option{ListOptions: sdk.ListOptions{Page: page, PageSize: 50}})
+		if err != nil {
+			return fmt.Errorf("OAuth2 applications: %w", err)
+		}
+		for _, app := range apps {
+			if app.Name != woodpeckerApp {
+				continue
+			}
+			if found != nil {
+				return fmt.Errorf("Forgejo has two OAuth2 applications named %s (ids %d and %d): delete one in forgejo_admin's settings", woodpeckerApp, found.ID, app.ID)
+			}
+			found = app
+		}
+		if len(apps) < 50 {
+			break
+		}
+	}
+	stored, err := tokens.Read(ctx, WoodpeckerPath)
+	if err != nil {
+		return err
+	}
+	desired := sdk.CreateOauth2Option{Name: woodpeckerApp, ConfidentialClient: true, RedirectURIs: []string{callback}}
+	if found != nil && found.ConfidentialClient && reflect.DeepEqual(found.RedirectURIs, desired.RedirectURIs) &&
+		stored["client_id"] == found.ClientID && stored["client_secret"] != "" && stored["redirect_uri"] == callback {
+		return nil
+	}
+	var app *sdk.Oauth2
+	if found == nil {
+		app, _, err = c.CreateOauth2(desired)
+	} else {
+		app, _, err = c.UpdateOauth2(found.ID, desired)
+	}
+	if err != nil {
+		return fmt.Errorf("OAuth2 application %s: %w", woodpeckerApp, err)
+	}
+	if app.ClientID == "" || app.ClientSecret == "" {
+		return fmt.Errorf("Forgejo returned incomplete credentials for OAuth2 application %s", woodpeckerApp)
+	}
+	return tokens.Write(ctx, WoodpeckerPath, map[string]string{"client_id": app.ClientID, "client_secret": app.ClientSecret, "redirect_uri": callback})
 }
