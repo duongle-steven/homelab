@@ -10,3 +10,4 @@ test:
 # test/scopes.yaml covers every component and names existing tests (part of the basic checks)
 check:
 	go run ./cmd/lab test scope --check
+	@unformatted=$$(gofmt -l .); if [ -n "$$unformatted" ]; then echo "gofmt -w these:" >&2; echo "$$unformatted" >&2; exit 1; fi

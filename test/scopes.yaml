@@ -13,7 +13,6 @@ skip:
   - LICENSE.md
   - renovate.json5
   - .github/**
-  - .woodpecker/**
   - .gitignore
   - .dockerignore
   - .yamllint.yaml
@@ -22,6 +21,7 @@ skip:
   - test/ci_scripts_test.go
   - test/argocd_revision_test.go
   - test/generated_secrets_test.go
+  - test/woodpecker_test.go
   - test/kept_value_test.go
   - test/renovate_test.go
   - test/cni_watchdog_test.go
@@ -45,7 +45,7 @@ skip:
   - cli/internal/cli/cloudflare*.go
 always: Smoke
 alone: [NodeRestart]
-full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|NodeRestart
+full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|NodeRestart
 groups:
   - paths:
       - Makefile
@@ -89,19 +89,21 @@ groups:
       - infra/sandbox/openbao/**
       - infra/sandbox/secrets/**
     # Every component that reads a secret through ESO
-    tests: Secrets|Identity|SSO|Ntfy|Forgejo|Logs|Gateway|Monitoring
+    tests: Secrets|Identity|SSO|Ntfy|Forgejo|Logs|Gateway|Monitoring|Woodpecker
   # Forgejo and zot need Kanidm's discovery document at start
   - paths: [platform/kanidm/**, scripts/onboard-user]
-    tests: Identity|SSO|ForgejoDeploy|GatewayZotLargePush
+    tests: Identity|SSO|ForgejoDeploy|GatewayZotLargePush|Woodpecker
   - paths: [platform/grafana/**]
     tests: SSOGrafana|Logs|Monitoring
   - paths: [platform/forgejo/**]
-    tests: Forgejo|SSOForgejo|GatewayForgejoSSH
+    tests: Forgejo|SSOForgejo|GatewayForgejoSSH|Woodpecker
   # lab infra forgejo sync and push (TestForgejoDeploy); go.mod pins their SDKs
   - paths: [cli/internal/forgejo/**, cli/internal/secrets/**, cli/internal/cli/infra_forgejo*.go, cli/go.mod, cli/go.sum]
-    tests: Forgejo
+    tests: Forgejo|Woodpecker
   - paths: [platform/zot/**]
-    tests: SSOZot|GatewayZotLargePush
+    tests: SSOZot|GatewayZotLargePush|Woodpecker
+  - paths: [platform/woodpecker/**]
+    tests: Woodpecker
   - paths: [apps/actualbudget.yaml]
     tests: SSOActualBudget
   - paths: [apps/paperless.yaml]
@@ -124,7 +126,6 @@ groups:
       - apps/wireguard.yaml
       - platform/cloudnative-pg/**
       - platform/renovate/**
-      - platform/woodpecker/**
       - system/cloudflared/**
       - system/external-dns/**
       - system/kured/**

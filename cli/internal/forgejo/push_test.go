@@ -135,3 +135,23 @@ func TestPushRunsNoHooks(t *testing.T) {
 		t.Fatal("the pre-push hook ran during the deploy push")
 	}
 }
+
+func TestFastForwards(t *testing.T) {
+	ep, checkout, head := local(t)
+	ctx := context.Background()
+	if err := FastForwards(ctx, ep, checkout, "t", head); err != nil {
+		t.Fatalf("an empty repository: %v", err)
+	}
+	if err := Push(ctx, ep, checkout, "t", head); err != nil {
+		t.Fatal(err)
+	}
+	run(t, checkout, "commit", "-q", "--allow-empty", "-m", "two")
+	if err := FastForwards(ctx, ep, checkout, "t", run(t, checkout, "rev-parse", "HEAD")); err != nil {
+		t.Fatalf("a descendant: %v", err)
+	}
+	run(t, checkout, "checkout", "-q", "--orphan", "other")
+	run(t, checkout, "commit", "-q", "--allow-empty", "-m", "unrelated")
+	if err := FastForwards(ctx, ep, checkout, "t", run(t, checkout, "rev-parse", "HEAD")); err == nil || !strings.Contains(err.Error(), "does not descend") {
+		t.Fatalf("an unrelated commit: %v", err)
+	}
+}

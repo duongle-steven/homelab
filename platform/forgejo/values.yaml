@@ -63,6 +63,10 @@ forgejo:
         # Short group names from the client's claimMap (templates/kanidm-client.yaml)
         groupClaimName: homelab_groups
         adminGroup: homelab-admins
+        # Woodpecker's org ci (lab infra forgejo sync creates it and team developers): admins own it (org secrets),
+        # editors run pipelines; leaving the Kanidm group drops the membership at the next login
+        groupTeamMap: '{"homelab-admins": {"ci": ["Owners"]}, "homelab-editors": {"ci": ["developers"]}}'
+        groupTeamMapRemoval: true
     config:
       # DOMAIN, ROOT_URL and SSH_DOMAIN: templates/environment.yaml (additionalConfigSources)
       server:

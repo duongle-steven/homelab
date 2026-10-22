@@ -35,7 +35,7 @@ func newInfraForgejoCmd() *cobra.Command {
 	verify := &cobra.Command{
 		Use:   "verify",
 		Short: "Check that HEAD may be deployed to production",
-		Long:  "Pass only when the checkout is origin/master without uncommitted changes, its check checks succeeded, and the pull request merged into master as HEAD has a succeeded check sandbox on its head. A running check or an API error fails.",
+		Long:  "Pass only when the checkout is origin/master without uncommitted changes, its check checks succeeded, and the pull request merged into master as HEAD has a succeeded check sandbox on its head. A running check or an API error fails. With --break-glass (GitHub down): a clean checkout whose HEAD fast-forwards ops/homelab's master, asking no GitHub.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			e, err := forgejoEnv(cmd)
@@ -44,6 +44,9 @@ func newInfraForgejoCmd() *cobra.Command {
 			}
 			if e.Name != "production" {
 				return fmt.Errorf("verify guards production only")
+			}
+			if cmd.Flags().Changed("break-glass") {
+				return verifyBreakGlass(cmd, e)
 			}
 			head, err := verifyProduction(cmd, e)
 			if err != nil {
@@ -55,7 +58,7 @@ func newInfraForgejoCmd() *cobra.Command {
 	}
 	sync := &cobra.Command{
 		Use:   "sync",
-		Short: "Provision org ops on Forgejo: ops/homelab, deploy and argocd, master's protection, their tokens in OpenBao",
+		Short: "Provision orgs ops and ci on Forgejo: ops/homelab, deploy and argocd, master's protection, their tokens and Woodpecker's OAuth client in OpenBao",
 		Long:  "Idempotent: what is right is kept, what is wrong is fixed, what is missing is created. On a first install it waits up to 30 minutes for OpenBao, Forgejo and its admin Secret, then up to 10 more for Argo CD's repository Secret. No secret is printed.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -87,7 +90,7 @@ func newInfraForgejoCmd() *cobra.Command {
 			}); err != nil {
 				return err
 			}
-			if err := forgejo.Sync(syncCtx, s.ep, password, s.store); err != nil {
+			if err := forgejo.Sync(syncCtx, s.ep, password, s.store, "https://ci."+e.Domain+"/authorize"); err != nil {
 				return err
 			}
 			argocd, err := s.store.Read(ctx, forgejo.ArgoCDPath)
@@ -104,18 +107,16 @@ func newInfraForgejoCmd() *cobra.Command {
 	push := &cobra.Command{
 		Use:   "push",
 		Short: "Deploy: push HEAD to ops/homelab's master as deploy",
-		Long:  "Production: only after verify's guards pass, never forced (roll back with a revert through a pull request). Sandbox: a commit with HEAD's tree on top of what the sandbox's Forgejo holds.",
+		Long:  "Production: only after verify's guards pass (or, with --break-glass while GitHub is down, from a clean checkout), never forced (roll back with a revert through a pull request). Sandbox: a commit with HEAD's tree on top of what the sandbox's Forgejo holds.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			e, err := forgejoEnv(cmd)
 			if err != nil {
 				return err
 			}
-			var commit string
-			if e.Name == "production" {
-				if commit, err = verifyProduction(cmd, e); err != nil {
-					return err
-				}
+			commit, err := pushCommit(cmd, e, verifyProduction)
+			if err != nil {
+				return err
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
@@ -151,6 +152,8 @@ func newInfraForgejoCmd() *cobra.Command {
 			return err
 		},
 	}
+	verify.Flags().String("break-glass", "", "when GitHub is down: instead of GitHub's checks, a clean checkout that fast-forwards ops/homelab's master (docs/how-to-guides/deploy-to-forgejo.md)")
+	push.Flags().String("break-glass", "", "production only, when GitHub is down: skip verify's GitHub checks for this reason (docs/how-to-guides/deploy-to-forgejo.md)")
 	group.AddCommand(verify, sync, push)
 	return group
 }
@@ -184,6 +187,69 @@ func verifyProduction(cmd *cobra.Command, e env.Env) (string, error) {
 		return "", err
 	}
 	return head, sameCommit(head, expected)
+}
+
+// pushCommit is the commit push deploys: in production the one verify passes or, with --break-glass, the clean
+// checkout's HEAD without asking GitHub (Push still refuses anything but a fast-forward of ops/homelab's master);
+// in the sandbox none (push builds one).
+func pushCommit(cmd *cobra.Command, e env.Env, verify func(*cobra.Command, env.Env) (string, error)) (string, error) {
+	if !cmd.Flags().Changed("break-glass") {
+		if e.Name != "production" {
+			return "", nil
+		}
+		return verify(cmd, e)
+	}
+	if e.Name != "production" {
+		return "", fmt.Errorf("--break-glass is for production only")
+	}
+	reason, err := cmd.Flags().GetString("break-glass")
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(reason) == "" {
+		return "", fmt.Errorf("--break-glass needs a reason")
+	}
+	expected, err := cmd.Flags().GetString("commit")
+	if err != nil {
+		return "", err
+	}
+	head, err := guard.Clean(e.Root)
+	if err != nil {
+		return "", err
+	}
+	if err := sameCommit(head, expected); err != nil {
+		return "", err
+	}
+	_, err = fmt.Fprintf(cmd.OutOrStdout(), "Break-glass deploy of %.12s without GitHub's checks: %s\nBring this commit to GitHub's master through a pull request into dev (merge commits only) once GitHub is back.\n", head, reason)
+	return head, err
+}
+
+// verifyBreakGlass is verify while GitHub is down: the clean checkout's HEAD (pushCommit's checks) must fast-forward
+// ops/homelab's master, checked before make infra applies anything.
+func verifyBreakGlass(cmd *cobra.Command, e env.Env) error {
+	head, err := pushCommit(cmd, e, nil)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
+	defer cancel()
+	s, err := openSession(ctx, e)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = s.close(context.Background()) }()
+	deploy, err := s.store.Read(ctx, forgejo.DeployPath)
+	if err != nil {
+		return err
+	}
+	if deploy["token"] == "" {
+		return fmt.Errorf("no deploy token in OpenBao (secret/%s): run lab infra forgejo sync first", forgejo.DeployPath)
+	}
+	if err := forgejo.FastForwards(ctx, s.ep, e.Root, deploy["token"], head); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(cmd.OutOrStdout(), "%.12s may be deployed (break-glass).\n", head)
+	return err
 }
 
 // sameCommit refuses a HEAD other than expected (when given): the checkout moved since make infra started.

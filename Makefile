@@ -75,6 +75,8 @@ metal:
 # Production deploys in the same command: the guards (origin/master, checks, the merged pull request's sandbox), the
 # infrastructure, Forgejo's org ops, the push of this commit to ops/homelab, then the bootstrap again (the switch to
 # Forgejo on a first install). force=1 applies the infrastructure only and deploys nothing (a state migration).
+# break_glass="<reason>" deploys while GitHub is down: verify checks a clean checkout that fast-forwards Forgejo instead
+# (docs/how-to-guides/deploy-to-forgejo.md); never with force=1.
 # Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
 # The commit make infra started from: verify and push refuse another (a git pull during the apply)
 infra: deploy_commit := $(shell git rev-parse HEAD)
@@ -83,13 +85,20 @@ infra: deploy_commit := $(shell git rev-parse HEAD)
 # directory. Whole-string tests, so a path may hold spaces.
 app_key_path = $(if $(filter /%,$(firstword $(1))),$(1),$(if $(filter ~/%,$(firstword $(1))),$(HOME)/$(patsubst ~/%,%,$(1)),$(CURDIR)/$(1)))
 infra: override HOMELAB_GITHUB_APP_KEY := $(if $(HOMELAB_GITHUB_APP_KEY),$(call app_key_path,$(HOMELAB_GITHUB_APP_KEY)))
+# The reason reaches lab through the environment, so no quote in it reaches the shell; $(value) keeps make from
+# expanding a $ in it
+infra: export HOMELAB_BREAK_GLASS := $(value break_glass)
 infra:
+	@if [ -n "$$HOMELAB_BREAK_GLASS" ] && { [ "$(force)" = 1 ] || [ "$(env)" != production ]; }; then \
+		echo "break_glass deploys production and cannot be combined with force=1" >&2; exit 1; fi
 	@if [ "$(env)" = sandbox ]; then $(MAKE) -s sandbox-checkout; fi
 	go -C cli build -o /dev/null ./cmd/lab
-	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then $(lab_cli) infra forgejo verify --commit $(deploy_commit); fi
+	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then \
+		$(lab_cli) infra forgejo verify --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"}; fi
 	cd infra/$(env) && $(terragrunt_apply)
 	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then \
-		$(lab_cli) infra forgejo sync && $(lab_cli) infra forgejo push --commit $(deploy_commit) && \
+		$(lab_cli) infra forgejo sync && \
+		$(lab_cli) infra forgejo push --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"} && \
 		(cd infra/production/argocd && $(terragrunt) apply --non-interactive -- -auto-approve); \
 	fi
 

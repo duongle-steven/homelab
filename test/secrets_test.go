@@ -2,6 +2,7 @@ package test
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -290,12 +291,35 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 		assert.Equal(t, before, hash("grafana/generated/admin", "password"), "a push replaced an existing value")
 	}
 
-	// A rotation: the destination deleted, the next push writes a new value. The probe must be an entry no sandbox
-	// component reads (Woodpecker is production only): its reader would keep the old value
+	// A rotation as docs/concepts/secrets-management.md does it: the destination deleted, the next push writes a new
+	// value, the readers' ExternalSecrets refreshed and the readers restarted. Woodpecker's agent secret needs nothing
+	// but a restart; its server and agents must agree on it again (TestWoodpecker may run after this)
 	probe := hash("woodpecker/generated/agent", "secret")
 	admin(t, "kv", "metadata", "delete", "secret/woodpecker/generated/agent")
 	forceSync("woodpecker.agent")
-	assert.NotEqual(t, probe, hash("woodpecker/generated/agent", "secret"), "the deleted destination was not written again")
+	rotated := hash("woodpecker/generated/agent", "secret")
+	assert.NotEqual(t, probe, rotated, "the deleted destination was not written again")
+	woodpecker := k8s.NewKubectlOptions("", "", "woodpecker")
+	woodpecker.Logger = logger.Discard
+	for _, name := range []string{"woodpecker-secret", "woodpecker-agent"} {
+		_, err := k8s.RunKubectlAndGetOutputE(t, woodpecker, "annotate", "externalsecret", name, fmt.Sprintf("force-sync=%d", time.Now().UnixNano()), "--overwrite")
+		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			out, err := k8s.RunKubectlAndGetOutputE(t, woodpecker, "get", "secret", name, "-o", "jsonpath={.data.WOODPECKER_AGENT_SECRET}")
+			if err != nil {
+				return false
+			}
+			value, err := base64.StdEncoding.DecodeString(out)
+			sum := sha256.Sum256(value)
+			return err == nil && hex.EncodeToString(sum[:]) == rotated
+		}, 2*time.Minute, 2*time.Second, "Secret woodpecker/%s does not hold the rotated value", name)
+	}
+	for _, workload := range []string{"statefulset/woodpecker-server", "statefulset/woodpecker-agent"} {
+		k8s.RunKubectl(t, woodpecker, "rollout", "restart", workload)
+	}
+	for _, workload := range []string{"statefulset/woodpecker-server", "statefulset/woodpecker-agent"} {
+		k8s.RunKubectl(t, woodpecker, "rollout", "status", workload, "--timeout=5m")
+	}
 }
 
 // A path or property that cannot appear fails at once with OpenBao's message, not after generatedValue's 20 minutes

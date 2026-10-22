@@ -182,3 +182,21 @@ func TestVerifyRefusesUntrackedInfrastructure(t *testing.T) {
 		}
 	}
 }
+
+// A break-glass deploy (GitHub down) still refuses a dirty checkout but asks no remote
+func TestCleanAsksNoRemote(t *testing.T) {
+	clone, head := repos(t)
+	if out, err := exec.Command("git", "-C", clone, "remote", "set-url", "origin", "https://unreachable.invalid/homelab.git").CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	got, err := Clean(clone)
+	if err != nil || got != head {
+		t.Fatalf("Clean() = %q, %v; want %s", got, err, head)
+	}
+	if err := os.WriteFile(filepath.Join(clone, "file"), []byte("2"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Clean(clone); err == nil || !strings.Contains(err.Error(), "uncommitted") {
+		t.Fatalf("an uncommitted change: %v", err)
+	}
+}

@@ -199,6 +199,26 @@ func TestMakeInfraProduction(t *testing.T) {
 			"terragrunt production run --all apply --non-interactive -- -auto-approve",
 		}},
 		{"guards fail", nil, []string{"VERIFY_FAILS=1"}, []string{"lab infra forgejo verify " + commit}},
+		// GitHub is down (docs/how-to-guides/deploy-to-forgejo.md): verify checks Forgejo's master before the apply,
+		// push says why; the reason's quotes stay out of the shell
+		{"break-glass", []string{`break_glass=GitHub "outage"; true`}, nil, []string{
+			"lab infra forgejo verify " + commit + ` --break-glass=GitHub "outage"; true`,
+			"terragrunt production run --all apply --non-interactive -- -auto-approve",
+			"lab infra forgejo sync",
+			"lab infra forgejo push " + commit + ` --break-glass=GitHub "outage"; true`,
+			"terragrunt argocd apply --non-interactive -- -auto-approve",
+		}},
+		{"break-glass reason with a dollar sign", []string{`break_glass=$HOME is down`}, nil, []string{
+			"lab infra forgejo verify " + commit + ` --break-glass=$HOME is down`,
+			"terragrunt production run --all apply --non-interactive -- -auto-approve",
+			"lab infra forgejo sync",
+			"lab infra forgejo push " + commit + ` --break-glass=$HOME is down`,
+			"terragrunt argocd apply --non-interactive -- -auto-approve",
+		}},
+		{"break-glass with force=1", []string{"force=1", "break_glass=outage"}, nil, []string{""}},
+		{"break-glass refused by verify", []string{"break_glass=outage"}, []string{"VERIFY_FAILS=1"}, []string{
+			"lab infra forgejo verify " + commit + " --break-glass=outage",
+		}},
 		// A relative key path names a file where make runs, not in the unit's directory
 		{"relative key path", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=keys/app.pem"}, []string{
 			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/keys/app.pem",

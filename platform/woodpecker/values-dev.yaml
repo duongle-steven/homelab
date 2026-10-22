@@ -1,0 +1,18 @@
+woodpecker:
+  agent:
+    # One agent is enough for the tests (the sandbox has about 4 GiB free)
+    replicaCount: 1
+  server:
+    # The sandbox CA: Forgejo's OAuth and API calls. Step pods cannot mount it: the tests' pipeline skips TLS
+    # verification itself
+    env:
+      SSL_CERT_DIR: /etc/ssl/certs:/etc/homelab-dev-ca
+    extraVolumes:
+      - name: dev-ca
+        # Not optional: the pod waits until trust-manager has copied the CA here
+        configMap:
+          name: homelab-dev-ca
+    extraVolumeMounts:
+      - name: dev-ca
+        mountPath: /etc/homelab-dev-ca
+        readOnly: true

@@ -16,7 +16,7 @@ func TestRepositoryMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	full := "Egress|Forgejo|Gateway|Identity|Logs|Mesh|Monitoring|Ntfy|SSO|Secrets|Smoke"
+	full := "Egress|Forgejo|Gateway|Identity|Logs|Mesh|Monitoring|Ntfy|SSO|Secrets|Smoke|Woodpecker"
 	for _, tc := range []struct {
 		file, main, alone string
 	}{
@@ -29,13 +29,15 @@ func TestRepositoryMap(t *testing.T) {
 		{"infra/_modules/k3d/main.tf", full, "NodeRestart"},
 		{"scripts/env-values", full, "NodeRestart"},
 		{"system/egress/values.yaml", full, "NodeRestart"},
-		{"platform/openbao/values.yaml", "Forgejo|Gateway|Identity|Logs|Monitoring|Ntfy|SSO|Secrets|Smoke", ""},
-		{"platform/kanidm/values.yaml", "ForgejoDeploy|GatewayZotLargePush|Identity|SSO|Smoke", ""},
+		{"platform/openbao/values.yaml", "Forgejo|Gateway|Identity|Logs|Monitoring|Ntfy|SSO|Secrets|Smoke|Woodpecker", ""},
+		{"platform/kanidm/values.yaml", "ForgejoDeploy|GatewayZotLargePush|Identity|SSO|Smoke|Woodpecker", ""},
 		// lab's Forgejo deploy runs against the sandbox; its offline parts are skipped
-		{"cli/internal/forgejo/sync.go", "Forgejo|Smoke", ""},
-		{"cli/go.mod", "Forgejo|Smoke", ""},
+		{"cli/internal/forgejo/sync.go", "Forgejo|Smoke|Woodpecker", ""},
+		{"cli/go.mod", "Forgejo|Smoke|Woodpecker", ""},
 		{"cli/internal/guard/verify.go", "", ""},
-		{"platform/forgejo/values.yaml", "Forgejo|GatewayForgejoSSH|SSOForgejo|Smoke", ""},
+		{"platform/forgejo/values.yaml", "Forgejo|GatewayForgejoSSH|SSOForgejo|Smoke|Woodpecker", ""},
+		{"platform/woodpecker/values.yaml", "Smoke|Woodpecker", ""},
+		{"test/woodpecker_test.go", "", ""},
 		{"apps/paperless.yaml", "SSOPaperless|Smoke", ""},
 		{"apps/blog.yaml", "Smoke", ""},
 		{"system/kured/values.yaml", "Smoke", ""},

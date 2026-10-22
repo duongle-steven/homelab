@@ -65,6 +65,7 @@ nav:
     - how-to-guides/ci.md
     - how-to-guides/deploy-to-forgejo.md
     - how-to-guides/renovate.md
+    - how-to-guides/woodpecker.md
     - how-to-guides/add-or-remove-nodes.md
     - how-to-guides/run-commands-on-multiple-nodes.md
     - how-to-guides/single-node-cluster-adjustments.md
