@@ -6,6 +6,11 @@ kind: Cluster
 metadata:
   name: forgejo-db
   namespace: {{ $.Release.Namespace }}
+  annotations:
+    # Before Forgejo: on a fresh install CloudNativePG's webhook may not answer yet, and a sync that applied the
+    # Deployment anyway would wait forever for it to become healthy without forgejo-db-app. An earlier wave fails
+    # alone and is retried
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   instances: {{ .instances }}
   imageName: {{ .image }}
