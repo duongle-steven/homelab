@@ -9,7 +9,8 @@
 - Values come from three places:
   - generated secrets: `platform/generated-secrets` pushes each one to its readers' branches, under
     `secret/<namespace>/generated/`, the only paths its role `writer` reaches;
-  - OpenTofu's secrets (Cloudflare's tokens and Tunnel credentials, WireGuard's key): the unit `infra/<env>/secrets`
+  - OpenTofu's secrets (Cloudflare's tokens and Tunnel credentials, WireGuard's key, the backup bucket's credentials
+    file and Kopia's repository password from `infra/<env>/backup`): the unit `infra/<env>/secrets`
     writes them as Secrets into namespace `infra-secrets`, and `platform/infra-secrets` pushes them anywhere except
     `generated/` (role `infra`);
   - Kanidm's OAuth2 client secrets: the kaniop operator, directly in each client's namespace.
@@ -64,14 +65,17 @@ need is pushed to both branches (`destinations` in `platform/generated-secrets/v
   - the KV v2 store `secret/` and Kubernetes auth;
   - the policies `apps` (read `secret/<namespace>/`), `writer` (push: `create`, `read`, `update` on
     `secret/<namespace>/generated/` only, because External Secrets reads before it writes; no `delete`), `infra` (the
-    same everywhere except `generated/`) and `admin`;
+    same everywhere except `generated/`), `snapshot` (read `sys/storage/raft/snapshot`) and `admin`;
   - their roles: `apps` for every namespace's `default` service account, `writer` for `generated-secrets`', `infra` for
-    `infra-secrets/openbao-infra` and `admin` for `openbao/openbao-admin`. They accept only service account tokens issued for audience `openbao` (the
+    `infra-secrets/openbao-infra`, `snapshot` for `openbao/openbao-snapshot` (the hourly raft snapshot) and `admin` for `openbao/openbao-admin`. They accept only service account tokens issued for audience `openbao` (the
     `SecretStore`s ask for it), so a token sent to OpenBao never works against the API server.
 - These stanzas run only on an empty storage: editing them later changes nothing on a running OpenBao. Apply the
   change by hand with the admin role (below), or, in the sandbox, `make dev-clean`.
 - No root token and no recovery keys exist.
-- OpenBao's data has no backup until step 11.
+- OpenBao's data is backed up as its hourly raft snapshot (CronJob `openbao/openbao-snapshot`, volume
+  `openbao-snapshots`), copied off-site daily ([Backup and restore](../how-to-guides/backup-and-restore.md)). The snapshot
+  is useless without the unseal key, and the Kopia password that encrypts the copies lives in OpenTofu's state, never
+  only in OpenBao.
 
 ## Emergency access
 

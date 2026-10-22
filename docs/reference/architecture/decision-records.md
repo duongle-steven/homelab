@@ -19,6 +19,35 @@ They are not permanent, we can change them in the future if better alternatives 
 
     - CHANGEME
 
+## Use Velero for volumes only
+
+**Context**
+
+The cluster's resources all come from git (Argo CD) and OpenTofu's state is on R2; what git cannot rebuild is the
+data in some volumes. Upstream `nixos` replaced VolSync with Velero (VolSync needs a resource and credentials per
+volume) and backs up the whole cluster hourly, restoring by hand with a read-only location.
+
+**Decision**
+
+- Velero (CSI snapshots moved by its data mover into Kopia on R2) copies only the PersistentVolumeClaims labelled
+  `homelab/backup: daily`, once a day; `manual` ones only on `lab backup push`. Resources are never backed up:
+  restoring them over Argo CD would fight it.
+- Hourly local VolumeSnapshots, kept 48 hours, need no internet.
+- Every new cluster starts read-only with the schedule paused (in git; Argo CD ignores the two fields) until
+  `lab backup enable`. Retention is by count (the newest 30), never by age, so a long outage or a fresh install
+  deletes no backup.
+- Restore is a command (`lab backup restore`), never automatic.
+- No point-in-time recovery (CloudNativePG's barman-cloud): it restores a database to any second, but Forgejo's
+  repositories live on another volume that only has the backup moments, and both must match, so Forgejo could only
+  go back to those moments anyway. A crash-consistent snapshot of PostgreSQL is enough.
+
+**Consequences**
+
+- Every claim must declare its group (`scripts/check-backup-groups`); a new volume is not backed up by accident.
+- A restore drives each operator itself (CloudNativePG's owner references, kaniop's Secrets, OpenBao's raft snapshot):
+  `lab backup restore` holds that knowledge, and `TestBackupRestore` proves it in the sandbox.
+- Velero needs broad cluster permissions, like upstream's.
+
 ## Remove the Docker wrapper for Nix shell
 
 **Context**
