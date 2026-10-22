@@ -28,6 +28,8 @@ argocd-apps:
                   directories:
                     - path: system/argocd-config
                     - path: system/istio-system
+                    - path: system/csi-hostpath
+                    - path: system/velero
                     - path: system/cert-manager
                     - path: system/monitoring-system
                     - path: system/loki

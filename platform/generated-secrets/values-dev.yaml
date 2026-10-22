@@ -1,1 +1,9 @@
-extraSecrets: []
+# The sandbox's off-site backups go to an S3 server in namespace velero (system/velero/values-dev.yaml): its secret key
+# and Kopia's repository password are generated here instead of by OpenTofu (infra/production/backup)
+extraSecrets:
+  - name: velero.s3
+    key: password
+    destinations: [velero/generated/s3]
+  - name: velero.encryption
+    key: password
+    destinations: [velero/generated/encryption]

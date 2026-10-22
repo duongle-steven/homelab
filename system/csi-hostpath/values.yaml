@@ -1,0 +1,8 @@
+# The sandbox's storage (sandbox only, system/argocd/values-dev.yaml): csi-driver-host-path 1.19.0 as the default
+# StorageClass, so volumes have CSI snapshots as on Ceph in production (Velero's data mover, the hourly local
+# snapshots). Its manifests are vendored in files/ (deploy/kubernetes-latest/hostpath and its sidecars' RBAC, at the
+# versions its plugin pins); the driver keeps volumes under /var/lib/csi-hostpath-data on the node.
+snapshot-controller:
+  controller:
+    # The API server calls its webhook-free controller only through CRs: no mesh exception needed
+    replicaCount: 1

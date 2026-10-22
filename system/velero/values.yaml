@@ -1,0 +1,77 @@
+# Off-site copies of the volumes labelled homelab/backup (docs/how-to-guides/backup-and-restore.md): CSI snapshots moved
+# into a Kopia repository on R2 by Velero's data mover. Volumes only: git rebuilds every other resource.
+velero:
+  image:
+    # The chart ships 1.18.2
+    tag: v1.18.4
+  initContainers:
+    - name: aws-plugin
+      image: velero/velero-plugin-for-aws:v1.14.4
+      volumeMounts:
+        - name: plugins
+          mountPath: /target
+  # The data mover runs in the node agent: CSI snapshots, no file-system backups of pod volumes
+  deployNodeAgent: true
+  nodeAgent:
+    disableHostPath: true
+    # Restores run with the app stopped: WaitForFirstConsumer volumes must not wait for a consumer pod
+    extraArgs:
+      - --node-agent-configmap=velero-node-agent-config
+  configMaps:
+    node-agent-config:
+      labels: {}
+      data:
+        node-agent-config.json: '{"restorePVC":{"ignoreDelayBinding":true}}'
+  snapshotsEnabled: false
+  # CRDs come with the chart (helm template --include-crds): no upgrade Job running kubectl
+  upgradeCRDs: false
+  configuration:
+    features: EnableCSI
+    # Retention is by count (templates/prune.yaml), never by age
+    defaultBackupTTL: 87600h0m0s
+    backupStorageLocation:
+      - name: default
+        default: true
+        provider: aws
+        bucket: homelab-production-backup
+        # Every new cluster starts read-only (Argo CD ignores this field, root ApplicationSet); lab backup enable
+        # makes it ReadWrite
+        accessMode: ReadOnly
+        config:
+          region: auto
+          s3ForcePathStyle: "true"
+          checksumAlgorithm: ""
+          # No s3Url: R2's endpoint holds the account id, so it comes from the credentials file (endpoint_url)
+  credentials:
+    existingSecret: velero-credentials
+  # Velero writes a default repository password when this Secret is missing: mounting it makes the pod wait for
+  # OpenBao's (templates/external-secrets.yaml)
+  extraVolumes:
+    - name: repo-credentials
+      secret:
+        secretName: velero-repo-credentials
+  extraVolumeMounts:
+    - name: repo-credentials
+      mountPath: /etc/velero-repo-credentials
+      readOnly: true
+  metrics:
+    serviceMonitor:
+      enabled: true
+    nodeAgentPodMonitor:
+      enabled: true
+  resources:
+    requests: {cpu: 10m, memory: 64Mi}
+# Off-site copies of the volumes labelled daily, at 02:00 in global.timezone (templates/schedule.yaml)
+schedule: "0 2 * * *"
+# Copies kept per schedule and per app (templates/prune.yaml)
+keep: 30
+# Hourly local snapshots, kept 48 hours (templates/snapshots.yaml)
+snapshotHours: 48
+kubectlImage: alpine/kubectl:1.37.1@sha256:8c72f6f732ce7ef11cdb1bea25faa4f4a521872a12c89e3f40ba9edb52a4d4f2
+# Where the credentials file and Kopia's password come from (infra/<env>/backup through infra-secrets)
+credentials:
+  cloud: {key: velero/repository, property: cloud}
+  password: {key: velero/encryption, property: password}
+# The sandbox's S3 server (values-dev.yaml)
+devS3:
+  enabled: false

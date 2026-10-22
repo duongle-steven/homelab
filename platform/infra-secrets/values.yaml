@@ -12,3 +12,8 @@ secrets:
     properties: [private-key]
   - path: renovate/github-app
     properties: [private-key]
+  # Off-site backups (infra/production/backup): the credentials file (with R2's endpoint) and Kopia's password
+  - path: velero/repository
+    properties: [cloud]
+  - path: velero/encryption
+    properties: [password]

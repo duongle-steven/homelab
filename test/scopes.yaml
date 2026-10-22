@@ -24,6 +24,8 @@ skip:
   - test/woodpecker_test.go
   - test/forgejo_render_test.go
   - test/backup_groups_test.go
+  - test/velero_test.go
+  - test/velero_scripts_test.go
   - test/fixtures/**
   - test/kept_value_test.go
   - test/renovate_test.go
@@ -71,11 +73,16 @@ groups:
       - infra/root.hcl
       - scripts/env-values
       - system/egress/**
+      # The sandbox's default StorageClass: every volume
+      - system/csi-hostpath/**
     tests: full
   - paths: [system/istio-system/**]
     tests: Mesh|Gateway|Egress|Identity|NodeRestart
   - paths: [system/cert-manager/**]
     tests: Gateway|Identity|SSO
+  # Until TestBackup (lab backup restore) exists: the components it needs come up
+  - paths: [system/velero/**]
+    tests: Smoke|Secrets
   - paths: [system/loki/**]
     tests: Logs
   - paths: [system/monitoring-system/**]

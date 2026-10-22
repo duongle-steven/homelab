@@ -92,6 +92,10 @@ argocd-apps:
   applicationsets:
     root:
       namespace: argocd
+      # lab backup restore pauses one Application's automated sync while it replaces a volume: without this the
+      # ApplicationSet puts it back within seconds
+      ignoreApplicationDifferences:
+        - jsonPointers: [/spec/syncPolicy/automated]
       # A directory leaving root deletes its Application but keeps its resources (delete them by hand): when Argo CD
       # stopped managing itself (step 10b), root dropped Application argocd before the bootstrap could release its
       # resources finalizer, and Argo CD deleted part of itself
@@ -117,6 +121,9 @@ argocd-apps:
                     - path: system/egress
                       exclude: true
                     - path: system/secret-store
+                      exclude: true
+                    # The sandbox's storage (Ceph in production)
+                    - path: system/csi-hostpath
                       exclude: true
                     - path: platform/*
                     - path: apps/*
@@ -195,6 +202,17 @@ argocd-apps:
             managedNamespaceMetadata:
               labels:
                 istio.io/dataplane-mode: none
+        {{- else if eq .path.basename "velero" }}
+        # Every new cluster starts read-only and paused (system/velero); lab backup enable switches these two fields,
+        # which syncs then keep
+        spec:
+          ignoreDifferences:
+            - group: velero.io
+              kind: BackupStorageLocation
+              jsonPointers: [/spec/accessMode]
+            - group: velero.io
+              kind: Schedule
+              jsonPointers: [/spec/paused]
         {{- else if eq .path.basename "argocd-config" }}
         # Argo CD's own resources (its Kanidm client, its repository credential) live in its namespace
         spec:
@@ -204,6 +222,10 @@ argocd-apps:
     # One Application per app-template values file apps/<name>.yaml (apps/matrix/ is a chart, synced by root)
     apps:
       namespace: argocd
+      # lab backup restore pauses one Application's automated sync while it replaces a volume: without this the
+      # ApplicationSet puts it back within seconds
+      ignoreApplicationDifferences:
+        - jsonPointers: [/spec/syncPolicy/automated]
       goTemplate: true
       goTemplateOptions:
         - missingkey=error

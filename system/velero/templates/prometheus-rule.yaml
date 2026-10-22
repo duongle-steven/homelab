@@ -1,0 +1,22 @@
+# No daily copy succeeded for 26 hours: the schedule failed, or this cluster was never enabled (lab backup enable)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: velero
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: velero
+      rules:
+        - alert: VeleroNoRecentBackup
+          expr: |
+            (time() - max(velero_backup_last_successful_timestamp{schedule="daily"}) > 26 * 3600)
+            or absent(velero_backup_last_successful_timestamp{schedule="daily"})
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: No off-site backup succeeded for 26 hours
+            description: >-
+              Velero's schedule daily has not completed a backup for 26 hours, or this cluster was never enabled
+              (lab backup enable; docs/how-to-guides/backup-and-restore.md).

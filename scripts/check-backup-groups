@@ -21,6 +21,8 @@ LABEL = "homelab/backup"
 GROUPS = {"daily", "manual", "none"}
 # <target>:<claim> -> group; every other claim is none (docs/superpowers/specs/2026-10-22-backups-design.md, decision 4)
 EXPECTED = {
+    # Its hourly raft snapshot; the raft volume itself is none (a file copy of a running database)
+    "platform/openbao:openbao-snapshots": "daily",
     "platform/kanidm:kanidm-data": "daily",
     "platform/forgejo:forgejo-data": "daily",
     "platform/forgejo:forgejo-db": "daily",

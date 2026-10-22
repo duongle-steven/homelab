@@ -1,0 +1,97 @@
+# Keeps the newest copies of each schedule and app, only while location default is writable (files/prune.sh)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prune
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: prune
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [velero.io]
+    resources: [backupstoragelocations]
+    verbs: [get]
+  - apiGroups: [velero.io]
+    resources: [backups]
+    verbs: [list]
+  - apiGroups: [velero.io]
+    resources: [deletebackuprequests]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: prune
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: prune
+subjects:
+  - kind: ServiceAccount
+    name: prune
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prune
+  namespace: {{ .Release.Namespace }}
+data:
+  prune.sh: |
+{{ .Files.Get "files/prune.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: prune
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "30 * * * *"
+  timeZone: {{ .Values.global.timezone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 600
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          serviceAccountName: prune
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: prune
+              image: {{ .Values.kubectlImage }}
+              command: [sh, /scripts/prune.sh]
+              env:
+                - name: KEEP
+                  value: {{ .Values.keep | quote }}
+                - name: NAMESPACE
+                  value: {{ .Release.Namespace }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+          volumes:
+            - name: scripts
+              configMap:
+                name: prune

@@ -1,0 +1,5 @@
+{{- /* The vendored manifests (files/), placed in this namespace instead of default */}}
+{{- range $path, $_ := .Files.Glob "files/*.yaml" }}
+---
+{{ $.Files.Get $path | replace "namespace: default" (printf "namespace: %s" $.Release.Namespace) }}
+{{- end }}

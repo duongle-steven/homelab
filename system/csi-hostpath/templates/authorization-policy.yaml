@@ -1,0 +1,13 @@
+# Under the mesh-wide deny-all (system/istio-system): nothing calls into this namespace but itself (the kubelet reaches
+# the driver through its socket, not the network)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow
+  namespace: {{ .Release.Namespace }}
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["{{ .Release.Namespace }}"]

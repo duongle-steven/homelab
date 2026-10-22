@@ -1,0 +1,21 @@
+velero:
+  configuration:
+    backupStorageLocation:
+      - name: default
+        default: true
+        provider: aws
+        bucket: velero
+        accessMode: ReadOnly
+        config:
+          region: us-east-1
+          s3ForcePathStyle: "true"
+          checksumAlgorithm: ""
+credentials:
+  password: {key: velero/generated/encryption, property: password}
+# The sandbox has no R2: an S3 server in this namespace (templates/s3-dev.yaml), its secret key generated
+# (platform/generated-secrets/values-dev.yaml)
+devS3:
+  enabled: true
+  image: versity/versitygw:v1.9.0
+  accessKey: velero
+  secret: {key: velero/generated/s3, property: password}
