@@ -36,8 +36,9 @@ type Client struct {
 	// StatsSummary is a node's kubelet summary (/stats/summary), through the API server's node proxy
 	StatsSummary func(ctx context.Context, node string) ([]byte, error)
 	Now          func() time.Time
-	// Poll is how often a wait looks again
+	// Poll is how often a wait looks again, Wait how long one step of a restore may take
 	Poll time.Duration
+	Wait time.Duration
 	// PortForward forwards a local port to a Service (the sandbox's S3 server) and returns its URL
 	PortForward func(ctx context.Context, namespace, service string, port int) (url string, stop func(), err error)
 	// ListBucket sums the sizes of a bucket's objects
@@ -54,6 +55,7 @@ func New(dyn dynamic.Interface, kube kubernetes.Interface) *Client {
 		},
 		Now:        time.Now,
 		Poll:       5 * time.Second,
+		Wait:       30 * time.Minute,
 		ListBucket: listBucket,
 	}
 }

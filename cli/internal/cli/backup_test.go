@@ -32,7 +32,7 @@ func fakeBackup(t *testing.T, objects ...runtime.Object) (*dynamicfake.FakeDynam
 		backup.Schedules:        "ScheduleList",
 		backup.StorageLocations: "BackupStorageLocationList",
 	}, objects...)
-	client := backup.New(dyn, fake.NewClientset())
+	client := backup.New(dyn, fake.NewClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "kube-system", CreationTimestamp: metav1.Now()}}))
 	previous := newBackupClient
 	newBackupClient = func(*cobra.Command) (*backup.Client, error) { return client, nil }
 	t.Cleanup(func() { newBackupClient = previous })
@@ -197,5 +197,26 @@ func TestPushWithYesCreatesTheBackup(t *testing.T) {
 	}
 	if n := backupsCreated(dyn); n != 1 {
 		t.Fatalf("%d backups created", n)
+	}
+}
+
+func TestRestoreClusterRefusesWithoutConfirmation(t *testing.T) {
+	dyn := fakeBackupClient(t, veleroLocation("ReadOnly"))
+	_, err := runLab(t, "", false, "backup", "restore", "--env", "sandbox")
+	// No backup at all: it fails before asking, naming --backup
+	if err == nil || !strings.Contains(err.Error(), "--backup") {
+		t.Fatalf("err = %v", err)
+	}
+	for _, a := range dyn.Actions() {
+		if a.GetVerb() != "get" && a.GetVerb() != "list" {
+			t.Fatalf("restore wrote %s %s", a.GetVerb(), a.GetResource().Resource)
+		}
+	}
+}
+
+func TestRestoreAppRejectsAnUnknownSource(t *testing.T) {
+	fakeBackupClient(t, veleroLocation("ReadOnly"))
+	if _, err := runLab(t, "", false, "backup", "restore", "ntfy", "--from", "nas", "--env", "sandbox", "--yes"); err == nil || !strings.Contains(err.Error(), "local or offsite") {
+		t.Fatalf("err = %v", err)
 	}
 }

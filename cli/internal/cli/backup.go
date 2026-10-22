@@ -137,6 +137,92 @@ func newBackupCmd() *cobra.Command {
 			return err
 		},
 	})
+	restore := &cobra.Command{
+		Use:   "restore [<app>]",
+		Short: "Restore the whole cluster after a fresh install, or one app's volumes",
+		Long: "Without an app: on a cluster Argo CD has built from git, with the location read-only, restore every app with a daily " +
+			"volume from one off-site run (default: the newest that completed before this cluster was created), OpenBao first, " +
+			"and each manual app from its newest push; then every reader restarts on the restored secrets. Check the data, then " +
+			"lab backup enable.\n\nWith an app: replace its volumes from the newest local snapshot at or before --at (default " +
+			"now), or --from offsite. Argo CD's sync of the app stays paused meanwhile.",
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := newBackupClient(cmd)
+			if err != nil {
+				return err
+			}
+			ctx := cmd.Context()
+			name, _ := cmd.Flags().GetString("backup")
+			runs, err := c.Runs(ctx)
+			if err != nil {
+				return err
+			}
+			if len(args) == 0 {
+				created, err := c.ClusterCreated(ctx)
+				if err != nil {
+					return err
+				}
+				run, err := backup.PickRun(runs, created, name)
+				if err != nil {
+					return err
+				}
+				plan, err := c.PlanCluster(ctx, run)
+				if err != nil {
+					return err
+				}
+				out := cmd.OutOrStdout()
+				fmt.Fprintf(out, "From %s (%s): %s\n", run.Name, run.Started.Local().Format(time.DateTime), strings.Join(plan.Apps, ", "))
+				for app, r := range plan.Pushes {
+					fmt.Fprintf(out, "From %s (%s): %s\n", r.Name, r.Started.Local().Format(time.DateTime), app)
+				}
+				if err := confirm(cmd, "Replace these apps' volumes, then restart every reader of a secret?"); err != nil {
+					return err
+				}
+				if err := c.RestoreCluster(ctx, plan); err != nil {
+					return err
+				}
+				_, err = fmt.Fprintln(out, "Restored. Check the apps (docs/how-to-guides/backup-and-restore.md), then lab backup enable.")
+				return err
+			}
+			app := args[0]
+			from, _ := cmd.Flags().GetString("from")
+			atFlag, _ := cmd.Flags().GetString("at")
+			var at time.Time
+			if atFlag != "" {
+				if at, err = time.Parse(time.RFC3339, atFlag); err != nil {
+					return fmt.Errorf("--at: %w (RFC 3339, e.g. 2026-10-22T14:00:00+07:00)", err)
+				}
+			}
+			var run backup.Run
+			switch backup.Source(from) {
+			case backup.Local:
+			case backup.Offsite:
+				if run, err = appRun(runs, app, name); err != nil {
+					return err
+				}
+			default:
+				return fmt.Errorf("--from must be local or offsite, not %q", from)
+			}
+			what := "the newest local snapshot"
+			if run.Name != "" {
+				what = fmt.Sprintf("backup %s (%s)", run.Name, run.Started.Local().Format(time.DateTime))
+			} else if !at.IsZero() {
+				what += " at or before " + at.Local().Format(time.DateTime)
+			}
+			if err := confirm(cmd, fmt.Sprintf("Stop %s and replace its volumes with %s?", app, what)); err != nil {
+				return err
+			}
+			if err := c.RestoreApp(ctx, app, backup.Source(from), at, run); err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s restored and synced.\n", app)
+			return err
+		},
+	}
+	restore.Flags().String("backup", "", "the off-site run to restore from (lab backup list)")
+	restore.Flags().String("from", "local", "one app: local (the hourly snapshots) or offsite")
+	restore.Flags().String("at", "", "one app, local: the newest snapshot at or before this time (RFC 3339; default now)")
+	group.AddCommand(restore)
 	group.AddCommand(&cobra.Command{
 		Use:   "disable",
 		Short: "Make the location read-only and pause the schedules (before a restore)",
@@ -207,4 +293,18 @@ func confirm(cmd *cobra.Command, question string) error {
 		return nil
 	}
 	return fmt.Errorf("stopped: nothing changed")
+}
+
+// appRun is the off-site run to restore one app from: name, or the newest completed one holding it (its own push, or
+// a scheduled run)
+func appRun(runs []backup.Run, app, name string) (backup.Run, error) {
+	if name != "" {
+		return backup.PickRun(runs, time.Now().Add(time.Hour), name)
+	}
+	for _, r := range runs {
+		if r.Phase == "Completed" && (r.App == app || r.App == "" && r.Schedule != "") {
+			return r, nil
+		}
+	}
+	return backup.Run{}, fmt.Errorf("no completed off-site backup holds %s (lab backup list)", app)
 }
