@@ -38,6 +38,7 @@ argocd-apps:
                     - path: platform/kanidm
                     - path: platform/grafana
                     - path: platform/zot
+                    - path: platform/cloudnative-pg
                     - path: platform/forgejo
                     - path: platform/woodpecker
               - git: &config

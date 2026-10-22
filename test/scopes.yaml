@@ -95,7 +95,7 @@ groups:
     tests: Identity|SSO|ForgejoDeploy|GatewayZotLargePush|Woodpecker
   - paths: [platform/grafana/**]
     tests: SSOGrafana|Logs|Monitoring
-  - paths: [platform/forgejo/**]
+  - paths: [platform/forgejo/**, platform/cloudnative-pg/**]
     tests: Forgejo|SSOForgejo|GatewayForgejoSSH|Woodpecker
   # lab infra forgejo sync and push (TestForgejoDeploy); go.mod pins their SDKs
   - paths: [cli/internal/forgejo/**, cli/internal/secrets/**, cli/internal/cli/infra_forgejo*.go, cli/go.mod, cli/go.sum]
@@ -124,7 +124,6 @@ groups:
       - apps/speedtest.yaml
       - apps/tailscale.yaml
       - apps/wireguard.yaml
-      - platform/cloudnative-pg/**
       - platform/renovate/**
       - system/cloudflared/**
       - system/external-dns/**

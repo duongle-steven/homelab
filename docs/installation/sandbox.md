@@ -166,6 +166,6 @@ make dev-clean  # terragrunt run --all destroy in infra/sandbox: the cluster, th
 - Certificates come from a local CA instead of Let's Encrypt
 - Only accessible from the host machine
 - No Alertmanager, Loki, backups, Woodpecker or Renovate
-- Forgejo runs on SQLite instead of PostgreSQL (CloudNativePG); Argo CD syncs GitHub branch `sandbox`, not Forgejo (the tests push a commit with the checkout's tree to `ops/homelab`)
+- Forgejo runs one PostgreSQL instance (CloudNativePG) instead of three; Argo CD syncs GitHub branch `sandbox`, not Forgejo (the tests push a commit with the checkout's tree to `ops/homelab`)
 - No Cloudflare Tunnel: excalidraw uses the LAN Gateway `gateway` instead of `public`
 - No kube-vip: ServiceLB serves the Gateway on the k3d node instead of a kube-vip address
