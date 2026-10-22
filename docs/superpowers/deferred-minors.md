@@ -16,7 +16,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | #31 (7b) | `global.timezone` is read by no chart | any |
 | #31 (7b) | The tests hard-code `*.127-0-0-1.nip.io` | 12 (staging) |
 | #31 (7b) | The seed `sed` breaks on `&` or `\|` in `seed_repository`; `SEED_REPOSITORY` duplicates `global.seedRepository` | any |
-| #31 (7b) | woodpecker's and zot's config changes do not roll their pods | 10 (Git and CI) |
+| #31 (7b) | woodpecker's and zot's config changes do not roll their pods (the woodpecker chart passes `podAnnotations` without `tpl`; Secrets ESO refreshes never would) | 11b (Reloader or explicit restarts) |
 | #31 (7b) | `scripts/check-env-config`'s untemplated-global check knows only four keys | any |
 | #32 (7c) | `.direnv/` and `site/` are not git-ignored | any |
 | #34 (8a) | Two destinations of one generated secret drift if only one is lost (a partial restore): the push gives the lost one a new value (8e removed the copy that regenerated; restore both, or copy the survivor's value first) | 11 (backups) |
@@ -40,6 +40,8 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 14a | `lab test scope --check` covers only `components` globs: top-level files, `test/` non-test files, `metal/` and `cli/` are not checked (a new file there runs the whole suite) | any |
 | 14a | `scope.SplitTerms` ignores escaped parentheses and an alternation sign inside a character class; no term uses them yet | any |
 | dev shell cleanup | `metal/roles/pxe_server/templates/dnsmasq.conf.j2` uses `ansible.netcommon.ipmath`, which nixpkgs' Ansible does not ship (it moved to `ansible.utils`): `metal/` fails before and after the cleanup | 12 (replaces `metal/`) |
-| dev shell cleanup | `.woodpecker/static-checks.yaml` still runs the removed `TestToolsVersions` and pre-commit | 10c (Woodpecker) |
 | 8e | `make dev-fresh` on the workstation hits the main run's 60-minute `go test` timeout (the first sync's waits count inside the tests) | any |
 | 8e | Browser SSO tests flake on Kanidm's login page (OpenCloud, Grafana, paperless: "login page never loaded", `chrome-error`); a rerun passes | any |
+| 10e | Woodpecker's server generates a temporary `WOODPECKER_GRPC_SECRET` at each start (agents sign in again with the agent secret) | 11b |
+| 10e | Woodpecker's agent restarts once or twice at a fresh start until the server's gRPC port answers (`broken pipe`) | any |
+| 10e | `TestWoodpecker` leaves its probe image in the sandbox's zot (`ci` cannot delete) | any |
