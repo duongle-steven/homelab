@@ -130,7 +130,6 @@ groups:
       - system/external-dns/**
       - system/kured/**
       - system/rook-ceph/**
-      - system/volsync-system/**
       - infra/Makefile
       - infra/production/**
       - infra/_modules/cloudflare/**
