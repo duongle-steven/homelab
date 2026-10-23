@@ -1,6 +1,8 @@
 database:
+  # One instance: PostgreSQL as production, proven by the backup and Forgejo tests
   cnpg:
-    enabled: false
+    instances: 1
+    size: 1Gi
 forgejo:
   persistence:
     size: 1Gi
@@ -29,10 +31,3 @@ forgejo:
       mountPath: /etc/homelab-dev-ca
       readOnly: true
   extraInitVolumeMounts: *devCAMounts
-  gitea:
-    config:
-      # SQLite; HOST, NAME and USER from values.yaml stay but SQLite ignores them
-      database:
-        DB_TYPE: sqlite3
-    # No PostgreSQL password in the sandbox
-    additionalConfigFromEnvs: []

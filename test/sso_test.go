@@ -327,7 +327,15 @@ func TestSSOOpenCloud(t *testing.T) {
 						AppRoleID string `json:"appRoleId"`
 					} `json:"appRoleAssignments"`
 				}
-				require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/graph/v1.0/me?$expand=appRoleAssignments", nil, "", "", nil, &me, auth...))
+				// A first login provisions the account while the browser's own requests race it (OpenCloud may create it
+				// twice and answer 500 until it settles), as a person reloading would see
+				graph := func(path string, out any) {
+					require.Eventually(t, func() bool {
+						status, err := getJSONE("GET", base+path, nil, "", "", nil, out, auth...)
+						return err == nil && status == http.StatusOK
+					}, time.Minute, 2*time.Second, "%s did not answer 200 for %s", path, c.account)
+				}
+				graph("/graph/v1.0/me?$expand=appRoleAssignments", &me)
 				assert.Equal(t, c.account, me.DisplayName)
 				ids = append(ids, me.ID)
 
@@ -339,7 +347,7 @@ func TestSSOOpenCloud(t *testing.T) {
 						} `json:"appRoles"`
 					} `json:"value"`
 				}
-				require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/graph/v1.0/applications", nil, "", "", nil, &apps, auth...))
+				graph("/graph/v1.0/applications", &apps)
 				names := map[string]string{}
 				for _, a := range apps.Value {
 					for _, r := range a.AppRoles {
@@ -386,7 +394,12 @@ func TestSSOOpenCloud(t *testing.T) {
 			content := fmt.Sprintf("homelab test %s %d", c.account, time.Now().UnixNano())
 			code, _ := davRequest(t, http.MethodPut, file, token, content)
 			require.Equal(t, http.StatusCreated, code)
+			// A new file is processed after the upload (asynchronously): until then a read is 425 Too Early
 			code, got := davRequest(t, http.MethodGet, file, token, "")
+			for deadline := time.Now().Add(time.Minute); code == http.StatusTooEarly && time.Now().Before(deadline); {
+				time.Sleep(2 * time.Second)
+				code, got = davRequest(t, http.MethodGet, file, token, "")
+			}
 			require.Equal(t, http.StatusOK, code)
 			assert.Equal(t, content, got)
 			code, _ = davRequest(t, http.MethodDelete, file, token, "")

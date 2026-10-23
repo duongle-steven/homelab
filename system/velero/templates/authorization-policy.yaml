@@ -7,14 +7,14 @@ metadata:
 spec:
   action: ALLOW
   rules:
-    # Pods in this namespace call each other freely
+    # Pods in this namespace call each other freely (the data mover's pods and the sandbox's S3 server)
     - from:
         - source:
             namespaces: ["{{ .Release.Namespace }}"]
-    # Prometheus: VolSync's metrics
+    # Prometheus: Velero's and the node agent's metrics
     - from:
         - source:
             principals: ["cluster.local/ns/monitoring-system/sa/monitoring-system-kube-pro-prometheus"]
       to:
         - operation:
-            ports: ["8443"]
+            ports: ["8085"]

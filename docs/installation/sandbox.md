@@ -19,6 +19,8 @@ make dev
 
 `make dev` runs Terragrunt in `infra/sandbox`: the unit `cluster` creates the k3d cluster with k3s's own networking (Flannel, kube-proxy, ServiceLB) and the localhost proxy, the unit `argocd` bootstraps ArgoCD; then it runs the tests. State stays on your machine (`.state/`).
 
+The node pulls images through pull-through caches, one per registry (docker.io, ghcr.io, quay.io, registry.k8s.io, code.forgejo.org: `k3d-homelab-cache-*`, each with its own Docker volume). They are k3d registries outside the cluster, so `make dev-clean` and `make dev-fresh` keep them and a rebuilt sandbox downloads only what changed. A cached image expires a week after the cache first fetched it (`registry:3` does not count later pulls), and the next build fetches it again; a new release is another tag, fetched on its first use, so after an upgrade the old one stays at most a week. An image from another registry, or one the cache fails to fetch, comes from its registry directly. Before it builds a cluster, `make dev` fills the caches one image at a time (`scripts/warm-image-cache`: every image the sandbox renders, plus k3s's, the operators' and the tests'; what a cache holds is skipped; `--list` prints them): the node pulls dozens of images at once, and on a slow link the cache's own request to the registry times out after 15 seconds (`registry:3`, not configurable), so the node would pull that image directly and the cache never get it. After the tests, `scripts/warm-image-cache --node` adds what the node holds and the caches miss, so the next build finds it. GitHub Actions runs without caches (`HOMELAB_SANDBOX_CACHE=0`: each runner starts empty). Empty one with `k3d registry delete homelab-cache-docker-io` (and `docker volume rm homelab-cache-docker-io`).
+
 !!! note
 
     The first build takes about 25 minutes. Running `make dev` again on an existing sandbox takes about a minute.
@@ -158,7 +160,7 @@ Measured on a fresh k3d sandbox with all components running and every namespace 
 ## Clean up
 
 ```sh
-make dev-clean  # terragrunt run --all destroy in infra/sandbox: the cluster, the proxy and the kubeconfig
+make dev-clean  # terragrunt run --all destroy in infra/sandbox: the cluster, the proxy and the kubeconfig (not the image caches)
 ```
 
 ## Differences from production
@@ -166,6 +168,6 @@ make dev-clean  # terragrunt run --all destroy in infra/sandbox: the cluster, th
 - Certificates come from a local CA instead of Let's Encrypt
 - Only accessible from the host machine
 - No Alertmanager, Loki, backups, Woodpecker or Renovate
-- Forgejo runs on SQLite instead of PostgreSQL (CloudNativePG); Argo CD syncs GitHub branch `sandbox`, not Forgejo (the tests push a commit with the checkout's tree to `ops/homelab`)
+- Forgejo runs one PostgreSQL instance (CloudNativePG) instead of three; Argo CD syncs GitHub branch `sandbox`, not Forgejo (the tests push a commit with the checkout's tree to `ops/homelab`)
 - No Cloudflare Tunnel: excalidraw uses the LAN Gateway `gateway` instead of `public`
 - No kube-vip: ServiceLB serves the Gateway on the k3d node instead of a kube-vip address

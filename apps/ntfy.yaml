@@ -52,6 +52,9 @@ route:
         sectionName: https
 persistence:
   data:
+    # Backed up off-site daily (docs/how-to-guides/backup-and-restore.md)
+    labels:
+      homelab/backup: daily
     accessMode: ReadWriteOnce
     size: 1Gi
     globalMounts:

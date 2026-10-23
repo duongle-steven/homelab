@@ -25,6 +25,9 @@ forgejo:
     rollingUpdate: null
   persistence:
     claimName: forgejo-data
+    # Backed up off-site daily (docs/how-to-guides/backup-and-restore.md)
+    labels:
+      homelab/backup: daily
     size: 10Gi
   httpRoute:
     enabled: true

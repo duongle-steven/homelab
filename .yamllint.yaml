@@ -4,6 +4,8 @@ ignore: |
   .direnv/
   site/
   .terragrunt-cache/
+  # Upstream's manifests, vendored unchanged (csi-driver-host-path)
+  system/csi-hostpath/files/
 
 extends: default
 

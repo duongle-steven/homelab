@@ -105,6 +105,10 @@ route:
             port: jellyseerr
 persistence:
   data:
+    # Not backed up: the media can be downloaded again and the config is worth nothing without it
+    # (docs/how-to-guides/backup-and-restore.md)
+    labels:
+      homelab/backup: none
     # Keep the PVC name jellyfin-data
     suffix: data
     accessMode: ReadWriteOnce

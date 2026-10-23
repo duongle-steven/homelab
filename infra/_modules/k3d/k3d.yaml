@@ -19,6 +19,10 @@ options:
       # k3s 1.37 packages Gateway API v1.6.1 CRDs; ours (main.tf) are the latest release
       - arg: --disable=gateway-api-crd
         nodeFilters: [server:*]
+      # Volumes come from csi-driver-host-path (system/csi-hostpath), which has CSI snapshots like Ceph in production;
+      # a claim made before it runs waits for its default StorageClass
+      - arg: --disable=local-storage
+        nodeFilters: [server:*]
       # Embedded etcd, like production
       - arg: --cluster-init
         nodeFilters: [server:*]

@@ -1,0 +1,89 @@
+# OpenBao's hourly raft snapshot, the consistent copy of every secret (docs/how-to-guides/backup-and-restore.md): written
+# into its own volume, labelled for Velero's daily off-site copy, while the raft volume itself is not copied. The job
+# logs in with role snapshot (policy snapshot: read sys/storage/raft/snapshot) through a token for audience openbao.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao-snapshot
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openbao-snapshots
+  namespace: {{ .Release.Namespace }}
+  labels:
+    homelab/backup: daily
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: openbao-snapshot
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: {{ .Values.snapshot.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          serviceAccountName: openbao-snapshot
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 100
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: snapshot
+              image: {{ .Values.snapshot.image }}
+              command: [sh, -ec]
+              # Written beside, then renamed: a copy taken mid-write still holds the previous snapshot
+              args:
+                - >-
+                  export BAO_TOKEN="$(bao write -field=token auth/kubernetes/login role=snapshot
+                  jwt=@/var/run/secrets/openbao/token)";
+                  bao operator raft snapshot save /snapshots/raft.snap.new;
+                  mv /snapshots/raft.snap.new /snapshots/raft.snap
+              env:
+                - name: BAO_ADDR
+                  value: http://openbao.{{ .Release.Namespace }}:8200
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              volumeMounts:
+                - name: snapshots
+                  mountPath: /snapshots
+                - name: token
+                  mountPath: /var/run/secrets/openbao
+                  readOnly: true
+          volumes:
+            - name: snapshots
+              persistentVolumeClaim:
+                claimName: openbao-snapshots
+            - name: token
+              projected:
+                sources:
+                  - serviceAccountToken:
+                      audience: openbao
+                      expirationSeconds: 600
+                      path: token

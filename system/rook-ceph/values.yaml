@@ -55,6 +55,9 @@ rook-ceph-cluster:
   cephBlockPoolsVolumeSnapshotClass:
     enabled: true
     isDefault: true
+    # Velero's CSI support uses the class with this label (system/velero)
+    labels:
+      velero.io/csi-volumesnapshot-class: "true"
   cephFileSystems:
     - name: standard-rwx
       spec:

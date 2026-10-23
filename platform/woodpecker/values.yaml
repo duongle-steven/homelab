@@ -5,6 +5,10 @@ woodpecker:
     mapAgentSecret: false
     extraSecretNamesForEnvFrom:
       - woodpecker-agent
+    # Its config volume holds only the agent's id: not backed up (docs/how-to-guides/backup-and-restore.md)
+    persistence:
+      labels:
+        homelab/backup: none
     resources:
       requests: {cpu: 10m, memory: 64Mi}
     env:
@@ -34,6 +38,9 @@ woodpecker:
       requests: {cpu: 50m, memory: 128Mi}
     persistentVolume:
       size: 2Gi
+      # Backed up off-site daily (docs/how-to-guides/backup-and-restore.md)
+      labels:
+        homelab/backup: daily
     env:
       # The chart's placeholder: env wins over envFrom, so it would hide woodpecker-environment's host
       WOODPECKER_HOST: null

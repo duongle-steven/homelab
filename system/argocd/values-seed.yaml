@@ -32,6 +32,9 @@ argocd-apps:
                     # Rendered into every namespace by each Application (template below), not on its own
                     - path: system/secret-store
                       exclude: true
+                    # The sandbox's storage (Ceph in production)
+                    - path: system/csi-hostpath
+                      exclude: true
                     - path: platform/*
                     - path: apps/*
               - git: &config

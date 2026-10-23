@@ -86,12 +86,18 @@ route:
         sectionName: https
 persistence:
   config:
+    # Snapshotted hourly; off-site only through lab backup push (docs/how-to-guides/backup-and-restore.md)
+    labels:
+      homelab/backup: manual
     suffix: config
     accessMode: ReadWriteOnce
     size: 1Gi
     globalMounts:
       - path: /etc/opencloud
   data:
+    # Snapshotted hourly; off-site only through lab backup push (docs/how-to-guides/backup-and-restore.md)
+    labels:
+      homelab/backup: manual
     suffix: data
     accessMode: ReadWriteOnce
     size: 20Gi

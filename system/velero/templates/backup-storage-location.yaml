@@ -1,0 +1,20 @@
+# Where Velero keeps the off-site copies (values.yaml's backupStorageLocation): read-only on every new cluster
+{{- $s3Url := .Values.global.backupS3Url | default .Values.backupStorageLocation.s3Url }}
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+  namespace: {{ .Release.Namespace }}
+spec:
+  provider: aws
+  default: true
+  accessMode: ReadOnly
+  objectStorage:
+    bucket: {{ .Values.backupStorageLocation.bucket | quote }}
+  config:
+    {{- range $key, $value := .Values.backupStorageLocation.config }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+    {{- with $s3Url }}
+    s3Url: {{ . | quote }}
+    {{- end }}

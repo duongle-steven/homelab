@@ -20,3 +20,8 @@ message. The sandbox runs ntfy without it.
 The `Watchdog` alert fires all the time. Each heartbeat replaces a message scheduled 15 minutes ahead ("Monitoring
 heartbeat missing"): if Prometheus or Alertmanager stop, it is delivered. If ntfy, the Tunnel or the whole cluster
 stop, nothing is: an external dead man's switch is an idea in `CLAUDE.md`.
+
+## Backups
+
+`VeleroNoRecentBackup` fires when no daily off-site copy succeeded for 26 hours: the schedule fails, or the cluster
+was never enabled (every new cluster starts read-only: `lab backup enable`, [Backup and restore](backup-and-restore.md)).

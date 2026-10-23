@@ -1,4 +1,4 @@
-# PostgreSQL operator for production databases (Forgejo); the sandbox uses SQLite and does not sync it
+# PostgreSQL operator for Forgejo's database (forgejo-db), in production and the sandbox
 cloudnative-pg:
   # The API server (outside the mesh) calls the operator's webhooks
   podLabels:

@@ -4,8 +4,8 @@
 # changed since $BASE (default origin/dev; lab test charts).
 set -eu
 cd "$(git rev-parse --show-toplevel)"
-offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestIstioCNIWatchdog|TestState|TestArgoCD(Revision|RootPreservesResources)|TestArgoCDServiceMonitors|TestArgoCDChooseValues|TestMakeDevRevision|TestMakeInfraProduction|TestGeneratedSecrets|TestKeptValue|TestRenovate|TestWoodpeckerRender|TestWoodpeckerForgejoTeams'
-checks='render go cli infra docs mesh env-config secret-stores lint'
+offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestIstioCNIWatchdog|TestState|TestArgoCD(Revision|RootPreservesResources|BackupEndpoint)|TestArgoCDServiceMonitors|TestArgoCDChooseValues|TestMakeDevRevision|TestMakeInfraProduction|TestGeneratedSecrets|TestKeptValue|TestRenovate|TestWoodpeckerRender|TestWoodpeckerForgejoTeams|TestForgejoDatabaseBeforeForgejo|TestCheckBackupGroups|TestVeleroRender|TestVeleroLocationEndpoint|TestOpenBaoSnapshotJob|TestVeleroPrune|TestVeleroSnapshots|TestArgoCDBackupSync|TestExternalSecretsWebhookIgnoredWhileDown|TestCSIHostPathDataOnNodeDisk'
+checks='render go cli infra docs mesh backup-groups env-config secret-stores lint'
 
 check() {
 	case "$1" in
@@ -23,6 +23,7 @@ check() {
 		infra) env -u HOMELAB_STATE_PASSPHRASE make -C infra check ;;
 		docs) mkdocs build --strict ;;
 		mesh) scripts/check-mesh-policies ;;
+		backup-groups) scripts/check-backup-groups ;;
 		env-config) scripts/check-env-config ;;
 		secret-stores) scripts/check-secret-stores ;;
 		lint) scripts/lint ;;

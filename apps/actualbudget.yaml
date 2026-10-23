@@ -49,6 +49,9 @@ route:
         sectionName: https
 persistence:
   data:
+    # Snapshotted hourly; off-site only through lab backup push (docs/how-to-guides/backup-and-restore.md)
+    labels:
+      homelab/backup: manual
     # Keep the PVC name actualbudget-data (make backup)
     suffix: data
     accessMode: ReadWriteOnce

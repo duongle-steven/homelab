@@ -1,0 +1,20 @@
+# The daily off-site copy of every volume labelled homelab/backup: daily. Paused in git, so every new cluster starts
+# without writing (Argo CD ignores spec.paused, root ApplicationSet); lab backup enable starts it
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: CRON_TZ={{ .Values.global.timezone }} {{ .Values.schedule }}
+  paused: true
+  useOwnerReferencesInBackup: false
+  template:
+    # Retention is by count (templates/prune.yaml): Velero's own expiry never removes a backup
+    ttl: 87600h0m0s
+    snapshotMoveData: true
+    # Volumes only: git rebuilds every other resource
+    includedResources: [persistentvolumeclaims, persistentvolumes]
+    labelSelector:
+      matchLabels:
+        homelab/backup: daily

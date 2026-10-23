@@ -1,0 +1,8 @@
+apiVersion: v2
+name: csi-hostpath
+version: 0.0.0
+dependencies:
+  # The sandbox only: CSI snapshots for Velero and the hourly local snapshots (production's comes with system/rook-ceph)
+  - name: snapshot-controller
+    version: 5.4.0
+    repository: https://piraeus.io/helm-charts

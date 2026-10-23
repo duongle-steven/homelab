@@ -51,6 +51,9 @@ route:
             port: http
 persistence:
   data:
+    # Not backed up: models are downloaded again (docs/how-to-guides/backup-and-restore.md)
+    labels:
+      homelab/backup: none
     # Keep the PVC name ollama-data
     suffix: data
     accessMode: ReadWriteOnce

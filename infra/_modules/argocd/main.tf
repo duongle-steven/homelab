@@ -47,6 +47,12 @@ variable "revision" {
   description = "Commit or branch every homelab source and generator syncs (set-revision.sh); empty keeps the values file's"
 }
 
+variable "backup_s3_url" {
+  type        = string
+  default     = ""
+  description = "S3 endpoint of the off-site backups (production's R2, which holds the account id: never in git), passed to the components as global.backupS3Url (set-backup-endpoint.sh); required in production"
+}
+
 # The values file to apply: the seed on production's first install while Forgejo does not run, never again once Argo
 # CD reads Forgejo (choose-values.sh). A change of choice (Forgejo started) re-applies the bootstrap.
 data "external" "values" {
@@ -72,13 +78,21 @@ locals {
     ENVIRONMENT     = data.external.values.result.environment
     SEED_REPOSITORY = var.seed_repository
     REVISION        = var.revision
+    BACKUP_S3_URL   = var.backup_s3_url
   }
   command = "sh ${abspath("${path.module}/bootstrap.sh")}"
 }
 
 # It has no destroy-time action: destroying it leaves Argo CD running
 resource "terraform_data" "bootstrap" {
-  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, var.revision]
+  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, var.revision, var.backup_s3_url]
+
+  lifecycle {
+    precondition {
+      condition     = var.environment != "prod" || var.backup_s3_url != ""
+      error_message = "production needs backup_s3_url: Velero's data mover dials AWS without it"
+    }
+  }
 
   provisioner "local-exec" {
     command     = local.command

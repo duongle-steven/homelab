@@ -39,6 +39,9 @@ fi
 # The sandbox on GitHub Actions syncs one commit (REVISION) instead of branch sandbox
 sh "$(dirname "$0")/set-revision.sh" "${REVISION:-}" < "$manifests" > "$manifests.rev"
 mv "$manifests.rev" "$manifests"
+# Production's off-site backup endpoint, which holds R2's account id (infra/production/argocd)
+sh "$(dirname "$0")/set-backup-endpoint.sh" "${BACKUP_S3_URL:-}" < "$manifests" > "$manifests.rev"
+mv "$manifests.rev" "$manifests"
 # Argo CD no longer manages itself: the root ApplicationSet drops Application argocd, whose resources finalizer would
 # delete Argo CD with it. Release it first (nothing to do on a new cluster).
 if kubectl -n argocd get application argocd >/dev/null 2>&1; then

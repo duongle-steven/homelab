@@ -4,6 +4,10 @@ kind: AuthorizationPolicy
 metadata:
   name: allow
   namespace: {{ .Release.Namespace }}
+  annotations:
+    # With forgejo-db (wave -1), which becomes healthy only once the operator reaches its status port and its
+    # replicas reach the primary
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   action: ALLOW
   rules:
@@ -33,6 +37,8 @@ kind: AuthorizationPolicy
 metadata:
   name: allow-cnpg-status
   namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   action: ALLOW
   selector:

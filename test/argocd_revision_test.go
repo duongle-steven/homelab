@@ -81,3 +81,30 @@ func TestArgoCDServiceMonitors(t *testing.T) {
 		assert.NotEmpty(t, service, "%s selects no metrics Service with port %s", name, port)
 	}
 }
+
+// Production's bootstrap passes R2's endpoint (never in git) to the root ApplicationSet's components as
+// global.backupS3Url, which system/velero's location reads; without one the manifests are unchanged
+func TestArgoCDBackupEndpoint(t *testing.T) {
+	render := func(endpoint string) string {
+		cmd := exec.Command("sh", "-c", `scripts/render-chart system/argocd | sh infra/_modules/argocd/set-backup-endpoint.sh "$0"`, endpoint)
+		cmd.Dir = ".."
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+		return string(out)
+	}
+	get := func(manifests, expr string) string {
+		cmd := exec.Command("yq", expr)
+		cmd.Stdin = strings.NewReader(manifests)
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+		return strings.TrimSpace(string(out))
+	}
+	plain := render("")
+	set := render("https://account.r2.cloudflarestorage.com")
+	root := `select(.kind == "ApplicationSet" and .metadata.name == "root") | .spec.template.spec.sources[0].helm.valuesObject.global.backupS3Url`
+	assert.Equal(t, "null", get(plain, root))
+	assert.Equal(t, "https://account.r2.cloudflarestorage.com", get(set, root))
+	// Only that value changes
+	assert.Equal(t, get(plain, `del(select(.kind == "ApplicationSet" and .metadata.name == "root"))`),
+		get(set, `del(select(.kind == "ApplicationSet" and .metadata.name == "root"))`))
+}

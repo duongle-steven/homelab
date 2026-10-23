@@ -8,8 +8,21 @@ dendrite:
   dendrite_config:
     global:
       server_name: matrix.hoangduong.dev
+  # templates/volumes.yaml (labelled with their backup group)
+  persistence:
+    media:
+      existingClaim: matrix-dendrite-media-pvc
+    jetstream:
+      existingClaim: matrix-dendrite-jetstream-pvc
+    search:
+      existingClaim: matrix-dendrite-search-pvc
   postgresql:
     enabled: true
+    primary:
+      persistence:
+        # Backed up off-site daily (docs/how-to-guides/backup-and-restore.md)
+        labels:
+          homelab/backup: daily
 
 route:
   # Published through the Cloudflare Tunnel

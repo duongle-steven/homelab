@@ -10,6 +10,10 @@ openbao:
     updateStrategyType: RollingUpdate
     dataStorage:
       size: 1Gi
+      # Not copied as files: its hourly raft snapshot (openbao-snapshots) is the consistent copy
+      # (docs/how-to-guides/backup-and-restore.md)
+      labels:
+        homelab/backup: none
     # OpenTofu's unit infra/<env>/openbao writes this Secret; the pod waits for it
     volumes:
       - name: unseal
@@ -104,6 +108,14 @@ openbao:
               policy = "path \"secret/data/+/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/+/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/data/+/generated/*\" { capabilities = [\"deny\"] }\npath \"secret/metadata/+/generated/*\" { capabilities = [\"deny\"] }"
             }
           }
+          # The hourly raft snapshot (templates/snapshot.yaml): reads the snapshot, nothing else
+          request "snapshot" {
+            operation = "update"
+            path      = "sys/policies/acl/snapshot"
+            data = {
+              policy = "path \"sys/storage/raft/snapshot\" { capabilities = [\"read\"] }"
+            }
+          }
           # Emergency access: no root token exists
           request "admin" {
             operation = "update"
@@ -149,6 +161,17 @@ openbao:
               token_ttl                        = "10m"
             }
           }
+          request "snapshot" {
+            operation = "update"
+            path      = "auth/kubernetes/role/snapshot"
+            data = {
+              bound_service_account_names      = ["openbao-snapshot"]
+              bound_service_account_namespaces = ["openbao"]
+              token_policies                   = ["snapshot"]
+              audience                         = "openbao"
+              token_ttl                        = "5m"
+            }
+          }
           request "admin" {
             operation = "update"
             path      = "auth/kubernetes/role/admin"
@@ -161,3 +184,8 @@ openbao:
             }
           }
         }
+# The hourly raft snapshot into its own volume, the one Velero copies off-site (templates/snapshot.yaml)
+snapshot:
+  schedule: "55 * * * *"
+  # The server's image (openbao.server.image.tag), for its bao CLI
+  image: quay.io/openbao/openbao:2.7.1
