@@ -119,7 +119,11 @@ func restoreFixture(t *testing.T, objects ...runtime.Object) (*Client, *recorder
 	quantity := resource.MustParse("1Gi")
 	kube := fake.NewClientset(
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "kube-system", CreationTimestamp: metav1.NewTime(t0)}},
-		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: "ntfy"}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)}},
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: "ntfy"}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)}, Status: appsv1.DeploymentStatus{ReadyReplicas: 1}},
+		// Rook reads nothing from OpenBao: a restore must not restart Ceph
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "rook-ceph", Name: "rook-ceph-mon-a"}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)}, Status: appsv1.DeploymentStatus{ReadyReplicas: 1}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ntfy"}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "rook-ceph"}},
 		&corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: "ntfy", Labels: map[string]string{"homelab/backup": "daily"}},
 			Spec: corev1.PersistentVolumeClaimSpec{
@@ -367,4 +371,45 @@ func TestRestoreAgainAfterAFailure(t *testing.T) {
 	if _, ok := a.GetAnnotations()[restoreState]; ok {
 		t.Fatal("the saved state stayed on the Application")
 	}
+}
+
+func externalSecret(ns, name string) *unstructured.Unstructured {
+	u := &unstructured.Unstructured{}
+	u.SetAPIVersion("external-secrets.io/v1")
+	u.SetKind("ExternalSecret")
+	u.SetNamespace(ns)
+	u.SetName(name)
+	return u
+}
+
+// Only the readers of a restored secret restart: Ceph's mons and OSDs all at once would stall every volume
+func TestRestoreClusterRestartsOnlyReaders(t *testing.T) {
+	c, rec, _ := restoreFixture(t, externalSecret("ntfy", "ntfy-users"))
+	if err := c.RestoreCluster(context.Background(), Plan{Run: daily, Apps: []string{"ntfy"}}); err != nil {
+		t.Fatal(err)
+	}
+	rec.indexAll(t, "patch externalsecrets ntfy ntfy-users", "force-sync")
+	rec.indexAll(t, "patch deployments ntfy ntfy", "restartedAt")
+	for _, a := range rec.actions {
+		if strings.Contains(a, "rook-ceph") {
+			t.Fatalf("Ceph was touched: %s", a)
+		}
+	}
+}
+
+// In production Argo CD reads Forgejo with a token the restore rolls back; it reads again only once the readers
+// refresh, so a whole-cluster restore waits for Argo CD at the end, not per app (final review)
+func TestRestoreClusterWaitsForArgoCDAtTheEnd(t *testing.T) {
+	unknown := application("ntfy")
+	_ = unstructured.SetNestedField(unknown.Object, "Unknown", "status", "sync", "status")
+	c, rec, _ := restoreFixture(t, externalSecret("ntfy", "ntfy-users"))
+	if _, err := c.Dyn.Resource(Applications).Namespace("argocd").Update(context.Background(), unknown, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	c.Wait = 100 * time.Millisecond
+	err := c.RestoreCluster(context.Background(), Plan{Run: daily, Apps: []string{"ntfy"}})
+	if err == nil || !strings.Contains(err.Error(), "ntfy") {
+		t.Fatalf("err = %v, want the final wait naming ntfy", err)
+	}
+	rec.indexAll(t, "patch externalsecrets ntfy ntfy-users", "force-sync")
 }

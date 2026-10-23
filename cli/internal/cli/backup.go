@@ -181,7 +181,7 @@ func newBackupCmd() *cobra.Command {
 				if err := c.RestoreCluster(ctx, plan); err != nil {
 					return err
 				}
-				_, err = fmt.Fprintln(out, "Restored. Check the apps (docs/how-to-guides/backup-and-restore.md), then lab backup enable.")
+				_, err = fmt.Fprintln(out, "Restored. In production, run make infra env=production now: the restored Forgejo serves ops/homelab as it was at the backup. Then check the apps (docs/how-to-guides/backup-and-restore.md) and run lab backup enable.")
 				return err
 			}
 			app := args[0]

@@ -124,8 +124,10 @@ func (c *Client) RestoreCluster(ctx context.Context, plan Plan) error {
 	if !readOnly {
 		return fmt.Errorf("location default is writable: lab backup disable first (a restore needs it read-only)")
 	}
+	// Each app waits only for its own workloads: in production Argo CD reads Forgejo with a token the restore rolls
+	// back, and reads again only once the readers refresh below
 	for _, app := range plan.Apps {
-		if err := c.RestoreApp(ctx, app, Offsite, time.Time{}, plan.Run); err != nil {
+		if err := c.restoreApp(ctx, app, Offsite, time.Time{}, plan.Run, c.waitWorkloads); err != nil {
 			return err
 		}
 	}
@@ -135,17 +137,24 @@ func (c *Client) RestoreCluster(ctx context.Context, plan Plan) error {
 	}
 	sort.Strings(apps)
 	for _, app := range apps {
-		if err := c.RestoreApp(ctx, app, Offsite, time.Time{}, plan.Pushes[app]); err != nil {
+		if err := c.restoreApp(ctx, app, Offsite, time.Time{}, plan.Pushes[app], c.waitWorkloads); err != nil {
 			return err
 		}
 	}
-	return c.refreshReaders(ctx)
+	if err := c.refreshReaders(ctx); err != nil {
+		return err
+	}
+	return c.waitApplications(ctx)
 }
 
 // RestoreApp replaces one app's volumes: from run's off-site copy, or from the newest local snapshot at or before
 // at. Argo CD's automated sync stays paused until the app runs on the restored volumes; on an error it stays paused,
 // with the app stopped, and the error says so.
 func (c *Client) RestoreApp(ctx context.Context, app string, src Source, at time.Time, run Run) error {
+	return c.restoreApp(ctx, app, src, at, run, c.waitHealthy)
+}
+
+func (c *Client) restoreApp(ctx context.Context, app string, src Source, at time.Time, run Run, wait func(context.Context, string) error) error {
 	groups := []string{"daily", "manual"}
 	if src == Offsite && run.App == "" {
 		// A scheduled run holds only daily volumes
@@ -210,7 +219,7 @@ func (c *Client) RestoreApp(ctx context.Context, app string, src Source, at time
 	if err := c.resume(ctx, app, saved); err != nil {
 		return stopped(err)
 	}
-	return c.waitHealthy(ctx, app)
+	return wait(ctx, app)
 }
 
 func paused(app string) func(error) error {
@@ -760,29 +769,31 @@ func (c *Client) refreshKaniop(ctx context.Context, app string) error {
 	return nil
 }
 
-// refreshReaders makes every ExternalSecret read OpenBao again and restarts the workloads outside OpenBao, Argo CD
-// and the system, so every reader runs on the restored secrets
+// refreshReaders makes every ExternalSecret read OpenBao again and restarts the workloads of their namespaces (OpenBao
+// and Argo CD aside), so every reader runs on the restored secrets; nothing else restarts (Ceph's mons and OSDs at once
+// would stall every volume)
 func (c *Client) refreshReaders(ctx context.Context) error {
 	list, err := c.Dyn.Resource(ExternalSecrets).Namespace("").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("list externalsecrets: %w", err)
 	}
 	stamp := c.Now().UTC().Format(time.RFC3339)
+	readers := map[string]bool{}
 	for _, es := range list.Items {
 		if err := c.patch(ctx, ExternalSecrets, es.GetNamespace(), es.GetName(), map[string]any{"metadata": map[string]any{"annotations": map[string]any{"force-sync": stamp}}}); err != nil {
 			return err
 		}
+		readers[es.GetNamespace()] = true
 	}
-	namespaces, err := c.Kube.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return err
+	delete(readers, "openbao")
+	delete(readers, "argocd")
+	namespaces := make([]string, 0, len(readers))
+	for ns := range readers {
+		namespaces = append(namespaces, ns)
 	}
-	for _, ns := range namespaces.Items {
-		switch ns.Name {
-		case "openbao", "argocd", "kube-system", "kube-public", "kube-node-lease", "default", "istio-system":
-			continue
-		}
-		if err := c.restartWorkloads(ctx, ns.Name); err != nil {
+	sort.Strings(namespaces)
+	for _, ns := range namespaces {
+		if err := c.restartWorkloads(ctx, ns); err != nil {
 			return err
 		}
 	}
@@ -817,20 +828,78 @@ func (c *Client) restartWorkloads(ctx context.Context, ns string) error {
 	return nil
 }
 
+// waitWorkloads waits for the app's Deployments and StatefulSets to be ready, restarting crash-looping pods once each
+// like waitHealthy
+func (c *Client) waitWorkloads(ctx context.Context, app string) error {
+	restarted := map[string]bool{}
+	return c.until(ctx, app+"'s workloads ready", func() (bool, error) {
+		c.restartCrashLooping(ctx, app, restarted)
+		apps := c.Kube.AppsV1()
+		deployments, err := apps.Deployments(app).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		for _, d := range deployments.Items {
+			if d.Status.ReadyReplicas < ptr.Deref(d.Spec.Replicas, 1) {
+				return false, nil
+			}
+		}
+		statefulSets, err := apps.StatefulSets(app).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		for _, st := range statefulSets.Items {
+			if st.Status.ReadyReplicas < ptr.Deref(st.Spec.Replicas, 1) {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+}
+
+// waitApplications waits for every Application to be Synced and Healthy, naming the ones that are not
+func (c *Client) waitApplications(ctx context.Context) error {
+	var bad []string
+	err := c.until(ctx, "every Application Synced and Healthy", func() (bool, error) {
+		list, err := c.Dyn.Resource(Applications).Namespace("argocd").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, nil
+		}
+		bad = bad[:0]
+		for _, a := range list.Items {
+			sync, _, _ := unstructured.NestedString(a.Object, "status", "sync", "status")
+			health, _, _ := unstructured.NestedString(a.Object, "status", "health", "status")
+			if sync != "Synced" || health != "Healthy" {
+				bad = append(bad, fmt.Sprintf("%s %s/%s", a.GetName(), sync, health))
+			}
+		}
+		return len(bad) == 0, nil
+	})
+	if err != nil && len(bad) > 0 {
+		return fmt.Errorf("%w: %s", err, strings.Join(bad, ", "))
+	}
+	return err
+}
+
+func (c *Client) restartCrashLooping(ctx context.Context, app string, restarted map[string]bool) {
+	pods, err := c.Kube.CoreV1().Pods(app).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return
+	}
+	for _, p := range pods.Items {
+		if !restarted[p.Name] && crashLooping(p) {
+			restarted[p.Name] = true
+			_ = c.Kube.CoreV1().Pods(app).Delete(ctx, p.Name, metav1.DeleteOptions{})
+		}
+	}
+}
+
 // waitHealthy waits for the Application to be Synced and Healthy, restarting the app's pods that crash-looped while
 // their database was away (Forgejo's init container), once each
 func (c *Client) waitHealthy(ctx context.Context, app string) error {
 	restarted := map[string]bool{}
 	return c.until(ctx, "Application "+app+" Synced and Healthy", func() (bool, error) {
-		pods, err := c.Kube.CoreV1().Pods(app).List(ctx, metav1.ListOptions{})
-		if err == nil {
-			for _, p := range pods.Items {
-				if !restarted[p.Name] && crashLooping(p) {
-					restarted[p.Name] = true
-					_ = c.Kube.CoreV1().Pods(app).Delete(ctx, p.Name, metav1.DeleteOptions{})
-				}
-			}
-		}
+		c.restartCrashLooping(ctx, app, restarted)
 		a, err := c.Dyn.Resource(Applications).Namespace("argocd").Get(ctx, app, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
