@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -150,17 +151,32 @@ func (c *Client) RestoreApp(ctx context.Context, app string, src Source, at time
 		// A scheduled run holds only daily volumes
 		groups = []string{"daily"}
 	}
-	claims, err := c.Kube.CoreV1().PersistentVolumeClaims(app).List(ctx, metav1.ListOptions{LabelSelector: "homelab/backup in (" + strings.Join(groups, ",") + ")"})
+	list, err := c.Kube.CoreV1().PersistentVolumeClaims(app).List(ctx, metav1.ListOptions{LabelSelector: "homelab/backup in (" + strings.Join(groups, ",") + ")"})
 	if err != nil {
 		return err
 	}
-	if len(claims.Items) == 0 {
+	saved, err := c.loadSaved(ctx, app)
+	if err != nil {
+		return err
+	}
+	// A failed run may have deleted claims already: they are in the saved state
+	claims := list.Items
+	for _, p := range saved.Claims {
+		if !slices.ContainsFunc(claims, func(q corev1.PersistentVolumeClaim) bool { return q.Name == p.Name }) {
+			claims = append(claims, p)
+		}
+	}
+	if len(claims) == 0 {
 		return fmt.Errorf("%s has no claim labelled homelab/backup %s", app, strings.Join(groups, " or "))
+	}
+	saved.Claims = nil
+	for _, p := range claims {
+		saved.Claims = append(saved.Claims, savedClaim(p))
 	}
 	sources := map[string]string{}
 	if src == Local {
 		// Every snapshot is chosen before anything is touched
-		for _, p := range claims.Items {
+		for _, p := range claims {
 			name, err := c.snapshotAt(ctx, app, p.Name, at)
 			if err != nil {
 				return err
@@ -168,32 +184,30 @@ func (c *Client) RestoreApp(ctx context.Context, app string, src Source, at time
 			sources[p.Name] = name
 		}
 	}
-	automated, err := c.pause(ctx, app)
-	if err != nil {
+	if err := c.pause(ctx, app, saved); err != nil {
 		return err
 	}
 	stopped := paused(app)
-	s, err := c.stop(ctx, app, claims.Items)
-	if err != nil {
+	if err := c.stop(ctx, app, claims, saved); err != nil {
 		return stopped(err)
 	}
-	if err := c.replace(ctx, app, src, run, claims.Items, sources); err != nil {
+	if err := c.replace(ctx, app, src, run, claims, sources); err != nil {
 		return stopped(err)
 	}
-	if err := c.start(ctx, app, s); err != nil {
+	if err := c.start(ctx, app, saved); err != nil {
 		return stopped(err)
 	}
-	if s.openbao {
+	if saved.openbao {
 		if err := c.restoreOpenBao(ctx); err != nil {
 			return stopped(err)
 		}
 	}
-	if s.kanidm {
+	if saved.kanidm {
 		if err := c.refreshKaniop(ctx, app); err != nil {
 			return stopped(err)
 		}
 	}
-	if err := c.resume(ctx, app, automated); err != nil {
+	if err := c.resume(ctx, app, saved); err != nil {
 		return stopped(err)
 	}
 	return c.waitHealthy(ctx, app)
@@ -216,32 +230,88 @@ func (c *Client) patch(ctx context.Context, gvr schema.GroupVersionResource, nam
 	return nil
 }
 
-// pause removes the Application's automated sync and returns it (the ApplicationSets ignore that field)
-func (c *Client) pause(ctx context.Context, app string) (map[string]any, error) {
+// restoreState is the Application annotation holding what a restore changed (its automated sync, the replicas it
+// stopped), written before anything changes: a restore run again after a failure finds the app already stopped and
+// puts back these, not what it finds
+const restoreState = "homelab/restore-state"
+
+// savedApp is what pause and stop changed, for start and resume to put back
+type savedApp struct {
+	Automated    map[string]any   `json:"automated"`
+	Deployments  map[string]int32 `json:"deployments,omitempty"`
+	StatefulSets map[string]int32 `json:"statefulSets,omitempty"`
+	Kanidms      map[string][]any `json:"kanidms,omitempty"`
+	CronJobs     []string         `json:"cronJobs,omitempty"`
+	// Claims are the claims being replaced, as they were before
+	Claims   []corev1.PersistentVolumeClaim `json:"claims,omitempty"`
+	clusters []string
+	openbao  bool
+	kanidm   bool
+}
+
+func (c *Client) save(ctx context.Context, app string, saved *savedApp) error {
+	data, err := json.Marshal(saved)
+	if err != nil {
+		return err
+	}
+	return c.patch(ctx, Applications, "argocd", app, map[string]any{"metadata": map[string]any{"annotations": map[string]any{restoreState: string(data)}}})
+}
+
+// loadSaved is the state a failed restore of app left in restoreState, or the Application's automated sync as it is
+func (c *Client) loadSaved(ctx context.Context, app string) (*savedApp, error) {
 	a, err := c.Dyn.Resource(Applications).Namespace("argocd").Get(ctx, app, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("Application %s: %w", app, err)
 	}
-	automated, _, _ := unstructured.NestedMap(a.Object, "spec", "syncPolicy", "automated")
-	return automated, c.patch(ctx, Applications, "argocd", app, map[string]any{"spec": map[string]any{"syncPolicy": map[string]any{"automated": nil}}})
-}
-
-func (c *Client) resume(ctx context.Context, app string, automated map[string]any) error {
-	if automated == nil {
-		return nil
+	saved := &savedApp{}
+	if state, ok := a.GetAnnotations()[restoreState]; ok {
+		if err := json.Unmarshal([]byte(state), saved); err != nil {
+			return nil, fmt.Errorf("Application %s: annotation %s: %w", app, restoreState, err)
+		}
+		return saved, nil
 	}
-	return c.patch(ctx, Applications, "argocd", app, map[string]any{"spec": map[string]any{"syncPolicy": map[string]any{"automated": automated}}})
+	saved.Automated, _, _ = unstructured.NestedMap(a.Object, "spec", "syncPolicy", "automated")
+	return saved, nil
 }
 
-// stoppedApp is what stop changed, for start to put back
-type stoppedApp struct {
-	deployments  map[string]int32
-	statefulSets map[string]int32
-	kanidms      map[string][]any
-	clusters     []string
-	cronJobs     []string
-	openbao      bool
-	kanidm       bool
+// savedClaim is the claim without what the API server and the binder set
+func savedClaim(p corev1.PersistentVolumeClaim) corev1.PersistentVolumeClaim {
+	return corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Namespace: p.Namespace, Name: p.Name, Labels: p.Labels, Annotations: p.Annotations, OwnerReferences: p.OwnerReferences},
+		Spec:       corev1.PersistentVolumeClaimSpec{AccessModes: p.Spec.AccessModes, Resources: p.Spec.Resources, StorageClassName: p.Spec.StorageClassName, VolumeMode: p.Spec.VolumeMode},
+	}
+}
+
+// pause removes the Application's automated sync (the ApplicationSets ignore that field) after saving it in
+// restoreState, then waits for a sync already running to end: it would recreate the claims being replaced
+func (c *Client) pause(ctx context.Context, app string, saved *savedApp) error {
+	data, err := json.Marshal(saved)
+	if err != nil {
+		return err
+	}
+	if err := c.patch(ctx, Applications, "argocd", app, map[string]any{
+		"metadata": map[string]any{"annotations": map[string]any{restoreState: string(data)}},
+		"spec":     map[string]any{"syncPolicy": map[string]any{"automated": nil}},
+	}); err != nil {
+		return err
+	}
+	return c.until(ctx, "Argo CD's running sync of "+app+" to end (argocd app terminate-op "+app+")", func() (bool, error) {
+		a, err := c.Dyn.Resource(Applications).Namespace("argocd").Get(ctx, app, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		phase, _, _ := unstructured.NestedString(a.Object, "status", "operationState", "phase")
+		return phase != "Running" && phase != "Terminating", nil
+	})
+}
+
+// resume puts back the automated sync and drops restoreState
+func (c *Client) resume(ctx context.Context, app string, saved *savedApp) error {
+	spec := map[string]any{}
+	if saved.Automated != nil {
+		spec["syncPolicy"] = map[string]any{"automated": saved.Automated}
+	}
+	return c.patch(ctx, Applications, "argocd", app, map[string]any{"metadata": map[string]any{"annotations": map[string]any{restoreState: nil}}, "spec": spec})
 }
 
 func scale(replicas int32) []byte {
@@ -249,45 +319,42 @@ func scale(replicas int32) []byte {
 }
 
 // stop takes the app off its volumes: Deployments and StatefulSets to 0, kaniop's Kanidm through its replicas,
-// CloudNativePG clusters hibernated, CronJobs suspended; then it waits for no pod to mount the claims.
-func (c *Client) stop(ctx context.Context, app string, claims []corev1.PersistentVolumeClaim) (*stoppedApp, error) {
-	s := &stoppedApp{deployments: map[string]int32{}, statefulSets: map[string]int32{}, kanidms: map[string][]any{}}
+// CloudNativePG clusters hibernated, CronJobs suspended; then it waits for no pod to mount the claims. What it changes
+// is saved first (a workload a failed run already stopped keeps the replicas saved then).
+func (c *Client) stop(ctx context.Context, app string, claims []corev1.PersistentVolumeClaim, s *savedApp) error {
+	if s.Deployments == nil {
+		s.Deployments = map[string]int32{}
+	}
+	if s.StatefulSets == nil {
+		s.StatefulSets = map[string]int32{}
+	}
+	if s.Kanidms == nil {
+		s.Kanidms = map[string][]any{}
+	}
 	apps := c.Kube.AppsV1()
 	deployments, err := apps.Deployments(app).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, d := range deployments.Items {
 		if r := ptr.Deref(d.Spec.Replicas, 1); r > 0 {
-			if _, err := apps.Deployments(app).Patch(ctx, d.Name, types.MergePatchType, scale(0), metav1.PatchOptions{}); err != nil {
-				return nil, err
-			}
-			s.deployments[d.Name] = r
+			s.Deployments[d.Name] = r
 		}
 	}
 	kanidms, err := c.Dyn.Resource(Kanidms).Namespace(app).List(ctx, metav1.ListOptions{})
-	if err == nil {
-		for _, k := range kanidms.Items {
-			groups, _, _ := unstructured.NestedSlice(k.Object, "spec", "replicaGroups")
-			s.kanidms[k.GetName()] = groups
-			zero := make([]any, 0, len(groups))
-			for _, g := range groups {
-				m := map[string]any{}
-				for key, v := range g.(map[string]any) {
-					m[key] = v
-				}
-				m["replicas"] = int64(0)
-				zero = append(zero, m)
-			}
-			if err := c.patch(ctx, Kanidms, app, k.GetName(), map[string]any{"spec": map[string]any{"replicaGroups": zero}}); err != nil {
-				return nil, err
-			}
-			s.kanidm = true
+	if err != nil {
+		kanidms = &unstructured.UnstructuredList{}
+	}
+	for _, k := range kanidms.Items {
+		groups, _, _ := unstructured.NestedSlice(k.Object, "spec", "replicaGroups")
+		if _, ok := s.Kanidms[k.GetName()]; !ok {
+			s.Kanidms[k.GetName()] = groups
 		}
+		s.kanidm = true
 	}
 	statefulSets, err := apps.StatefulSets(app).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, st := range statefulSets.Items {
 		if ownedBy(st.OwnerReferences, "Kanidm") {
@@ -297,10 +364,7 @@ func (c *Client) stop(ctx context.Context, app string, claims []corev1.Persisten
 			s.openbao = true
 		}
 		if r := ptr.Deref(st.Spec.Replicas, 1); r > 0 {
-			if _, err := apps.StatefulSets(app).Patch(ctx, st.Name, types.MergePatchType, scale(0), metav1.PatchOptions{}); err != nil {
-				return nil, err
-			}
-			s.statefulSets[st.Name] = r
+			s.StatefulSets[st.Name] = r
 		}
 	}
 	if app == "openbao" {
@@ -309,29 +373,61 @@ func (c *Client) stop(ctx context.Context, app string, claims []corev1.Persisten
 	clusters, err := c.Dyn.Resource(CNPGClusters).Namespace(app).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		for _, cl := range clusters.Items {
-			if err := c.patch(ctx, CNPGClusters, app, cl.GetName(), map[string]any{"metadata": map[string]any{"annotations": map[string]any{"cnpg.io/hibernation": "on"}}}); err != nil {
-				return nil, err
-			}
 			s.clusters = append(s.clusters, cl.GetName())
 		}
 	}
 	cronJobs, err := c.Kube.BatchV1().CronJobs(app).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, cj := range cronJobs.Items {
-		if !ptr.Deref(cj.Spec.Suspend, false) {
-			if _, err := c.Kube.BatchV1().CronJobs(app).Patch(ctx, cj.Name, types.MergePatchType, []byte(`{"spec":{"suspend":true}}`), metav1.PatchOptions{}); err != nil {
-				return nil, err
+		if !ptr.Deref(cj.Spec.Suspend, false) && !slices.Contains(s.CronJobs, cj.Name) {
+			s.CronJobs = append(s.CronJobs, cj.Name)
+		}
+	}
+	if err := c.save(ctx, app, s); err != nil {
+		return err
+	}
+
+	for name := range s.Deployments {
+		if _, err := apps.Deployments(app).Patch(ctx, name, types.MergePatchType, scale(0), metav1.PatchOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	for name, groups := range s.Kanidms {
+		zero := make([]any, 0, len(groups))
+		for _, g := range groups {
+			m := map[string]any{}
+			for key, v := range g.(map[string]any) {
+				m[key] = v
 			}
-			s.cronJobs = append(s.cronJobs, cj.Name)
+			m["replicas"] = int64(0)
+			zero = append(zero, m)
+		}
+		if err := c.patch(ctx, Kanidms, app, name, map[string]any{"spec": map[string]any{"replicaGroups": zero}}); err != nil {
+			return err
+		}
+	}
+	for name := range s.StatefulSets {
+		if _, err := apps.StatefulSets(app).Patch(ctx, name, types.MergePatchType, scale(0), metav1.PatchOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	for _, name := range s.clusters {
+		if err := c.patch(ctx, CNPGClusters, app, name, map[string]any{"metadata": map[string]any{"annotations": map[string]any{"cnpg.io/hibernation": "on"}}}); err != nil {
+			return err
+		}
+	}
+	for _, name := range s.CronJobs {
+		if _, err := c.Kube.BatchV1().CronJobs(app).Patch(ctx, name, types.MergePatchType, []byte(`{"spec":{"suspend":true}}`), metav1.PatchOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return err
 		}
 	}
 	names := map[string]bool{}
 	for _, p := range claims {
 		names[p.Name] = true
 	}
-	return s, c.until(ctx, "no pod of "+app+" mounting its claims", func() (bool, error) {
+	return c.until(ctx, "no pod of "+app+" mounting its claims", func() (bool, error) {
 		pods, err := c.Kube.CoreV1().Pods(app).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return false, err
@@ -360,29 +456,29 @@ func ownedBy(refs []metav1.OwnerReference, kind string) bool {
 }
 
 // start puts back what stop changed, the clusters' reconciliation first
-func (c *Client) start(ctx context.Context, app string, s *stoppedApp) error {
+func (c *Client) start(ctx context.Context, app string, s *savedApp) error {
 	for _, name := range s.clusters {
 		if err := c.patch(ctx, CNPGClusters, app, name, map[string]any{"metadata": map[string]any{"annotations": map[string]any{"cnpg.io/hibernation": nil}}}); err != nil {
 			return err
 		}
 	}
-	for name, groups := range s.kanidms {
+	for name, groups := range s.Kanidms {
 		if err := c.patch(ctx, Kanidms, app, name, map[string]any{"spec": map[string]any{"replicaGroups": groups}}); err != nil {
 			return err
 		}
 	}
 	apps := c.Kube.AppsV1()
-	for name, r := range s.statefulSets {
+	for name, r := range s.StatefulSets {
 		if _, err := apps.StatefulSets(app).Patch(ctx, name, types.MergePatchType, scale(r), metav1.PatchOptions{}); err != nil {
 			return err
 		}
 	}
-	for name, r := range s.deployments {
+	for name, r := range s.Deployments {
 		if _, err := apps.Deployments(app).Patch(ctx, name, types.MergePatchType, scale(r), metav1.PatchOptions{}); err != nil {
 			return err
 		}
 	}
-	for _, name := range s.cronJobs {
+	for _, name := range s.CronJobs {
 		if _, err := c.Kube.BatchV1().CronJobs(app).Patch(ctx, name, types.MergePatchType, []byte(`{"spec":{"suspend":false}}`), metav1.PatchOptions{}); err != nil {
 			return err
 		}
@@ -423,8 +519,16 @@ func (c *Client) replace(ctx context.Context, app string, src Source, run Run, c
 	}
 	switch src {
 	case Offsite:
-		if err := c.veleroRestore(ctx, app, run); err != nil {
+		restore, err := c.veleroRestore(ctx, app, run)
+		if err != nil {
 			return err
+		}
+		// Velero completes without a claim the run does not hold, or one that came back meanwhile
+		for _, p := range claims {
+			restored, err := pvcs.Get(ctx, p.Name, metav1.GetOptions{})
+			if err != nil || restored.Labels["velero.io/restore-name"] != restore {
+				return fmt.Errorf("claim %s/%s was not restored by %s (kubectl -n %s describe restores.velero.io %s): does backup %s hold it?", app, p.Name, restore, Namespace, restore, run.Name)
+			}
 		}
 	case Local:
 		for _, p := range claims {
@@ -512,9 +616,9 @@ func (c *Client) snapshotAt(ctx context.Context, app, claim string, at time.Time
 	return best, nil
 }
 
-func (c *Client) veleroRestore(ctx context.Context, app string, run Run) error {
+func (c *Client) veleroRestore(ctx context.Context, app string, run Run) (string, error) {
 	if run.Name == "" {
-		return fmt.Errorf("no backup to restore %s from", app)
+		return "", fmt.Errorf("no backup to restore %s from", app)
 	}
 	name := fmt.Sprintf("%s-%s-%s", app, run.Name, c.Now().UTC().Format("20060102150405"))
 	if len(name) > 63 {
@@ -531,9 +635,9 @@ func (c *Client) veleroRestore(ctx context.Context, app string, run Run) error {
 	r.SetNamespace(Namespace)
 	r.SetName(name)
 	if _, err := c.Dyn.Resource(Restores).Namespace(Namespace).Create(ctx, r, metav1.CreateOptions{}); err != nil {
-		return fmt.Errorf("create restores.velero.io %s: %w", name, err)
+		return "", fmt.Errorf("create restores.velero.io %s: %w", name, err)
 	}
-	return c.until(ctx, "restore "+name, func() (bool, error) {
+	return name, c.until(ctx, "restore "+name, func() (bool, error) {
 		u, err := c.Dyn.Resource(Restores).Namespace(Namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, nil

@@ -70,6 +70,24 @@ func (r *recorder) index(t *testing.T, prefix string) int {
 	return -1
 }
 
+// indexAll is the first action holding every part
+func (r *recorder) indexAll(t *testing.T, parts ...string) int {
+	t.Helper()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+next:
+	for i, a := range r.actions {
+		for _, p := range parts {
+			if !strings.Contains(a, p) {
+				continue next
+			}
+		}
+		return i
+	}
+	t.Fatalf("no action holding %q in:\n%s", parts, strings.Join(r.actions, "\n"))
+	return -1
+}
+
 func application(name string) *unstructured.Unstructured {
 	u := &unstructured.Unstructured{Object: map[string]any{
 		"spec":   map[string]any{"syncPolicy": map[string]any{"automated": map[string]any{"prune": true, "selfHeal": true}}},
@@ -123,10 +141,28 @@ func restoreFixture(t *testing.T, objects ...runtime.Object) (*Client, *recorder
 	rec := &recorder{}
 	dyn.PrependReactor("*", "*", rec.react("dyn"))
 	kube.PrependReactor("*", "*", rec.react("kube"))
-	// Velero completes a restore as soon as it is created
+	// Velero completes a restore as soon as it is created, recreating the namespace's claims labelled with its name
+	claims := map[string][]corev1.PersistentVolumeClaim{}
+	for _, ns := range []string{"ntfy", "openbao"} {
+		list, _ := kube.CoreV1().PersistentVolumeClaims(ns).List(context.Background(), metav1.ListOptions{})
+		claims[ns] = list.Items
+	}
 	dyn.PrependReactor("create", "restores", func(a k8stesting.Action) (bool, runtime.Object, error) {
 		u := a.(k8stesting.CreateAction).GetObject().(*unstructured.Unstructured)
 		_ = unstructured.SetNestedField(u.Object, "Completed", "status", "phase")
+		// A run that does not hold the claims: Velero completes all the same
+		if backup, _, _ := unstructured.NestedString(u.Object, "spec", "backupName"); backup == "daily-without-volumes" {
+			return false, nil, nil
+		}
+		namespaces, _, _ := unstructured.NestedStringSlice(u.Object, "spec", "includedNamespaces")
+		for _, ns := range namespaces {
+			for _, p := range claims[ns] {
+				p := p.DeepCopy()
+				p.ResourceVersion = ""
+				p.Labels["velero.io/restore-name"] = u.GetName()
+				_, _ = kube.CoreV1().PersistentVolumeClaims(ns).Create(context.Background(), p, metav1.CreateOptions{})
+			}
+		}
 		return false, nil, nil
 	})
 	// The OpenBao restore Job succeeds
@@ -148,12 +184,12 @@ func TestRestorePausesSync(t *testing.T) {
 	if err := c.RestoreApp(context.Background(), "ntfy", Offsite, time.Time{}, daily); err != nil {
 		t.Fatal(err)
 	}
-	pause := rec.index(t, `patch applications argocd ntfy {"spec":{"syncPolicy":{"automated":null}}}`)
+	pause := rec.indexAll(t, "patch applications argocd ntfy", `"automated":null`)
 	stop := rec.index(t, `patch deployments ntfy ntfy {"spec":{"replicas":0}}`)
 	del := rec.index(t, "delete persistentvolumeclaims ntfy ntfy")
 	restore := rec.index(t, "create restores velero")
 	start := rec.index(t, `patch deployments ntfy ntfy {"spec":{"replicas":1}}`)
-	resume := rec.index(t, `patch applications argocd ntfy {"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}`)
+	resume := rec.indexAll(t, "patch applications argocd ntfy", `"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}`)
 	if !(pause < stop && stop < del && del < restore && restore < start && start < resume) {
 		t.Fatalf("order pause %d, stop %d, delete %d, restore %d, start %d, resume %d", pause, stop, del, restore, start, resume)
 	}
@@ -169,7 +205,7 @@ func TestRestoreStopsPausedOnError(t *testing.T) {
 		t.Fatalf("err = %v, want one saying ntfy stays paused", err)
 	}
 	for _, a := range rec.actions {
-		if strings.HasPrefix(a, `patch applications argocd ntfy {"spec":{"syncPolicy":{"automated":{`) {
+		if strings.Contains(a, `"spec":{"syncPolicy":{"automated":{`) {
 			t.Fatal("the sync was resumed over a half-restored volume")
 		}
 	}
@@ -268,5 +304,67 @@ func TestAppRunPicksWhatHoldsTheApp(t *testing.T) {
 	}
 	if _, err := c.AppRun(context.Background(), runs[:1], "paperless", ""); err == nil {
 		t.Fatal("a manual app with no push must be refused")
+	}
+}
+
+// Velero reports Completed even when it skipped a claim (one the run does not hold): the app must not start on an empty
+// volume that Argo CD recreates (final review)
+func TestRestoreFailsWhenAClaimIsNotRestored(t *testing.T) {
+	c, rec, _ := restoreFixture(t)
+	err := c.RestoreApp(context.Background(), "ntfy", Offsite, time.Time{}, Run{Name: "daily-without-volumes", Schedule: "daily", Phase: "Completed"})
+	if err == nil || !strings.Contains(err.Error(), "ntfy/ntfy") || !strings.Contains(err.Error(), "paused") {
+		t.Fatalf("err = %v, want one naming the claim and saying ntfy stays paused", err)
+	}
+	for _, a := range rec.actions {
+		if strings.HasPrefix(a, `patch deployments ntfy ntfy {"spec":{"replicas":1}}`) {
+			t.Fatal("ntfy was started without its volume")
+		}
+	}
+}
+
+// A sync Argo CD is running when the restore pauses it would recreate the claims: wait for it to end first
+func TestRestoreWaitsForARunningSync(t *testing.T) {
+	c, _, dyn := restoreFixture(t)
+	a, _ := dyn.Resource(Applications).Namespace("argocd").Get(context.Background(), "ntfy", metav1.GetOptions{})
+	_ = unstructured.SetNestedField(a.Object, "Running", "status", "operationState", "phase")
+	if _, err := dyn.Resource(Applications).Namespace("argocd").Update(context.Background(), a, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	c.Wait = 50 * time.Millisecond
+	err := c.RestoreApp(context.Background(), "ntfy", Offsite, time.Time{}, daily)
+	if err == nil || !strings.Contains(err.Error(), "sync") {
+		t.Fatalf("err = %v, want one about the running sync", err)
+	}
+	if _, err := c.Kube.CoreV1().PersistentVolumeClaims("ntfy").Get(context.Background(), "ntfy", metav1.GetOptions{}); err != nil {
+		t.Fatalf("the claim was deleted under a running sync: %v", err)
+	}
+}
+
+// Running a failed restore again, as its error says, puts back what the first run changed (final review)
+func TestRestoreAgainAfterAFailure(t *testing.T) {
+	c, rec, dyn := restoreFixture(t)
+	fail := true
+	dyn.PrependReactor("create", "restores", func(k8stesting.Action) (bool, runtime.Object, error) {
+		if fail {
+			return true, nil, fmt.Errorf("velero is down")
+		}
+		return false, nil, nil
+	})
+	if err := c.RestoreApp(context.Background(), "ntfy", Offsite, time.Time{}, daily); err == nil {
+		t.Fatal("the first run should fail")
+	}
+	// The first run deleted the claim: it is in the backup, so Velero brings it back on the second
+	fail = false
+	if err := c.RestoreApp(context.Background(), "ntfy", Offsite, time.Time{}, daily); err != nil {
+		t.Fatal(err)
+	}
+	rec.index(t, `patch deployments ntfy ntfy {"spec":{"replicas":1}}`)
+	a, _ := dyn.Resource(Applications).Namespace("argocd").Get(context.Background(), "ntfy", metav1.GetOptions{})
+	automated, _, _ := unstructured.NestedMap(a.Object, "spec", "syncPolicy", "automated")
+	if automated["prune"] != true || automated["selfHeal"] != true {
+		t.Fatalf("automated = %v, want the original back", automated)
+	}
+	if _, ok := a.GetAnnotations()[restoreState]; ok {
+		t.Fatal("the saved state stayed on the Application")
 	}
 }
