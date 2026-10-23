@@ -83,9 +83,10 @@ func newSecretsCmd() *cobra.Command {
 		Short: "Replace secrets by their official method, resuming an interrupted rotation",
 		Long: "Prints the plan (what restarts, marking workloads with one replica, which stop briefly, and who must act), " +
 			"asks, then rotates one entry after another and stops at the first failure. It first wants a completed " +
-			"scheduled off-site backup from the last 24 hours. --scheduled (the CronJob) rotates only the due entries, " +
-			"never manual ones, without asking. It fails when an entry failed, was named but not rotated, or is more " +
-			"than 14 days past its due date.",
+			"scheduled off-site backup from the last 24 hours, and each entry's lock (Lease secrets-rotation/rotate-<name>). " +
+			"--scheduled (the CronJob) rotates the due entries and finishes interrupted rotations, never manual or " +
+			"OpenTofu ones, without asking. It fails when an entry failed, was named but not rotated (never), or is " +
+			"more than 14 days past its due date (counted from its creation until its first rotation).",
 		Example: "  lab secrets rotate grafana.admin\n  lab secrets rotate --all\n  lab secrets rotate --scheduled",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			all, _ := cmd.Flags().GetBool("all")
@@ -153,7 +154,7 @@ func newSecretsCmd() *cobra.Command {
 	}
 	rotateCmd.Flags().String("env", "production", "production, or sandbox")
 	rotateCmd.Flags().Bool("all", false, "rotate every catalog entry")
-	rotateCmd.Flags().Bool("scheduled", false, "rotate only the due entries, never manual ones, without asking (implies --yes)")
+	rotateCmd.Flags().Bool("scheduled", false, "rotate the due and interrupted entries, never manual or OpenTofu ones, without asking (implies --yes)")
 	rotateCmd.Flags().Bool("yes", false, "do not ask for confirmation (required without a terminal)")
 	rotateCmd.Flags().String("skip-backup-check", "", "rotate without a recent off-site backup; the reason is recorded")
 	group.AddCommand(rotateCmd)
@@ -206,6 +207,8 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 			// Each kind's method comes with its own task (docs/superpowers/plans/2026-10-24-secrets-rotation.md)
 			Methods: map[rotate.Kind]rotate.Method{},
 			Store:   rotate.OpenBaoRecords{Store: store},
+			// The CronJob's namespace (Task 9), which a person's run reaches too
+			Lock:    &rotate.LeaseLocker{Kube: kube, Namespace: "secrets-rotation"},
 			Backups: b.Runs,
 			Idle:    func(ctx context.Context, what string) (bool, error) { return idle(ctx, kube, what) },
 			Out:     cmd.OutOrStdout(),

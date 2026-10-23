@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"time"
 
 	bao "github.com/openbao/openbao/api/v2"
 	authv1 "k8s.io/api/authentication/v1"
@@ -121,6 +122,18 @@ func (s *Store) Metadata(ctx context.Context, path string) (map[string]string, e
 		custom[key] = text
 	}
 	return custom, nil
+}
+
+// Created is when secret/<path> was created (its metadata's created_time), or zero when it does not exist.
+func (s *Store) Created(ctx context.Context, path string) (time.Time, error) {
+	meta, err := s.kv.GetMetadata(ctx, path)
+	if errors.Is(err, bao.ErrSecretNotFound) {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("read the metadata of OpenBao secret/%s failed", path)
+	}
+	return meta.CreatedTime, nil
 }
 
 // SetMetadata merges set into the custom metadata of secret/<path>; an empty value removes its key. The other keys

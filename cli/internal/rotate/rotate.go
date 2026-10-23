@@ -3,6 +3,8 @@ package rotate
 import (
 	"cmp"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -14,9 +16,10 @@ import (
 	"github.com/duongle-steven/homelab/cli/internal/workload"
 )
 
-// A Method changes one entry in phases, so an interrupted run resumes: Prepare writes the new value (or finds the one
-// a previous run wrote), Switch moves the readers to it, Verify checks they work, Revoke ends the old value (a no-op
-// without an overlap).
+// A Method changes one entry in phases, so an interrupted run resumes: Prepare writes the new value, Switch moves the
+// readers to it, Verify checks they work, Revoke ends the old value (a no-op without an overlap). Each phase may run
+// again after an interruption. Prepare in particular must find and reuse a new value a previous run wrote (the
+// record says preparing): it never creates a third one.
 type Method interface {
 	Prepare(ctx context.Context, e Entry) error
 	Switch(ctx context.Context, e Entry) error
@@ -61,6 +64,8 @@ type Rotator struct {
 	Out  io.Writer
 	// Poll is how often the idle wait looks again, Wait how long it may take
 	Poll, Wait time.Duration
+	// Lock keeps two runs from rotating one entry at once
+	Lock Locker
 }
 
 // Plan picks the entries a run rotates, in the order --all uses: the named ones (unknown or pending names error),
@@ -91,15 +96,18 @@ func (r *Rotator) Plan(ctx context.Context, names []string, o Options) ([]Entry,
 	case o.All:
 		plan = slices.Clone(r.Entries)
 	case o.Scheduled:
+		// Due entries and interrupted rotations; never manual ones (a person acts) or OpenTofu's (from the
+		// workstation only: make infra env=production warns when one is due)
 		for _, e := range r.Entries {
-			if e.Period == 0 || e.Kind == KindManual {
+			if slices.Contains([]Kind{KindManual, KindOpenTofu, KindNever, KindAutomatic, KindScript}, e.Kind) {
 				continue
 			}
 			rec, err := r.Store.Get(ctx, e)
 			if err != nil {
 				return nil, err
 			}
-			if due, _ := Due(e, rec); !due.After(o.Now) {
+			interrupted := rec.Phase != "" && rec.Phase != PhaseDone
+			if due, periodic := Due(e, rec); interrupted || (periodic && !due.After(o.Now)) {
 				plan = append(plan, e)
 			}
 		}
@@ -131,15 +139,20 @@ func rank(e Entry) int {
 	}
 }
 
-// Due is when an entry is next due, and whether it rotates on a schedule; one never rotated is due at once.
+// Due is when an entry is next due, and whether it rotates on a schedule: a period after its last rotation or, never
+// rotated, after rec.Since (its value's creation or first sighting); with neither it is due at once.
 func Due(e Entry, rec Record) (time.Time, bool) {
 	if e.Period == 0 {
 		return time.Time{}, false
 	}
-	if rec.At.IsZero() {
+	from := rec.At
+	if from.IsZero() {
+		from = rec.Since
+	}
+	if from.IsZero() {
 		return time.Time{}, true
 	}
-	return rec.At.Add(e.Period), true
+	return from.Add(e.Period), true
 }
 
 // Skip is why a run leaves this entry alone, or "" when it rotates it.
@@ -179,6 +192,7 @@ func (r *Rotator) Run(ctx context.Context, plan []Entry, o Options) ([]Result, e
 		}
 	}
 	named := !o.All && !o.Scheduled
+	holder := holderID(o.By)
 	results := make([]Result, 0, len(plan))
 	var failed, overdue, left []string
 	for _, e := range plan {
@@ -186,9 +200,9 @@ func (r *Rotator) Run(ctx context.Context, plan []Entry, o Options) ([]Result, e
 			results = append(results, Result{Name: e.Name, Outcome: fmt.Sprintf("not started: %s failed first", failed[0])})
 			continue
 		}
-		res := r.rotate(ctx, e, o)
+		res := r.rotate(ctx, e, o, holder)
 		if res.Err == nil && res.Outcome != "rotated" {
-			if late, err := r.overdue(ctx, e, o.Now); err != nil {
+			if late, err := r.overdue(ctx, e, o); err != nil {
 				res.Outcome, res.Err = "failed reading its record", err
 			} else {
 				res.Overdue = late
@@ -199,7 +213,8 @@ func (r *Rotator) Run(ctx context.Context, plan []Entry, o Options) ([]Result, e
 			failed = append(failed, e.Name)
 		case res.Overdue:
 			overdue = append(overdue, e.Name)
-		case named && res.Outcome != "rotated":
+		// A script or automatic entry named alone is answered by its steps or reason; never is a refusal
+		case named && res.Outcome != "rotated" && e.Kind != KindScript && e.Kind != KindAutomatic:
 			left = append(left, e.Name)
 		}
 		results = append(results, res)
@@ -233,13 +248,22 @@ var phases = []phase{
 	{"revoke", PhaseDone, Method.Revoke},
 }
 
-func (r *Rotator) rotate(ctx context.Context, e Entry, o Options) Result {
+func (r *Rotator) rotate(ctx context.Context, e Entry, o Options, holder string) Result {
 	if reason := r.Skip(e, o); reason != "" {
 		return Result{Name: e.Name, Outcome: "skipped: " + reason}
 	}
 	fail := func(what string, err error) Result {
 		return Result{Name: e.Name, Outcome: "failed " + what, Err: err}
 	}
+	if r.Lock == nil {
+		return fail("locking", errors.New("no lock to keep two rotations apart"))
+	}
+	// Held from before the idle wait and the record's read to the end, renewed meanwhile
+	release, err := r.Lock.Lock(ctx, e, holder, r.Wait+5*time.Minute)
+	if err != nil {
+		return fail("locking", err)
+	}
+	defer release()
 	if e.Idle != "" {
 		if err := r.waitIdle(ctx, e.Idle); err != nil {
 			return fail("waiting for idle", err)
@@ -250,9 +274,12 @@ func (r *Rotator) rotate(ctx context.Context, e Entry, o Options) Result {
 		return fail("reading its record", err)
 	}
 	start := 0
-	if rec.Phase != "" && rec.Phase != PhaseDone {
+	resuming := rec.Phase != "" && rec.Phase != PhaseDone
+	if resuming {
 		i := slices.IndexFunc(phases, func(p phase) bool { return p.done == rec.Phase })
-		if i < 0 {
+		if rec.Phase == PhasePreparing {
+			i = -1 // Prepare again: it finds the value it may have written
+		} else if i < 0 {
 			return fail("reading its record", fmt.Errorf("unknown phase %q at secret/%s", rec.Phase, RecordPath(e)))
 		}
 		if rec.Method != "" && rec.Method != string(e.Kind) {
@@ -261,29 +288,49 @@ func (r *Rotator) rotate(ctx context.Context, e Entry, o Options) Result {
 		start = i + 1
 		fmt.Fprintf(r.Out, "%s: resuming after %s\n", e.Name, rec.Phase)
 	}
+	// The reason a resumed rotation skipped the backup check stays unless this run gives its own
+	reason := o.SkipBackupCheck
+	if reason == "" && resuming {
+		reason = rec.Reason
+	}
+	record := func(phase string) error {
+		rec.Phase, rec.By, rec.Method, rec.Reason = phase, o.By, string(e.Kind), reason
+		if phase == PhaseDone {
+			rec.At = o.Now
+		}
+		// A phase that finished is recorded even after Ctrl-C, so the rerun does not repeat it
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		return r.Store.Set(ctx, e, rec)
+	}
+	if start == 0 {
+		if err := record(PhasePreparing); err != nil {
+			return fail("recording "+PhasePreparing, err)
+		}
+	}
 	method := r.Methods[e.Kind]
 	for _, p := range phases[start:] {
 		fmt.Fprintf(r.Out, "%s: %s\n", e.Name, p.step)
 		if err := p.run(method, ctx, e); err != nil {
 			return fail("in "+p.step, err)
 		}
-		rec.Phase, rec.By, rec.Method, rec.Reason = p.done, o.By, string(e.Kind), o.SkipBackupCheck
-		if p.done == PhaseDone {
-			rec.At = o.Now
-		}
-		// A phase that finished is recorded even after Ctrl-C, so the rerun does not repeat it
-		recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-		err := r.Store.Set(recordCtx, e, rec)
-		cancel()
-		if err != nil {
+		if err := record(p.done); err != nil {
 			return fail("recording "+p.done, err)
 		}
 	}
 	return Result{Name: e.Name, Outcome: "rotated"}
 }
 
-func (r *Rotator) overdue(ctx context.Context, e Entry, now time.Time) (bool, error) {
-	if e.Period == 0 {
+// holderID names one run in a lock: the person or job, and a random suffix
+func holderID(by string) string {
+	b := make([]byte, 4)
+	_, _ = rand.Read(b)
+	return cmp.Or(by, "lab") + "/" + hex.EncodeToString(b)
+}
+
+func (r *Rotator) overdue(ctx context.Context, e Entry, o Options) (bool, error) {
+	// OpenTofu's rotate from the workstation, so the scheduled run never counts them
+	if e.Period == 0 || (o.Scheduled && e.Kind == KindOpenTofu) {
 		return false, nil
 	}
 	rec, err := r.Store.Get(ctx, e)
@@ -291,7 +338,7 @@ func (r *Rotator) overdue(ctx context.Context, e Entry, now time.Time) (bool, er
 		return false, err
 	}
 	due, _ := Due(e, rec)
-	return now.Sub(due) > OverdueMargin, nil
+	return o.Now.Sub(due) > OverdueMargin, nil
 }
 
 // idleWhat names what an idle wait waits for

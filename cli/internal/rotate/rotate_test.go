@@ -11,6 +11,10 @@ import (
 	"time"
 
 	"github.com/duongle-steven/homelab/cli/internal/backup"
+	coordinationv1 "k8s.io/api/coordination/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/utils/ptr"
 )
 
 var now = time.Date(2026, 10, 24, 3, 0, 0, 0, time.UTC)
@@ -66,6 +70,7 @@ func rotator(entries []Entry, fail map[string]error) (*Rotator, *[]string, *fake
 		Out:     io.Discard,
 		Poll:    time.Millisecond,
 		Wait:    50 * time.Millisecond,
+		Lock:    &LeaseLocker{Kube: fake.NewClientset(), Namespace: "secrets-rotation"},
 	}
 	for _, k := range kinds {
 		r.Methods[k] = method
@@ -110,7 +115,7 @@ func TestRotateRunsPhasesInOrder(t *testing.T) {
 	if !slices.Equal(*calls, want) {
 		t.Fatalf("calls = %v, want %v", *calls, want)
 	}
-	wantSets := []string{"grafana.admin prepared", "grafana.admin switched", "grafana.admin verified", "grafana.admin done"}
+	wantSets := []string{"grafana.admin preparing", "grafana.admin prepared", "grafana.admin switched", "grafana.admin verified", "grafana.admin done"}
 	if !slices.Equal(records.sets, wantSets) {
 		t.Fatalf("records = %v, want %v", records.sets, wantSets)
 	}
@@ -164,6 +169,26 @@ func TestRotateResumesAfterInterruption(t *testing.T) {
 		}
 		if got := records.records["grafana.admin"].Phase; got != PhasePrepared {
 			t.Fatalf("phase = %q: the new value was written but not recorded, so a rerun would prepare a third", got)
+		}
+	})
+	t.Run("recorded preparing", func(t *testing.T) {
+		r, calls, records := rotator([]Entry{generated("grafana.admin")}, nil)
+		records.records["grafana.admin"] = Record{Phase: PhasePreparing}
+		if _, err := r.Run(ctx, r.Entries, o); err != nil {
+			t.Fatal(err)
+		}
+		if len(*calls) != 4 || (*calls)[0] != "grafana.admin prepare" {
+			t.Fatalf("calls = %v: Prepare must run again and find the value it may have written", *calls)
+		}
+	})
+	t.Run("keeps the earlier backup-check reason", func(t *testing.T) {
+		r, _, records := rotator([]Entry{generated("grafana.admin")}, nil)
+		records.records["grafana.admin"] = Record{Phase: PhaseSwitched, Reason: "leaked token"}
+		if _, err := r.Run(ctx, r.Entries, o); err != nil {
+			t.Fatal(err)
+		}
+		if got := records.records["grafana.admin"].Reason; got != "leaked token" {
+			t.Fatalf("reason = %q", got)
 		}
 	})
 	t.Run("done starts a new rotation", func(t *testing.T) {
@@ -368,7 +393,10 @@ func scheduledEntries() []Entry {
 		{Name: "due", Kind: KindGenerated, Period: period},
 		{Name: "fresh", Kind: KindGenerated, Period: period},
 		{Name: "never-rotated", Kind: KindGenerated, Period: period},
+		{Name: "old-never-rotated", Kind: KindGenerated, Period: period},
 		{Name: "by-command", Kind: KindGenerated},
+		{Name: "interrupted", Kind: KindKaniopClient},
+		{Name: "tofu", Kind: KindOpenTofu, Period: period},
 		{Name: "manual", Kind: KindManual},
 		{Name: "never", Kind: KindNever, Reason: "all of OpenBao"},
 	}
@@ -378,6 +406,10 @@ func TestScheduledPicksDueOnly(t *testing.T) {
 	r, _, records := rotator(scheduledEntries(), nil)
 	records.records["due"] = Record{Phase: PhaseDone, At: now.Add(-91 * day)}
 	records.records["fresh"] = Record{Phase: PhaseDone, At: now.Add(-10 * day)}
+	records.records["never-rotated"] = Record{Since: now.Add(-10 * day)}
+	records.records["old-never-rotated"] = Record{Since: now.Add(-91 * day)}
+	records.records["interrupted"] = Record{Phase: PhaseSwitched, At: now.Add(-day)}
+	records.records["tofu"] = Record{Phase: PhaseDone, At: now.Add(-200 * day)}
 	plan, err := r.Plan(context.Background(), nil, Options{Scheduled: true, Now: now})
 	if err != nil {
 		t.Fatal(err)
@@ -386,7 +418,7 @@ func TestScheduledPicksDueOnly(t *testing.T) {
 	for _, e := range plan {
 		names = append(names, e.Name)
 	}
-	if want := []string{"due", "never-rotated"}; !slices.Equal(names, want) {
+	if want := []string{"due", "old-never-rotated", "interrupted"}; !slices.Equal(names, want) {
 		t.Fatalf("plan = %v, want %v", names, want)
 	}
 }
@@ -480,7 +512,11 @@ func TestPlanOrderAll(t *testing.T) {
 func TestDue(t *testing.T) {
 	e := Entry{Period: 90 * day}
 	if due, ok := Due(e, Record{}); !ok || !due.IsZero() {
-		t.Fatalf("never rotated: %v %v, want due at once", due, ok)
+		t.Fatalf("no record at all: %v %v, want due at once", due, ok)
+	}
+	created := now.Add(-day)
+	if due, ok := Due(e, Record{Since: created}); !ok || !due.Equal(created.Add(90*day)) {
+		t.Fatalf("never rotated, created a day ago: %v %v", due, ok)
 	}
 	at := now.Add(-10 * day)
 	if due, ok := Due(e, Record{Phase: PhaseDone, At: at}); !ok || !due.Equal(at.Add(90*day)) {
@@ -491,21 +527,29 @@ func TestDue(t *testing.T) {
 	}
 }
 
-// fakeMetadata is an OpenBao KV v2 custom metadata store
-type fakeMetadata map[string]map[string]string
-
-func (f fakeMetadata) Metadata(_ context.Context, path string) (map[string]string, error) {
-	return maps.Clone(f[path]), nil
+// fakeMetadata is an OpenBao KV v2 metadata store: custom metadata and created_time by path
+type fakeMetadata struct {
+	meta    map[string]map[string]string
+	created map[string]time.Time
+	writes  int
 }
-func (f fakeMetadata) SetMetadata(_ context.Context, path string, set map[string]string) error {
-	if f[path] == nil {
-		f[path] = map[string]string{}
+
+func (f *fakeMetadata) Created(_ context.Context, path string) (time.Time, error) {
+	return f.created[path], nil
+}
+func (f *fakeMetadata) Metadata(_ context.Context, path string) (map[string]string, error) {
+	return maps.Clone(f.meta[path]), nil
+}
+func (f *fakeMetadata) SetMetadata(_ context.Context, path string, set map[string]string) error {
+	f.writes++
+	if f.meta[path] == nil {
+		f.meta[path] = map[string]string{}
 	}
 	for k, v := range set {
 		if v == "" {
-			delete(f[path], k)
+			delete(f.meta[path], k)
 		} else {
-			f[path][k] = v
+			f.meta[path][k] = v
 		}
 	}
 	return nil
@@ -513,19 +557,32 @@ func (f fakeMetadata) SetMetadata(_ context.Context, path string, set map[string
 
 func TestOpenBaoRecords(t *testing.T) {
 	ctx := context.Background()
-	store := fakeMetadata{"grafana/generated/admin": {"managed-by": "external-secrets"}}
-	records := OpenBaoRecords{Store: store}
-	grafana := Entry{Name: "grafana.admin", Kind: KindGenerated, Paths: []string{"grafana/generated/admin", "other/generated/admin"}}
-	if got, err := records.Get(ctx, grafana); err != nil || got != (Record{}) {
+	createdAt := now.Add(-30 * day)
+	store := &fakeMetadata{
+		meta:    map[string]map[string]string{"grafana/generated/admin": {"managed-by": "external-secrets"}},
+		created: map[string]time.Time{"grafana/generated/admin": createdAt},
+	}
+	records := OpenBaoRecords{Store: store, Now: func() time.Time { return now }}
+	grafana := Entry{Name: "grafana.admin", Kind: KindGenerated, Period: 90 * day, Paths: []string{"grafana/generated/admin", "other/generated/admin"}}
+
+	// Never rotated: due counts from the value's creation, and nothing is written
+	if got, err := records.Get(ctx, grafana); err != nil || got != (Record{Since: createdAt}) {
 		t.Fatalf("Get of a never rotated entry = %+v, %v", got, err)
+	}
+	if store.writes != 0 {
+		t.Fatalf("%d writes for an entry whose value has a creation time", store.writes)
 	}
 	want := Record{Phase: PhaseDone, At: now, By: "steven@workstation", Method: "generated", Reason: "restore drill"}
 	if err := records.Set(ctx, grafana, want); err != nil {
 		t.Fatal(err)
 	}
-	if got := store["grafana/generated/admin"]; got["managed-by"] != "external-secrets" || got["rotation-phase"] != "done" ||
+	// The record lives at secret/rotation/<name>, never on the value's path (ESO's PushSecret owns its metadata)
+	if got := store.meta["grafana/generated/admin"]; len(got) != 1 {
+		t.Fatalf("the value's metadata changed: %v", got)
+	}
+	if got := store.meta["rotation/grafana.admin"]; got["rotation-phase"] != "done" ||
 		got["rotated-at"] != "2026-10-24T03:00:00Z" || got["rotation-reason"] != "restore drill" {
-		t.Fatalf("metadata = %v", got)
+		t.Fatalf("record = %v", got)
 	}
 	if got, err := records.Get(ctx, grafana); err != nil || got != want {
 		t.Fatalf("Get = %+v, %v; want %+v", got, err, want)
@@ -534,21 +591,136 @@ func TestOpenBaoRecords(t *testing.T) {
 	if err := records.Set(ctx, grafana, want); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := store["grafana/generated/admin"]["rotation-reason"]; ok {
+	if _, ok := store.meta["rotation/grafana.admin"]["rotation-reason"]; ok {
 		t.Fatal("an empty reason kept the previous one")
 	}
 
-	// Entries without an OpenBao path keep their record at secret/rotation/<name>
-	state := Entry{Name: "state.passphrase", Kind: KindScript}
-	if err := records.Set(ctx, state, Record{Phase: PhasePrepared}); err != nil {
+	store.meta["rotation/grafana.admin"]["rotated-at"] = "yesterday"
+	if _, err := records.Get(ctx, grafana); err == nil || !strings.Contains(err.Error(), "rotation/grafana.admin") {
+		t.Fatalf("Get of a bad time = %v", err)
+	}
+}
+
+func TestOpenBaoRecordsBaselineWrittenOnce(t *testing.T) {
+	ctx := context.Background()
+	store := &fakeMetadata{meta: map[string]map[string]string{}}
+	clock := now
+	records := OpenBaoRecords{Store: store, Now: func() time.Time { return clock }}
+	// No OpenBao value path (OpenTofu's state holds it), so no creation time to count from
+	tofu := Entry{Name: "cloudflare.cert-manager", Kind: KindOpenTofu, Period: 90 * day}
+	got, err := records.Get(ctx, tofu)
+	if err != nil || !got.Since.Equal(now) || store.meta["rotation/cloudflare.cert-manager"]["first-seen"] != "2026-10-24T03:00:00Z" {
+		t.Fatalf("first Get = %+v, %v, metadata %v", got, err, store.meta)
+	}
+	clock = now.Add(10 * day)
+	if got, err := records.Get(ctx, tofu); err != nil || !got.Since.Equal(now) || store.writes != 1 {
+		t.Fatalf("second Get = %+v, %v, %d writes; want the first baseline, written once", got, err, store.writes)
+	}
+	// An entry without a period needs no baseline
+	if _, err := records.Get(ctx, Entry{Name: "state.passphrase", Kind: KindScript}); err != nil || store.writes != 1 {
+		t.Fatalf("Get of an entry without a period wrote: %v, %d", err, store.writes)
+	}
+}
+
+func TestFreshSecretNeitherDueNorOverdue(t *testing.T) {
+	fresh := Entry{Name: "fresh", Kind: KindWoodpeckerToken, Period: 90 * day, Pending: "Task 8"}
+	r, _, records := rotator([]Entry{fresh}, nil)
+	records.records["fresh"] = Record{Since: now.Add(-day)}
+	if due, _ := Due(fresh, records.records["fresh"]); !due.After(now) {
+		t.Fatalf("a secret created yesterday is due %v", due)
+	}
+	o := Options{Scheduled: true, Now: now}
+	if plan, err := r.Plan(context.Background(), nil, o); err != nil || len(plan) != 0 {
+		t.Fatalf("scheduled plan = %v, %v", plan, err)
+	}
+	o = Options{All: true, Yes: true, Now: now}
+	results, err := r.Run(context.Background(), r.Entries, o)
+	if err != nil || results[0].Overdue {
+		t.Fatalf("Run = %+v, %v", results, err)
+	}
+}
+
+func TestRotateNamedListedOnly(t *testing.T) {
+	entries := []Entry{
+		{Name: "state.passphrase", Kind: KindScript, Steps: "Run scripts/rotate-state-passphrase"},
+		{Name: "renovate.token", Kind: KindAutomatic, Reason: "minted per run"},
+		{Name: "openbao.unseal-key", Kind: KindNever, Reason: "all of OpenBao"},
+	}
+	r, _, _ := rotator(entries, nil)
+	o := Options{Yes: true, Now: now}
+	for _, e := range entries[:2] {
+		results, err := r.Run(context.Background(), []Entry{e}, o)
+		if err != nil || !strings.Contains(results[0].Outcome, e.Steps+e.Reason) {
+			t.Fatalf("%s: %+v, %v; want its steps or reason and no error", e.Name, results, err)
+		}
+	}
+	if _, err := r.Run(context.Background(), entries[2:], o); err == nil {
+		t.Fatal("rotating a never entry by name succeeded")
+	}
+}
+
+// blockingPrepare signals entered and waits for release inside Prepare
+type blockingPrepare struct {
+	fakeMethod
+	entered, release chan struct{}
+}
+
+func (m blockingPrepare) Prepare(ctx context.Context, e Entry) error {
+	close(m.entered)
+	<-m.release
+	return m.fakeMethod.Prepare(ctx, e)
+}
+
+func TestRotateLockedByAnotherRun(t *testing.T) {
+	ctx := context.Background()
+	kube := fake.NewClientset()
+	first, firstCalls, records := rotator([]Entry{generated("grafana.admin")}, nil)
+	first.Lock = &LeaseLocker{Kube: kube, Namespace: "secrets-rotation"}
+	block := blockingPrepare{fakeMethod{calls: firstCalls}, make(chan struct{}), make(chan struct{})}
+	first.Methods[KindGenerated] = block
+	done := make(chan error)
+	go func() {
+		_, err := first.Run(ctx, first.Entries, Options{Yes: true, Now: now, By: "rotation-job"})
+		done <- err
+	}()
+	<-block.entered
+
+	second, secondCalls, _ := rotator([]Entry{generated("grafana.admin")}, nil)
+	second.Store = records
+	second.Lock = &LeaseLocker{Kube: kube, Namespace: "secrets-rotation"}
+	results, err := second.Run(ctx, second.Entries, Options{Yes: true, Now: now, By: "steven@workstation"})
+	if err == nil || results[0].Err == nil || !strings.Contains(results[0].Err.Error(), "rotation-job") {
+		t.Fatalf("second Run = %+v, %v; want a refusal naming the holder", results, err)
+	}
+	if len(*secondCalls) != 0 {
+		t.Fatalf("the second run called %v", *secondCalls)
+	}
+	close(block.release)
+	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if store["rotation/state.passphrase"]["rotation-phase"] != "prepared" {
-		t.Fatalf("metadata = %v", store)
+	if _, err := kube.CoordinationV1().Leases("secrets-rotation").Get(ctx, "rotate-grafana.admin", metav1.GetOptions{}); err == nil {
+		t.Fatal("the lock was not released")
 	}
+}
 
-	store["grafana/generated/admin"]["rotated-at"] = "yesterday"
-	if _, err := records.Get(ctx, grafana); err == nil || !strings.Contains(err.Error(), "grafana/generated/admin") {
-		t.Fatalf("Get of a bad time = %v", err)
+func TestRotateTakesOverExpiredLock(t *testing.T) {
+	ctx := context.Background()
+	stale := &coordinationv1.Lease{
+		ObjectMeta: metav1.ObjectMeta{Name: "rotate-grafana.admin", Namespace: "secrets-rotation"},
+		Spec: coordinationv1.LeaseSpec{
+			HolderIdentity:       ptr.To("rotation-job/0a1b"),
+			LeaseDurationSeconds: ptr.To[int32](60),
+			RenewTime:            &metav1.MicroTime{Time: time.Now().Add(-time.Hour)},
+		},
+	}
+	kube := fake.NewClientset(stale)
+	r, calls, _ := rotator([]Entry{generated("grafana.admin")}, nil)
+	r.Lock = &LeaseLocker{Kube: kube, Namespace: "secrets-rotation"}
+	if _, err := r.Run(ctx, r.Entries, Options{Yes: true, Now: now, By: "steven@workstation"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(*calls) != 4 {
+		t.Fatalf("calls = %v", *calls)
 	}
 }

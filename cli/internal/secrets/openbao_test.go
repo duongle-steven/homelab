@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	authv1 "k8s.io/api/authentication/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -158,6 +159,12 @@ func TestStoreMetadata(t *testing.T) {
 	}
 	if got, err := store.Metadata(ctx, "rotation/state.passphrase"); err != nil || got != nil {
 		t.Fatalf("Metadata() of a missing path = %v, %v", got, err)
+	}
+	if created, err := store.Created(ctx, "grafana/generated/admin"); err != nil || !created.Equal(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("Created() = %v, %v", created, err)
+	}
+	if created, err := store.Created(ctx, "rotation/state.passphrase"); err != nil || !created.IsZero() {
+		t.Fatalf("Created() of a missing path = %v, %v", created, err)
 	}
 	got, err := store.Metadata(ctx, "grafana/generated/admin")
 	if err != nil || got["managed-by"] != "external-secrets" || got["rotation-phase"] != "done" {

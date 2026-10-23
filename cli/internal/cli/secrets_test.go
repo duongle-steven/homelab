@@ -52,6 +52,7 @@ func fakeRotation(t *testing.T, records memoryRecords) *int {
 				Idle: func(context.Context, string) (bool, error) { return true, nil },
 				Out:  io.Discard,
 				Poll: time.Millisecond, Wait: time.Second,
+				Lock: &rotate.LeaseLocker{Kube: fake.NewClientset(), Namespace: "secrets-rotation"},
 			},
 			Replicas: func(context.Context, string, workload.Ref) (int32, error) { return 1, nil },
 		}, nil
@@ -118,6 +119,17 @@ func TestSecretsRotateScheduledDoesNotAsk(t *testing.T) {
 	}
 	if !strings.Contains(out, "ntfy.alerts-token: skipped: no method yet for kind ntfy-overlap (overdue)") {
 		t.Fatalf("out = %q", out)
+	}
+}
+
+func TestSecretsRotateScriptAnswersWithSteps(t *testing.T) {
+	fakeRotation(t, memoryRecords{})
+	out, err := runLab(t, "", false, "secrets", "rotate", "state.passphrase", "--yes")
+	if err != nil || !strings.Contains(out, "scripts/rotate-state-passphrase") {
+		t.Fatalf("script: %v, %q", err, out)
+	}
+	if _, err := runLab(t, "", false, "secrets", "rotate", "openbao.unseal-key", "--yes"); err == nil {
+		t.Fatal("a never entry named alone exited 0")
 	}
 }
 
