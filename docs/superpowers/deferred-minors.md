@@ -43,3 +43,10 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 8e | Browser SSO tests flake on Kanidm's login page (OpenCloud, Grafana, paperless: "login page never loaded", `chrome-error`); a rerun passes | any |
 | 10e | Woodpecker's server generates a temporary `WOODPECKER_GRPC_SECRET` at each start (agents sign in again with the agent secret) | 11b |
 | 10e | `TestNodeRestart` once took about 23 minutes (more than its 20): the watchdog had to restart istio-cni three times; a rerun passed in 10 | 12 (nodes) |
+| 11a | `system/velero/files/prune.sh` sorts by `creationTimestamp` (the sync time for backups a new cluster reads from the bucket); right today only because names sort the same way: sort by `status.startTimestamp` | any |
+| 11a | `snapshots.sh` deletes snapshots older than 48 hours even when no newer one became ready: keep the newest ready snapshot of each claim | any |
+| 11a | S3 errors from `lab backup push` (DNS, TLS) may print the R2 endpoint, which holds the account id: wrap them without the URL | any |
+| 11a | `system/csi-hostpath/values.yaml` still says volumes live under `/var/lib/csi-hostpath-data` | any |
+| 11a | `docs/how-to-guides/backup-and-restore.md` says a one-app restore resumes the sync once the app is Synced and Healthy; it resumes, then waits | any |
+| 11a | A whole-cluster restore takes the manual apps from their own pushes, another moment than OpenBao's: harmless while generated secrets never change, which 11b's rotation changes | 11b |
+| 11a | `TestBackupRestore` always names `--backup`: the default choice of run is covered by unit tests only | any |
