@@ -79,9 +79,22 @@ func TestClusterCreated(t *testing.T) {
 // A restore must not pick a backup the new cluster made of its own empty volumes (plan, Review Focus 2)
 func TestPickBackupIgnoresOwnBackups(t *testing.T) {
 	runs := []Run{
-		{Name: "daily-new", Phase: "Completed", Started: t0.Add(time.Hour)},
-		{Name: "daily-failed", Phase: "Failed", Started: t0.Add(-24 * time.Hour)},
-		{Name: "daily-old", Phase: "Completed", Started: t0.Add(-48 * time.Hour)},
+		{Name: "daily-new", Schedule: "daily", Phase: "Completed", Started: t0.Add(time.Hour)},
+		{Name: "daily-failed", Schedule: "daily", Phase: "Failed", Started: t0.Add(-24 * time.Hour)},
+		{Name: "daily-old", Schedule: "daily", Phase: "Completed", Started: t0.Add(-48 * time.Hour)},
+	}
+	run, err := PickRun(runs, t0, "")
+	if err != nil || run.Name != "daily-old" {
+		t.Fatalf("picked %+v, %v", run, err)
+	}
+}
+
+// A push holds one app's volumes: the whole-cluster default is the newest scheduled run, even when a push is newer
+// (final review)
+func TestPickBackupSkipsPushes(t *testing.T) {
+	runs := []Run{
+		{Name: "homelab-paperless-202610211500", App: "paperless", Phase: "Completed", Started: t0.Add(-2 * time.Hour)},
+		{Name: "daily-old", Schedule: "daily", Phase: "Completed", Started: t0.Add(-24 * time.Hour)},
 	}
 	run, err := PickRun(runs, t0, "")
 	if err != nil || run.Name != "daily-old" {
@@ -104,7 +117,7 @@ func TestPickBackupByName(t *testing.T) {
 }
 
 func TestPickBackupNoneBefore(t *testing.T) {
-	_, err := PickRun([]Run{{Name: "daily-new", Phase: "Completed", Started: t0.Add(time.Hour)}}, t0, "")
+	_, err := PickRun([]Run{{Name: "daily-new", Schedule: "daily", Phase: "Completed", Started: t0.Add(time.Hour)}, {Name: "homelab-ntfy-1", App: "ntfy", Phase: "Completed", Started: t0.Add(-time.Hour)}}, t0, "")
 	if err == nil || !strings.Contains(err.Error(), "--backup") {
 		t.Fatalf("err = %v, want one naming --backup", err)
 	}

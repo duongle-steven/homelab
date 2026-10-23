@@ -108,8 +108,9 @@ func (c *Client) ClusterCreated(ctx context.Context) (time.Time, error) {
 	return ns.CreationTimestamp.Time, nil
 }
 
-// PickRun returns the backup named name, which must have completed, or with an empty name the newest completed backup
-// taken before created: a fresh cluster's own backups hold its empty volumes, never what a restore wants.
+// PickRun returns the backup named name, which must have completed, or with an empty name the newest completed
+// scheduled backup taken before created: a fresh cluster's own backups hold its empty volumes, never what a restore
+// wants, and a push holds only one app's.
 func PickRun(runs []Run, created time.Time, name string) (Run, error) {
 	if name != "" {
 		for _, r := range runs {
@@ -123,11 +124,11 @@ func PickRun(runs []Run, created time.Time, name string) (Run, error) {
 		return Run{}, fmt.Errorf("no backup %s (lab backup list)", name)
 	}
 	for _, r := range runs {
-		if r.Phase == "Completed" && r.Started.Before(created) {
+		if r.Phase == "Completed" && r.App == "" && r.Schedule != "" && r.Started.Before(created) {
 			return r, nil
 		}
 	}
-	return Run{}, fmt.Errorf("no completed backup was taken before this cluster was created (%s): name one with --backup (lab backup list)", created.Format(time.RFC3339))
+	return Run{}, fmt.Errorf("no completed scheduled backup was taken before this cluster was created (%s): name one with --backup (lab backup list)", created.Format(time.RFC3339))
 }
 
 // Mode reports whether location default is read-only (anything but ReadWrite counts as read-only).

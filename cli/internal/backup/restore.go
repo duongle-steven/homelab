@@ -50,7 +50,7 @@ type Plan struct {
 // from git, so their labels say which apps hold daily and manual volumes.
 func (c *Client) PlanCluster(ctx context.Context, run Run) (Plan, error) {
 	if run.App != "" {
-		return Plan{Run: run, Apps: []string{run.App}}, nil
+		return Plan{}, fmt.Errorf("backup %s holds only %s's volumes: restore it with lab backup restore %s --from offsite --backup %s, or the whole cluster from a scheduled run", run.Name, run.App, run.App, run.Name)
 	}
 	claims, err := c.Kube.CoreV1().PersistentVolumeClaims("").List(ctx, metav1.ListOptions{LabelSelector: "homelab/backup in (daily,manual)"})
 	if err != nil {
@@ -93,6 +93,24 @@ func (c *Client) PlanCluster(ctx context.Context, run Run) (Plan, error) {
 		}
 	}
 	return plan, nil
+}
+
+// AppRun is the off-site run to restore one app from: name, or the newest completed one holding it: its own push, or
+// a scheduled run when it has a daily volume (scheduled runs hold only those)
+func (c *Client) AppRun(ctx context.Context, runs []Run, app, name string) (Run, error) {
+	if name != "" {
+		return PickRun(runs, c.Now().Add(time.Hour), name)
+	}
+	daily, err := c.Kube.CoreV1().PersistentVolumeClaims(app).List(ctx, metav1.ListOptions{LabelSelector: "homelab/backup=daily"})
+	if err != nil {
+		return Run{}, err
+	}
+	for _, r := range runs {
+		if r.Phase == "Completed" && (r.App == app || len(daily.Items) > 0 && r.App == "" && r.Schedule != "") {
+			return r, nil
+		}
+	}
+	return Run{}, fmt.Errorf("no completed off-site backup holds %s (lab backup list)", app)
 }
 
 // RestoreCluster restores a fresh cluster from plan, then makes every reader take the restored secrets. It refuses a

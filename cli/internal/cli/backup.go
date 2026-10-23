@@ -197,7 +197,7 @@ func newBackupCmd() *cobra.Command {
 			switch backup.Source(from) {
 			case backup.Local:
 			case backup.Offsite:
-				if run, err = appRun(runs, app, name); err != nil {
+				if run, err = c.AppRun(ctx, runs, app, name); err != nil {
 					return err
 				}
 			default:
@@ -293,18 +293,4 @@ func confirm(cmd *cobra.Command, question string) error {
 		return nil
 	}
 	return fmt.Errorf("stopped: nothing changed")
-}
-
-// appRun is the off-site run to restore one app from: name, or the newest completed one holding it (its own push, or
-// a scheduled run)
-func appRun(runs []backup.Run, app, name string) (backup.Run, error) {
-	if name != "" {
-		return backup.PickRun(runs, time.Now().Add(time.Hour), name)
-	}
-	for _, r := range runs {
-		if r.Phase == "Completed" && (r.App == app || r.App == "" && r.Schedule != "") {
-			return r, nil
-		}
-	}
-	return backup.Run{}, fmt.Errorf("no completed off-site backup holds %s (lab backup list)", app)
 }

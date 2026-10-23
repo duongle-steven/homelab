@@ -194,6 +194,15 @@ func TestRestoreClusterOpenBaoFirst(t *testing.T) {
 	}
 }
 
+// A whole-cluster restore from one app's push would skip OpenBao and every other app, then report success
+func TestPlanClusterRefusesPush(t *testing.T) {
+	c, _, _ := restoreFixture(t)
+	_, err := c.PlanCluster(context.Background(), Run{Name: "homelab-ntfy-202610211500", App: "ntfy", Phase: "Completed", Started: t0.Add(-time.Hour)})
+	if err == nil || !strings.Contains(err.Error(), "lab backup restore ntfy") {
+		t.Fatalf("err = %v, want one pointing at the one-app restore", err)
+	}
+}
+
 func TestRestoreClusterRefusesReadWrite(t *testing.T) {
 	c, _, _ := restoreFixture(t)
 	if _, err := c.Dyn.Resource(StorageLocations).Namespace(Namespace).Patch(context.Background(), "default", "application/merge-patch+json", []byte(`{"spec":{"accessMode":"ReadWrite"}}`), metav1.PatchOptions{}); err != nil {
@@ -236,5 +245,28 @@ func TestRestoreLocalPicksSnapshotAt(t *testing.T) {
 	}
 	if p.Labels["homelab/backup"] != "daily" || *p.Spec.StorageClassName != "csi-hostpath" {
 		t.Fatalf("the claim lost its metadata or spec: %+v", p)
+	}
+}
+
+// A scheduled run holds only daily volumes: a manual app restores from its own newest push (final review)
+func TestAppRunPicksWhatHoldsTheApp(t *testing.T) {
+	c, _, _ := restoreFixture(t)
+	if _, err := c.Kube.CoreV1().PersistentVolumeClaims("paperless").Create(context.Background(), &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "paperless", Name: "paperless-data", Labels: map[string]string{"homelab/backup": "manual"}},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	runs := []Run{
+		{Name: "daily-new", Schedule: "daily", Phase: "Completed", Started: t0.Add(-time.Hour)},
+		{Name: "homelab-paperless-1", App: "paperless", Phase: "Completed", Started: t0.Add(-48 * time.Hour)},
+	}
+	for app, want := range map[string]string{"paperless": "homelab-paperless-1", "ntfy": "daily-new"} {
+		run, err := c.AppRun(context.Background(), runs, app, "")
+		if err != nil || run.Name != want {
+			t.Fatalf("%s: picked %+v, %v; want %s", app, run, err, want)
+		}
+	}
+	if _, err := c.AppRun(context.Background(), runs[:1], "paperless", ""); err == nil {
+		t.Fatal("a manual app with no push must be refused")
 	}
 }
