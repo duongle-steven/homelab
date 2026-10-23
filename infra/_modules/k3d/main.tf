@@ -2,9 +2,8 @@
 # packaged ones are disabled), and a localhost proxy: under WSL mirrored networking Windows cannot reach ports
 # Docker publishes, so a host-network socat forwards 127.0.0.1:80/443/22 to the node (ServiceLB serves the Gateway).
 # The node pulls through pull-through caches, one per registry (k3d registries outside the cluster, with their own
-# volumes): deleting the cluster keeps them, so a rebuilt sandbox downloads nothing it pulled before. Images of these
-# registries come only through their cache (no direct fallback, k3d.yaml), so the first build fills it; an image
-# from another registry is pulled from its registry directly.
+# volumes): deleting the cluster keeps them, so a rebuilt sandbox downloads nothing it pulled before. An image from
+# another registry, or a cache that fails, is pulled from its registry directly.
 terraform {
   required_version = ">= 1.13"
   required_providers {

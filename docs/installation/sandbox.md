@@ -19,7 +19,7 @@ make dev
 
 `make dev` runs Terragrunt in `infra/sandbox`: the unit `cluster` creates the k3d cluster with k3s's own networking (Flannel, kube-proxy, ServiceLB) and the localhost proxy, the unit `argocd` bootstraps ArgoCD; then it runs the tests. State stays on your machine (`.state/`).
 
-The node pulls images through pull-through caches, one per registry (docker.io, ghcr.io, quay.io, registry.k8s.io, code.forgejo.org: `k3d-homelab-cache-*`, each with its own Docker volume). They are k3d registries outside the cluster, so `make dev-clean` and `make dev-fresh` keep them and a rebuilt sandbox downloads only what changed; a cached image expires a week after it was last pulled. Images of these registries come only through their cache (a direct fallback would leave them out of it), so a cache container that is down stops their pulls (`docker start k3d-homelab-cache-docker-io`). Images from other registries come from their registry directly. Empty one with `k3d registry delete homelab-cache-docker-io` (and `docker volume rm homelab-cache-docker-io`).
+The node pulls images through pull-through caches, one per registry (docker.io, ghcr.io, quay.io, registry.k8s.io, code.forgejo.org: `k3d-homelab-cache-*`, each with its own Docker volume). They are k3d registries outside the cluster, so `make dev-clean` and `make dev-fresh` keep them and a rebuilt sandbox downloads only what changed; a cached image expires a week after it was last pulled. Images from other registries, or from a cache that fails, come from their registry directly. Empty one with `k3d registry delete homelab-cache-docker-io` (and `docker volume rm homelab-cache-docker-io`).
 
 !!! note
 
