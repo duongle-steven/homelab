@@ -4,20 +4,22 @@
 # (registry:3 waits 15 seconds, not configurable): it answers 500 for what it does not hold yet, the node pulls that
 # image directly and the cache never gets it. One at a time the link is free, and the build then pulls from disk.
 # Images: every component and app the sandbox syncs (system/argocd/values-dev.yaml, rendered as Argo CD does), the
-# Gateways' proxy istiod picks, k3s's own and the tests'. Skipped when the caches do not exist yet (their first build
-# makes them) or the cluster is up (it pulled already); a failure only warns: the node's direct pull still works.
-# Usage: scripts/warm-image-cache [--list]   --list prints the images and pulls nothing
+# Gateways' proxy istiod picks, k3s's own and the tests'. After the tests, --node adds what the node holds that the
+# caches miss (an image no list foresaw, pulled directly this time), so the next build finds it. An image the cache
+# holds already is skipped (a new release is another tag: it is fetched, and the old one expires on its own, a week
+# after the cache first fetched it). Skipped when the caches do not exist (the cluster unit creates them; GitHub
+# Actions runs without) or, before a build, when the cluster is up; a failure only warns: the node pulls directly.
+# Usage: scripts/warm-image-cache [--node | --list]   --list prints the rendered images and pulls nothing
 set -euf
 cluster=homelab-dev
-list=false
-[ "${1:-}" != --list ] || list=true
+mode=${1:-build}
 
-if ! $list; then
+if [ "$mode" != --list ]; then
   if ! docker inspect k3d-homelab-cache-docker-io >/dev/null 2>&1; then
-    echo "warm-image-cache: no image caches yet, skipped (the cluster unit creates them)"
+    echo "warm-image-cache: no image caches, skipped"
     exit 0
   fi
-  if k3d cluster list "$cluster" >/dev/null 2>&1; then
+  if [ "$mode" = build ] && k3d cluster list "$cluster" >/dev/null 2>&1; then
     echo "warm-image-cache: cluster $cluster exists, skipped"
     exit 0
   fi
@@ -25,30 +27,6 @@ fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-
-# Rendered images, as written in the manifests (bare names are Docker Hub's)
-components=$(yq '.. | select(tag == "!!map" and has("path")) | .path | select(test("^(system|platform|apps)/") and (test("\.json$") | not))' \
-  system/argocd/values-dev.yaml | sort -u)
-for component in system/argocd $components; do
-  scripts/render-chart "$component" dev >>"$work/rendered.yaml" 2>/dev/null ||
-    echo "warm-image-cache: $component did not render, its images are skipped" >&2
-done
-sed -nE 's/^[ -]*(image|imageName): *"?([^" ]+)"?.*/\2/p' "$work/rendered.yaml" | grep -v '{{' >"$work/images" || true
-# Images operators add: istiod runs the Gateways with proxyv2 (its pilot's release), the Prometheus operator adds its
-# own release's config reloader
-sed -n -e 's|^\(docker.io/istio/\)pilot:|\1proxyv2:|p' \
-  -e 's|^\(quay.io/prometheus-operator/\)prometheus-operator:|\1prometheus-config-reloader:|p' "$work/images" >"$work/operators"
-cat "$work/operators" >>"$work/images"
-# The tests' own pods
-grep -rohE --include='*.go' -- '--image=[^" ]+' test | sed 's/^--image=//' >>"$work/images" || true
-grep -rohE --include='*.go' '(docker\.io|ghcr\.io|quay\.io|registry\.k8s\.io|code\.forgejo\.org)/[a-z0-9._/-]+:[A-Za-z0-9._-]+' test >>"$work/images" || true
-# k3s's own (pause, CoreDNS, metrics-server, ServiceLB), from its release's list
-k3s=$(sed -n 's|^image: rancher/k3s:v\(.*\)-\(k3s[0-9]*\)$|v\1+\2|p' infra/_modules/k3d/k3d.yaml)
-if curl -fsSL --retry 3 "https://github.com/k3s-io/k3s/releases/download/$(echo "$k3s" | sed 's/+/%2B/')/k3s-images.txt" -o "$work/k3s"; then
-  grep -E '/(mirrored-pause|mirrored-coredns-coredns|mirrored-metrics-server|klipper-lb):' "$work/k3s" >>"$work/images" || true
-else
-  echo "warm-image-cache: k3s $k3s's image list not found, its images are skipped" >&2
-fi
 
 # Full references: registry/repository then :tag or @digest
 normalize() {
@@ -60,8 +38,44 @@ normalize() {
   esac
   echo "$ref"
 }
+
+if [ "$mode" = --node ]; then
+  # What the node pulled: by tag, or by digest for an image pinned only by its digest
+  docker exec "k3d-$cluster-server-0" crictl images -o json |
+    jq -r '.images[] | if (.repoTags | length) > 0 then .repoTags[] else .repoDigests[] end' >"$work/images"
+else
+  # Rendered images, as written in the manifests (bare names are Docker Hub's)
+  components=$(yq '.. | select(tag == "!!map" and has("path")) | .path | select(test("^(system|platform|apps)/") and (test("\.json$") | not))' \
+    system/argocd/values-dev.yaml | sort -u)
+  # A chart download fails now and then on a slow link: three tries
+  for component in system/argocd $components; do
+    for try in 1 2 3; do
+      if scripts/render-chart "$component" dev >"$work/component.yaml" 2>/dev/null; then
+        cat "$work/component.yaml" >>"$work/rendered.yaml"
+        break
+      fi
+      [ "$try" -lt 3 ] || echo "warm-image-cache: $component did not render, its images are skipped" >&2
+    done
+  done
+  sed -nE 's/^[ -]*(image|imageName): *"?([^" ]+)"?.*/\2/p' "$work/rendered.yaml" | grep -v '{{' >"$work/images" || true
+  # Images operators add: istiod runs the Gateways with proxyv2 (its pilot's release), the Prometheus operator adds its
+  # own release's config reloader
+  sed -n -e 's|^\(docker.io/istio/\)pilot:|\1proxyv2:|p' \
+    -e 's|^\(quay.io/prometheus-operator/\)prometheus-operator:|\1prometheus-config-reloader:|p' "$work/images" >"$work/operators"
+  cat "$work/operators" >>"$work/images"
+  # The tests' own pods
+  grep -rohE --include='*.go' -- '--image=[^" ]+' test | sed 's/^--image=//' >>"$work/images" || true
+  grep -rohE --include='*.go' '(docker\.io|ghcr\.io|quay\.io|registry\.k8s\.io|code\.forgejo\.org)/[a-z0-9._/-]+:[A-Za-z0-9._-]+' test >>"$work/images" || true
+  # k3s's own (pause, CoreDNS, metrics-server, ServiceLB), from its release's list
+  k3s=$(sed -n 's|^image: rancher/k3s:v\(.*\)-\(k3s[0-9]*\)$|v\1+\2|p' infra/_modules/k3d/k3d.yaml)
+  if curl -fsSL --retry 3 "https://github.com/k3s-io/k3s/releases/download/$(echo "$k3s" | sed 's/+/%2B/')/k3s-images.txt" -o "$work/k3s"; then
+    grep -E '/(mirrored-pause|mirrored-coredns-coredns|mirrored-metrics-server|klipper-lb):' "$work/k3s" >>"$work/images" || true
+  else
+    echo "warm-image-cache: k3s $k3s's image list not found, its images are skipped" >&2
+  fi
+fi
 while read -r image; do normalize "$image"; done <"$work/images" | sort -u >"$work/refs"
-if $list; then
+if [ "$mode" = --list ]; then
   cat "$work/refs"
   exit 0
 fi
@@ -75,9 +89,17 @@ accept='application/vnd.oci.image.index.v1+json,application/vnd.docker.distribut
 # Busy upstreams answer 500 now and then: retry, slowly
 fetch() { curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -H "Accept: $accept" "$@"; }
 
+# What each cache holds: repository:tag and repository@digest, from its storage
+for cache in $(docker ps --format '{{.Names}}' --filter name=k3d-homelab-cache-); do
+  host=$(echo "${cache#k3d-homelab-cache-}" | tr - .)
+  docker exec "$cache" find /var/lib/registry/docker/registry/v2/repositories -path '*/_manifests/*' -name link 2>/dev/null |
+    sed -nE -e "s|.*/repositories/(.*)/_manifests/tags/([^/]+)/current/link$|$host/\1:\2|p" \
+      -e "s|.*/repositories/(.*)/_manifests/revisions/sha256/([0-9a-f]+)/link$|$host/\1@sha256:\2|p"
+done | sort -u >"$work/cached"
 total=$(wc -l <"$work/refs")
 n=0
 failed=0
+skipped=0
 start=$(date +%s)
 while read -r ref; do
   n=$((n + 1))
@@ -93,6 +115,10 @@ while read -r ref; do
   address=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$cache" 2>/dev/null | cut -d' ' -f1) || address=
   if [ -z "$address" ]; then
     continue # no cache for this registry: the node pulls it directly
+  fi
+  if grep -qxF "$host/$repo$(case "$tag" in sha256:*) echo "@$tag" ;; *) echo ":$tag" ;; esac)" "$work/cached"; then
+    skipped=$((skipped + 1))
+    continue
   fi
   base="http://$address:5000/v2/$repo"
   echo "warm-image-cache: [$n/$total] $ref"
@@ -116,4 +142,4 @@ while read -r ref; do
     fi
   done
 done <"$work/refs"
-echo "warm-image-cache: $total images in $(($(date +%s) - start))s, $failed failed (the node pulls those directly)"
+echo "warm-image-cache: $total images, $skipped cached already, $failed failed (the node pulls those directly), $(($(date +%s) - start))s"

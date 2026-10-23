@@ -44,6 +44,12 @@ variable "proxy" {
   description = "Forward 127.0.0.1:80/443/22 to the node (the browser under WSL); GitHub Actions turns it off, the tests dial the node"
 }
 
+variable "cache" {
+  type        = bool
+  default     = true
+  description = "Pull through the caches below; GitHub Actions turns it off (a new runner each time: an empty cache only adds a hop)"
+}
+
 variable "caches" {
   type = map(object({ remote = string, port = number }))
   default = {
@@ -58,7 +64,7 @@ variable "caches" {
 
 locals {
   # k3d names the containers k3d-<name>
-  cache_names = { for host, _ in var.caches : host => "homelab-cache-${replace(host, ".", "-")}" }
+  cache_names = var.cache ? { for host, _ in var.caches : host => "homelab-cache-${replace(host, ".", "-")}" } : {}
   registries = yamlencode({
     mirrors = { for host, name in local.cache_names : host => { endpoint = ["http://k3d-${name}:5000"] } }
   })

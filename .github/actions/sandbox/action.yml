@@ -25,6 +25,8 @@ runs:
         MAKE_ARGS: ${{ inputs.make-args }}
         # The tests dial the node; the localhost proxy's ports may be taken on the runner
         HOMELAB_SANDBOX_PROXY: "0"
+        # A new runner each time: an empty image cache would only add a hop (infra/_modules/k3d)
+        HOMELAB_SANDBOX_CACHE: "0"
       run: |
         set -o pipefail
         HOMELAB_STATE_PASSPHRASE=$(head -c 32 /dev/urandom | base64)
