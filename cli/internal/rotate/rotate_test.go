@@ -1,0 +1,554 @@
+package rotate
+
+import (
+	"context"
+	"errors"
+	"io"
+	"maps"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/duongle-steven/homelab/cli/internal/backup"
+)
+
+var now = time.Date(2026, 10, 24, 3, 0, 0, 0, time.UTC)
+
+const day = 24 * time.Hour
+
+// fakeMethod records "<entry> <phase>" for every call and fails the phases in fail
+type fakeMethod struct {
+	calls *[]string
+	fail  map[string]error
+}
+
+func (m fakeMethod) call(e Entry, phase string) error {
+	*m.calls = append(*m.calls, e.Name+" "+phase)
+	return m.fail[phase]
+}
+func (m fakeMethod) Prepare(_ context.Context, e Entry) error { return m.call(e, "prepare") }
+func (m fakeMethod) Switch(_ context.Context, e Entry) error  { return m.call(e, "switch") }
+func (m fakeMethod) Verify(_ context.Context, e Entry) error  { return m.call(e, "verify") }
+func (m fakeMethod) Revoke(_ context.Context, e Entry) error  { return m.call(e, "revoke") }
+
+// fakeRecords keeps records by entry name and every phase written, in order
+type fakeRecords struct {
+	records map[string]Record
+	sets    []string
+}
+
+func (f *fakeRecords) Get(_ context.Context, e Entry) (Record, error) { return f.records[e.Name], nil }
+func (f *fakeRecords) Set(ctx context.Context, e Entry, r Record) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	f.records[e.Name] = r
+	f.sets = append(f.sets, e.Name+" "+r.Phase)
+	return nil
+}
+
+func recentBackup() []backup.Run {
+	return []backup.Run{{Name: "daily-1", Schedule: "daily", Phase: "Completed", Started: now.Add(-3 * time.Hour)}}
+}
+
+// rotator builds a Rotator over entries whose kinds all use one fake method that fails the phases in fail
+func rotator(entries []Entry, fail map[string]error) (*Rotator, *[]string, *fakeRecords) {
+	calls := &[]string{}
+	method := fakeMethod{calls: calls, fail: fail}
+	records := &fakeRecords{records: map[string]Record{}}
+	r := &Rotator{
+		Entries: entries,
+		Methods: map[Kind]Method{},
+		Store:   records,
+		Backups: func(context.Context) ([]backup.Run, error) { return recentBackup(), nil },
+		Idle:    func(context.Context, string) (bool, error) { return true, nil },
+		Out:     io.Discard,
+		Poll:    time.Millisecond,
+		Wait:    50 * time.Millisecond,
+	}
+	for _, k := range kinds {
+		r.Methods[k] = method
+	}
+	return r, calls, records
+}
+
+// cancelAfterPrepare is a person pressing Ctrl-C just after the new value was written
+type cancelAfterPrepare struct {
+	fakeMethod
+	cancel context.CancelFunc
+}
+
+func (m cancelAfterPrepare) Prepare(ctx context.Context, e Entry) error {
+	err := m.fakeMethod.Prepare(ctx, e)
+	m.cancel()
+	return err
+}
+func (m cancelAfterPrepare) Switch(ctx context.Context, e Entry) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return m.fakeMethod.Switch(ctx, e)
+}
+
+func generated(name string) Entry {
+	return Entry{Name: name, Kind: KindGenerated, Class: 1, Paths: []string{name + "/generated/x"}}
+}
+
+func TestRotateRunsPhasesInOrder(t *testing.T) {
+	r, calls, records := rotator([]Entry{generated("grafana.admin")}, nil)
+	o := Options{Yes: true, Now: now, By: "steven@workstation"}
+	plan, err := r.Plan(context.Background(), []string{"grafana.admin"}, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := r.Run(context.Background(), plan, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"grafana.admin prepare", "grafana.admin switch", "grafana.admin verify", "grafana.admin revoke"}
+	if !slices.Equal(*calls, want) {
+		t.Fatalf("calls = %v, want %v", *calls, want)
+	}
+	wantSets := []string{"grafana.admin prepared", "grafana.admin switched", "grafana.admin verified", "grafana.admin done"}
+	if !slices.Equal(records.sets, wantSets) {
+		t.Fatalf("records = %v, want %v", records.sets, wantSets)
+	}
+	got := records.records["grafana.admin"]
+	if got.Phase != PhaseDone || !got.At.Equal(now) || got.By != "steven@workstation" || got.Method != "generated" || got.Reason != "" {
+		t.Fatalf("record = %+v", got)
+	}
+	if len(results) != 1 || results[0].Outcome != "rotated" || results[0].Err != nil {
+		t.Fatalf("results = %+v", results)
+	}
+}
+
+func TestRotateResumesAfterInterruption(t *testing.T) {
+	ctx := context.Background()
+	o := Options{Yes: true, Now: now}
+	t.Run("recorded switched", func(t *testing.T) {
+		r, calls, records := rotator([]Entry{generated("grafana.admin")}, nil)
+		records.records["grafana.admin"] = Record{Phase: PhaseSwitched, At: now.Add(-100 * day)}
+		if _, err := r.Run(ctx, r.Entries, o); err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"grafana.admin verify", "grafana.admin revoke"}
+		if !slices.Equal(*calls, want) {
+			t.Fatalf("calls = %v, want %v: a resumed rotation must not prepare a third value", *calls, want)
+		}
+	})
+	t.Run("interrupted, then run again", func(t *testing.T) {
+		r, calls, records := rotator([]Entry{generated("grafana.admin")}, map[string]error{"switch": context.Canceled})
+		if _, err := r.Run(ctx, r.Entries, o); err == nil {
+			t.Fatal("an interrupted run reported success")
+		}
+		if got := records.records["grafana.admin"].Phase; got != PhasePrepared {
+			t.Fatalf("phase after the interruption = %q, want prepared", got)
+		}
+		*calls = nil
+		r.Methods[KindGenerated] = fakeMethod{calls: calls}
+		if _, err := r.Run(ctx, r.Entries, o); err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"grafana.admin switch", "grafana.admin verify", "grafana.admin revoke"}
+		if !slices.Equal(*calls, want) {
+			t.Fatalf("calls = %v, want %v", *calls, want)
+		}
+	})
+	t.Run("Ctrl-C right after prepare", func(t *testing.T) {
+		r, calls, records := rotator([]Entry{generated("grafana.admin")}, nil)
+		ctx, cancel := context.WithCancel(ctx)
+		r.Methods[KindGenerated] = cancelAfterPrepare{fakeMethod{calls: calls}, cancel}
+		if _, err := r.Run(ctx, r.Entries, o); err == nil {
+			t.Fatal("an interrupted run reported success")
+		}
+		if got := records.records["grafana.admin"].Phase; got != PhasePrepared {
+			t.Fatalf("phase = %q: the new value was written but not recorded, so a rerun would prepare a third", got)
+		}
+	})
+	t.Run("done starts a new rotation", func(t *testing.T) {
+		r, calls, records := rotator([]Entry{generated("grafana.admin")}, nil)
+		records.records["grafana.admin"] = Record{Phase: PhaseDone, At: now.Add(-100 * day)}
+		if _, err := r.Run(ctx, r.Entries, o); err != nil {
+			t.Fatal(err)
+		}
+		if len(*calls) != 4 {
+			t.Fatalf("calls = %v", *calls)
+		}
+	})
+}
+
+func TestRotateKeepsOldOnReaderFailure(t *testing.T) {
+	entries := []Entry{
+		{Name: "ntfy.alerts-token", Kind: KindNtfyOverlap, Paths: []string{"ntfy/generated/alerts-token"}},
+		generated("grafana.admin"),
+	}
+	r, calls, records := rotator(entries, map[string]error{"verify": errors.New("deployment ntfy/ntfy not ready")})
+	results, err := r.Run(context.Background(), entries, Options{Yes: true, All: true, Now: now})
+	if err == nil {
+		t.Fatal("Run succeeded although a reader failed")
+	}
+	if slices.Contains(*calls, "ntfy.alerts-token revoke") {
+		t.Fatalf("calls = %v: the old value was revoked although a reader failed", *calls)
+	}
+	if slices.ContainsFunc(*calls, func(c string) bool { return strings.HasPrefix(c, "grafana.admin") }) {
+		t.Fatalf("calls = %v: the run went on after a failure", *calls)
+	}
+	if got := records.records["ntfy.alerts-token"].Phase; got != PhaseSwitched {
+		t.Fatalf("phase = %q, want switched (so a rerun verifies again)", got)
+	}
+	if len(results) != 2 {
+		t.Fatalf("results = %+v, want one per entry", results)
+	}
+	if !strings.Contains(results[0].Outcome, "failed") || !strings.Contains(results[0].Outcome, "verify") ||
+		!strings.Contains(results[0].Err.Error(), "ntfy/ntfy") {
+		t.Fatalf("result = %+v, want the phase and the reader named", results[0])
+	}
+	if !strings.Contains(results[1].Outcome, "not started") {
+		t.Fatalf("result = %+v, want it reported as left", results[1])
+	}
+}
+
+func TestRotateSkipsManualWithoutTerminal(t *testing.T) {
+	entries := []Entry{
+		{Name: "renovate.github-app-key", Kind: KindManual, Steps: "Generate a new private key"},
+		generated("grafana.admin"),
+	}
+	r, calls, _ := rotator(entries, nil)
+	o := Options{All: true, Yes: true, Interactive: false, Now: now}
+	plan, err := r.Plan(context.Background(), nil, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	var results []Result
+	go func() {
+		defer close(done)
+		results, err = r.Run(context.Background(), plan, o)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run hung on a manual entry")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.ContainsFunc(*calls, func(c string) bool { return strings.HasPrefix(c, "renovate") }) {
+		t.Fatalf("calls = %v: a manual entry ran without a terminal", *calls)
+	}
+	byName := map[string]Result{}
+	for _, res := range results {
+		byName[res.Name] = res
+	}
+	if got := byName["renovate.github-app-key"].Outcome; !strings.HasPrefix(got, "skipped") || !strings.Contains(got, "terminal") {
+		t.Fatalf("manual outcome = %q", got)
+	}
+	if got := byName["grafana.admin"].Outcome; got != "rotated" {
+		t.Fatalf("grafana.admin outcome = %q", got)
+	}
+}
+
+func TestRotateUnknownName(t *testing.T) {
+	r, calls, records := rotator([]Entry{generated("grafana.admin"), generated("paperless.admin"), generated("forgejo.admin")}, nil)
+	_, err := r.Plan(context.Background(), []string{"grafana.admn"}, Options{Now: now})
+	if err == nil || !strings.Contains(err.Error(), `"grafana.admn"`) || !strings.Contains(err.Error(), "grafana.admin") {
+		t.Fatalf("Plan error = %v, want the name and the closest one", err)
+	}
+	if len(*calls) != 0 || len(records.sets) != 0 {
+		t.Fatalf("something ran: %v %v", *calls, records.sets)
+	}
+}
+
+func TestRotatePendingRefused(t *testing.T) {
+	pending := Entry{Name: "woodpecker.agent", Kind: KindWoodpeckerAgent, Pending: "Task 8 (per-agent tokens)"}
+	r, calls, _ := rotator([]Entry{pending, generated("grafana.admin")}, nil)
+	if _, err := r.Plan(context.Background(), []string{"woodpecker.agent"}, Options{Now: now}); err == nil ||
+		!strings.Contains(err.Error(), "Task 8 (per-agent tokens)") {
+		t.Fatalf("Plan error = %v, want the pending reason", err)
+	}
+	o := Options{All: true, Yes: true, Now: now}
+	plan, err := r.Plan(context.Background(), nil, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := r.Run(context.Background(), plan, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(results[0].Outcome+results[1].Outcome, "Task 8 (per-agent tokens)") {
+		t.Fatalf("results = %+v", results)
+	}
+	if slices.ContainsFunc(*calls, func(c string) bool { return strings.HasPrefix(c, "woodpecker") }) {
+		t.Fatalf("calls = %v", *calls)
+	}
+}
+
+func TestRotateNoMethod(t *testing.T) {
+	entries := []Entry{{Name: "kanidm-client.grafana", Kind: KindKaniopClient}}
+	r, calls, records := rotator(entries, nil)
+	delete(r.Methods, KindKaniopClient)
+	results, err := r.Run(context.Background(), entries, Options{Yes: true, Now: now})
+	if err == nil {
+		t.Fatal("a named entry that was not rotated reported success")
+	}
+	if !strings.Contains(results[0].Outcome, "no method yet for kind kaniop-client") || len(*calls) != 0 || len(records.sets) != 0 {
+		t.Fatalf("results = %+v, calls %v, records %v", results, *calls, records.sets)
+	}
+}
+
+func TestRotateRefusesWithoutRecentBackup(t *testing.T) {
+	stale := []backup.Run{
+		{Name: "push-1", App: "paperless", Phase: "Completed", Started: now.Add(-time.Hour)},
+		{Name: "daily-2", Schedule: "daily", Phase: "PartiallyFailed", Started: now.Add(-2 * time.Hour)},
+		{Name: "daily-1", Schedule: "daily", Phase: "Completed", Started: now.Add(-25 * time.Hour)},
+	}
+	r, calls, records := rotator([]Entry{generated("grafana.admin")}, nil)
+	r.Backups = func(context.Context) ([]backup.Run, error) { return stale, nil }
+	_, err := r.Run(context.Background(), r.Entries, Options{Yes: true, Now: now})
+	if err == nil || !strings.Contains(err.Error(), "24 hours") || !strings.Contains(err.Error(), "--skip-backup-check") {
+		t.Fatalf("Run error = %v", err)
+	}
+	if len(*calls) != 0 || len(records.sets) != 0 {
+		t.Fatalf("something ran: %v %v", *calls, records.sets)
+	}
+}
+
+func TestRotateSkipBackupCheckRecordsReason(t *testing.T) {
+	r, calls, records := rotator([]Entry{generated("grafana.admin")}, nil)
+	r.Backups = func(context.Context) ([]backup.Run, error) { return nil, errors.New("must not be called") }
+	if _, err := r.Run(context.Background(), r.Entries, Options{Yes: true, Now: now, SkipBackupCheck: "restore drill"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(*calls) != 4 {
+		t.Fatalf("calls = %v", *calls)
+	}
+	if got := records.records["grafana.admin"].Reason; got != "restore drill" {
+		t.Fatalf("recorded reason = %q", got)
+	}
+}
+
+func TestRotateWaitsForIdle(t *testing.T) {
+	entry := generated("registry.ci")
+	entry.Idle = "woodpecker"
+	t.Run("busy", func(t *testing.T) {
+		r, calls, _ := rotator([]Entry{entry}, nil)
+		var asked []string
+		r.Idle = func(_ context.Context, what string) (bool, error) {
+			asked = append(asked, what)
+			return false, nil
+		}
+		results, err := r.Run(context.Background(), r.Entries, Options{Yes: true, Now: now})
+		if err == nil || results[0].Err == nil || !strings.Contains(results[0].Err.Error(), "Woodpecker") {
+			t.Fatalf("Run = %+v, %v; want a timeout naming Woodpecker", results, err)
+		}
+		if len(asked) < 2 || asked[0] != "woodpecker" {
+			t.Fatalf("Idle was asked %v", asked)
+		}
+		if len(*calls) != 0 {
+			t.Fatalf("calls = %v: it rotated while Woodpecker was busy", *calls)
+		}
+	})
+	t.Run("idle after a while", func(t *testing.T) {
+		r, calls, _ := rotator([]Entry{entry}, nil)
+		n := 0
+		r.Idle = func(context.Context, string) (bool, error) { n++; return n > 2, nil }
+		if _, err := r.Run(context.Background(), r.Entries, Options{Yes: true, Now: now}); err != nil {
+			t.Fatal(err)
+		}
+		if len(*calls) != 4 {
+			t.Fatalf("calls = %v", *calls)
+		}
+	})
+}
+
+func scheduledEntries() []Entry {
+	period := 90 * day
+	return []Entry{
+		{Name: "due", Kind: KindGenerated, Period: period},
+		{Name: "fresh", Kind: KindGenerated, Period: period},
+		{Name: "never-rotated", Kind: KindGenerated, Period: period},
+		{Name: "by-command", Kind: KindGenerated},
+		{Name: "manual", Kind: KindManual},
+		{Name: "never", Kind: KindNever, Reason: "all of OpenBao"},
+	}
+}
+
+func TestScheduledPicksDueOnly(t *testing.T) {
+	r, _, records := rotator(scheduledEntries(), nil)
+	records.records["due"] = Record{Phase: PhaseDone, At: now.Add(-91 * day)}
+	records.records["fresh"] = Record{Phase: PhaseDone, At: now.Add(-10 * day)}
+	plan, err := r.Plan(context.Background(), nil, Options{Scheduled: true, Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range plan {
+		names = append(names, e.Name)
+	}
+	if want := []string{"due", "never-rotated"}; !slices.Equal(names, want) {
+		t.Fatalf("plan = %v, want %v", names, want)
+	}
+}
+
+func TestScheduledFailsWhenOverdue(t *testing.T) {
+	ctx := context.Background()
+	o := Options{Scheduled: true, Yes: true, Now: now}
+	entries := []Entry{
+		{Name: "late", Kind: KindWoodpeckerAgent, Period: 90 * day, Pending: "Task 8"},
+		{Name: "just-due", Kind: KindWoodpeckerToken, Period: 90 * day, Pending: "Task 8"},
+	}
+	r, _, records := rotator(entries, nil)
+	records.records["late"] = Record{Phase: PhaseDone, At: now.Add(-(90 + 15) * day)}
+	records.records["just-due"] = Record{Phase: PhaseDone, At: now.Add(-(90 + 1) * day)}
+	plan, err := r.Plan(ctx, nil, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := r.Run(ctx, plan, o)
+	if err == nil || !strings.Contains(err.Error(), "overdue") || !strings.Contains(err.Error(), "late") {
+		t.Fatalf("Run error = %v, want late named overdue", err)
+	}
+	if strings.Contains(err.Error(), "just-due") {
+		t.Fatalf("Run error = %v: just-due is within the margin", err)
+	}
+	for _, res := range results {
+		if res.Overdue != (res.Name == "late") {
+			t.Fatalf("result %+v", res)
+		}
+	}
+
+	// Within the margin a skipped due entry does not fail the run
+	r, _, records = rotator(entries[1:], nil)
+	records.records["just-due"] = Record{Phase: PhaseDone, At: now.Add(-(90 + 1) * day)}
+	plan, _ = r.Plan(ctx, nil, o)
+	if _, err := r.Run(ctx, plan, o); err != nil {
+		t.Fatalf("Run error = %v", err)
+	}
+}
+
+func TestPlanOrderAll(t *testing.T) {
+	entries := []Entry{
+		{Name: "manual", Kind: KindManual},
+		{Name: "tofu", Kind: KindOpenTofu},
+		{Name: "never", Kind: KindNever, Reason: "x"},
+		{Name: "registry", Kind: KindGenerated, Idle: "woodpecker"},
+		{Name: "kanidm-client", Kind: KindKaniopClient},
+		{Name: "forgejo-token", Kind: KindForgejoToken},
+		{Name: "woodpecker-agent", Kind: KindWoodpeckerAgent, Idle: "woodpecker"},
+		{Name: "kanidm-admin", Kind: KindKanidmAdmin},
+		{Name: "ntfy", Kind: KindNtfyOverlap},
+		{Name: "forgejo-db", Kind: KindCNPG},
+		{Name: "generated", Kind: KindGenerated},
+		{Name: "app-password", Kind: KindAppPassword},
+		{Name: "automatic", Kind: KindAutomatic, Reason: "x"},
+		{Name: "script", Kind: KindScript},
+	}
+	r, _, _ := rotator(entries, nil)
+	plan, err := r.Plan(context.Background(), nil, Options{All: true, Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range plan {
+		names = append(names, e.Name)
+	}
+	want := []string{
+		"ntfy", "generated", "app-password", // generated secrets and ntfy, in catalog order
+		"forgejo-token", "forgejo-db", // Forgejo
+		"kanidm-client", "kanidm-admin", // Kanidm
+		"registry", "woodpecker-agent", // Woodpecker and zot
+		"tofu", "manual", // OpenTofu, then manual
+		"never", "automatic", "script", // listed and skipped
+	}
+	if !slices.Equal(names, want) {
+		t.Fatalf("plan = %v\nwant   %v", names, want)
+	}
+
+	// The real catalog plans every entry once
+	catalog, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Entries = catalog
+	plan, err = r.Plan(context.Background(), nil, Options{All: true, Now: now})
+	if err != nil || len(plan) != len(catalog) {
+		t.Fatalf("Plan(catalog) = %d entries, %v; want %d", len(plan), err, len(catalog))
+	}
+}
+
+func TestDue(t *testing.T) {
+	e := Entry{Period: 90 * day}
+	if due, ok := Due(e, Record{}); !ok || !due.IsZero() {
+		t.Fatalf("never rotated: %v %v, want due at once", due, ok)
+	}
+	at := now.Add(-10 * day)
+	if due, ok := Due(e, Record{Phase: PhaseDone, At: at}); !ok || !due.Equal(at.Add(90*day)) {
+		t.Fatalf("Due = %v %v", due, ok)
+	}
+	if _, ok := Due(Entry{}, Record{}); ok {
+		t.Fatal("an entry without a period has a due date")
+	}
+}
+
+// fakeMetadata is an OpenBao KV v2 custom metadata store
+type fakeMetadata map[string]map[string]string
+
+func (f fakeMetadata) Metadata(_ context.Context, path string) (map[string]string, error) {
+	return maps.Clone(f[path]), nil
+}
+func (f fakeMetadata) SetMetadata(_ context.Context, path string, set map[string]string) error {
+	if f[path] == nil {
+		f[path] = map[string]string{}
+	}
+	for k, v := range set {
+		if v == "" {
+			delete(f[path], k)
+		} else {
+			f[path][k] = v
+		}
+	}
+	return nil
+}
+
+func TestOpenBaoRecords(t *testing.T) {
+	ctx := context.Background()
+	store := fakeMetadata{"grafana/generated/admin": {"managed-by": "external-secrets"}}
+	records := OpenBaoRecords{Store: store}
+	grafana := Entry{Name: "grafana.admin", Kind: KindGenerated, Paths: []string{"grafana/generated/admin", "other/generated/admin"}}
+	if got, err := records.Get(ctx, grafana); err != nil || got != (Record{}) {
+		t.Fatalf("Get of a never rotated entry = %+v, %v", got, err)
+	}
+	want := Record{Phase: PhaseDone, At: now, By: "steven@workstation", Method: "generated", Reason: "restore drill"}
+	if err := records.Set(ctx, grafana, want); err != nil {
+		t.Fatal(err)
+	}
+	if got := store["grafana/generated/admin"]; got["managed-by"] != "external-secrets" || got["rotation-phase"] != "done" ||
+		got["rotated-at"] != "2026-10-24T03:00:00Z" || got["rotation-reason"] != "restore drill" {
+		t.Fatalf("metadata = %v", got)
+	}
+	if got, err := records.Get(ctx, grafana); err != nil || got != want {
+		t.Fatalf("Get = %+v, %v; want %+v", got, err, want)
+	}
+	want.Reason = ""
+	if err := records.Set(ctx, grafana, want); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store["grafana/generated/admin"]["rotation-reason"]; ok {
+		t.Fatal("an empty reason kept the previous one")
+	}
+
+	// Entries without an OpenBao path keep their record at secret/rotation/<name>
+	state := Entry{Name: "state.passphrase", Kind: KindScript}
+	if err := records.Set(ctx, state, Record{Phase: PhasePrepared}); err != nil {
+		t.Fatal(err)
+	}
+	if store["rotation/state.passphrase"]["rotation-phase"] != "prepared" {
+		t.Fatalf("metadata = %v", store)
+	}
+
+	store["grafana/generated/admin"]["rotated-at"] = "yesterday"
+	if _, err := records.Get(ctx, grafana); err == nil || !strings.Contains(err.Error(), "grafana/generated/admin") {
+		t.Fatalf("Get of a bad time = %v", err)
+	}
+}

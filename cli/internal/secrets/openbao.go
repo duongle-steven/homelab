@@ -103,6 +103,60 @@ func (s *Store) Write(ctx context.Context, path string, data map[string]string) 
 	return nil
 }
 
+// Metadata returns the custom metadata of secret/<path>, or nil when the path has no metadata.
+func (s *Store) Metadata(ctx context.Context, path string) (map[string]string, error) {
+	meta, err := s.kv.GetMetadata(ctx, path)
+	if errors.Is(err, bao.ErrSecretNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read the metadata of OpenBao secret/%s failed", path)
+	}
+	custom := make(map[string]string, len(meta.CustomMetadata))
+	for key, value := range meta.CustomMetadata {
+		text, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("OpenBao secret/%s has a non-string custom metadata key %s", path, key)
+		}
+		custom[key] = text
+	}
+	return custom, nil
+}
+
+// SetMetadata merges set into the custom metadata of secret/<path>; an empty value removes its key. The other keys
+// (ESO's managed-by) and the path's settings stay. It reads and writes the whole metadata, so it needs only the
+// read and update capabilities, not patch.
+func (s *Store) SetMetadata(ctx context.Context, path string, set map[string]string) error {
+	input := bao.KVMetadataPutInput{CustomMetadata: map[string]any{}}
+	meta, err := s.kv.GetMetadata(ctx, path)
+	switch {
+	case errors.Is(err, bao.ErrSecretNotFound):
+	case err != nil:
+		return fmt.Errorf("read the metadata of OpenBao secret/%s failed", path)
+	default:
+		input = bao.KVMetadataPutInput{
+			CASRequired:        meta.CASRequired,
+			CustomMetadata:     meta.CustomMetadata,
+			DeleteVersionAfter: meta.DeleteVersionAfter,
+			MaxVersions:        meta.MaxVersions,
+		}
+		if input.CustomMetadata == nil {
+			input.CustomMetadata = map[string]any{}
+		}
+	}
+	for key, value := range set {
+		if value == "" {
+			delete(input.CustomMetadata, key)
+		} else {
+			input.CustomMetadata[key] = value
+		}
+	}
+	if err := s.kv.PutMetadata(ctx, path, input); err != nil {
+		return fmt.Errorf("write the metadata of OpenBao secret/%s failed", path)
+	}
+	return nil
+}
+
 // Close revokes the admin token.
 func (s *Store) Close(ctx context.Context) error {
 	if err := s.client.Auth().Token().RevokeSelfWithContext(ctx, ""); err != nil {
