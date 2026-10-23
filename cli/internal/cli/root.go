@@ -21,6 +21,7 @@ func newRootCmd() *cobra.Command {
 	}
 	root.AddCommand(newTestCmd())
 	root.AddCommand(newBackupCmd())
+	root.AddCommand(newSecretsCmd())
 	infra := &cobra.Command{Use: "infra", Short: "Manage infrastructure and deploy to production"}
 	infra.AddCommand(newInfraStateCmd())
 	infra.AddCommand(newInfraForgejoCmd())

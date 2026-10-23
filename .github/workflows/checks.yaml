@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        check: [render, go, cli, infra, docs, mesh, backup-groups, env-config, secret-stores, lint]
+        check: [render, go, cli, infra, docs, mesh, backup-groups, rotation-catalog, env-config, secret-stores, lint]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
