@@ -156,6 +156,10 @@ func TestBackupRestore(t *testing.T) {
 
 	t.Run("a whole-cluster restore brings them back", func(t *testing.T) {
 		lab(t, append([]string{"backup", "disable", "--yes"}, env...)...)
+		// Every backup here was taken after this cluster was created, of its own volumes: the default refuses them
+		out, err := labE(append([]string{"backup", "restore", "--yes"}, env...)...)
+		require.Error(t, err, out)
+		assert.Contains(t, out, "--backup")
 		lab(t, append([]string{"backup", "restore", "--backup", backup, "--yes"}, env...)...)
 		assert.Equal(t, marker, baoValue(t, "smoke/backup-marker", "value"))
 		var got []struct{ SHA string }

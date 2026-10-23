@@ -92,7 +92,7 @@ lab backup restore forgejo --from offsite                    # the newest off-si
    stopped through its replicas.
 3. Replaces the claims, giving back the owner references Velero drops.
 4. Starts the app again.
-5. Resumes the sync once Argo CD reports it Synced and Healthy.
+5. Resumes the sync, then waits for Argo CD to report the app Synced and Healthy.
 
 If a step fails, the app stays paused and stopped, and the error says so. Fix the cause and run the same command again.
 

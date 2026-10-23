@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -40,7 +41,12 @@ func (c *Client) BucketBytes(ctx context.Context) (int64, error) {
 		defer stop()
 		creds.Endpoint = local
 	}
-	return c.ListBucket(ctx, creds, bucket)
+	size, err := c.ListBucket(ctx, creds, bucket)
+	if err != nil && endpoint.Hostname() != "" {
+		// R2's host names the account: the error keeps everything else
+		return 0, errors.New(strings.ReplaceAll(err.Error(), endpoint.Hostname(), "<endpoint_url>"))
+	}
+	return size, err
 }
 
 // clusterService splits a Service's in-cluster name (<service>.<namespace>, optionally .svc or .svc.cluster.local)

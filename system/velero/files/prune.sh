@@ -13,17 +13,20 @@ if [ "$mode" != ReadWrite ]; then
 	exit 0
 fi
 
-# Oldest first (RFC 3339 times sort as text); the script walks each group from its newest
-kubectl -n "$ns" get backups.velero.io --sort-by=.metadata.creationTimestamp \
-	-o jsonpath='{range .items[*]}{.metadata.name}|{.metadata.labels.velero\.io/schedule-name}|{.metadata.labels.homelab/app}|{.status.phase}{"\n"}{end}' |
+# Oldest first by when each backup started (RFC 3339 times sort as text; one that never started sorts first), not by
+# creationTimestamp: a new cluster creates the backups it reads from the bucket in any order. The script walks each
+# group from its newest
+kubectl -n "$ns" get backups.velero.io \
+	-o jsonpath='{range .items[*]}{.status.startTimestamp}|{.metadata.name}|{.metadata.labels.velero\.io/schedule-name}|{.metadata.labels.homelab/app}|{.status.phase}{"\n"}{end}' |
+	sort -t'|' -k1,1 -k2,2 |
 	awk -F'|' -v keep="$keep" '
-		$1 == "" { next }
+		$2 == "" { next }
 		{
-			group = $2 != "" ? "schedule " $2 : ($3 != "" ? "app " $3 : "")
+			group = $3 != "" ? "schedule " $3 : ($4 != "" ? "app " $4 : "")
 			if (group == "") next
 			n[group]++
-			name[group, n[group]] = $1
-			phase[group, n[group]] = $4
+			name[group, n[group]] = $2
+			phase[group, n[group]] = $5
 		}
 		END {
 			for (g in n) {

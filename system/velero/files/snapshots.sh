@@ -38,9 +38,17 @@ failed=$(kubectl get persistentvolumeclaims -A -l 'homelab/backup in (daily,manu
 		fi
 	done)
 
+# Older than the cutoff goes, except each claim's newest ready snapshot: if snapshotting breaks, the last good one stays
 kubectl get volumesnapshots.snapshot.storage.k8s.io -A -l homelab/snapshot=hourly \
-	-o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name} {.metadata.creationTimestamp}{"\n"}{end}' |
-	awk -v cutoff="$cutoff" '$3 != "" && $3 < cutoff { print $1, $2 }' |
+	-o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name} {.metadata.creationTimestamp} {.status.readyToUse} {.metadata.labels.homelab/pvc}{"\n"}{end}' |
+	awk -v cutoff="$cutoff" '
+		$3 == "" { next }
+		{ ns[NR] = $1; name[NR] = $2; created[NR] = $3 }
+		$4 == "true" && $3 > newest[$1 " " $5] { newest[$1 " " $5] = $3; keep[$1 " " $5] = NR }
+		END {
+			for (k in keep) kept[keep[k]] = 1
+			for (i = 1; i <= NR; i++) if ((i in created) && created[i] < cutoff && !(i in kept)) print ns[i], name[i]
+		}' |
 	while read -r ns name; do
 		kubectl -n "$ns" delete volumesnapshots.snapshot.storage.k8s.io "$name" --wait=false
 	done
