@@ -123,11 +123,13 @@ func (c *Client) waitBackup(ctx context.Context, name string, wait time.Duration
 	}
 }
 
-// Credentials are the parts of Velero's credentials file BucketBytes needs.
+// Credentials are the parts of Velero's credentials file BucketBytes needs, and the location's region.
 type Credentials struct {
 	AccessKey string
 	SecretKey string
 	Endpoint  string
+	// R2 signs for auto, the sandbox's S3 server for us-east-1
+	Region string
 }
 
 // parseCredentials reads the AWS credentials file system/velero mounts. Its errors never quote the file.

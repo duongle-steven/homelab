@@ -14,6 +14,8 @@ import (
 func TestBucketBytesThroughAPortForwardInTheSandbox(t *testing.T) {
 	bsl := location("ReadWrite")
 	_ = unstructured.SetNestedField(bsl.Object, "velero", "spec", "objectStorage", "bucket")
+	// The sandbox's S3 server signs for us-east-1, R2 for auto: the location's region
+	_ = unstructured.SetNestedField(bsl.Object, "us-east-1", "spec", "config", "region")
 	c, _ := fakeClient(bsl)
 	ctx := context.Background()
 	if _, err := c.Kube.CoreV1().Secrets(Namespace).Create(ctx, &corev1.Secret{
@@ -39,7 +41,7 @@ func TestBucketBytesThroughAPortForwardInTheSandbox(t *testing.T) {
 	if err != nil || size != 3_000_000_000 {
 		t.Fatalf("size = %d, %v", size, err)
 	}
-	if forwarded != "velero/s3" || got.Endpoint != "http://127.0.0.1:40000" || got.AccessKey != "velero" || got.SecretKey != "s3cret" {
+	if forwarded != "velero/s3" || got.Endpoint != "http://127.0.0.1:40000" || got.AccessKey != "velero" || got.SecretKey != "s3cret" || got.Region != "us-east-1" {
 		t.Fatalf("forwarded %q, credentials %+v", forwarded, got)
 	}
 }
@@ -60,8 +62,8 @@ func TestBucketBytesDirectToR2(t *testing.T) {
 		return "", nil, nil
 	}
 	c.ListBucket = func(_ context.Context, creds Credentials, _ string) (int64, error) {
-		if creds.Endpoint != "https://account.r2.cloudflarestorage.com" {
-			t.Fatalf("endpoint = %q", creds.Endpoint)
+		if creds.Endpoint != "https://account.r2.cloudflarestorage.com" || creds.Region != "auto" {
+			t.Fatalf("endpoint = %q, region = %q", creds.Endpoint, creds.Region)
 		}
 		return 7, nil
 	}

@@ -28,6 +28,9 @@ func (c *Client) BucketBytes(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	if creds.Region, _, _ = unstructured.NestedString(bsl.Object, "spec", "config", "region"); creds.Region == "" {
+		creds.Region = "auto"
+	}
 	endpoint, err := url.Parse(creds.Endpoint)
 	if err != nil {
 		return 0, fmt.Errorf("velero-credentials' endpoint_url is not a URL")

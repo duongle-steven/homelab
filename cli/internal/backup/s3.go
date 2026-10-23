@@ -12,7 +12,7 @@ import (
 // listBucket sums the sizes of every object in bucket (R2 and the sandbox's versitygw both speak S3, path style).
 func listBucket(ctx context.Context, creds Credentials, bucket string) (int64, error) {
 	client := s3.New(s3.Options{
-		Region:       "auto",
+		Region:       creds.Region,
 		BaseEndpoint: aws.String(creds.Endpoint),
 		UsePathStyle: true,
 		Credentials:  credentials.NewStaticCredentialsProvider(creds.AccessKey, creds.SecretKey, ""),

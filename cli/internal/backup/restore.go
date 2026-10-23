@@ -328,7 +328,8 @@ func scale(replicas int32) []byte {
 }
 
 // stop takes the app off its volumes: Deployments and StatefulSets to 0, kaniop's Kanidm through its replicas,
-// CloudNativePG clusters hibernated, CronJobs suspended; then it waits for no pod to mount the claims. What it changes
+// CloudNativePG clusters hibernated, CronJobs suspended; then it waits for no pod to mount the claims, deleting the
+// finished ones (a finished pod still holds its claim). What it changes
 // is saved first (a workload a failed run already stopped keeps the replicas saved then).
 func (c *Client) stop(ctx context.Context, app string, claims []corev1.PersistentVolumeClaim, s *savedApp) error {
 	if s.Deployments == nil {
@@ -442,14 +443,23 @@ func (c *Client) stop(ctx context.Context, app string, claims []corev1.Persisten
 			return false, err
 		}
 		for _, p := range pods.Items {
-			if p.Status.Phase == corev1.PodSucceeded || p.Status.Phase == corev1.PodFailed {
-				continue
-			}
+			mounts := false
 			for _, v := range p.Spec.Volumes {
 				if v.PersistentVolumeClaim != nil && names[v.PersistentVolumeClaim.ClaimName] {
-					return false, nil
+					mounts = true
 				}
 			}
+			if !mounts {
+				continue
+			}
+			// A finished Job's pod still holds the claim (pvc-protection), and its Job keeps the record
+			if p.Status.Phase == corev1.PodSucceeded || p.Status.Phase == corev1.PodFailed {
+				if err := c.Kube.CoreV1().Pods(app).Delete(ctx, p.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+					return false, err
+				}
+				continue
+			}
+			return false, nil
 		}
 		return true, nil
 	})

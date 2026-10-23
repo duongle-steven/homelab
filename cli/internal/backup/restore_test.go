@@ -413,3 +413,39 @@ func TestRestoreClusterWaitsForArgoCDAtTheEnd(t *testing.T) {
 	}
 	rec.indexAll(t, "patch externalsecrets ntfy ntfy-users", "force-sync")
 }
+
+// A finished Job's pod still holds its claim (pvc-protection): openbao-snapshot keeps its last pod an hour, and the
+// whole-cluster restore waited 30 minutes for openbao-snapshots to go. The finished pods on the claims go first; the
+// Job keeps its record.
+func TestRestoreDeletesFinishedPodsOnTheClaims(t *testing.T) {
+	c, rec, _ := restoreFixture(t)
+	mounts := []corev1.Volume{{Name: "data", VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "ntfy"}}}}
+	for name, phase := range map[string]corev1.PodPhase{"backup-job-done": corev1.PodSucceeded, "backup-job-failed": corev1.PodFailed} {
+		if _, err := c.Kube.CoreV1().Pods("ntfy").Create(context.Background(), &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: name},
+			Spec:       corev1.PodSpec{Volumes: mounts},
+			Status:     corev1.PodStatus{Phase: phase},
+		}, metav1.CreateOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A finished pod on another volume stays
+	if _, err := c.Kube.CoreV1().Pods("ntfy").Create(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: "other-job"},
+		Status:     corev1.PodStatus{Phase: corev1.PodSucceeded},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.RestoreApp(context.Background(), "ntfy", Offsite, time.Time{}, daily); err != nil {
+		t.Fatal(err)
+	}
+	del := rec.index(t, "delete persistentvolumeclaims ntfy ntfy")
+	for _, name := range []string{"backup-job-done", "backup-job-failed"} {
+		if i := rec.index(t, "delete pods ntfy "+name); i > del {
+			t.Fatalf("pod %s deleted after the claim (%d > %d)", name, i, del)
+		}
+	}
+	if _, err := c.Kube.CoreV1().Pods("ntfy").Get(context.Background(), "other-job", metav1.GetOptions{}); err != nil {
+		t.Fatalf("a pod on no claim was deleted: %v", err)
+	}
+}
