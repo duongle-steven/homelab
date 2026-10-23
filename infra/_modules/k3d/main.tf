@@ -1,6 +1,9 @@
 # The k3d sandbox: one k3s server (k3d.yaml), the latest Gateway API CRDs in k3s's auto-deploy manifests (k3s's
 # packaged ones are disabled), and a localhost proxy: under WSL mirrored networking Windows cannot reach ports
-# Docker publishes, so a host-network socat forwards 127.0.0.1:80/443/22 to the node (ServiceLB serves the Gateway)
+# Docker publishes, so a host-network socat forwards 127.0.0.1:80/443/22 to the node (ServiceLB serves the Gateway).
+# The node pulls through pull-through caches, one per registry (k3d registries outside the cluster, with their own
+# volumes): deleting the cluster keeps them, so a rebuilt sandbox downloads nothing it pulled before. An image from
+# another registry, or a cache that fails, is pulled from its registry directly.
 terraform {
   required_version = ">= 1.13"
   required_providers {
@@ -41,15 +44,34 @@ variable "proxy" {
   description = "Forward 127.0.0.1:80/443/22 to the node (the browser under WSL); GitHub Actions turns it off, the tests dial the node"
 }
 
+variable "caches" {
+  type = map(object({ remote = string, port = number }))
+  default = {
+    "docker.io"        = { remote = "https://registry-1.docker.io", port = 5101 }
+    "ghcr.io"          = { remote = "https://ghcr.io", port = 5102 }
+    "quay.io"          = { remote = "https://quay.io", port = 5103 }
+    "registry.k8s.io"  = { remote = "https://registry.k8s.io", port = 5104 }
+    "code.forgejo.org" = { remote = "https://code.forgejo.org", port = 5105 }
+  }
+  description = "Pull-through caches by registry; the host port is only k3d's (WSL cannot reach published ports), the node uses port 5000"
+}
+
 locals {
-  config   = abspath("${path.module}/k3d.yaml")
-  manifest = "${var.manifest_dir}/gateway-api-${var.gateway_api_version}.yaml"
-  node     = "k3d-${var.name}-server-0"
-  proxy    = "${var.name}-proxy"
+  # k3d names the containers k3d-<name>
+  cache_names = { for host, _ in var.caches : host => "homelab-cache-${replace(host, ".", "-")}" }
+  registries = yamlencode({
+    mirrors = { for host, name in local.cache_names : host => { endpoint = ["http://k3d-${name}:5000"] } }
+  })
+  registries_file = "${var.manifest_dir}/registries.yaml"
+  cache_image     = "docker.io/library/registry:3.1.2"
+  config          = abspath("${path.module}/k3d.yaml")
+  manifest        = "${var.manifest_dir}/gateway-api-${var.gateway_api_version}.yaml"
+  node            = "k3d-${var.name}-server-0"
+  proxy           = "${var.name}-proxy"
 }
 
 resource "terraform_data" "cluster" {
-  triggers_replace = [filesha1(local.config), local.manifest, var.name]
+  triggers_replace = [filesha1(local.config), local.manifest, var.name, local.registries]
   input            = { name = var.name, kubeconfig = var.kubeconfig }
 
   provisioner "local-exec" {
@@ -57,8 +79,18 @@ resource "terraform_data" "cluster" {
       set -eu
       [ -s "${local.manifest}" ] || curl -fsSL -o "${local.manifest}" \
         https://github.com/kubernetes-sigs/gateway-api/releases/download/${var.gateway_api_version}/standard-install.yaml
+      # The caches outlive the cluster: created once, never deleted here (k3d registry delete <name> empties one)
+%{for host, name in local.cache_names~}
+      k3d registry list ${name} >/dev/null 2>&1 || k3d registry create ${name} --image ${local.cache_image} \
+        --proxy-remote-url ${var.caches[host].remote} --volume ${name}:/var/lib/registry --port 127.0.0.1:${var.caches[host].port} --no-help
+%{endfor~}
+      echo '${base64encode(local.registries)}' | base64 -d > "${local.registries_file}"
       k3d cluster list ${var.name} >/dev/null 2>&1 || k3d cluster create --config "${local.config}" \
-        --volume "${local.manifest}:/var/lib/rancher/k3s/server/manifests/gateway-api.yaml@server:*"
+%{for host, name in local.cache_names~}
+        --registry-use k3d-${name}:${var.caches[host].port} \
+%{endfor~}
+        --volume "${local.manifest}:/var/lib/rancher/k3s/server/manifests/gateway-api.yaml@server:*" \
+        --registry-config "${local.registries_file}"
       k3d kubeconfig get ${var.name} > "${var.kubeconfig}"
     EOT
   }

@@ -19,6 +19,8 @@ make dev
 
 `make dev` runs Terragrunt in `infra/sandbox`: the unit `cluster` creates the k3d cluster with k3s's own networking (Flannel, kube-proxy, ServiceLB) and the localhost proxy, the unit `argocd` bootstraps ArgoCD; then it runs the tests. State stays on your machine (`.state/`).
 
+The node pulls images through pull-through caches, one per registry (docker.io, ghcr.io, quay.io, registry.k8s.io, code.forgejo.org: `k3d-homelab-cache-*`, each with its own Docker volume). They are k3d registries outside the cluster, so `make dev-clean` and `make dev-fresh` keep them and a rebuilt sandbox downloads only what changed; a cached image expires a week after it was last pulled. Images from other registries, or from a cache that fails, come from their registry directly. Empty one with `k3d registry delete homelab-cache-docker-io` (and `docker volume rm homelab-cache-docker-io`).
+
 !!! note
 
     The first build takes about 25 minutes. Running `make dev` again on an existing sandbox takes about a minute.
@@ -158,7 +160,7 @@ Measured on a fresh k3d sandbox with all components running and every namespace 
 ## Clean up
 
 ```sh
-make dev-clean  # terragrunt run --all destroy in infra/sandbox: the cluster, the proxy and the kubeconfig
+make dev-clean  # terragrunt run --all destroy in infra/sandbox: the cluster, the proxy and the kubeconfig (not the image caches)
 ```
 
 ## Differences from production
