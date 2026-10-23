@@ -106,6 +106,7 @@ func (r *Rotator) Plan(ctx context.Context, names []string, o Options) ([]Entry,
 			if err != nil {
 				return nil, err
 			}
+			// An interrupted one without a period is listed to be reported, not resumed (Skip)
 			interrupted := rec.Phase != "" && rec.Phase != PhaseDone
 			if due, periodic := Due(e, rec); interrupted || (periodic && !due.After(o.Now)) {
 				plan = append(plan, e)
@@ -168,6 +169,10 @@ func (r *Rotator) Skip(e Entry, o Options) string {
 	if e.Pending != "" {
 		return "pending " + e.Pending
 	}
+	if o.Scheduled && e.Period == 0 {
+		// Only an interrupted rotation by command reaches a scheduled plan: a person finishes it
+		return fmt.Sprintf("interrupted, resume with `lab secrets rotate %s`", e.Name)
+	}
 	if e.Kind == KindManual {
 		if o.Scheduled {
 			return "manual, never on a schedule"
@@ -194,7 +199,7 @@ func (r *Rotator) Run(ctx context.Context, plan []Entry, o Options) ([]Result, e
 	named := !o.All && !o.Scheduled
 	holder := holderID(o.By)
 	results := make([]Result, 0, len(plan))
-	var failed, overdue, left []string
+	var failed, overdue, left, interrupted []string
 	for _, e := range plan {
 		if len(failed) > 0 {
 			results = append(results, Result{Name: e.Name, Outcome: fmt.Sprintf("not started: %s failed first", failed[0])})
@@ -213,6 +218,8 @@ func (r *Rotator) Run(ctx context.Context, plan []Entry, o Options) ([]Result, e
 			failed = append(failed, e.Name)
 		case res.Overdue:
 			overdue = append(overdue, e.Name)
+		case o.Scheduled && e.Period == 0:
+			interrupted = append(interrupted, e.Name)
 		// A script or automatic entry named alone is answered by its steps or reason; never is a refusal
 		case named && res.Outcome != "rotated" && e.Kind != KindScript && e.Kind != KindAutomatic:
 			left = append(left, e.Name)
@@ -225,6 +232,9 @@ func (r *Rotator) Run(ctx context.Context, plan []Entry, o Options) ([]Result, e
 	}
 	if len(overdue) > 0 {
 		problems = append(problems, fmt.Sprintf("overdue by more than %d days: %s", int(OverdueMargin.Hours()/24), strings.Join(overdue, ", ")))
+	}
+	if len(interrupted) > 0 {
+		problems = append(problems, "interrupted, resume by command: "+strings.Join(interrupted, ", "))
 	}
 	if len(left) > 0 {
 		problems = append(problems, "not rotated: "+strings.Join(left, ", "))
@@ -252,18 +262,30 @@ func (r *Rotator) rotate(ctx context.Context, e Entry, o Options, holder string)
 	if reason := r.Skip(e, o); reason != "" {
 		return Result{Name: e.Name, Outcome: "skipped: " + reason}
 	}
+	// lost is why the lock ended under the run, if another run took it over
+	lost := func() error {
+		var l *LostLockError
+		if errors.As(context.Cause(ctx), &l) {
+			return l
+		}
+		return nil
+	}
 	fail := func(what string, err error) Result {
+		if l := lost(); l != nil {
+			err = l
+		}
 		return Result{Name: e.Name, Outcome: "failed " + what, Err: err}
 	}
 	if r.Lock == nil {
 		return fail("locking", errors.New("no lock to keep two rotations apart"))
 	}
-	// Held from before the idle wait and the record's read to the end, renewed meanwhile
-	release, err := r.Lock.Lock(ctx, e, holder, r.Wait+5*time.Minute)
+	// Held from before the idle wait and the record's read to the end, renewed meanwhile; ctx ends if it is lost
+	locked, release, err := r.Lock.Lock(ctx, e, holder, r.Wait+5*time.Minute)
 	if err != nil {
 		return fail("locking", err)
 	}
 	defer release()
+	ctx = locked
 	if e.Idle != "" {
 		if err := r.waitIdle(ctx, e.Idle); err != nil {
 			return fail("waiting for idle", err)
@@ -294,6 +316,10 @@ func (r *Rotator) rotate(ctx context.Context, e Entry, o Options, holder string)
 		reason = rec.Reason
 	}
 	record := func(phase string) error {
+		// The new holder owns the record now
+		if l := lost(); l != nil {
+			return l
+		}
 		rec.Phase, rec.By, rec.Method, rec.Reason = phase, o.By, string(e.Kind), reason
 		if phase == PhaseDone {
 			rec.At = o.Now
@@ -310,6 +336,9 @@ func (r *Rotator) rotate(ctx context.Context, e Entry, o Options, holder string)
 	}
 	method := r.Methods[e.Kind]
 	for _, p := range phases[start:] {
+		if l := lost(); l != nil {
+			return fail("before "+p.step, l)
+		}
 		fmt.Fprintf(r.Out, "%s: %s\n", e.Name, p.step)
 		if err := p.run(method, ctx, e); err != nil {
 			return fail("in "+p.step, err)

@@ -208,7 +208,7 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 			Methods: map[rotate.Kind]rotate.Method{},
 			Store:   rotate.OpenBaoRecords{Store: store},
 			// The CronJob's namespace (Task 9), which a person's run reaches too
-			Lock:    &rotate.LeaseLocker{Kube: kube, Namespace: "secrets-rotation"},
+			Lock:    &rotate.LeaseLocker{Kube: kube, Namespace: "secrets-rotation", Out: cmd.OutOrStdout()},
 			Backups: b.Runs,
 			Idle:    func(ctx context.Context, what string) (bool, error) { return idle(ctx, kube, what) },
 			Out:     cmd.OutOrStdout(),

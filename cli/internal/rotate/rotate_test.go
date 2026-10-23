@@ -7,13 +7,18 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/duongle-steven/homelab/cli/internal/backup"
 	coordinationv1 "k8s.io/api/coordination/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/utils/ptr"
 )
 
@@ -396,6 +401,7 @@ func scheduledEntries() []Entry {
 		{Name: "old-never-rotated", Kind: KindGenerated, Period: period},
 		{Name: "by-command", Kind: KindGenerated},
 		{Name: "interrupted", Kind: KindKaniopClient},
+		{Name: "interrupted-periodic", Kind: KindGenerated, Period: period},
 		{Name: "tofu", Kind: KindOpenTofu, Period: period},
 		{Name: "manual", Kind: KindManual},
 		{Name: "never", Kind: KindNever, Reason: "all of OpenBao"},
@@ -409,6 +415,7 @@ func TestScheduledPicksDueOnly(t *testing.T) {
 	records.records["never-rotated"] = Record{Since: now.Add(-10 * day)}
 	records.records["old-never-rotated"] = Record{Since: now.Add(-91 * day)}
 	records.records["interrupted"] = Record{Phase: PhaseSwitched, At: now.Add(-day)}
+	records.records["interrupted-periodic"] = Record{Phase: PhaseSwitched, At: now.Add(-day)}
 	records.records["tofu"] = Record{Phase: PhaseDone, At: now.Add(-200 * day)}
 	plan, err := r.Plan(context.Background(), nil, Options{Scheduled: true, Now: now})
 	if err != nil {
@@ -418,8 +425,28 @@ func TestScheduledPicksDueOnly(t *testing.T) {
 	for _, e := range plan {
 		names = append(names, e.Name)
 	}
-	if want := []string{"due", "old-never-rotated", "interrupted"}; !slices.Equal(names, want) {
+	if want := []string{"due", "old-never-rotated", "interrupted-periodic", "interrupted"}; !slices.Equal(names, want) {
 		t.Fatalf("plan = %v, want %v", names, want)
+	}
+
+	// The periodic one is finished; the one by command only is reported for a person, and the run fails (it alerts)
+	o := Options{Scheduled: true, Yes: true, Now: now}
+	results, err := r.Run(context.Background(), plan, o)
+	if err == nil || !strings.Contains(err.Error(), "interrupted") || !strings.Contains(err.Error(), "interrupted") {
+		t.Fatalf("Run error = %v", err)
+	}
+	byName := map[string]Result{}
+	for _, res := range results {
+		byName[res.Name] = res
+	}
+	if got := byName["interrupted-periodic"].Outcome; got != "rotated" {
+		t.Fatalf("interrupted-periodic: %q", got)
+	}
+	if got := byName["interrupted"].Outcome; !strings.Contains(got, "lab secrets rotate interrupted") {
+		t.Fatalf("interrupted: %q", got)
+	}
+	if got := records.records["interrupted"].Phase; got != PhaseSwitched {
+		t.Fatalf("the scheduled run resumed a rotation by command: phase %q", got)
 	}
 }
 
@@ -723,4 +750,157 @@ func TestRotateTakesOverExpiredLock(t *testing.T) {
 	if len(*calls) != 4 {
 		t.Fatalf("calls = %v", *calls)
 	}
+}
+
+// leaseObject reads the Lease from the fake cluster's tracker
+func leaseObject(t *testing.T, kube *fake.Clientset) *coordinationv1.Lease {
+	t.Helper()
+	obj, err := kube.Tracker().Get(leaseGVR, "secrets-rotation", "rotate-grafana.admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return obj.(*coordinationv1.Lease)
+}
+
+var leaseGVR = coordinationv1.SchemeGroupVersion.WithResource("leases")
+
+func TestLockReleaseKeepsATakenOverLease(t *testing.T) {
+	ctx := context.Background()
+	kube := fake.NewClientset()
+	locker := &LeaseLocker{Kube: kube, Namespace: "secrets-rotation"}
+	_, release, err := locker.Lock(ctx, generated("grafana.admin"), "steven@workstation/1", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mine := leaseObject(t, kube)
+	mine.ResourceVersion = "1"
+	if err := kube.Tracker().Update(leaseGVR, mine, "secrets-rotation"); err != nil {
+		t.Fatal(err)
+	}
+	// Between release's Get and its Delete another run takes the Lease over (an Update: same UID, new version)
+	kube.PrependReactor("get", "leases", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		current := leaseObject(t, kube)
+		taken := current.DeepCopy()
+		taken.Spec.HolderIdentity = ptr.To("rotation-job/2")
+		taken.ResourceVersion = "2"
+		if err := kube.Tracker().Update(leaseGVR, taken, "secrets-rotation"); err != nil {
+			t.Error(err)
+		}
+		return true, current, nil
+	})
+	// The API server's precondition check, which the fake does not do
+	kube.PrependReactor("delete", "leases", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		pre, current := action.(k8stesting.DeleteActionImpl).DeleteOptions.Preconditions, leaseObject(t, kube)
+		if pre != nil && ((pre.UID != nil && *pre.UID != current.UID) ||
+			(pre.ResourceVersion != nil && *pre.ResourceVersion != current.ResourceVersion)) {
+			return true, nil, apierrors.NewConflict(leaseGVR.GroupResource(), "rotate-grafana.admin", errors.New("precondition failed"))
+		}
+		return false, nil, nil
+	})
+	release()
+	if got := *leaseObject(t, kube).Spec.HolderIdentity; got != "rotation-job/2" {
+		t.Fatalf("holder = %q: release deleted a Lease another run took over", got)
+	}
+}
+
+func TestRotateStopsWhenItLosesTheLock(t *testing.T) {
+	ctx := context.Background()
+	kube := fake.NewClientset()
+	var out strings.Builder
+	r, calls, records := rotator([]Entry{generated("grafana.admin")}, nil)
+	r.Out = &syncWriter{w: &out}
+	r.Lock = &LeaseLocker{Kube: kube, Namespace: "secrets-rotation", Renew: 5 * time.Millisecond, Out: r.Out}
+	var taken atomic.Bool
+	kube.PrependReactor("update", "leases", func(k8stesting.Action) (bool, runtime.Object, error) {
+		if !taken.Load() {
+			return false, nil, nil
+		}
+		return true, nil, apierrors.NewConflict(leaseGVR.GroupResource(), "rotate-grafana.admin", errors.New("modified"))
+	})
+	// Prepare runs until its context ends; meanwhile another run takes the lock over, so the renewal conflicts
+	r.Methods[KindGenerated] = untilCancelled{fakeMethod{calls: calls}, func() {
+		lease := leaseObject(t, kube).DeepCopy()
+		lease.Spec.HolderIdentity = ptr.To("rotation-job/2")
+		if err := kube.Tracker().Update(leaseGVR, lease, "secrets-rotation"); err != nil {
+			t.Error(err)
+		}
+		taken.Store(true)
+	}}
+	done := make(chan struct{})
+	var results []Result
+	var err error
+	go func() {
+		defer close(done)
+		results, err = r.Run(ctx, r.Entries, Options{Yes: true, Now: now, By: "steven@workstation"})
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the run went on after losing its lock")
+	}
+	if err == nil || results[0].Err == nil || !strings.Contains(results[0].Err.Error(), "lost the lock to rotation-job/2") {
+		t.Fatalf("Run = %+v, %v", results, err)
+	}
+	if slices.Contains(*calls, "grafana.admin switch") {
+		t.Fatalf("calls = %v: the run went on to the next phase", *calls)
+	}
+	if got := records.records["grafana.admin"].Phase; got != PhasePreparing {
+		t.Fatalf("phase = %q: a run that lost its lock must not record over the new holder", got)
+	}
+}
+
+func TestLockRenewalFailureIsLogged(t *testing.T) {
+	kube := fake.NewClientset()
+	var out strings.Builder
+	w := &syncWriter{w: &out}
+	locker := &LeaseLocker{Kube: kube, Namespace: "secrets-rotation", Renew: 2 * time.Millisecond, Out: w}
+	var down atomic.Bool
+	kube.PrependReactor("update", "leases", func(k8stesting.Action) (bool, runtime.Object, error) {
+		if !down.Load() {
+			return false, nil, nil
+		}
+		return true, nil, apierrors.NewServiceUnavailable("etcd is down")
+	})
+	lockCtx, release, err := locker.Lock(context.Background(), generated("grafana.admin"), "steven@workstation/1", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	down.Store(true)
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(w.String(), "renew") && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !strings.Contains(w.String(), "renew") || lockCtx.Err() != nil {
+		t.Fatalf("output %q, context %v: want the failure logged and the run going on", w.String(), lockCtx.Err())
+	}
+	release()
+}
+
+// untilCancelled runs hook in Prepare, then waits for the context to end
+type untilCancelled struct {
+	fakeMethod
+	hook func()
+}
+
+func (m untilCancelled) Prepare(ctx context.Context, e Entry) error {
+	_ = m.fakeMethod.Prepare(ctx, e)
+	m.hook()
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+type syncWriter struct {
+	mu sync.Mutex
+	w  *strings.Builder
+}
+
+func (s *syncWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.Write(p)
+}
+func (s *syncWriter) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.String()
 }
