@@ -51,6 +51,16 @@ argocd-apps:
                   pathParamPrefix: config
       template:
         spec:
+          # A fresh sandbox syncs while the CRDs and webhooks its apps wait for appear: retry soon, so an app follows
+          # within 4 minutes of what it waited for (production's 16-minute backoff idled a fresh build for minutes);
+          # 18 tries span about an hour, longer than a build on a slow link (merged into values.yaml's syncPolicy)
+          syncPolicy: &retry
+            retry:
+              limit: 18
+              backoff:
+                duration: 30s
+                factor: 2
+                maxDuration: 4m
           sources:
             - repoURL: *repoURL
               path: '{{ .path.path }}'
@@ -104,6 +114,7 @@ argocd-apps:
               - git: *config
       template:
         spec:
+          syncPolicy: *retry
           sources:
             - repoURL: https://bjw-s-labs.github.io/helm-charts
               chart: app-template
