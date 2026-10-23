@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -34,7 +36,9 @@ var render = func(root, target string) ([]byte, error) {
 			return out, nil
 		}
 		err = fmt.Errorf("render %s: %w: %s", target, err, strings.TrimSpace(stderr.String()))
-		time.Sleep(5 * time.Second)
+		if attempt < 2 {
+			time.Sleep(5 * time.Second)
+		}
 	}
 	return nil, err
 }
@@ -91,7 +95,60 @@ func Check(root string, entries []Entry) []string {
 	for _, c := range clients {
 		missingName("kanidm-client."+c.name, c.target)
 	}
+	problems = append(problems, checkReferences(root, entries)...)
 	sort.Strings(problems)
+	return problems
+}
+
+var (
+	secretName = regexp.MustCompile(`(?m)^\s*(?:-\s*)?(?:name|forceRename|existingSecret):\s*["']?([A-Za-z0-9._-]+)["']?\s*$`)
+	tofuRes    = regexp.MustCompile(`(?m)^resource\s+"([^"]+)"\s+"([^"]+)"`)
+)
+
+// checkReferences is the other direction: what an entry names must exist. OpenTofu entries name a resource under
+// infra/_modules, readers name ExternalSecrets in system, platform or apps. An entry with Pending names something a
+// later task creates and is skipped.
+func checkReferences(root string, entries []Entry) []string {
+	resources, names := map[string]bool{}, map[string]bool{}
+	walk := func(dir string, exts []string, f func(path string, data []byte)) {
+		_ = filepath.WalkDir(filepath.Join(root, dir), func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !slices.Contains(exts, filepath.Ext(path)) {
+				return nil
+			}
+			if data, err := os.ReadFile(path); err == nil {
+				f(path, data)
+			}
+			return nil
+		})
+	}
+	walk("infra/_modules", []string{".tf"}, func(_ string, data []byte) {
+		for _, m := range tofuRes.FindAllSubmatch(data, -1) {
+			resources[string(m[1])+"."+string(m[2])] = true
+		}
+	})
+	for _, dir := range []string{"system", "platform", "apps"} {
+		walk(dir, []string{".yaml", ".tpl"}, func(_ string, data []byte) {
+			for _, m := range secretName.FindAllSubmatch(data, -1) {
+				names[string(m[1])] = true
+			}
+		})
+	}
+	var problems []string
+	for _, e := range entries {
+		if e.Pending != "" {
+			continue
+		}
+		if r := e.Settings["resource"]; e.Kind == KindOpenTofu && r != "" && !resources[r] {
+			problems = append(problems, fmt.Sprintf("%s: resource %s is not under infra/_modules", e.Name, r))
+		}
+		for _, rd := range e.Readers {
+			for _, es := range rd.ExternalSecrets {
+				if !names[es] {
+					problems = append(problems, fmt.Sprintf("%s: ExternalSecret %s is not in system, platform or apps", e.Name, es))
+				}
+			}
+		}
+	}
 	return problems
 }
 

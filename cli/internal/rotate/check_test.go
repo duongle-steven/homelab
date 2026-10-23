@@ -1,6 +1,7 @@
 package rotate
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,5 +61,47 @@ func TestCheckRepository(t *testing.T) {
 	}
 	if got := Check("../../..", entries); len(got) != 0 {
 		t.Fatalf("the catalog misses:\n%s", strings.Join(got, "\n"))
+	}
+}
+
+func TestCheckReferences(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "infra/_modules/x/main.tf", "resource \"cloudflare_account_token\" \"real\" {\n}\n")
+	write(t, root, "apps/a.yaml", "externalSecrets:\n  x:\n    forceRename: real-es\n")
+	write(t, root, "platform/b/templates/e.yaml", "kind: ExternalSecret\nmetadata:\n  name: other-es\n")
+	entries, err := parse([]byte(`
+- {name: good, kind: opentofu, settings: {resource: cloudflare_account_token.real}, readers: [{namespace: a, externalSecrets: [real-es, other-es]}]}
+- {name: bad.resource, kind: opentofu, settings: {resource: cloudflare_account_token.gone}}
+- {name: bad.es, kind: generated, readers: [{namespace: a, externalSecrets: [gone-es]}]}
+- {name: later, kind: opentofu, pending: a later task, settings: {resource: x.y}, readers: [{namespace: a, externalSecrets: [nope]}]}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := checkReferences(root, entries)
+	if len(got) != 2 || !strings.Contains(got[0]+got[1], "cloudflare_account_token.gone") || !strings.Contains(got[0]+got[1], "gone-es") {
+		t.Fatalf("checkReferences = %q", got)
+	}
+}
+
+func TestCheckReportsRenderError(t *testing.T) {
+	old := render
+	t.Cleanup(func() { render = old })
+	render = func(_, target string) ([]byte, error) { return nil, errors.New("helm fell over on " + target) }
+	root := t.TempDir()
+	write(t, root, "platform/generated-secrets/values.yaml", "secrets: []\n")
+	write(t, root, "platform/infra-secrets/values.yaml", "secrets: []\n")
+	write(t, root, "apps/newapp.yaml", "kind: KanidmOAuth2Client\n")
+	got := Check(root, nil)
+	if !strings.Contains(strings.Join(got, "\n"), "helm fell over on apps/newapp.yaml") {
+		t.Fatalf("Check = %q", got)
+	}
+}
+
+func TestCheckReportsMissingValues(t *testing.T) {
+	stubRender(t)
+	got := Check(t.TempDir(), nil)
+	if !strings.Contains(strings.Join(got, "\n"), "no values files") {
+		t.Fatalf("Check = %q", got)
 	}
 }

@@ -10,6 +10,7 @@
 #   readers   namespace, ExternalSecrets and workloads to restart; people: true when people re-enter the value
 #   steps     what a person does (manual and script)
 #   idle      what must be idle first
+#   pending   the task that creates what this entry names; skips the check that the repository has it
 #   settings  method-specific (app, account, OpenTofu unit and resource, kaniop client)
 
 - name: forgejo.admin
@@ -36,7 +37,7 @@
   reason: only people use it, occasionally
   paths: [paperless/generated/admin]
   readers:
-    - {namespace: paperless, externalSecrets: [paperless-admin], workloads: [{kind: Deployment, name: paperless}]}
+    - {namespace: paperless, externalSecrets: [paperless-secret], workloads: [{kind: Deployment, name: paperless}]}
   settings: {app: paperless}
 
 - name: paperless.secret-key
@@ -47,11 +48,12 @@
     queued, the hourly task retrains the classifier file
   paths: [paperless/generated/secret-key]
   readers:
-    - {namespace: paperless, externalSecrets: [paperless-secret-key], workloads: [{kind: Deployment, name: paperless}]}
+    - {namespace: paperless, externalSecrets: [paperless-secret], workloads: [{kind: Deployment, name: paperless}]}
   idle: paperless
 
 - name: woodpecker.agent
   kind: woodpecker-agent
+  pending: "Task 8 (per-agent tokens)"
   class: 0
   reason: Woodpecker 3's per-agent tokens give an official overlap (a new agent token, then the old agent is deleted)
   period: 2160h
@@ -64,6 +66,7 @@
 
 - name: woodpecker.admin-token
   kind: woodpecker-token
+  pending: "Task 8 (the admin token)"
   class: 1
   reason: only lab reads it; the token reset invalidates every earlier token of that user
   period: 2160h
@@ -241,7 +244,7 @@
   paths: [velero/repository]
   readers:
     - {namespace: velero, externalSecrets: [velero-credentials], workloads: [{kind: Deployment, name: velero}]}
-  settings: {unit: infra/production/backup, resource: cloudflare_account_token.velero}
+  settings: {unit: infra/production/backup, resource: cloudflare_account_token.backup}
 
 - name: backup.kopia-password
   kind: never
@@ -288,6 +291,7 @@
 
 - name: telegram.bot-token
   kind: manual
+  pending: "the Telegram receiver (decision 7)"
   class: 1
   reason: Alertmanager retries, and ntfy still delivers; it reads bot_token_file at every notification, no restart
   paths: [monitoring-system/telegram]

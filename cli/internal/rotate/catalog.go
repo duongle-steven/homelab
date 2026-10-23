@@ -60,6 +60,7 @@ type Entry struct {
 	Period   time.Duration     `yaml:"period"` // 0 = command only
 	Paths    []string          `yaml:"paths"`  // OpenBao paths under secret/ (every destination of a generated secret)
 	Readers  []Reader          `yaml:"readers"`
+	Pending  string            `yaml:"pending"`  // the task that creates what it names; skips the repository consistency check
 	Steps    string            `yaml:"steps"`    // what a person does, for manual and script entries
 	Idle     string            `yaml:"idle"`     // "woodpecker": wait for no running pipeline
 	Settings map[string]string `yaml:"settings"` // method-specific: app, Forgejo account, OpenTofu unit and resource, kaniop client
