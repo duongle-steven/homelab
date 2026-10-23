@@ -243,3 +243,31 @@ func TestRefreshExternalSecretsOneDeadline(t *testing.T) {
 		t.Fatalf("waited %v for two ExternalSecrets, want one Wait of 100ms", time.Since(start))
 	}
 }
+
+func TestRunningPod(t *testing.T) {
+	ctx := context.Background()
+	selector := &metav1.LabelSelector{MatchLabels: map[string]string{"app": "paperless"}}
+	pod := func(name string, phase corev1.PodPhase, ready corev1.ConditionStatus, labels map[string]string) *corev1.Pod {
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "paperless", Labels: labels},
+			Status:     corev1.PodStatus{Phase: phase, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: ready}}},
+		}
+	}
+	app := map[string]string{"app": "paperless"}
+	kube := fake.NewClientset(
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "paperless", Namespace: "paperless"}, Spec: appsv1.DeploymentSpec{Selector: selector}},
+		pod("starting", corev1.PodRunning, corev1.ConditionFalse, app),
+		pod("other", corev1.PodRunning, corev1.ConditionTrue, map[string]string{"app": "redis"}),
+		pod("done", corev1.PodSucceeded, corev1.ConditionFalse, app),
+	)
+	if name, err := RunningPod(ctx, kube, "paperless", Ref{"Deployment", "paperless"}); err == nil {
+		t.Fatalf("no pod is ready, yet RunningPod chose %s", name)
+	}
+	_, _ = kube.CoreV1().Pods("paperless").Create(ctx, pod("ready", corev1.PodRunning, corev1.ConditionTrue, app), metav1.CreateOptions{})
+	if name, err := RunningPod(ctx, kube, "paperless", Ref{"Deployment", "paperless"}); err != nil || name != "ready" {
+		t.Fatalf("RunningPod = %q, %v", name, err)
+	}
+	if _, err := RunningPod(ctx, kube, "paperless", Ref{"DaemonSet", "x"}); err == nil {
+		t.Fatal("a DaemonSet was accepted")
+	}
+}

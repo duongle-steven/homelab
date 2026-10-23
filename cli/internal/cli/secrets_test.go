@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +36,8 @@ func (m memoryRecords) Set(_ context.Context, e rotate.Entry, r rotate.Record) e
 	return nil
 }
 
-// fakeRotation replaces newRotation: app passwords use a counting method, grafana has one replica
+// fakeRotation replaces newRotation: app passwords and generated secrets use a counting method, every workload has
+// one replica
 func fakeRotation(t *testing.T, records memoryRecords) *int {
 	t.Helper()
 	calls := new(int)
@@ -44,7 +46,7 @@ func fakeRotation(t *testing.T, records memoryRecords) *int {
 		return &rotation{
 			Rotator: &rotate.Rotator{
 				Entries: entries,
-				Methods: map[rotate.Kind]rotate.Method{rotate.KindAppPassword: countingMethod{calls}},
+				Methods: map[rotate.Kind]rotate.Method{rotate.KindAppPassword: countingMethod{calls}, rotate.KindGenerated: countingMethod{calls}},
 				Store:   records,
 				Backups: func(context.Context) ([]backup.Run, error) {
 					return []backup.Run{{Name: "daily-1", Schedule: "daily", Phase: "Completed", Started: time.Now().Add(-time.Hour)}}, nil
@@ -86,7 +88,11 @@ func TestSecretsRotateAsksFirst(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "--yes") {
 		t.Fatalf("error = %v", err)
 	}
-	if !strings.Contains(out, "restarts Deployment grafana/grafana (one replica: it stops briefly)") {
+	if !strings.Contains(out, "changes it in grafana first, then in OpenBao; no restart") || strings.Contains(out, "restarts") {
+		t.Fatalf("plan = %q", out)
+	}
+	out, _ = runLab(t, "", false, "secrets", "rotate", "ntfy.alerts-password")
+	if !strings.Contains(out, "restarts Deployment ntfy/ntfy (one replica: it stops briefly)") {
 		t.Fatalf("plan = %q", out)
 	}
 	if *calls != 0 {
@@ -173,14 +179,43 @@ func TestIdleWoodpecker(t *testing.T) {
 		}
 	}
 	server := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "woodpecker-server-0", Namespace: "woodpecker"}, Status: corev1.PodStatus{Phase: corev1.PodRunning}}
-	if ok, err := idle(ctx, fake.NewClientset(server, step("done", corev1.PodSucceeded)), "woodpecker"); err != nil || !ok {
+	if ok, err := idle(ctx, fake.NewClientset(server, step("done", corev1.PodSucceeded)), nil, "woodpecker"); err != nil || !ok {
 		t.Fatalf("no running step: %v, %v", ok, err)
 	}
-	if ok, err := idle(ctx, fake.NewClientset(server, step("build", corev1.PodRunning)), "woodpecker"); err != nil || ok {
+	if ok, err := idle(ctx, fake.NewClientset(server, step("build", corev1.PodRunning)), nil, "woodpecker"); err != nil || ok {
 		t.Fatalf("a running step: %v, %v", ok, err)
 	}
-	if _, err := idle(ctx, fake.NewClientset(), "paperless"); err == nil {
+	if _, err := idle(ctx, fake.NewClientset(), nil, "nothing"); err == nil {
 		t.Fatal("an unknown idle check reported idle")
+	}
+}
+
+// redisExec answers paperless's queue count
+type redisExec struct {
+	out     string
+	command *[]string
+}
+
+func (r redisExec) Exec(_ context.Context, namespace string, w workload.Ref, container string, command []string, _ io.Reader, stdout io.Writer) error {
+	*r.command = append([]string{namespace, w.Name, container}, command...)
+	_, err := io.WriteString(stdout, r.out)
+	return err
+}
+
+func TestIdlePaperless(t *testing.T) {
+	ctx := context.Background()
+	var command []string
+	if ok, err := idle(ctx, fake.NewClientset(), redisExec{out: "0\n", command: &command}, "paperless"); err != nil || !ok {
+		t.Fatalf("an empty queue: %v, %v", ok, err)
+	}
+	if !slices.Equal(command[:4], []string{"paperless", "paperless", "redis", "redis-cli"}) {
+		t.Fatalf("ran %q", command)
+	}
+	if ok, err := idle(ctx, fake.NewClientset(), redisExec{out: "2\n", command: &command}, "paperless"); err != nil || ok {
+		t.Fatalf("two queued tasks: %v, %v", ok, err)
+	}
+	if _, err := idle(ctx, fake.NewClientset(), redisExec{out: "ERR\n", command: &command}, "paperless"); err == nil {
+		t.Fatal("a redis error reported idle")
 	}
 }
 

@@ -1,16 +1,19 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/duongle-steven/homelab/cli/internal/backup"
+	"github.com/duongle-steven/homelab/cli/internal/forgejo"
 	"github.com/duongle-steven/homelab/cli/internal/rotate"
 	"github.com/duongle-steven/homelab/cli/internal/secrets"
 	"github.com/duongle-steven/homelab/cli/internal/workload"
@@ -201,16 +204,43 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 		return nil, err
 	}
 	b := backup.New(dyn, kube)
+	workloads := &workload.Client{Kube: kube, Dyn: dyn, Poll: 5 * time.Second, Wait: 10 * time.Minute}
+	pods := workload.Exec{Kube: kube, Config: config}
+	// Forgejo's endpoint is reached only when a rotation needs it (the sandbox's asks docker for the node)
+	var cleanups []func()
+	var ep *forgejo.Endpoint
+	endpoint := func(ctx context.Context) (forgejo.Endpoint, error) {
+		if ep != nil {
+			return *ep, nil
+		}
+		found, cleanup := forgejo.ProductionEndpoint(e.Domain), func() {}
+		if e.Name == "sandbox" {
+			var err error
+			if found, cleanup, err = sandboxEndpoint(ctx, kube, e.Domain); err != nil {
+				return forgejo.Endpoint{}, err
+			}
+		}
+		cleanups = append(cleanups, cleanup)
+		ep = &found
+		return found, nil
+	}
 	return &rotation{
 		Rotator: &rotate.Rotator{
 			Entries: entries,
 			// Each kind's method comes with its own task (docs/superpowers/plans/2026-10-24-secrets-rotation.md)
-			Methods: map[rotate.Kind]rotate.Method{},
-			Store:   rotate.OpenBaoRecords{Store: store},
+			Methods: map[rotate.Kind]rotate.Method{
+				rotate.KindGenerated: rotate.Generated{Store: store, Workloads: workloads},
+				rotate.KindAppPassword: rotate.AppPassword{Store: store, Workloads: workloads, Apps: map[string]rotate.App{
+					"forgejo":   rotate.ForgejoAdmin{Endpoint: endpoint},
+					"grafana":   rotate.GrafanaAdmin{Exec: pods},
+					"paperless": rotate.PaperlessAdmin{Exec: pods},
+				}},
+			},
+			Store: rotate.OpenBaoRecords{Store: store},
 			// The CronJob's namespace (Task 9), which a person's run reaches too
 			Lock:    &rotate.LeaseLocker{Kube: kube, Namespace: "secrets-rotation", Out: cmd.OutOrStdout()},
 			Backups: b.Runs,
-			Idle:    func(ctx context.Context, what string) (bool, error) { return idle(ctx, kube, what) },
+			Idle:    func(ctx context.Context, what string) (bool, error) { return idle(ctx, kube, pods, what) },
 			Out:     cmd.OutOrStdout(),
 			Poll:    15 * time.Second,
 			Wait:    30 * time.Minute,
@@ -218,29 +248,55 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 		Replicas: func(ctx context.Context, namespace string, w workload.Ref) (int32, error) {
 			return replicas(ctx, kube, namespace, w)
 		},
-		Close: store.Close,
+		Close: func(ctx context.Context) error {
+			for _, c := range cleanups {
+				c()
+			}
+			return store.Close(ctx)
+		},
 	}, nil
 }
 
+// paperlessQueued counts the Celery messages in paperless's redis: those waiting in its queues (the lists celery*)
+// and those a worker took but has not acknowledged (the hash unacked, kombu's redis transport)
+const paperlessQueued = `local n = redis.call('HLEN', 'unacked')
+for _, k in ipairs(redis.call('KEYS', 'celery*')) do
+  if redis.call('TYPE', k).ok == 'list' then n = n + redis.call('LLEN', k) end
+end
+return n`
+
 // idle reports whether what has nothing running that a restart would break.
-func idle(ctx context.Context, kube kubernetes.Interface, what string) (bool, error) {
+func idle(ctx context.Context, kube kubernetes.Interface, pods rotate.Executor, what string) (bool, error) {
 	switch what {
 	case "woodpecker":
 		// A running step pod carries the label woodpecker-ci.org/step (Task 1's finding).
 		// TODO(Task 8): Woodpecker's method may also read the server's queue (GET /api/queue/info).
-		pods, err := kube.CoreV1().Pods("woodpecker").List(ctx, metav1.ListOptions{LabelSelector: "woodpecker-ci.org/step"})
+		steps, err := kube.CoreV1().Pods("woodpecker").List(ctx, metav1.ListOptions{LabelSelector: "woodpecker-ci.org/step"})
 		if err != nil {
 			return false, fmt.Errorf("list Woodpecker's step pods: %w", err)
 		}
-		for _, p := range pods.Items {
+		for _, p := range steps.Items {
 			if p.Status.Phase == corev1.PodPending || p.Status.Phase == corev1.PodRunning {
 				return false, nil
 			}
 		}
 		return true, nil
+	case "paperless":
+		// No queued task (Task 1's finding): its Celery messages are signed with the secret key, so one queued under
+		// the old key fails. redis runs in paperless's pod, so the restart empties the queue anyway; this keeps a
+		// queued document from being dropped. A task already running gets the pod's termination grace period.
+		var out bytes.Buffer
+		if err := pods.Exec(ctx, "paperless", workload.Ref{Kind: "Deployment", Name: "paperless"}, "redis",
+			[]string{"redis-cli", "EVAL", paperlessQueued, "0"}, nil, &out); err != nil {
+			return false, fmt.Errorf("count paperless's queued tasks: %w", err)
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(out.String()))
+		if err != nil {
+			return false, fmt.Errorf("count paperless's queued tasks: redis answered %q", strings.TrimSpace(out.String()))
+		}
+		return n == 0, nil
 	}
-	// TODO(Task 5): paperless's idle check (no queued consumption task) comes with the generated secrets' method
-	return false, fmt.Errorf("no idle check for %s yet", what)
+	return false, fmt.Errorf("no idle check for %s", what)
 }
 
 func replicas(ctx context.Context, kube kubernetes.Interface, namespace string, w workload.Ref) (int32, error) {
@@ -288,9 +344,16 @@ func printPlan(ctx context.Context, out io.Writer, rot *rotation, plan []rotate.
 		if e.Idle != "" {
 			fmt.Fprintf(out, "    waits until %s is idle\n", e.Idle)
 		}
+		if e.Kind == rotate.KindAppPassword {
+			fmt.Fprintf(out, "    changes it in %s first, then in OpenBao; no restart\n", e.Settings["app"])
+		}
 		for _, r := range e.Readers {
 			if r.People {
 				fmt.Fprintln(out, "    people must act: they re-enter the new value")
+				continue
+			}
+			// An app password's workload only runs the app's command
+			if e.Kind == rotate.KindAppPassword {
 				continue
 			}
 			for _, w := range r.Workloads {
