@@ -879,9 +879,5 @@ func (c *Client) restartWorkloads(ctx context.Context, ns string) error {
 // waitWorkloads waits for the app's Deployments and StatefulSets to be ready, restarting crash-looping pods once each
 // like waitHealthy
 func (c *Client) waitWorkloads(ctx context.Context, app string) error {
-	refs, err := c.workload().Workloads(ctx, app)
-	if err != nil {
-		return err
-	}
-	return c.workload().WaitReady(ctx, app, refs)
+	return c.workload().WaitNamespaceReady(ctx, app)
 }

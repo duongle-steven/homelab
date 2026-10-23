@@ -101,7 +101,7 @@ func TestRestartSkipsKanidmStatefulSets(t *testing.T) {
 }
 
 func TestWaitReadyRestartsCrashLoopingPodsOnce(t *testing.T) {
-	deployments := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "app"}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)}}
+	deployments := rolledOut("app", 0, 0)
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "app-0"}, Status: corev1.PodStatus{
 		ContainerStatuses: []corev1.ContainerStatus{{State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}}}},
 	}}
@@ -112,7 +112,7 @@ func TestWaitReadyRestartsCrashLoopingPodsOnce(t *testing.T) {
 		// the fake holds its lock inside a reaction: the replacement pod becomes ready from another goroutine
 		go func() {
 			d := deployments.DeepCopy()
-			d.Status.ReadyReplicas = 1
+			d.Status.ReadyReplicas, d.Status.AvailableReplicas, d.Status.UpdatedReplicas = 1, 1, 1
 			_, _ = kube.AppsV1().Deployments("ns").UpdateStatus(context.Background(), d, metav1.UpdateOptions{})
 		}()
 		return false, nil, nil
@@ -123,5 +123,123 @@ func TestWaitReadyRestartsCrashLoopingPodsOnce(t *testing.T) {
 	}
 	if deletes != 1 {
 		t.Fatalf("pod deleted %d times, want once", deletes)
+	}
+}
+
+func rolledOut(name string, ready, updated int32) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: name, Generation: 2},
+		Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)},
+		Status:     appsv1.DeploymentStatus{ObservedGeneration: 2, Replicas: 1, ReadyReplicas: ready, AvailableReplicas: ready, UpdatedReplicas: updated},
+	}
+}
+
+// Right after Restart the old pods are still ready: only a finished rollout counts
+func TestWaitReadyRequiresCompleteRollout(t *testing.T) {
+	for name, tc := range map[string]struct {
+		stale, done runtime.Object
+	}{
+		"deployment": {
+			stale: rolledOut("app", 1, 0),
+			done:  rolledOut("app", 1, 1),
+		},
+		"statefulset": {
+			stale: &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "app", Generation: 2}, Spec: appsv1.StatefulSetSpec{Replicas: ptr.To[int32](1)},
+				Status: appsv1.StatefulSetStatus{ObservedGeneration: 2, ReadyReplicas: 1, UpdatedReplicas: 0, CurrentRevision: "a", UpdateRevision: "b"}},
+			done: &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "app", Generation: 2}, Spec: appsv1.StatefulSetSpec{Replicas: ptr.To[int32](1)},
+				Status: appsv1.StatefulSetStatus{ObservedGeneration: 2, ReadyReplicas: 1, UpdatedReplicas: 1, CurrentRevision: "b", UpdateRevision: "b"}},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			kind := map[string]string{"deployment": "Deployment", "statefulset": "StatefulSet"}[name]
+			kube := fake.NewClientset(tc.stale)
+			c := &Client{Kube: kube, Poll: time.Millisecond, Wait: 50 * time.Millisecond}
+			if err := c.WaitReady(context.Background(), "ns", []Ref{{kind, "app"}}); err == nil {
+				t.Fatal("old pods still ready, rollout not done: WaitReady returned")
+			}
+			c.Wait = 2 * time.Second
+			go func() {
+				time.Sleep(30 * time.Millisecond)
+				if d, ok := tc.done.(*appsv1.Deployment); ok {
+					_, _ = kube.AppsV1().Deployments("ns").Update(context.Background(), d, metav1.UpdateOptions{})
+				} else {
+					_, _ = kube.AppsV1().StatefulSets("ns").Update(context.Background(), tc.done.(*appsv1.StatefulSet), metav1.UpdateOptions{})
+				}
+			}()
+			if err := c.WaitReady(context.Background(), "ns", []Ref{{kind, "app"}}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// A NotFound (recreated by Argo CD) is not ready yet, not an error
+func TestWaitReadyToleratesARecreatedWorkload(t *testing.T) {
+	kube := fake.NewClientset()
+	c := &Client{Kube: kube, Poll: time.Millisecond, Wait: 2 * time.Second}
+	go func() {
+		time.Sleep(30 * time.Millisecond)
+		_, _ = kube.AppsV1().Deployments("ns").Create(context.Background(), rolledOut("app", 1, 1), metav1.CreateOptions{})
+	}()
+	if err := c.WaitReady(context.Background(), "ns", []Ref{{"Deployment", "app"}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// backup's wait: the namespace's workloads are listed at every poll, so one created later is waited for
+func TestWaitNamespaceReadyRelists(t *testing.T) {
+	kube := fake.NewClientset(rolledOut("first", 0, 0))
+	c := &Client{Kube: kube, Poll: time.Millisecond, Wait: 2 * time.Second}
+	go func() {
+		time.Sleep(30 * time.Millisecond)
+		// "late" appears in the poll that sees "first" ready
+		_, _ = kube.AppsV1().Deployments("ns").Create(context.Background(), rolledOut("late", 0, 0), metav1.CreateOptions{})
+		_, _ = kube.AppsV1().Deployments("ns").Update(context.Background(), rolledOut("first", 1, 1), metav1.UpdateOptions{})
+		time.Sleep(60 * time.Millisecond)
+		_, _ = kube.AppsV1().Deployments("ns").Update(context.Background(), rolledOut("late", 1, 1), metav1.UpdateOptions{})
+	}()
+	start := time.Now()
+	if err := c.WaitNamespaceReady(context.Background(), "ns"); err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(start) < 85*time.Millisecond {
+		t.Fatalf("returned after %v, before the late workload was ready", time.Since(start))
+	}
+}
+
+func TestUnknownKindNamesIt(t *testing.T) {
+	c := &Client{Kube: fake.NewClientset(), Poll: time.Millisecond, Wait: 50 * time.Millisecond}
+	refs := []Ref{{"DaemonSet", "x"}}
+	if err := c.Restart(context.Background(), "ns", refs); err == nil || !strings.Contains(err.Error(), "DaemonSet") {
+		t.Fatalf("Restart err = %v", err)
+	}
+	if err := c.WaitReady(context.Background(), "ns", refs); err == nil || !strings.Contains(err.Error(), "DaemonSet") {
+		t.Fatalf("WaitReady err = %v", err)
+	}
+}
+
+func TestRefreshedComparesTimes(t *testing.T) {
+	// as text "…:00.5Z" sorts before "…:00Z"
+	if !refreshed(externalSecret("ns", "x", "2026-10-23T10:00:00.5Z"), "2026-10-23T10:00:00Z") {
+		t.Fatal("a refresh half a second later was not seen")
+	}
+	if refreshed(externalSecret("ns", "x", "2026-10-23T10:00:00Z"), "2026-10-23T10:00:00Z") {
+		t.Fatal("the same refresh counted as new")
+	}
+}
+
+func TestRefreshExternalSecretsOneDeadline(t *testing.T) {
+	dyn := dynFake(externalSecret("ns", "a", "2026-10-23T10:00:00Z"), externalSecret("ns", "b", "2026-10-23T10:00:00Z"))
+	c := &Client{Dyn: dyn, Kube: fake.NewClientset(), Poll: time.Millisecond, Wait: 100 * time.Millisecond}
+	go func() {
+		time.Sleep(70 * time.Millisecond)
+		_, _ = dyn.Resource(ExternalSecrets).Namespace("ns").Update(context.Background(), externalSecret("ns", "a", "2026-10-23T10:05:00Z"), metav1.UpdateOptions{})
+	}()
+	start := time.Now()
+	if err := c.RefreshExternalSecrets(context.Background(), "ns", []string{"a", "b"}); err == nil {
+		t.Fatal("b never refreshed, no error")
+	}
+	if time.Since(start) > 140*time.Millisecond {
+		t.Fatalf("waited %v for two ExternalSecrets, want one Wait of 100ms", time.Since(start))
 	}
 }

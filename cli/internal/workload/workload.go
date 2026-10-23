@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -68,24 +70,34 @@ func (c *Client) RefreshExternalSecrets(ctx context.Context, namespace string, n
 	if err := c.ForceSync(ctx, namespace, names); err != nil {
 		return err
 	}
+	pending := map[string]bool{}
 	for _, name := range names {
-		if err := c.Until(ctx, "ExternalSecret "+namespace+"/"+name+" refreshed and Ready", func() (bool, error) {
+		pending[name] = true
+	}
+	// one deadline for all of them
+	return c.Until(ctx, "ExternalSecrets "+namespace+"/"+strings.Join(names, ",")+" refreshed and Ready", func() (bool, error) {
+		for name := range pending {
 			es, err := c.Dyn.Resource(ExternalSecrets).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 			if err != nil {
 				return false, err
 			}
-			return refreshed(es, before[name]), nil
-		}); err != nil {
-			return err
+			if refreshed(es, before[name]) {
+				delete(pending, name)
+			}
 		}
-	}
-	return nil
+		return len(pending) == 0, nil
+	})
 }
 
-// refreshed: a refreshTime after the one before the annotation (RFC 3339 times of one zone compare as text) and Ready
+// refreshed: a refreshTime after the one before the annotation, and Ready. ESO does not copy the annotation into the
+// status and writes refreshTime in whole seconds, so a refresh in the same second as the previous one is not seen.
 func refreshed(es *unstructured.Unstructured, before string) bool {
 	at, _, _ := unstructured.NestedString(es.Object, "status", "refreshTime")
-	if at == "" || at <= before {
+	now, err := time.Parse(time.RFC3339Nano, at)
+	if err != nil {
+		return false
+	}
+	if was, err := time.Parse(time.RFC3339Nano, before); err == nil && !now.After(was) {
 		return false
 	}
 	conditions, _, _ := unstructured.NestedSlice(es.Object, "status", "conditions")
@@ -148,37 +160,75 @@ func (c *Client) Restart(ctx context.Context, namespace string, workloads []Ref)
 	return nil
 }
 
-// WaitReady waits for these workloads to have all their replicas ready, restarting crash-looping pods of the namespace
-// once each.
+// WaitReady waits for these workloads' rollouts to be complete (every replica updated, ready and available, no old
+// one left), restarting crash-looping pods of the namespace once each. A workload that is missing or cannot be read is
+// not ready yet.
 func (c *Client) WaitReady(ctx context.Context, namespace string, workloads []Ref) error {
+	for _, w := range workloads {
+		if w.Kind != deployment && w.Kind != statefulSet {
+			return fmt.Errorf("workload %s/%s: kind %q is neither a Deployment nor a StatefulSet", namespace, w.Name, w.Kind)
+		}
+	}
 	restarted := map[string]bool{}
 	return c.Until(ctx, namespace+"'s workloads ready", func() (bool, error) {
 		c.RestartCrashLooping(ctx, namespace, restarted)
 		apps := c.Kube.AppsV1()
 		for _, w := range workloads {
-			switch w.Kind {
-			case deployment:
+			if w.Kind == deployment {
 				d, err := apps.Deployments(namespace).Get(ctx, w.Name, metav1.GetOptions{})
-				if err != nil {
-					return false, err
-				}
-				if d.Status.ReadyReplicas < ptr.Deref(d.Spec.Replicas, 1) {
+				if err != nil || !deploymentRolledOut(d) {
 					return false, nil
 				}
-			case statefulSet:
-				s, err := apps.StatefulSets(namespace).Get(ctx, w.Name, metav1.GetOptions{})
-				if err != nil {
-					return false, err
-				}
-				if s.Status.ReadyReplicas < ptr.Deref(s.Spec.Replicas, 1) {
-					return false, nil
-				}
-			default:
-				return false, fmt.Errorf("workload %s/%s: kind %q is neither a Deployment nor a StatefulSet", namespace, w.Name, w.Kind)
+				continue
+			}
+			s, err := apps.StatefulSets(namespace).Get(ctx, w.Name, metav1.GetOptions{})
+			if err != nil || !statefulSetRolledOut(s) {
+				return false, nil
 			}
 		}
 		return true, nil
 	})
+}
+
+// WaitNamespaceReady waits until every Deployment and StatefulSet of the namespace has its replicas ready, listing them
+// again at every poll (one Argo CD creates meanwhile is waited for too), restarting crash-looping pods once each.
+func (c *Client) WaitNamespaceReady(ctx context.Context, namespace string) error {
+	restarted := map[string]bool{}
+	return c.Until(ctx, namespace+"'s workloads ready", func() (bool, error) {
+		c.RestartCrashLooping(ctx, namespace, restarted)
+		apps := c.Kube.AppsV1()
+		deployments, err := apps.Deployments(namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		for _, d := range deployments.Items {
+			if d.Status.ReadyReplicas < ptr.Deref(d.Spec.Replicas, 1) {
+				return false, nil
+			}
+		}
+		statefulSets, err := apps.StatefulSets(namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		for _, st := range statefulSets.Items {
+			if st.Status.ReadyReplicas < ptr.Deref(st.Spec.Replicas, 1) {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+}
+
+func deploymentRolledOut(d *appsv1.Deployment) bool {
+	want := ptr.Deref(d.Spec.Replicas, 1)
+	s := d.Status
+	return s.ObservedGeneration >= d.Generation && s.UpdatedReplicas == want && s.ReadyReplicas == want && s.AvailableReplicas == want && s.Replicas == want
+}
+
+func statefulSetRolledOut(st *appsv1.StatefulSet) bool {
+	want := ptr.Deref(st.Spec.Replicas, 1)
+	s := st.Status
+	return s.ObservedGeneration >= st.Generation && s.UpdatedReplicas == want && s.ReadyReplicas == want && s.CurrentRevision == s.UpdateRevision
 }
 
 // RestartCrashLooping deletes the namespace's crash-looping pods that are not in restarted yet, and adds them to it.
