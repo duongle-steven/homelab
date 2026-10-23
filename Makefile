@@ -37,6 +37,7 @@ dev: sandbox-checkout sandbox-clean
 	if [ -z "$$main$$alone" ]; then echo "make dev: nothing to test in the sandbox (no change outside test/scopes.yaml's skip)"; exit 0; fi; \
 	echo "make dev: main run '$$main', then alone '$$alone'"; \
 	if [ -z "$(revision)" ]; then $(MAKE) sandbox-push; fi && \
+	scripts/warm-image-cache && \
 	(cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$$([ -z "$(revision)" ] || git rev-parse HEAD)" $(terragrunt_apply)) && \
 	if [ -n "$$main" ]; then $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$main" sandbox-refresh smoke-test; fi && \
 	if [ -n "$$alone" ]; then $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; fi
