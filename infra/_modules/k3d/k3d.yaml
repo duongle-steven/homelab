@@ -35,6 +35,10 @@ options:
         nodeFilters: [server:*]
       - arg: --kube-proxy-arg=metrics-bind-address=0.0.0.0
         nodeFilters: [server:*]
+      # Images of the cached registries come only through their cache (main.tf): a direct fallback, taken whenever
+      # the cache answers slower than the node or its registry times out, would leave that image out of the cache
+      - arg: --disable-default-registry-endpoint
+        nodeFilters: [server:*]
   kubeconfig:
     updateDefaultKubeconfig: false
     switchCurrentContext: false
