@@ -110,7 +110,8 @@ same way:
 |---|---|---|---|---|
 | `forgejo.admin`, `grafana.admin`, `paperless.admin` | people; Forgejo's init container and `lab infra forgejo sync` use Forgejo's | change it in the app (its API or CLI), then in OpenBao | 1 (Forgejo's: run while sync and the init container are not running) | command only (human password) |
 | `paperless.secret-key` | paperless (sessions, its Celery messages, the classifier file) | no overlap: paperless has no `SECRET_KEY_FALLBACKS` setting. Change it in OpenBao, refresh, restart paperless while no task is queued; the classifier file fails its check and is retrained by the hourly task | 2 (every session ends, people log in again) | command only |
-| `woodpecker.agent` | Woodpecker agents (per-agent tokens) | overlap: Woodpecker 3's per-agent tokens. `lab` creates a new agent token (`POST /api/agents`, admin API), writes it to OpenBao, restarts the agent once no step pod runs (label `woodpecker-ci.org/step`), then deletes the old agent (`DELETE /api/agents/<id>`), which revokes its token. The server's shared `WOODPECKER_AGENT_SECRET` is dropped (empty: only per-agent tokens), because changing it never revokes the old value (amendment 3) | n/a | 90 days |
+| `woodpecker.agent` | Woodpecker agents: one per-agent token for each agent replica, at `secret/woodpecker/agent-<n>` (`<n>` the StatefulSet ordinal); the server's shared `WOODPECKER_AGENT_SECRET` is emptied | overlap: Woodpecker 3's per-agent tokens. `lab` creates a new agent token (`POST /api/agents`, admin API, with `woodpecker.admin-token`), writes it to the replica's path, restarts that agent once no step pod runs (label `woodpecker-ci.org/step`), then deletes the old agent (`DELETE /api/agents/<id>`), which revokes its token. The shared secret is dropped because changing it never revokes the old value (amendment 3) | n/a | 90 days |
+| `woodpecker.admin-token` (`secret/woodpecker/admin-token`, new) | `lab` only (Woodpecker's admin API, for `woodpecker.agent` and `registry.ci`'s org secret) | Woodpecker's token reset: `DELETE /api/user/token` with the current token signs a new one and invalidates every earlier token of that user (and its web sessions); `lab` writes the new one to OpenBao. The first token needs a person: Forgejo's site admin (`WOODPECKER_ADMIN`) signs in to Woodpecker once and writes it with the admin role, as `docs/how-to-guides/woodpecker.md` will say | 1 (only `lab` reads it) | 90 days |
 | `registry.ci` | zot's htpasswd, Woodpecker's org secret `registry_password` (set by hand today, `docs/how-to-guides/woodpecker.md`) | change in OpenBao and zot, then the org secret through Woodpecker's API | 2 (wait for no running pipeline) | 90 days |
 | `ntfy.alerts-token` | ntfy (`NTFY_AUTH_TOKENS`), Alertmanager (`credentials_file`) | overlap: ntfy accepts several tokens per user. Add the new one (ntfy restarts), switch OpenBao's value (Alertmanager reads the file at every notification, no restart), then drop the old (ntfy restarts and removes it from `auth.db`) | n/a | 90 days |
 | `ntfy.alerts-password` | none at runtime (only ntfy's own `NTFY_AUTH_USERS`; confirmed) | change it in OpenBao, refresh `ntfy-auth`, restart ntfy | 1 | 90 days |
@@ -201,7 +202,7 @@ an annotation, chosen by the builder. `lab secrets list` shows the last rotation
 
 ### 10. Tests and the spike
 
-- **Task 1 is a spike on the sandbox**, as 11a's was. It confirms the *spike* methods in the catalog:
+- **Task 1 was a spike on the sandbox**, as 11a's was. It confirmed the methods the catalog marked *spike*:
   - Woodpecker's agent tokens;
   - `SECRET_KEY_FALLBACKS` in paperless;
   - how to trigger kaniop's rotation once, and whether its readers restart cleanly;
@@ -210,7 +211,7 @@ an annotation, chosen by the builder. `lab secrets list` shows the last rotation
   - Kopia's password through Velero;
   - whether Alertmanager re-reads `credentials_file`, so no restart is needed.
 
-  It also confirms that no secret is class 3. Its findings amend this spec before the plan continues.
+  It also confirmed that no secret is class 3. Its findings are in the catalog above and in the Amendments.
 - `make dev` gains `TestSecretsRotation`. For each method, on at least one secret, it proves:
   - the new value works;
   - with an overlap, both values work during the window;
@@ -237,8 +238,9 @@ catalog above or a decision:
    schedule (never rotate at 02:00, its daily run). This comes from the provider's, cert-manager's and external-dns's
    source; no plan ran against production's state. It joins the production checklist: confirm at the first
    production rotation.
-2. **No metric per secret.** Decision 6 dropped the per-secret Prometheus metric. Failures and overdue rotations come
-   from the scheduled Job and CronJob through kube-state-metrics (a failed Job, a CronJob without a recent success),
+2. **No metric per secret.** The spike amended decision 6: it has no per-secret Prometheus metric. Failures and
+   overdue rotations come from the scheduled Job and CronJob through kube-state-metrics (a failed Job, a CronJob
+   without a recent success),
    and `lab secrets list` shows each secret's last rotation and due date.
 3. **Woodpecker's agent secret becomes per-agent tokens.** Changing the shared `WOODPECKER_AGENT_SECRET` never revokes
    the old value: a system agent stores the secret it registered with as its own token, and the server accepts that
@@ -246,7 +248,9 @@ catalog above or a decision:
    the server's shared secret is dropped (empty) and every agent gets its own token from the admin API, which gives
    an official overlap: a new token beside the old, then the old agent deleted. Agent pods that share one token share
    one agent, so each replica needs its own token. `lab` needs a Woodpecker admin token for this (the admin is
-   Forgejo's site admin, `WOODPECKER_ADMIN`). A running step pod carries the label `woodpecker-ci.org/step`.
+   Forgejo's site admin, `WOODPECKER_ADMIN`): the catalog's new `woodpecker.admin-token`. A running step pod carries
+   the label `woodpecker-ci.org/step`. `woodpecker.agent`'s work (per-agent tokens, the emptied shared secret) moves to
+   the plan's Task 8 (controller ruling).
 4. **paperless's secret key has no fallback.** paperless 3.3 does not expose `SECRET_KEY_FALLBACKS`, so a new key
    ends every session (class 2). The key also signs paperless's Celery messages and its classifier file: restart
    while no task is queued; the classifier is retrained by its hourly task.
@@ -274,5 +278,5 @@ catalog above or a decision:
 
 ## Left to the builder
 
-The catalog's format, the record's location, the metric's name, the CronJob's namespace and RBAC, the overdue
+The catalog's format, the record's location, the CronJob's namespace and RBAC, the overdue
 margin, and the order `--all` uses. Pick sensible defaults and state them in the plan.
