@@ -69,6 +69,8 @@ groups:
       - infra/_modules/argocd/**
       - infra/sandbox/argocd/**
       - infra/_modules/k3d/**
+      # Fills the k3d module's image caches before a build
+      - scripts/warm-image-cache
       - infra/sandbox/cluster/**
       - infra/root.hcl
       - scripts/env-values
