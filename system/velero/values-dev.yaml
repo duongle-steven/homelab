@@ -1,18 +1,11 @@
-velero:
-  configuration:
-    backupStorageLocation:
-      - name: default
-        default: true
-        provider: aws
-        bucket: velero
-        accessMode: ReadOnly
-        config:
-          region: us-east-1
-          s3ForcePathStyle: "true"
-          checksumAlgorithm: ""
-          # The data mover (Kopia) reads only s3Url (the AWS plugin also reads the credentials file's endpoint_url),
-          # and without it dials AWS
-          s3Url: http://s3.velero:7070
+# The sandbox's S3 server (templates/s3-dev.yaml)
+backupStorageLocation:
+  bucket: velero
+  s3Url: http://s3.velero:7070
+  config:
+    region: us-east-1
+    s3ForcePathStyle: "true"
+    checksumAlgorithm: ""
 credentials:
   password: {key: velero/generated/encryption, property: password}
 # The sandbox has no R2: an S3 server in this namespace (templates/s3-dev.yaml), its secret key generated

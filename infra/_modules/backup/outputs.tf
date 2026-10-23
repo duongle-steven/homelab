@@ -17,3 +17,9 @@ output "secrets" {
     }
   }
 }
+
+# R2's S3 endpoint for Velero's location (infra/production/argocd passes it as global.backupS3Url): the data mover
+# reads only the location's s3Url, not the credentials file's endpoint_url
+output "endpoint" {
+  value = "https://${local.account_id}.r2.cloudflarestorage.com"
+}

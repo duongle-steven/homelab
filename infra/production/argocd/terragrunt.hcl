@@ -8,10 +8,19 @@ terraform {
   source = "${find_in_parent_folders("_modules")}//argocd"
 }
 
+# Velero's location needs R2's endpoint, which holds the account id (never in git)
+dependency "backup" {
+  config_path = "../backup"
+  # make -C infra check validates without applying
+  mock_outputs                            = { endpoint = "https://account.r2.cloudflarestorage.com" }
+  mock_outputs_allowed_terraform_commands = ["validate", "init"]
+}
+
 inputs = {
   chart           = "${get_repo_root()}/system/argocd"
   values          = "values.yaml"
   environment     = "prod"
   seed            = "values-seed.yaml"
   seed_repository = jsondecode(file("${get_terragrunt_dir()}/../cluster/config.json")).seed_repository
+  backup_s3_url   = dependency.backup.outputs.endpoint
 }

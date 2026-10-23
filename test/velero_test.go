@@ -9,9 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func renderVelero(t *testing.T, target, env, expr string) string {
+func renderVelero(t *testing.T, target, env, expr string, helmArgs ...string) string {
 	t.Helper()
-	cmd := exec.Command("sh", "-c", `scripts/render-chart "$1" $2 | yq -N "$0"`, expr, target, env)
+	if env == "" {
+		env = "prod"
+	}
+	cmd := exec.Command("sh", append([]string{"-c", `scripts/render-chart "$@" | yq -N "$0"`, expr, target, env}, helmArgs...)...)
 	cmd.Dir = ".."
 	// stdout only: helm may report a chart it pulled on stderr
 	var stderr strings.Builder
@@ -21,15 +24,23 @@ func renderVelero(t *testing.T, target, env, expr string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// Velero's data mover (Kopia) takes the endpoint only from the location's s3Url, and without it dials AWS: the sandbox's
+// S3 server is in its values, production's R2 endpoint (with the account id) only comes from the bootstrap
+func TestVeleroLocationEndpoint(t *testing.T) {
+	s3Url := `select(.kind == "BackupStorageLocation" and .metadata.name == "default") | .spec.config.s3Url`
+	assert.Equal(t, "http://s3.velero:7070", renderVelero(t, "system/velero", "dev", s3Url))
+	assert.Equal(t, "null", renderVelero(t, "system/velero", "prod", s3Url), "an endpoint in git")
+	assert.Equal(t, "https://account.r2.cloudflarestorage.com",
+		renderVelero(t, "system/velero", "prod", s3Url, "--set-string", "global.backupS3Url=https://account.r2.cloudflarestorage.com"))
+	// The chart's own location is off: one location, the wrapper's
+	assert.Equal(t, "default", renderVelero(t, "system/velero", "prod", `select(.kind == "BackupStorageLocation") | .metadata.name`))
+}
+
 // docs/superpowers/specs/2026-10-22-backups-design.md, decisions 2, 3, 6, 8 and 9
 func TestVeleroRender(t *testing.T) {
 	for _, env := range []string{"", "dev"} {
 		t.Run("env="+env, func(t *testing.T) {
 			get := func(expr string) string { return renderVelero(t, "system/velero", env, expr) }
-			// Velero's data mover (Kopia) takes the endpoint only from s3Url; without it, it dials AWS
-			if env == "dev" {
-				assert.Equal(t, "http://s3.velero:7070", get(`select(.kind == "BackupStorageLocation" and .metadata.name == "default") | .spec.config.s3Url`))
-			}
 			// Every new cluster starts unable to write or delete backups; lab backup enable switches it
 			assert.Equal(t, "ReadOnly", get(`select(.kind == "BackupStorageLocation" and .metadata.name == "default") | .spec.accessMode`))
 			schedule := `select(.kind == "Schedule" and .metadata.name == "daily") | `

@@ -1,12 +1,14 @@
 #!/bin/sh
 # Render a component the same way ArgoCD does.
-# Usage: scripts/render-chart <chart-dir> [env]      wrapper chart: values.yaml, then values-<env>.yaml if it exists
-#        scripts/render-chart apps/<name>.yaml [env]  app file: app-template with the ApplicationSet "apps" parameters
+# Usage: scripts/render-chart <chart-dir> [env [helm-args...]]      wrapper chart: values.yaml, then values-<env>.yaml if it exists
+#        scripts/render-chart apps/<name>.yaml [env [helm-args...]]  app file: app-template with the ApplicationSet "apps" parameters
+# helm-args reach helm template as they are (a --set a value only the bootstrap passes, such as global.backupS3Url)
 set -euf
 target="$1"
 env="${2:-prod}"
 argocd=system/argocd
-set --
+shift
+[ $# -eq 0 ] || shift
 # ArgoCD passes the cluster's API versions; charts pick Gateway API versions from them
 set -- "$@" --api-versions gateway.networking.k8s.io/v1
 for kind in Gateway HTTPRoute TCPRoute BackendTLSPolicy ReferenceGrant; do

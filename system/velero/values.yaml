@@ -29,19 +29,9 @@ velero:
     features: EnableCSI
     # Retention is by count (templates/prune.yaml), never by age
     defaultBackupTTL: 87600h0m0s
-    backupStorageLocation:
-      - name: default
-        default: true
-        provider: aws
-        bucket: homelab-production-backup
-        # Every new cluster starts read-only (Argo CD ignores this field, root ApplicationSet); lab backup enable
-        # makes it ReadWrite
-        accessMode: ReadOnly
-        config:
-          region: auto
-          s3ForcePathStyle: "true"
-          checksumAlgorithm: ""
-          # No s3Url: R2's endpoint holds the account id, so it comes from the credentials file (endpoint_url)
+    # The location comes from templates/backup-storage-location.yaml (its endpoint is a global the chart cannot
+    # template)
+    backupStorageLocation: []
   credentials:
     existingSecret: velero-credentials
   # Velero writes a default repository password when this Secret is missing: mounting it makes the pod wait for
@@ -61,6 +51,17 @@ velero:
       enabled: true
   resources:
     requests: {cpu: 10m, memory: 64Mi}
+# The off-site location (templates/backup-storage-location.yaml). Every new cluster starts read-only (Argo CD ignores
+# accessMode, root ApplicationSet); lab backup enable makes it ReadWrite. Velero's data mover (Kopia) takes the endpoint
+# only from s3Url, and without it dials AWS: R2's endpoint holds the account id, so production's bootstrap passes it as
+# global.backupS3Url (infra/production/argocd, from infra/production/backup), never in git; s3Url here is the fallback
+backupStorageLocation:
+  bucket: homelab-production-backup
+  s3Url: ""
+  config:
+    region: auto
+    s3ForcePathStyle: "true"
+    checksumAlgorithm: ""
 # Off-site copies of the volumes labelled daily, at 02:00 in global.timezone (templates/schedule.yaml)
 schedule: "0 2 * * *"
 # Copies kept per schedule and per app (templates/prune.yaml)
