@@ -327,10 +327,10 @@ func scale(replicas int32) []byte {
 	return []byte(fmt.Sprintf(`{"spec":{"replicas":%d}}`, replicas))
 }
 
-// stop takes the app off its volumes: Deployments and StatefulSets to 0, kaniop's Kanidm through its replicas,
-// CloudNativePG clusters hibernated, CronJobs suspended; then it waits for no pod to mount the claims, deleting the
-// finished ones (a finished pod still holds its claim). What it changes
-// is saved first (a workload a failed run already stopped keeps the replicas saved then).
+// stop takes the app off its volumes: Deployments and StatefulSets to 0, kaniop's Kanidm through its replicas (and
+// its StatefulSets: kaniop stops with the Deployments), CloudNativePG clusters hibernated, CronJobs suspended; then it
+// waits for no pod to mount the claims, deleting the finished ones (a finished pod still holds its claim). What it
+// changes is saved first (a workload a failed run already stopped keeps the replicas saved then).
 func (c *Client) stop(ctx context.Context, app string, claims []corev1.PersistentVolumeClaim, s *savedApp) error {
 	if s.Deployments == nil {
 		s.Deployments = map[string]int32{}
@@ -366,8 +366,10 @@ func (c *Client) stop(ctx context.Context, app string, claims []corev1.Persisten
 	if err != nil {
 		return err
 	}
+	var kaniop []string
 	for _, st := range statefulSets.Items {
 		if ownedBy(st.OwnerReferences, "Kanidm") {
+			kaniop = append(kaniop, st.Name)
 			continue
 		}
 		if st.Name == "openbao" {
@@ -415,6 +417,13 @@ func (c *Client) stop(ctx context.Context, app string, claims []corev1.Persisten
 			zero = append(zero, m)
 		}
 		if err := c.patch(ctx, Kanidms, app, name, map[string]any{"spec": map[string]any{"replicaGroups": zero}}); err != nil {
+			return err
+		}
+	}
+	// kaniop stops with its namespace's Deployments, so its StatefulSets go to 0 here too; it starts them again from
+	// the Kanidm once it runs
+	for _, name := range kaniop {
+		if _, err := apps.StatefulSets(app).Patch(ctx, name, types.MergePatchType, scale(0), metav1.PatchOptions{}); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}

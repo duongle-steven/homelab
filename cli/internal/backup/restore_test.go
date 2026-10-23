@@ -449,3 +449,53 @@ func TestRestoreDeletesFinishedPodsOnTheClaims(t *testing.T) {
 		t.Fatalf("a pod on no claim was deleted: %v", err)
 	}
 }
+
+// kaniop runs in Kanidm's namespace: a restore stops it with the other Deployments, so nothing would take Kanidm's
+// StatefulSet down after its replicas go to 0 (the whole-cluster restore waited 30 minutes for kanidm's claim). The
+// restore scales kaniop's StatefulSets itself; kaniop puts them back from the Kanidm once it runs again.
+func TestRestoreStopsKanidmWithoutItsOperator(t *testing.T) {
+	kanidm := &unstructured.Unstructured{Object: map[string]any{
+		"spec": map[string]any{"replicaGroups": []any{map[string]any{"name": "default", "replicas": int64(1)}}},
+	}}
+	kanidm.SetAPIVersion("kaniop.rs/v1beta1")
+	kanidm.SetKind("Kanidm")
+	kanidm.SetNamespace("ntfy")
+	kanidm.SetName("kanidm")
+	c, rec, _ := restoreFixture(t, kanidm)
+	ctx := context.Background()
+	if _, err := c.Kube.AppsV1().StatefulSets("ntfy").Create(ctx, &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: "kanidm-default", OwnerReferences: []metav1.OwnerReference{{Kind: "Kanidm", Name: "kanidm"}}},
+		Spec:       appsv1.StatefulSetSpec{Replicas: ptr.To[int32](1)},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Kube.CoreV1().Pods("ntfy").Create(ctx, &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: "kanidm-default-0"},
+		Spec:       corev1.PodSpec{Volumes: []corev1.Volume{{Name: "data", VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "ntfy"}}}}},
+		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	// No operator: only scaling the StatefulSet itself takes its pod away
+	kube := c.Kube.(*fake.Clientset)
+	kube.PrependReactor("patch", "statefulsets", func(a k8stesting.Action) (bool, runtime.Object, error) {
+		p := a.(k8stesting.PatchAction)
+		if p.GetName() == "kanidm-default" && string(p.GetPatch()) == `{"spec":{"replicas":0}}` {
+			_ = kube.Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), "ntfy", "kanidm-default-0")
+		}
+		return false, nil, nil
+	})
+	if err := c.RestoreApp(ctx, "ntfy", Offsite, time.Time{}, daily); err != nil {
+		t.Fatal(err)
+	}
+	stop := rec.index(t, `patch statefulsets ntfy kanidm-default {"spec":{"replicas":0}}`)
+	if i := rec.indexAll(t, "patch kanidms ntfy kanidm", `"replicas":0`); i > stop {
+		t.Fatalf("the StatefulSet was scaled before its Kanidm (%d > %d)", i, stop)
+	}
+	// Started again by kaniop, from the Kanidm: the restore never scales it up
+	for _, a := range rec.actions {
+		if strings.HasPrefix(a, "patch statefulsets ntfy kanidm-default") && !strings.Contains(a, `"replicas":0`) {
+			t.Fatalf("the restore scaled kaniop's StatefulSet up: %s", a)
+		}
+	}
+}
