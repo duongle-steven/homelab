@@ -26,6 +26,10 @@ func TestVeleroRender(t *testing.T) {
 	for _, env := range []string{"", "dev"} {
 		t.Run("env="+env, func(t *testing.T) {
 			get := func(expr string) string { return renderVelero(t, "system/velero", env, expr) }
+			// Velero's data mover (Kopia) takes the endpoint only from s3Url; without it, it dials AWS
+			if env == "dev" {
+				assert.Equal(t, "http://s3.velero:7070", get(`select(.kind == "BackupStorageLocation" and .metadata.name == "default") | .spec.config.s3Url`))
+			}
 			// Every new cluster starts unable to write or delete backups; lab backup enable switches it
 			assert.Equal(t, "ReadOnly", get(`select(.kind == "BackupStorageLocation" and .metadata.name == "default") | .spec.accessMode`))
 			schedule := `select(.kind == "Schedule" and .metadata.name == "daily") | `
