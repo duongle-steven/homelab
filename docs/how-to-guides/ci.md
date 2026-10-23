@@ -61,8 +61,7 @@ random).
 
 | Workflow | Trigger | Runs |
 |---|---|---|
-| `sandbox` | A push to `dev` (a merge) | The whole suite, unless every change since the last push whose run passed is skipped (`scripts/sandbox-last-passed`, `scripts/sandbox-scope`, `test/scopes.yaml`); a newer push cancels the run |
-| `sandbox` | `workflow_dispatch` (Actions tab, or `gh workflow run sandbox.yaml --ref <branch>`) | `scope` `full` or `auto`, or exactly `tests`; `revision` picks another commit |
+| `sandbox` | `workflow_dispatch` only (Actions tab, or `gh workflow run sandbox.yaml --ref <branch>`) | `scope` `full` or `auto`, or exactly `tests`; `revision` picks another commit |
 | `sandbox-release` | A pull request into `master` (a release): opened, reopened or a new commit | The whole suite; its check `sandbox` is required by the ruleset `protect-master-sandbox` |
 | `sandbox-retarget` | A pull request retargeted to `master` (its base changed) | The whole suite, reported as the check `sandbox` through the checks API |
 | `sandbox-label` | The label `sandbox` on a pull request into anything but `master` | What `make dev` would run for the pull request (its base to its head) |
@@ -87,5 +86,11 @@ the logs and descriptions of the pods that are not ready, and why each unhealthy
 gh run download <run-id> --name sandbox-state
 ```
 
-If `dev` breaks after a merge, fix it with a new pull request right away. A `dev` → `master` pull request runs the whole
-suite on its head and cannot merge until it passes.
+A push to `dev` (a merge) runs only the basic checks: `make dev` already ran the branch's scope locally, and the
+whole suite runs on every `dev` → `master` pull request (and locally with `make dev-fresh`). Run `sandbox` by hand to
+test `dev` in between. If `dev` breaks after a merge, fix it with a new pull request right away. A `dev` → `master`
+pull request runs the whole suite on its head and cannot merge until it passes.
+
+GitHub disables the workflows of a fork now and then to save compute: no run starts, and a manual run answers
+`Actions has been disabled for this repository`, while Settings → Actions still shows them allowed. The Actions tab
+then shows "Workflows on this fork have been disabled": re-enable them there.

@@ -1,10 +1,8 @@
-# A fresh sandbox and the suite after every push to dev (the whole suite, unless every change is skipped) and on demand.
+# A fresh sandbox and the suite on demand (make dev and make dev-fresh test locally; a push to dev runs nothing here).
 # Pull requests: sandbox-release.yaml (into master, required) and sandbox-label.yaml (others, on the label sandbox).
 name: sandbox
 
 on:
-  push:
-    branches: [dev]
   workflow_dispatch:
     inputs:
       scope:
@@ -21,14 +19,11 @@ on:
 
 permissions:
   contents: read
-  actions: read  # scripts/sandbox-last-passed
 
 concurrency:
-  # A push to dev cancels the run of an older push (the newest dev covers it: its scope diffs against the last push
-  # that passed, scripts/sandbox-last-passed; test an older commit with revision); a manual run gets a group of its
-  # own, so neither cancels the other
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  # Each run gets a group of its own: none cancels another
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   # Not named sandbox: that check is the one protect-master-sandbox requires (sandbox-release.yaml), and a run here
@@ -39,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          fetch-depth: 0  # the scope diffs against the previous push
+          fetch-depth: 0  # scope auto diffs against dev
           persist-credentials: false
           ref: ${{ inputs.revision || github.sha }}
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702  # v31.11.2
@@ -48,29 +43,20 @@ jobs:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
           gc-max-store-size-linux: 8G
-          # Only runs on dev save (as in checks.yaml)
-          save: ${{ github.event_name == 'push' }}
+          # Only checks.yaml's runs on dev save
+          save: false
       - name: what to run
         id: scope
         env:
-          EVENT: ${{ github.event_name }}
-          GH_TOKEN: ${{ github.token }}
           SCOPE: ${{ inputs.scope }}
           TESTS: ${{ inputs.tests }}
         run: |
-          if [ "$EVENT" = push ]; then
-            # Since the last push that passed, not the previous push: that one's run may have been cancelled
-            base=$(scripts/sandbox-last-passed) || { echo "::error::sandbox-last-passed failed"; exit 1; }
-            # scripts/sandbox-scope needs the selector (Go), from the dev shell; a failure fails the job
-            args=$(nix develop --command scripts/sandbox-scope "$base") || { echo "::error::sandbox-scope failed"; exit 1; }
-          elif [ -n "$TESTS" ]; then
+          if [ -n "$TESTS" ]; then
             args="tests=$TESTS"
           else
             args="scope=$SCOPE"
           fi
           echo "args=$args" >> "$GITHUB_OUTPUT"
-          [ -n "$args" ] || echo "nothing to test in the sandbox"
       - uses: ./.github/actions/sandbox
-        if: steps.scope.outputs.args != ''
         with:
           make-args: ${{ steps.scope.outputs.args }}
