@@ -24,7 +24,11 @@ case "$*" in
     doc=$(cat)
     case "$doc" in
       *DeleteBackupRequest*) echo "$doc" | sed -n 's/^ *backupName: //p' | sed 's/^/delete /' >> "$FIXTURES/actions" ;;
-      *VolumeSnapshot*) echo "created $(echo "$doc" | sed -n 's/^ *namespace: //p')/$(echo "$doc" | sed -n 's/^ *persistentVolumeClaimName: //p')" >> "$FIXTURES/actions" ;;
+      *VolumeSnapshot*)
+        pvc=$(echo "$doc" | sed -n 's/^ *persistentVolumeClaimName: //p')
+        if grep -qx "$pvc" "$FIXTURES/existing" 2>/dev/null; then echo "Error from server (AlreadyExists): volumesnapshots.snapshot.storage.k8s.io \"$pvc-x\" already exists" >&2; exit 1; fi
+        if grep -qx "$pvc" "$FIXTURES/broken" 2>/dev/null; then echo "Error from server: the server is unavailable" >&2; exit 1; fi
+        echo "created $(echo "$doc" | sed -n 's/^ *namespace: //p')/$(echo "$doc" | sed -n 's/^ *persistentVolumeClaimName: //p')" >> "$FIXTURES/actions" ;;
     esac ;;
 esac
 `
@@ -38,7 +42,11 @@ func runVeleroScript(t *testing.T, script string, fixtures map[string]string) []
 	cmd := exec.Command("sh", "../system/velero/files/"+script)
 	cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "FIXTURES="+dir, "KEEP=30", "SNAPSHOT_HOURS=48", "NAMESPACE=velero")
 	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, "%s failed:\n%s", script, out)
+	if fixtures["broken"] != "" {
+		require.Error(t, err, "%s must fail when a snapshot could not be taken:\n%s", script, out)
+	} else {
+		require.NoError(t, err, "%s failed:\n%s", script, out)
+	}
 	actions, _ := os.ReadFile(filepath.Join(dir, "actions"))
 	if s := strings.TrimSpace(string(actions)); s != "" {
 		return strings.Split(s, "\n")
@@ -86,4 +94,10 @@ func TestVeleroSnapshots(t *testing.T) {
 		"created ntfy/ntfy",
 		"deleted forgejo/forgejo-data-old",
 	}, actions)
+	// Run again within the hour (by hand, or a test): the hour's snapshot is there already, and nothing else is skipped
+	actions = runVeleroScript(t, "snapshots.sh", map[string]string{"pvcs": pvcs, "snapshots": snapshots, "existing": "forgejo-data\n"})
+	assert.Equal(t, []string{"created forgejo/forgejo-db-1", "created ntfy/ntfy", "deleted forgejo/forgejo-data-old"}, actions)
+	// One claim failing still snapshots the others and cleans up, then fails the Job
+	actions = runVeleroScript(t, "snapshots.sh", map[string]string{"pvcs": pvcs, "snapshots": snapshots, "broken": "forgejo-db-1\n"})
+	assert.Equal(t, []string{"created forgejo/forgejo-data", "created ntfy/ntfy", "deleted forgejo/forgejo-data-old"}, actions)
 }
