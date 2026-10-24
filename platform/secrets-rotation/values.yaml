@@ -1,0 +1,14 @@
+# The daily scheduled rotation (lab secrets rotate --scheduled, docs/how-to-guides/secrets-rotation.md): the catalog's
+# entries with a period, never manual or OpenTofu ones
+# lab's image, pinned by digest: GitHub Actions builds it from master (.github/workflows/lab-image.yaml). Empty until
+# the first release builds it: the CronJob stays suspended meanwhile (CLAUDE.md, before the first production deploy)
+image: ""
+# 03:00 in global.timezone: an hour after Velero's daily backup, which the rotation wants from the last 24 hours
+schedule: "0 3 * * *"
+# The namespaces whose readers the scheduled entries refresh and restart: lab secrets check compares this list with
+# the catalog (cli/internal/rotate/catalog.yaml)
+readers: [argocd, monitoring-system, ntfy, woodpecker, zot]
+# Of those, where it checks a credential from inside the app's pod (ntfy denies callers outside the mesh) and where it
+# deletes the agents' config volumes (a new agent secret: the agents register again)
+execIn: [ntfy]
+claimsIn: [woodpecker]

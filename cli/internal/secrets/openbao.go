@@ -45,6 +45,25 @@ func open(ctx context.Context, kube kubernetes.Interface, address string, httpCl
 	if err != nil {
 		return nil, fmt.Errorf("token for openbao/openbao-admin: %w", err)
 	}
+	return openAs(ctx, address, httpClient, "admin", request.Status.Token)
+}
+
+// OpenAs logs in to OpenBao with role and a service account token for audience openbao (the scheduled rotation's own,
+// projected into its pod), reaching it through the API server's proxy as Open does.
+func OpenAs(ctx context.Context, config *rest.Config, role, jwt string) (*Store, error) {
+	kube, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	httpClient, err := rest.HTTPClientFor(config)
+	if err != nil {
+		return nil, err
+	}
+	address := kube.CoreV1().RESTClient().Get().Namespace("openbao").Resource("services").Name("http:openbao:8200").SubResource("proxy").URL().String()
+	return openAs(ctx, address, httpClient, role, jwt)
+}
+
+func openAs(ctx context.Context, address string, httpClient *http.Client, role, jwt string) (*Store, error) {
 	config := bao.DefaultConfig()
 	config.Address = address
 	config.HttpClient = httpClient
@@ -54,12 +73,12 @@ func open(ctx context.Context, kube kubernetes.Interface, address string, httpCl
 	}
 	// Never a token from the environment (BAO_TOKEN): only the admin login below
 	client.ClearToken()
-	login, err := client.Logical().WriteWithContext(ctx, "auth/kubernetes/login", map[string]any{"role": "admin", "jwt": request.Status.Token})
+	login, err := client.Logical().WriteWithContext(ctx, "auth/kubernetes/login", map[string]any{"role": role, "jwt": jwt})
 	if err != nil {
-		return nil, fmt.Errorf("log in to OpenBao with the role admin failed")
+		return nil, fmt.Errorf("log in to OpenBao with the role %s failed", role)
 	}
 	if login == nil || login.Auth == nil || login.Auth.ClientToken == "" {
-		return nil, fmt.Errorf("OpenBao returned no token for the role admin")
+		return nil, fmt.Errorf("OpenBao returned no token for the role %s", role)
 	}
 	client.SetToken(login.Auth.ClientToken)
 	return &Store{client: client, kv: client.KVv2("secret")}, nil

@@ -29,7 +29,8 @@ sandbox-checkout:
 # The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on; revision=<sha>
 # syncs that commit instead and pushes nothing (GitHub Actions). Alone tests (TestNodeRestart restarts the node) run
 # after the others. The image caches are filled before a build and, after the tests, with what the node pulled
-# without them (scripts/warm-image-cache)
+# without them (scripts/warm-image-cache); lab's image for the scheduled rotation is built from the checkout
+# (scripts/build-lab-image)
 dev: sandbox-checkout sandbox-clean
 	@if [ -n "$(tests)" ]; then sel="--tests '$(tests)'"; \
 	elif [ "$(scope)" = full ]; then sel=--full; \
@@ -40,6 +41,7 @@ dev: sandbox-checkout sandbox-clean
 	if [ -z "$(revision)" ]; then $(MAKE) sandbox-push; fi && \
 	scripts/warm-image-cache && \
 	(cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$$([ -z "$(revision)" ] || git rev-parse HEAD)" $(terragrunt_apply)) && \
+	scripts/build-lab-image && \
 	{ if { [ -z "$$main" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$main" sandbox-refresh smoke-test; } && \
 	{ [ -z "$$alone" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; }; \
 	then status=0; else status=$$?; fi; scripts/warm-image-cache --node || true; exit $$status; }

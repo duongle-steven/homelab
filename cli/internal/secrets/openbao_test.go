@@ -33,7 +33,7 @@ func (f *fakeBao) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/v1/auth/kubernetes/login":
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		if body["role"] != "admin" || body["jwt"] != "jwt-admin" {
+		if !(body["role"] == "admin" && body["jwt"] == "jwt-admin") && !(body["role"] == "rotator" && body["jwt"] == "jwt-rotator") {
 			http.Error(w, `{"errors":["permission denied"]}`, http.StatusForbidden)
 			return
 		}
@@ -219,5 +219,22 @@ func TestStoreMetadataErrorsHideValues(t *testing.T) {
 	err = store.SetMetadata(ctx, "a/b", map[string]string{"rotated-by": "value-456"})
 	if err == nil || strings.Contains(err.Error(), "value-456") || !strings.Contains(err.Error(), "secret/a/b") {
 		t.Fatalf("SetMetadata() = %v", err)
+	}
+}
+
+// The scheduled rotation logs in with its own service account's token (projected, audience openbao) and role rotator
+func TestStoreOpenAs(t *testing.T) {
+	bao := &fakeBao{data: map[string]map[string]any{"ntfy/generated/alerts-token": {"token": "t"}}}
+	server := httptest.NewServer(bao)
+	t.Cleanup(server.Close)
+	store, err := openAs(context.Background(), server.URL, server.Client(), "rotator", "jwt-rotator")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, err := store.Read(context.Background(), "ntfy/generated/alerts-token"); err != nil || data["token"] != "t" {
+		t.Fatalf("Read = %v, %v", data, err)
+	}
+	if _, err := openAs(context.Background(), server.URL, server.Client(), "rotator", "jwt-admin"); err == nil || strings.Contains(err.Error(), "jwt-admin") {
+		t.Fatalf("a wrong token: err = %v", err)
 	}
 }

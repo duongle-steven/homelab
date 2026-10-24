@@ -117,6 +117,8 @@ groups:
     tests: SSOZot|GatewayZotLargePush|Woodpecker
   - paths: [platform/woodpecker/**]
     tests: Woodpecker
+  - paths: [platform/secrets-rotation/**, scripts/build-lab-image, cli/Dockerfile]
+    tests: Secrets
   - paths: [apps/actualbudget.yaml]
     tests: SSOActualBudget
   - paths: [apps/paperless.yaml]

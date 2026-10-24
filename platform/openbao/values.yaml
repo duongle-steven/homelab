@@ -116,6 +116,16 @@ openbao:
               policy = "path \"sys/storage/raft/snapshot\" { capabilities = [\"read\"] }"
             }
           }
+          # The scheduled rotation (platform/secrets-rotation): the values of the catalog's entries with a period
+          # (cli/internal/rotate/catalog.yaml; lab secrets check compares them) and their creation time, the rotation
+          # records, and Forgejo's admin password, which makes the deploy and argocd tokens
+          request "rotator" {
+            operation = "update"
+            path      = "sys/policies/acl/rotator"
+            data = {
+              policy = "path \"secret/data/woodpecker/generated/agent\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/woodpecker/generated/agent\" { capabilities = [\"read\"] }\npath \"secret/data/woodpecker/admin-token\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/woodpecker/admin-token\" { capabilities = [\"read\"] }\npath \"secret/data/zot/generated/ci\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/zot/generated/ci\" { capabilities = [\"read\"] }\npath \"secret/data/ntfy/generated/alerts-token\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/ntfy/generated/alerts-token\" { capabilities = [\"read\"] }\npath \"secret/data/monitoring-system/generated/ntfy\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/monitoring-system/generated/ntfy\" { capabilities = [\"read\"] }\npath \"secret/data/ntfy/generated/alerts-password\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/ntfy/generated/alerts-password\" { capabilities = [\"read\"] }\npath \"secret/data/forgejo/deploy\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/forgejo/deploy\" { capabilities = [\"read\"] }\npath \"secret/data/argocd/forgejo\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/argocd/forgejo\" { capabilities = [\"read\"] }\npath \"secret/data/forgejo/generated/admin\" { capabilities = [\"read\"] }\npath \"secret/data/rotation/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/rotation/*\" { capabilities = [\"create\", \"read\", \"update\"] }"
+            }
+          }
           # Emergency access: no root token exists
           request "admin" {
             operation = "update"
@@ -170,6 +180,17 @@ openbao:
               token_policies                   = ["snapshot"]
               audience                         = "openbao"
               token_ttl                        = "5m"
+            }
+          }
+          request "rotator" {
+            operation = "update"
+            path      = "auth/kubernetes/role/rotator"
+            data = {
+              bound_service_account_names      = ["secrets-rotation"]
+              bound_service_account_namespaces = ["secrets-rotation"]
+              token_policies                   = ["rotator"]
+              audience                         = "openbao"
+              token_ttl                        = "1h"
             }
           }
           request "admin" {

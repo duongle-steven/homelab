@@ -59,7 +59,7 @@ func TestCheckRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := Check("../../..", entries); len(got) != 0 {
+	if got := append(Check("../../..", entries), CheckScheduled("../../..", entries)...); len(got) != 0 {
 		t.Fatalf("the catalog misses:\n%s", strings.Join(got, "\n"))
 	}
 }
@@ -103,5 +103,33 @@ func TestCheckReportsMissingValues(t *testing.T) {
 	got := Check(t.TempDir(), nil)
 	if !strings.Contains(strings.Join(got, "\n"), "no values files") {
 		t.Fatalf("Check = %q", got)
+	}
+}
+
+// The scheduled rotation may touch exactly what its entries need: platform/secrets-rotation's readers are the
+// namespaces of the periodic entries' readers, and OpenBao's policy rotator names each of their paths
+func TestCheckScheduledAccess(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "platform/secrets-rotation/values.yaml", "readers: [ntfy, extra]\n")
+	write(t, root, "platform/openbao/values.yaml", `policy = "path \"secret/data/ntfy/generated/alerts-token\" { capabilities = [\"read\"] }"`+"\n")
+	entries, err := parse([]byte(`
+- {name: a, kind: ntfy-overlap, period: 2160h, paths: [ntfy/generated/alerts-token], readers: [{namespace: ntfy}]}
+- {name: b, kind: generated, period: 2160h, paths: [zot/generated/ci], readers: [{namespace: zot}]}
+- {name: c, kind: generated, paths: [paperless/generated/admin], readers: [{namespace: paperless}]}
+- {name: d, kind: opentofu, period: 2160h, paths: [cert-manager/cloudflare], readers: [{namespace: cert-manager}], settings: {unit: u, resource: r}}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(CheckScheduled(root, entries), "\n")
+	for _, want := range []string{"zot: b's readers", "extra: no scheduled entry", "zot/generated/ci: b's path"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("CheckScheduled = %q, missing %q", got, want)
+		}
+	}
+	for _, unwanted := range []string{"paperless", "cert-manager"} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("CheckScheduled = %q names %s, which the CronJob never rotates", got, unwanted)
+		}
 	}
 }

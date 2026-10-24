@@ -3,10 +3,13 @@ package cli
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/duongle-steven/homelab/cli/internal/env"
 	"io"
+	"k8s.io/client-go/rest"
 	"net/http"
 	"os"
 	"os/exec"
@@ -39,9 +42,10 @@ func newSecretsCmd() *cobra.Command {
 	}
 	check := &cobra.Command{
 		Use:   "check",
-		Short: "Fail when a secret the repository creates has no catalog entry",
+		Short: "Fail when a secret the repository creates has no catalog entry, or the scheduled rotation's access differs",
 		Long: "Reads the generated secrets, the infra-secrets paths, the confidential Kanidm clients (rendered with " +
-			"scripts/render-chart) and the Forgejo tokens under --root.",
+			"scripts/render-chart) and the Forgejo tokens under --root, and compares the scheduled entries with " +
+			"platform/secrets-rotation's readers and OpenBao's policy rotator.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			entries, err := rotate.Load()
@@ -52,7 +56,7 @@ func newSecretsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			problems := rotate.Check(root, entries)
+			problems := append(rotate.Check(root, entries), rotate.CheckScheduled(root, entries)...)
 			for _, p := range problems {
 				fmt.Fprintln(cmd.ErrOrStderr(), "FAIL", p)
 			}
@@ -179,6 +183,7 @@ func newSecretsCmd() *cobra.Command {
 	rotateCmd.Flags().Bool("scheduled", false, "rotate the due and interrupted entries, never manual or OpenTofu ones, without asking (implies --yes)")
 	rotateCmd.Flags().Bool("yes", false, "do not ask for confirmation (required without a terminal)")
 	rotateCmd.Flags().String("skip-backup-check", "", "rotate without a recent off-site backup; the reason is recorded")
+	rotateCmd.Flags().Bool("in-cluster", false, "run in the CronJob's pod (platform/secrets-rotation): its service account and OpenBao role rotator")
 	group.AddCommand(rotateCmd)
 	return group
 }
@@ -202,23 +207,15 @@ func (r *rotation) close(cmd *cobra.Command) {
 
 // newRotation reaches the environment's cluster and OpenBao (tests replace it).
 var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, error) {
-	e, err := forgejoEnv(cmd)
+	e, config, store, err := rotationTarget(cmd)
 	if err != nil {
 		return nil, err
-	}
-	config, err := clientcmd.BuildConfigFromFlags("", e.Kubeconfig)
-	if err != nil {
-		return nil, fmt.Errorf("kubeconfig %s: %w", e.Kubeconfig, err)
 	}
 	kube, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, err
 	}
 	dyn, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-	store, err := secrets.Open(cmd.Context(), config)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +244,8 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 			return *ep, nil
 		}
 		found, cleanup := forgejo.ProductionEndpoint(e.Domain), func() {}
-		if e.Name == "sandbox" {
+		// In the cluster the Gateway's hosts answer through CoreDNS (the sandbox's CA through SSL_CERT_DIR)
+		if e.Name == "sandbox" && e.Kubeconfig != "" {
 			var err error
 			if found, cleanup, err = sandboxEndpoint(ctx, kube, e.Domain); err != nil {
 				return forgejo.Endpoint{}, err
@@ -377,7 +375,45 @@ func replicas(ctx context.Context, kube kubernetes.Interface, namespace string, 
 }
 
 // who is the person or job a rotation records: user@host, or the pod's name in the cluster
+// rotationTarget reaches the cluster and OpenBao: from the workstation with the environment's kubeconfig as OpenBao's
+// admin, or in the CronJob's pod (--in-cluster) with its own service account and role rotator (HOMELAB_ENV and
+// HOMELAB_DOMAIN from the chart, the OpenBao token projected at HOMELAB_OPENBAO_TOKEN_FILE)
+func rotationTarget(cmd *cobra.Command) (env.Env, *rest.Config, *secrets.Store, error) {
+	if inCluster, _ := cmd.Flags().GetBool("in-cluster"); inCluster {
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			return env.Env{}, nil, nil, err
+		}
+		file := cmp.Or(os.Getenv("HOMELAB_OPENBAO_TOKEN_FILE"), "/var/run/secrets/openbao/token")
+		jwt, err := os.ReadFile(file)
+		if err != nil {
+			return env.Env{}, nil, nil, fmt.Errorf("the OpenBao token at %s: %w", file, err)
+		}
+		store, err := secrets.OpenAs(cmd.Context(), config, "rotator", strings.TrimSpace(string(jwt)))
+		if err != nil {
+			return env.Env{}, nil, nil, err
+		}
+		return env.Env{Name: os.Getenv("HOMELAB_ENV"), Domain: os.Getenv("HOMELAB_DOMAIN")}, config, store, nil
+	}
+	e, err := forgejoEnv(cmd)
+	if err != nil {
+		return env.Env{}, nil, nil, err
+	}
+	config, err := clientcmd.BuildConfigFromFlags("", e.Kubeconfig)
+	if err != nil {
+		return env.Env{}, nil, nil, fmt.Errorf("kubeconfig %s: %w", e.Kubeconfig, err)
+	}
+	store, err := secrets.Open(cmd.Context(), config)
+	if err != nil {
+		return env.Env{}, nil, nil, err
+	}
+	return e, config, store, nil
+}
+
 func who() string {
+	if os.Getenv("HOMELAB_ROTATION_JOB") != "" {
+		return "rotation-job"
+	}
 	host, _ := os.Hostname()
 	if user := os.Getenv("USER"); user != "" {
 		return user + "@" + host

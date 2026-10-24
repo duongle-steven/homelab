@@ -1,0 +1,34 @@
+# The scheduled rotation failed (a due entry, an interrupted one to finish by hand, or one more than 14 days overdue:
+# the Job's log names it), or has not succeeded for three days (the CronJob is suspended, or its pod cannot start)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: secrets-rotation
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: secrets-rotation
+      rules:
+        - alert: SecretRotationFailed
+          expr: |
+            max by (job_name) (kube_job_status_failed{namespace="{{ .Release.Namespace }}"} > 0)
+            and on (job_name) topk by () (1, max by (job_name) (kube_job_created{namespace="{{ .Release.Namespace }}"}))
+          labels:
+            severity: warning
+          annotations:
+            summary: The scheduled secrets rotation failed
+            description: >-
+              Job {{ "{{" }} $labels.job_name {{ "}}" }} failed: kubectl -n {{ .Release.Namespace }} logs job/{{ "{{" }} $labels.job_name {{ "}}" }}
+              names the secret; lab secrets list shows what is due or interrupted (docs/how-to-guides/secrets-rotation.md).
+        - alert: SecretRotationOverdue
+          expr: |
+            (time() - max(kube_cronjob_status_last_successful_time{namespace="{{ .Release.Namespace }}", cronjob="secrets-rotation"}) > 3 * 86400)
+            or absent(kube_cronjob_status_last_successful_time{namespace="{{ .Release.Namespace }}", cronjob="secrets-rotation"})
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: No scheduled secrets rotation succeeded for three days
+            description: >-
+              CronJob {{ .Release.Namespace }}/secrets-rotation has not completed a run for three days: it is
+              suspended (no image yet), or its runs fail (docs/how-to-guides/secrets-rotation.md).

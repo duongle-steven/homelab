@@ -285,3 +285,52 @@ func clientTargets(root string) ([]string, error) {
 	slices.Sort(targets)
 	return targets, nil
 }
+
+// Scheduled reports whether the CronJob rotates e (lab secrets rotate --scheduled): an entry with a period that runs
+// in the cluster, never a manual or OpenTofu one.
+func Scheduled(e Entry) bool {
+	return e.Period > 0 && !slices.Contains([]Kind{KindManual, KindOpenTofu, KindNever, KindAutomatic, KindScript}, e.Kind)
+}
+
+// CheckScheduled compares what the scheduled rotation may touch with what its entries need: the reader namespaces in
+// platform/secrets-rotation/values.yaml (its RBAC) and the paths in platform/openbao/values.yaml (policy rotator).
+func CheckScheduled(root string, entries []Entry) []string {
+	var problems []string
+	raw, err := os.ReadFile(filepath.Join(root, "platform/secrets-rotation/values.yaml"))
+	if err != nil {
+		return []string{fmt.Sprintf("platform/secrets-rotation/values.yaml: %v", err)}
+	}
+	var v struct {
+		Readers []string `yaml:"readers"`
+	}
+	if err := yaml.Unmarshal(raw, &v); err != nil {
+		return []string{fmt.Sprintf("platform/secrets-rotation/values.yaml: %v", err)}
+	}
+	policy, err := os.ReadFile(filepath.Join(root, "platform/openbao/values.yaml"))
+	if err != nil {
+		return []string{fmt.Sprintf("platform/openbao/values.yaml: %v", err)}
+	}
+	needed := map[string]bool{}
+	for _, e := range entries {
+		if !Scheduled(e) || e.Pending != "" {
+			continue
+		}
+		for _, r := range namespaced(e) {
+			needed[r.Namespace] = true
+			if !slices.Contains(v.Readers, r.Namespace) {
+				problems = append(problems, fmt.Sprintf("%s: %s's readers are there, not in platform/secrets-rotation's readers", r.Namespace, e.Name))
+			}
+		}
+		for _, p := range e.Paths {
+			if !strings.Contains(string(policy), `secret/data/`+p+`\"`) {
+				problems = append(problems, fmt.Sprintf("%s: %s's path is not in OpenBao's policy rotator (platform/openbao/values.yaml)", p, e.Name))
+			}
+		}
+	}
+	for _, ns := range v.Readers {
+		if !needed[ns] {
+			problems = append(problems, fmt.Sprintf("%s: no scheduled entry reads there, yet platform/secrets-rotation may touch it", ns))
+		}
+	}
+	return problems
+}
