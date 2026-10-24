@@ -51,7 +51,7 @@ func TestSecretsRotation(t *testing.T) {
 		require.Equal(t, http.StatusOK, grafanaStatus(old))
 		rotateSecrets(t, "grafana.admin")
 		next := generatedValue(t, "grafana/generated/admin", "password")
-		require.NotEqual(t, old, next)
+		require.False(t, old == next, "the value did not change")
 		assert.Eventually(t, func() bool { return grafanaStatus(next) == http.StatusOK }, 5*time.Minute, 5*time.Second, "the new password does not sign in")
 		assert.Equal(t, http.StatusUnauthorized, grafanaStatus(old), "the old password still signs in")
 	})
@@ -61,8 +61,8 @@ func TestSecretsRotation(t *testing.T) {
 		old := ntfyToken(t, "alerts")
 		rotateSecrets(t, "ntfy.alerts-token")
 		next := ntfyToken(t, "alerts")
-		require.NotEqual(t, old, next)
-		assert.Equal(t, next, "tk_"+generatedValue(t, "monitoring-system/generated/ntfy", "token"), "Alertmanager's copy")
+		require.False(t, old == next, "the value did not change")
+		assert.True(t, next == "tk_"+generatedValue(t, "monitoring-system/generated/ntfy", "token"), "Alertmanager's copy differs")
 		assert.Eventually(t, func() bool {
 			status, _ := ntfyRequest(t, http.MethodGet, "/v1/account", next, "")
 			return status == http.StatusOK
@@ -78,7 +78,7 @@ func TestSecretsRotation(t *testing.T) {
 		old := generatedValue(t, "argocd/forgejo", "token")
 		rotateSecrets(t, "forgejo.argocd-token")
 		next := generatedValue(t, "argocd/forgejo", "token")
-		require.NotEqual(t, old, next)
+		require.False(t, old == next, "the value did not change")
 		read := func(token string) int {
 			status, _ := getJSONE(http.MethodGet, "https://"+forgejoHost+"/api/v1/repos/ops/homelab", nil, "", "", nil, nil, "Authorization", "token "+token)
 			return status
@@ -90,13 +90,13 @@ func TestSecretsRotation(t *testing.T) {
 			5*time.Minute, 5*time.Second, "argocd-repo-forgejo still holds the old token")
 		// lab infra forgejo sync keeps it
 		lab(t, "infra", "forgejo", "sync", "--env", "sandbox")
-		assert.Equal(t, next, generatedValue(t, "argocd/forgejo", "token"))
+		assert.True(t, next == generatedValue(t, "argocd/forgejo", "token"), "sync replaced the rotated token")
 	})
 
 	t.Run("kaniop client", func(t *testing.T) {
 		old := secretValue(t, "grafana", "grafana-kanidm-oauth2-credentials", "CLIENT_SECRET")
 		rotateSecrets(t, "kanidm-client.grafana")
-		assert.NotEqual(t, old, secretValue(t, "grafana", "grafana-kanidm-oauth2-credentials", "CLIENT_SECRET"))
+		assert.False(t, old == secretValue(t, "grafana", "grafana-kanidm-oauth2-credentials", "CLIENT_SECRET"), "the client secret did not change")
 		waitForApp(t, "https://"+grafanaHost+"/api/health")
 	})
 
@@ -105,9 +105,11 @@ func TestSecretsRotation(t *testing.T) {
 		// Woodpecker admin
 		token := woodpeckerToken(t, "dev-admin")
 		baoPutStdin(t, "woodpecker/admin-token", "token", token)
+		// Finishes a rotation an earlier run left interrupted, which already holds its new value
+		rotateSecrets(t, "woodpecker.agent")
 		old := generatedValue(t, "woodpecker/generated/agent", "secret")
 		rotateSecrets(t, "woodpecker.agent")
-		require.NotEqual(t, old, generatedValue(t, "woodpecker/generated/agent", "secret"))
+		require.False(t, old == generatedValue(t, "woodpecker/generated/agent", "secret"), "the value did not change")
 		assert.Eventually(t, func() bool {
 			status, raw := woodpeckerRequest(t, http.MethodGet, "/api/agents", token, nil, nil)
 			var agents []map[string]any
