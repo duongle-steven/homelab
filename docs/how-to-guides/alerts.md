@@ -15,6 +15,27 @@ Cloudflare Tunnel. Nothing is readable or writable without a user: `phone` reads
 iOS gets instant notifications through ntfy.sh, which only receives a poll request (a hash of the topic), never the
 message. The sandbox runs ntfy without it.
 
+## Telegram, the second path (production)
+
+Every alert also goes to Telegram, so it still arrives while ntfy is down and the cluster is up (a cluster that is
+down entirely sends nothing on either path). Alertmanager reads the bot token and the chat id from OpenBao
+(`secret/monitoring-system/telegram`), never from git: the chat id names a person's chat.
+
+1. In Telegram, ask [@BotFather](https://t.me/BotFather) for a new bot (`/newbot`): it answers with the bot's token.
+2. Send the bot any message, then read the chat id from
+   `https://api.telegram.org/bot<token>/getUpdates` (`message.chat.id`).
+3. Open OpenBao with the admin role ([Emergency access](../concepts/secrets-management.md#emergency-access)) and
+   write both without them showing:
+
+   ```sh
+   bao kv put secret/monitoring-system/telegram bot_token=-    # paste the token, then Ctrl-D
+   bao kv patch secret/monitoring-system/telegram chat_id=-    # paste the chat id, then Ctrl-D
+   ```
+
+Until then Alertmanager runs without it and reports the failed Telegram notifications
+(`AlertmanagerFailedToSendAlerts`). A new token: `lab secrets rotate telegram.bot-token` gives the steps
+(BotFather's `/revoke` ends the old one at once).
+
 ## Heartbeat
 
 The `Watchdog` alert fires all the time. Each heartbeat replaces a message scheduled 15 minutes ahead ("Monitoring

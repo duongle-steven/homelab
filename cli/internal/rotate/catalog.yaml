@@ -297,7 +297,6 @@
 
 - name: telegram.bot-token
   kind: manual
-  pending: "the Telegram receiver (decision 7)"
   class: 1
   reason: Alertmanager retries, and ntfy still delivers; it reads bot_token_file at every notification, no restart
   paths: [monitoring-system/telegram]

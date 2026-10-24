@@ -32,6 +32,13 @@ kube-prometheus-stack:
     alertmanagerSpec:
       # templates/ntfy-secret.yaml, mounted at /etc/alertmanager/secrets/ntfy/
       secrets: [ntfy]
+      # templates/telegram-secret.yaml, optional: until a person writes the bot to OpenBao, Alertmanager runs and its
+      # Telegram notifications fail (AlertmanagerFailedToSendAlerts says so)
+      volumes:
+        - name: telegram
+          secret: {secretName: telegram, optional: true}
+      volumeMounts:
+        - {name: telegram, mountPath: /etc/alertmanager/secrets/telegram, readOnly: true}
     config:
       route:
         receiver: ntfy
@@ -58,6 +65,12 @@ kube-prometheus-stack:
               http_config:
                 authorization:
                   credentials_file: /etc/alertmanager/secrets/ntfy/token
+          # The second path, for when ntfy is down and the cluster is up: the bot token and the chat id from
+          # OpenBao (docs/how-to-guides/alerts.md), read at every notification
+          telegram_configs:
+            - bot_token_file: /etc/alertmanager/secrets/telegram/bot-token
+              chat_id_file: /etc/alertmanager/secrets/telegram/chat-id
+              send_resolved: true
         - name: ntfy-watchdog
           webhook_configs:
             - url: http://ntfy.ntfy/
@@ -71,3 +84,5 @@ kube-prometheus-stack:
                 message: Watchdog heartbeats stopped
                 delay: 15m
                 sequence_id: watchdog
+# Telegram, the second path for every alert (templates/telegram-secret.yaml): off in the sandbox, which has no bot
+telegram: true
