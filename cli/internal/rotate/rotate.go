@@ -260,6 +260,10 @@ func (r *Rotator) Run(ctx context.Context, plan []Entry, o Options) ([]Result, e
 	return results, nil
 }
 
+// ErrWaitingForPeople ends a Revoke that people must allow first (they re-enter a value in their devices): the entry
+// stays verified, both values valid, and the run goes on; the same command on a terminal finishes it.
+var ErrWaitingForPeople = errors.New("waiting for people")
+
 // phase is one step of a Method and the phase recorded once it finished
 type phase struct {
 	step, done string
@@ -356,6 +360,9 @@ func (r *Rotator) rotate(ctx context.Context, e Entry, o Options, holder string)
 		}
 		fmt.Fprintf(r.Out, "%s: %s\n", e.Name, p.step)
 		if err := p.run(method, ctx, e); err != nil {
+			if errors.Is(err, ErrWaitingForPeople) {
+				return Result{Name: e.Name, Outcome: err.Error()}
+			}
 			return fail("in "+p.step, err)
 		}
 		if err := record(p.done); err != nil {

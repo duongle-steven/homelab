@@ -3,6 +3,7 @@ package rotate
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"slices"
@@ -979,4 +980,37 @@ func TestRotateOnlyThisEnvironment(t *testing.T) {
 	if _, err := r.Plan(context.Background(), []string{"cloudflare.cert-manager"}, Options{Env: "sandbox"}); err == nil || !strings.Contains(err.Error(), "production only") {
 		t.Fatalf("a named entry of another environment: %v", err)
 	}
+}
+
+// A step that waits for people (they re-enter a token in their phones) leaves its entry verified and reported, and
+// --all goes on with the rest: only a failure stops the run
+func TestRotateWaitingForPeopleGoesOn(t *testing.T) {
+	phone := generated("ntfy.phone-token")
+	other := generated("grafana.admin")
+	r, calls, records := rotator([]Entry{phone, other}, map[string]error{})
+	r.Methods[KindGenerated] = phoneMethod{fakeMethod{calls: calls}}
+	results, err := r.Run(context.Background(), r.Entries, Options{All: true, Yes: true, Now: now, By: "steven"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(results[0].Outcome, "waiting for people") || results[0].Err != nil {
+		t.Fatalf("phone: %+v", results[0])
+	}
+	if results[1].Outcome != "rotated" {
+		t.Fatalf("the next entry did not run: %+v", results[1])
+	}
+	if got := records.records["ntfy.phone-token"].Phase; got != PhaseVerified {
+		t.Fatalf("phone's phase = %q, want verified (the old token stays until a person confirms)", got)
+	}
+}
+
+// phoneMethod's Revoke waits for people on ntfy.phone-token
+type phoneMethod struct{ fakeMethod }
+
+func (m phoneMethod) Revoke(ctx context.Context, e Entry) error {
+	if e.Name == "ntfy.phone-token" {
+		_ = m.call(e, "revoke")
+		return fmt.Errorf("%w: run lab secrets rotate %s on a terminal once they did", ErrWaitingForPeople, e.Name)
+	}
+	return m.fakeMethod.Revoke(ctx, e)
 }

@@ -106,7 +106,7 @@ func TestNtfyOverlapPhoneWaitsForPeople(t *testing.T) {
 	if err := m.Prepare(ctx, e); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Revoke(ctx, e); err == nil || !strings.Contains(err.Error(), "lab secrets rotate ntfy.phone-token") {
+	if err := m.Revoke(ctx, e); !errors.Is(err, ErrWaitingForPeople) || !strings.Contains(err.Error(), "lab secrets rotate ntfy.phone-token") {
 		t.Fatalf("Revoke without a person = %v, want an error saying how to finish", err)
 	}
 	if kv.data[e.Paths[0]]["previous_token"] != oldToken {

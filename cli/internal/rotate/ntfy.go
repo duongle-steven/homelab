@@ -82,11 +82,12 @@ func (m NtfyOverlap) Verify(ctx context.Context, e Entry) error {
 
 func (m NtfyOverlap) Revoke(ctx context.Context, e Entry) error {
 	if people(e) {
+		later := fmt.Errorf("%w: both %s tokens work until they entered the new one; then run lab secrets rotate %s on a terminal to drop the old one", ErrWaitingForPeople, e.Settings["user"], e.Name)
 		if m.Confirm == nil {
-			return fmt.Errorf("people use %s: once they entered the new token, run lab secrets rotate %s on a terminal to drop the old one", e.Name, e.Name)
+			return later
 		}
-		if err := m.Confirm(ctx, fmt.Sprintf("Has everyone entered the new %s token in their phones? The old one stops working.", e.Settings["user"])); err != nil {
-			return err
+		if m.Confirm(ctx, fmt.Sprintf("Has everyone entered the new %s token in their phones? The old one stops working.", e.Settings["user"])) != nil {
+			return later
 		}
 	}
 	for _, path := range e.Paths {
