@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -21,6 +22,8 @@ import (
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -76,10 +79,24 @@ func newSecretsCmd() *cobra.Command {
 				return err
 			}
 			defer rot.close(cmd)
+			if kind, _ := cmd.Flags().GetString("kind"); kind != "" {
+				var kept []rotate.Entry
+				for _, e := range rot.Rotator.Entries {
+					if string(e.Kind) == kind {
+						kept = append(kept, e)
+					}
+				}
+				rot.Rotator.Entries = kept
+			}
+			if due, _ := cmd.Flags().GetBool("due"); due {
+				return printDue(cmd.Context(), cmd.OutOrStdout(), rot.Rotator, time.Now())
+			}
 			return printList(cmd.Context(), cmd.OutOrStdout(), rot.Rotator, time.Now())
 		},
 	}
 	list.Flags().String("env", "production", "production, or sandbox")
+	list.Flags().String("kind", "", "only this kind of entry (e.g. opentofu)")
+	list.Flags().Bool("due", false, "only the due entries, one line each with the command that rotates it (make infra env=production)")
 	group.AddCommand(list)
 
 	rotateCmd := &cobra.Command{
@@ -250,7 +267,10 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 				rotate.KindKaniopClient: rotate.KaniopClient{Kube: kube, Dyn: dyn, Store: store, Workloads: workloads, Waits: workloads},
 				rotate.KindKanidmAdmin:  rotate.KanidmAdmin{Kube: kube, Store: store, Waits: workloads},
 				rotate.KindCNPG:         rotate.CNPGPassword{Kube: kube, Store: store, Workloads: workloads},
-				rotate.KindNtfyOverlap:  rotate.NtfyOverlap{Store: store, Workloads: workloads, Check: rotate.NtfyCheck(pods), Confirm: ask},
+				rotate.KindOpenTofu: rotate.OpenTofu{Root: repositoryRoot(), Run: rotate.Terragrunt(cmd.OutOrStdout()), Store: store, Workloads: workloads, Waits: workloads,
+					Nudge: func(ctx context.Context) error { return nudgeInfraSecrets(ctx, dyn) }},
+				rotate.KindManual:      rotate.Manual{Out: cmd.OutOrStdout(), Workloads: workloads, Confirm: ask},
+				rotate.KindNtfyOverlap: rotate.NtfyOverlap{Store: store, Workloads: workloads, Check: rotate.NtfyCheck(pods), Confirm: ask},
 				rotate.KindAppPassword: rotate.AppPassword{Store: store, Workloads: workloads, Apps: map[string]rotate.App{
 					"forgejo":   rotate.ForgejoAdmin{Endpoint: endpoint},
 					"grafana":   rotate.GrafanaAdmin{Exec: pods},
@@ -391,6 +411,51 @@ func printPlan(ctx context.Context, out io.Writer, rot *rotation, plan []rotate.
 			fmt.Fprintf(out, "    a person acts: %s\n", e.Steps)
 		}
 	}
+}
+
+// pushSecrets are External Secrets Operator's PushSecrets (platform/infra-secrets)
+var pushSecrets = schema.GroupVersionResource{Group: "external-secrets.io", Version: "v1alpha1", Resource: "pushsecrets"}
+
+// nudgeInfraSecrets asks every PushSecret of namespace infra-secrets to push again now (ESO's force-sync annotation)
+func nudgeInfraSecrets(ctx context.Context, dyn dynamic.Interface) error {
+	list, err := dyn.Resource(pushSecrets).Namespace("infra-secrets").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	patch := fmt.Sprintf(`{"metadata":{"annotations":{"force-sync":%q}}}`, time.Now().UTC().Format(time.RFC3339Nano))
+	for _, p := range list.Items {
+		if _, err := dyn.Resource(pushSecrets).Namespace("infra-secrets").Patch(ctx, p.GetName(), types.MergePatchType, []byte(patch), metav1.PatchOptions{}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// repositoryRoot is the checkout lab runs in (OpenTofu's units are relative to it)
+func repositoryRoot() string {
+	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return "."
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// printDue names each due entry and the command that rotates it
+func printDue(ctx context.Context, out io.Writer, r *rotate.Rotator, now time.Time) error {
+	for _, e := range r.Entries {
+		rec, err := r.Store.Get(ctx, e)
+		if err != nil {
+			return err
+		}
+		if due, ok := rotate.Due(e, rec); ok && !due.After(now) {
+			since := "never rotated"
+			if !due.IsZero() {
+				since = "since " + due.Local().Format(time.DateOnly)
+			}
+			fmt.Fprintf(out, "due: %s (%s): lab secrets rotate %s\n", e.Name, since, e.Name)
+		}
+	}
+	return nil
 }
 
 func printList(ctx context.Context, out io.Writer, r *rotate.Rotator, now time.Time) error {

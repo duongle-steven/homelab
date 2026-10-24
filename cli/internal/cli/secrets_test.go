@@ -170,6 +170,25 @@ func TestSecretsList(t *testing.T) {
 	}
 }
 
+// make infra env=production warns about OpenTofu's due secrets: only those, as one line each with the command
+func TestSecretsListDueOpenTofu(t *testing.T) {
+	recent := time.Now().Add(-24 * time.Hour)
+	fakeRotation(t, memoryRecords{
+		"cloudflare.cert-manager": {Phase: rotate.PhaseDone, At: time.Now().Add(-100 * 24 * time.Hour), By: "steven"},
+		"cloudflare.external-dns": {Phase: rotate.PhaseDone, At: recent, By: "steven"},
+		"backup.r2-token":         {Phase: rotate.PhaseDone, At: recent, By: "steven"},
+		"ntfy.alerts-token":       {Phase: rotate.PhaseDone, At: time.Now().Add(-200 * 24 * time.Hour), By: "rotation-job"},
+	})
+	out, err := runLab(t, "", false, "secrets", "list", "--due", "--kind", "opentofu")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "due: cloudflare.cert-manager (since " + time.Now().Add(-10*24*time.Hour).Local().Format(time.DateOnly) + "): lab secrets rotate cloudflare.cert-manager\n"
+	if out != want {
+		t.Fatalf("out = %q, want %q", out, want)
+	}
+}
+
 func TestIdleWoodpecker(t *testing.T) {
 	ctx := context.Background()
 	step := func(name string, phase corev1.PodPhase) *corev1.Pod {
