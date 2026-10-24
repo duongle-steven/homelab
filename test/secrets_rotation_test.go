@@ -2,6 +2,7 @@ package test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -117,15 +118,40 @@ func TestSecretsRotation(t *testing.T) {
 		}, 5*time.Minute, 5*time.Second, "no agent registered with the new secret")
 	})
 
+	t.Run("all", func(t *testing.T) {
+		// Assume everything leaked, from a script (no terminal): manual steps and other environments' entries are
+		// skipped, the phone token waits for people, and the run goes through the rest
+		out := lab(t, "secrets", "rotate", "--all", "--env", "sandbox", "--yes", "--skip-backup-check=sandbox test")
+		results := out[strings.LastIndex(out, "Results:"):]
+		assert.NotContains(t, results, "failed")
+		assert.NotContains(t, results, "not started")
+		assert.Contains(t, results, "ntfy.phone-token: waiting for people")
+		assert.Contains(t, results, "cloudflare.cert-manager: skipped: production only")
+		assert.Contains(t, results, "grafana.admin: rotated")
+		waitForApp(t, "https://"+grafanaHost+"/api/health")
+		waitForApp(t, "https://"+forgejoHost+"/api/healthz")
+	})
+
 	t.Run("scheduled", func(t *testing.T) {
 		options := k8s.NewKubectlOptions("", "", "secrets-rotation")
+		// The CronJob rotates a due entry with its own access: a fresh off-site backup first, then ntfy's alerts token
+		// made 100 days old
+		dailyBackup(t)
+		baoPutMeta(t, "rotation/ntfy.alerts-token", map[string]string{"rotation-phase": "done", "rotation-method": "ntfy-overlap",
+			"rotated-by": "test", "rotated-at": time.Now().Add(-100 * 24 * time.Hour).UTC().Format(time.RFC3339)})
+		old := ntfyToken(t, "alerts")
 		job := "rotation-test-" + time.Now().Format("150405")
 		k8s.RunKubectl(t, options, "create", "job", job, "--from=cronjob/secrets-rotation")
-		// Nothing is due on a new sandbox: the run logs in to OpenBao with its own role, takes no lock, and succeeds
 		if !jobSucceeds(t, options, job) {
 			logs, _ := k8s.RunKubectlAndGetOutputE(t, options, "logs", "job/"+job)
 			require.FailNow(t, "the scheduled run failed", logs)
 		}
+		next := ntfyToken(t, "alerts")
+		require.False(t, old == next, "the scheduled run did not rotate the due token")
+		assert.Eventually(t, func() bool {
+			status, _ := ntfyRequest(t, http.MethodGet, "/v1/account", next, "")
+			return status == http.StatusOK
+		}, 5*time.Minute, 5*time.Second, "the token the CronJob made is refused")
 		// An interrupted rotation by command cannot be finished by the CronJob: the run fails, which alerts
 		baoPutMeta(t, "rotation/kanidm-client.paperless", map[string]string{"rotation-phase": "switched", "rotation-method": "kaniop-client"})
 		failing := job + "-f"
@@ -170,4 +196,24 @@ func jobSucceeds(t *testing.T, options *k8s.KubectlOptions, job string) bool {
 		return err == nil && (strings.HasPrefix(out, "1/") || strings.HasSuffix(out, "/1"))
 	}, 5*time.Minute, 5*time.Second, "job %s did not finish", job)
 	return strings.HasPrefix(status, "1/")
+}
+
+// dailyBackup takes an off-site backup the way the daily schedule does, and waits for it
+func dailyBackup(t *testing.T) {
+	t.Helper()
+	var schedule struct {
+		Spec struct {
+			Template map[string]any `json:"template"`
+		} `json:"spec"`
+	}
+	kubectlJSON(t, &schedule, "-n", "velero", "get", "schedules.velero.io", "daily")
+	name := fmt.Sprintf("daily-rotation-%d", time.Now().Unix())
+	manifest, err := json.Marshal(map[string]any{
+		"apiVersion": "velero.io/v1", "kind": "Backup",
+		"metadata": map[string]any{"name": name, "namespace": "velero", "labels": map[string]string{"velero.io/schedule-name": "daily"}},
+		"spec":     schedule.Spec.Template,
+	})
+	require.NoError(t, err)
+	k8s.KubectlApplyFromString(t, k8s.NewKubectlOptions("", "", "velero"), string(manifest))
+	waitBackup(t, name)
 }
