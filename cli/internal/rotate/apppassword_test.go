@@ -127,6 +127,10 @@ func TestExecAppsPassThePasswordOnStdin(t *testing.T) {
 		if !strings.Contains((*log)[0], e.Readers[0].Namespace+"/"+e.Readers[0].Workloads[0].Name) {
 			t.Errorf("%s: ran in %q, not the reader's workload", tc.name, (*log)[0])
 		}
+		// Grafana's image is distroless: no shell, its CLI directly
+		if tc.name == "grafana.admin" && !strings.Contains((*log)[0], "grafana grafana cli --homepath /usr/share/grafana --config /etc/grafana/grafana.ini admin reset-admin-password --password-from-stdin") {
+			t.Errorf("grafana: ran %q", (*log)[0])
+		}
 	}
 }
 

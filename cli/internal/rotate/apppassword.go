@@ -190,8 +190,10 @@ func (g GrafanaAdmin) SetPassword(ctx context.Context, e Entry, _, next string) 
 	if err != nil {
 		return err
 	}
-	// The image's paths, so the CLI reads the same grafana.ini and database as the server
-	command := []string{"sh", "-c", `exec grafana cli --homepath "$GF_PATHS_HOME" --config "$GF_PATHS_CONFIG" admin reset-admin-password --password-from-stdin`}
+	// The image is distroless (no shell): the CLI with the image's paths, so it reads the same grafana.ini and database
+	// as the server (the pod's GF_PATHS_DATA reaches it through exec)
+	command := []string{"grafana", "cli", "--homepath", "/usr/share/grafana", "--config", "/etc/grafana/grafana.ini",
+		"admin", "reset-admin-password", "--password-from-stdin"}
 	if err := g.Exec.Exec(ctx, namespace, w, "grafana", command, strings.NewReader(next+"\n"), nil); err != nil {
 		return hide(err, next)
 	}

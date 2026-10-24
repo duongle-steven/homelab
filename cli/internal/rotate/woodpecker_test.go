@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/utils/ptr"
 )
 
@@ -117,7 +118,11 @@ func TestWoodpeckerAgentDeletesTheRows(t *testing.T) {
 	claim := func(name string) *corev1.PersistentVolumeClaim {
 		return &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Namespace: "woodpecker", Name: name}}
 	}
-	kube := fake.NewClientset(agents, claim("agent-config-woodpecker-agent-0"), claim("agent-config-woodpecker-agent-1"), claim("data-woodpecker-server-0"))
+	pod := func(name string) *corev1.Pod {
+		return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "woodpecker", Name: name}}
+	}
+	kube := fake.NewClientset(agents, claim("agent-config-woodpecker-agent-0"), claim("agent-config-woodpecker-agent-1"), claim("data-woodpecker-server-0"),
+		pod("woodpecker-agent-0"), pod("woodpecker-agent-1"), pod("woodpecker-server-0"))
 	log := &[]string{}
 	n := 0
 	m := WoodpeckerAgent{API: api, Kube: kube, Store: kv, Workloads: fakeReaders{log: log}, Waits: fastWaiter{}, Random: fixed(&n)}
@@ -133,28 +138,36 @@ func TestWoodpeckerAgentDeletesTheRows(t *testing.T) {
 	if len(f.agents) != 0 {
 		t.Fatalf("agent rows left: %v", f.agents)
 	}
+	names := func(list []string) []string { slices.Sort(list); return list }
 	claims, _ := kube.CoreV1().PersistentVolumeClaims("woodpecker").List(ctx, metav1.ListOptions{})
-	var names []string
+	var left []string
 	for _, c := range claims.Items {
-		names = append(names, c.Name)
+		left = append(left, c.Name)
 	}
-	if !slices.Equal(names, []string{"data-woodpecker-server-0"}) {
-		t.Fatalf("claims left: %v (the agents' ids go, the server's data stays)", names)
+	if !slices.Equal(names(left), []string{"data-woodpecker-server-0"}) {
+		t.Fatalf("claims left: %v (the agents' ids go, the server's data stays)", left)
 	}
+	pods, _ := kube.CoreV1().Pods("woodpecker").List(ctx, metav1.ListOptions{})
+	left = nil
+	for _, p := range pods.Items {
+		left = append(left, p.Name)
+	}
+	if !slices.Equal(left, []string{"woodpecker-server-0"}) {
+		t.Fatalf("pods left: %v (the agents start again on new claims)", left)
+	}
+	// Never scaled: Argo CD would put the replicas back at once
 	sts, _ := kube.AppsV1().StatefulSets("woodpecker").Get(ctx, "woodpecker-agent", metav1.GetOptions{})
-	if *sts.Spec.Replicas != 2 {
-		t.Fatalf("agents scaled to %d, want 2 again", *sts.Spec.Replicas)
+	if *sts.Spec.Replicas != 2 || slices.ContainsFunc(kube.Actions(), func(a k8stesting.Action) bool {
+		return a.GetVerb() == "patch" && a.GetResource().Resource == "statefulsets"
+	}) {
+		t.Fatalf("the agents were scaled: replicas %d", *sts.Spec.Replicas)
 	}
 	if !slices.Contains(*log, "refresh woodpecker/woodpecker-secret,woodpecker-agent") || !slices.Contains(*log, "restart woodpecker/woodpecker-server") {
 		t.Fatalf("readers: %v", *log)
 	}
-	// Running again after the switch (an interruption) keeps the agents' replicas
+	// Running again after the switch (an interruption) finds nothing more to delete
 	if err := m.Switch(ctx, e); err != nil {
 		t.Fatal(err)
-	}
-	sts, _ = kube.AppsV1().StatefulSets("woodpecker").Get(ctx, "woodpecker-agent", metav1.GetOptions{})
-	if *sts.Spec.Replicas != 2 {
-		t.Fatalf("a rerun scaled the agents to %d", *sts.Spec.Replicas)
 	}
 	if err := m.Verify(ctx, e); err == nil {
 		t.Fatal("Verify passed before any agent registered again")

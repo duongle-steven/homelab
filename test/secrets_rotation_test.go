@@ -120,7 +120,7 @@ func TestSecretsRotation(t *testing.T) {
 		job := "rotation-test-" + time.Now().Format("150405")
 		k8s.RunKubectl(t, options, "create", "job", job, "--from=cronjob/secrets-rotation")
 		// Nothing is due on a new sandbox: the run logs in to OpenBao with its own role, takes no lock, and succeeds
-		if err := k8s.RunKubectlE(t, options, "wait", "--for=condition=Complete", "--timeout=5m", "job/"+job); err != nil {
+		if !jobSucceeds(t, options, job) {
 			logs, _ := k8s.RunKubectlAndGetOutputE(t, options, "logs", "job/"+job)
 			require.FailNow(t, "the scheduled run failed", logs)
 		}
@@ -128,7 +128,7 @@ func TestSecretsRotation(t *testing.T) {
 		baoPutMeta(t, "rotation/kanidm-client.paperless", map[string]string{"rotation-phase": "switched", "rotation-method": "kaniop-client"})
 		failing := job + "-f"
 		k8s.RunKubectl(t, options, "create", "job", failing, "--from=cronjob/secrets-rotation")
-		require.NoError(t, k8s.RunKubectlE(t, options, "wait", "--for=condition=Failed", "--timeout=5m", "job/"+failing))
+		require.False(t, jobSucceeds(t, options, failing), "a run with an interrupted rotation by command succeeded")
 		assert.Eventually(t, func() bool {
 			alerts, err := prometheusQuery(t, `ALERTS{alertname="SecretRotationFailed", alertstate="firing"}`)
 			return err == nil && len(alerts) > 0
@@ -156,4 +156,16 @@ func baoPutMeta(t *testing.T, path string, meta map[string]string) {
 		args = append(args, "-custom-metadata="+k+"="+v)
 	}
 	admin(t, append(args, "secret/"+path)...)
+}
+
+// jobSucceeds waits up to 5 minutes for job to finish and reports whether it succeeded
+func jobSucceeds(t *testing.T, options *k8s.KubectlOptions, job string) bool {
+	t.Helper()
+	var status string
+	require.Eventually(t, func() bool {
+		out, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "job", job, "-o", "jsonpath={.status.succeeded}/{.status.failed}")
+		status = out
+		return err == nil && (strings.HasPrefix(out, "1/") || strings.HasSuffix(out, "/1"))
+	}, 5*time.Minute, 5*time.Second, "job %s did not finish", job)
+	return strings.HasPrefix(status, "1/")
 }

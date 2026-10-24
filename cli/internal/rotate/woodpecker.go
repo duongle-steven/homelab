@@ -221,44 +221,18 @@ func (m WoodpeckerAgent) Prepare(ctx context.Context, e Entry) error {
 func (m WoodpeckerAgent) Switch(ctx context.Context, e Entry) error {
 	ns := e.Readers[0].Namespace
 	server, agents := e.Settings["server"], e.Settings["agents"]
-	sets := m.Kube.AppsV1().StatefulSets(ns)
-	sts, err := sets.Get(ctx, agents, metav1.GetOptions{})
+	sts, err := m.Kube.AppsV1().StatefulSets(ns).Get(ctx, agents, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("StatefulSet %s/%s: %w", ns, agents, err)
-	}
-	// The agents' replicas, kept before they go to 0 so a rerun starts them as many again
-	state, err := readState(ctx, m.Store, e)
-	if err != nil {
-		return err
-	}
-	replicas := state["agents"]
-	if replicas == "" {
-		replicas = strconv.Itoa(int(ptrValue(sts.Spec.Replicas, 1)))
-		next := map[string]string{"agents": replicas}
-		for k, v := range state {
-			next[k] = v
-		}
-		if err := writeState(ctx, m.Store, e, next); err != nil {
-			return err
-		}
-		state = next
 	}
 	if err := refresh(ctx, m.Workloads, e); err != nil {
 		return err
 	}
-	if err := scale(ctx, m.Kube, ns, agents, 0); err != nil {
-		return err
-	}
-	if err := m.Waits.Until(ctx, "no agent pod in "+ns, func() (bool, error) {
-		s, err := sets.Get(ctx, agents, metav1.GetOptions{})
-		return err == nil && s.Status.Replicas == 0, nil
-	}); err != nil {
-		return err
-	}
-	if err := m.Workloads.Restart(ctx, ns, []workload.Ref{{Kind: "StatefulSet", Name: server}}); err != nil {
+	server0 := []workload.Ref{{Kind: "StatefulSet", Name: server}}
+	if err := m.Workloads.Restart(ctx, ns, server0); err != nil {
 		return fmt.Errorf("restart %s/%s: %w", ns, server, err)
 	}
-	if err := m.Workloads.WaitReady(ctx, ns, []workload.Ref{{Kind: "StatefulSet", Name: server}}); err != nil {
+	if err := m.Workloads.WaitReady(ctx, ns, server0); err != nil {
 		return err
 	}
 	ids, err := m.API.Agents(ctx)
@@ -270,23 +244,47 @@ func (m WoodpeckerAgent) Switch(ctx context.Context, e Entry) error {
 			return err
 		}
 	}
-	// The agents' config volumes hold only their ids (homelab/backup none)
-	for _, t := range sts.Spec.VolumeClaimTemplates {
-		prefix := t.Name + "-" + agents + "-"
-		claims, err := m.Kube.CoreV1().PersistentVolumeClaims(ns).List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return err
-		}
-		for _, c := range claims.Items {
-			if strings.HasPrefix(c.Name, prefix) {
-				if err := m.Kube.CoreV1().PersistentVolumeClaims(ns).Delete(ctx, c.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-					return fmt.Errorf("delete claim %s/%s: %w", ns, c.Name, err)
-				}
+	// Each agent starts again without its id: its config claims (homelab/backup none) are deleted, which waits for
+	// the pod, then the pod; the StatefulSet makes both again. Never scaled: Argo CD would put the replicas back.
+	claims := m.Kube.CoreV1().PersistentVolumeClaims(ns)
+	pods := m.Kube.CoreV1().Pods(ns)
+	for i := range ptrValue(sts.Spec.Replicas, 1) {
+		pod := fmt.Sprintf("%s-%d", agents, i)
+		old := map[string]types.UID{}
+		for _, t := range sts.Spec.VolumeClaimTemplates {
+			name := t.Name + "-" + pod
+			c, err := claims.Get(ctx, name, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("claim %s/%s: %w", ns, name, err)
+			}
+			old[name] = c.UID
+			if err := claims.Delete(ctx, name, metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &c.UID}}); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("delete claim %s/%s: %w", ns, name, err)
 			}
 		}
+		if err := pods.Delete(ctx, pod, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete pod %s/%s: %w", ns, pod, err)
+		}
+		// The StatefulSet may have made the pod again before the old claim went: once the claim is gone, the pod goes
+		// once more, so the StatefulSet makes it with a new claim
+		if err := m.Waits.Until(ctx, "the old claims of "+ns+"/"+pod+" deleted", func() (bool, error) {
+			for name, uid := range old {
+				if c, err := claims.Get(ctx, name, metav1.GetOptions{}); err == nil && c.UID == uid {
+					return false, nil
+				}
+			}
+			return true, nil
+		}); err != nil {
+			return err
+		}
+		if err := pods.Delete(ctx, pod, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete pod %s/%s: %w", ns, pod, err)
+		}
 	}
-	n, _ := strconv.Atoi(state["agents"])
-	return scale(ctx, m.Kube, ns, agents, int32(n))
+	return nil
 }
 
 func (m WoodpeckerAgent) Verify(ctx context.Context, e Entry) error {
@@ -311,14 +309,6 @@ func ptrValue(p *int32, fallback int32) int32 {
 		return fallback
 	}
 	return *p
-}
-
-func scale(ctx context.Context, kube kubernetes.Interface, ns, name string, replicas int32) error {
-	patch := fmt.Sprintf(`{"spec":{"replicas":%d}}`, replicas)
-	if _, err := kube.AppsV1().StatefulSets(ns).Patch(ctx, name, types.MergePatchType, []byte(patch), metav1.PatchOptions{}); err != nil {
-		return fmt.Errorf("scale StatefulSet %s/%s to %d: %w", ns, name, replicas, err)
-	}
-	return nil
 }
 
 // RegistryCI replaces zot's ci password like a generated secret, and Woodpecker's org secret (Settings
