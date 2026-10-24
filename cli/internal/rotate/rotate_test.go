@@ -810,21 +810,28 @@ func TestRotateStopsWhenItLosesTheLock(t *testing.T) {
 	r, calls, records := rotator([]Entry{generated("grafana.admin")}, nil)
 	r.Out = &syncWriter{w: &out}
 	r.Lock = &LeaseLocker{Kube: kube, Namespace: "secrets-rotation", Renew: 5 * time.Millisecond, Out: r.Out}
-	var taken atomic.Bool
+	// The takeover and every renewal are serialized: the fake tracker does not check resourceVersion, so a renewal
+	// landing between the takeover's two writes would put our holder back
+	var mu sync.Mutex
+	taken := false
 	kube.PrependReactor("update", "leases", func(k8stesting.Action) (bool, runtime.Object, error) {
-		if !taken.Load() {
+		mu.Lock()
+		defer mu.Unlock()
+		if !taken {
 			return false, nil, nil
 		}
 		return true, nil, apierrors.NewConflict(leaseGVR.GroupResource(), "rotate-grafana.admin", errors.New("modified"))
 	})
 	// Prepare runs until its context ends; meanwhile another run takes the lock over, so the renewal conflicts
 	r.Methods[KindGenerated] = untilCancelled{fakeMethod{calls: calls}, func() {
+		mu.Lock()
+		defer mu.Unlock()
 		lease := leaseObject(t, kube).DeepCopy()
 		lease.Spec.HolderIdentity = ptr.To("rotation-job/2")
 		if err := kube.Tracker().Update(leaseGVR, lease, "secrets-rotation"); err != nil {
 			t.Error(err)
 		}
-		taken.Store(true)
+		taken = true
 	}}
 	done := make(chan struct{})
 	var results []Result
@@ -903,4 +910,33 @@ func (s *syncWriter) String() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.w.String()
+}
+
+// A renewal that reached the API server but whose answer was lost conflicts at the next renewal: the Lease is still
+// ours, so the run keeps it instead of reporting a lost lock
+func TestLockKeepsItsOwnLeaseAfterAConflict(t *testing.T) {
+	kube := fake.NewClientset()
+	locker := &LeaseLocker{Kube: kube, Namespace: "secrets-rotation", Renew: 2 * time.Millisecond, Out: io.Discard}
+	var conflicts atomic.Int32
+	kube.PrependReactor("update", "leases", func(k8stesting.Action) (bool, runtime.Object, error) {
+		if conflicts.Add(1) <= 3 {
+			return true, nil, apierrors.NewConflict(leaseGVR.GroupResource(), "rotate-grafana.admin", errors.New("modified"))
+		}
+		return false, nil, nil
+	})
+	lockCtx, release, err := locker.Lock(context.Background(), generated("grafana.admin"), "steven@workstation/1", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	deadline := time.Now().Add(5 * time.Second)
+	for conflicts.Load() < 6 {
+		if time.Now().After(deadline) {
+			t.Fatalf("renewals stopped after %d conflicts: %v", conflicts.Load(), context.Cause(lockCtx))
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if cause := context.Cause(lockCtx); cause != nil {
+		t.Fatalf("the run gave up its own lock: %v", cause)
+	}
 }

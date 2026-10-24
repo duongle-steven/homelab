@@ -98,8 +98,14 @@ func (l *LeaseLocker) Lock(ctx context.Context, e Entry, holder string, ttl time
 			case err == nil:
 				lease = updated
 			case apierrors.IsConflict(err):
+				current, getErr := leases.Get(callCtx, name, metav1.GetOptions{})
+				if getErr == nil && current.Spec.HolderIdentity != nil && *current.Spec.HolderIdentity == holder {
+					// Still ours: an earlier renewal reached the API server but its answer did not reach us
+					lease = current
+					break
+				}
 				other := "another run"
-				if current, err := leases.Get(callCtx, name, metav1.GetOptions{}); err == nil && current.Spec.HolderIdentity != nil {
+				if getErr == nil && current.Spec.HolderIdentity != nil {
 					other = *current.Spec.HolderIdentity
 				}
 				callCancel()
