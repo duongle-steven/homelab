@@ -16,13 +16,13 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | #31 (7b) | `global.timezone` is read by no chart | any |
 | #31 (7b) | The tests hard-code `*.127-0-0-1.nip.io` | 12 (staging) |
 | #31 (7b) | The seed `sed` breaks on `&` or `\|` in `seed_repository`; `SEED_REPOSITORY` duplicates `global.seedRepository` | any |
-| #31 (7b) | woodpecker's and zot's config changes do not roll their pods (the woodpecker chart passes `podAnnotations` without `tpl`; Secrets ESO refreshes never would) | 11b (Reloader or explicit restarts) |
+| #31 (7b) | woodpecker's and zot's config changes do not roll their pods (the woodpecker chart passes `podAnnotations` without `tpl`; Secrets ESO refreshes never would); 11b's rotations restart them explicitly, other changes still need a restart by hand | any (Reloader) |
 | #31 (7b) | `scripts/check-env-config`'s untemplated-global check knows only four keys | any |
 | #32 (7c) | `.direnv/` and `site/` are not git-ignored | any |
 | #34 (8a) | `TestSecretsAudience` matches the plugin's "invalid audience" message | any |
 | 8b | `infra/_modules/secrets/wait-namespace.sh` names OpenBao and `platform/openbao` (copied) instead of `infra-secrets` | any |
 | 8b | `apply-secrets.sh`'s kubectl errors are hidden (OpenTofu suppresses output when `MANIFEST` is sensitive) | any |
-| 8b | Losing `secrets/tfstate.json` on R2 (or the state passphrase) silently creates a new WireGuard key, which `Replace` pushes over OpenBao's (11a's backups hold volumes, not OpenTofu's state) | 11b |
+| 8b | Losing `secrets/tfstate.json` on R2 (or the state passphrase) silently creates a new WireGuard key, which `Replace` pushes over OpenBao's (11a's backups hold volumes, not OpenTofu's state; 11b never rotates it) | 13 |
 | 8b | Removing an `infra-secrets` entry leaves its Secret in the namespace; the docs' removal steps omit `kubectl delete secret` | any |
 | 8b | `TestNtfyWatchdogScheduled` does not prove that heartbeats replace one scheduled message | any |
 | 8b | `InfoInhibitor` reaches phones: the Alertmanager config override drops the chart's `null` receiver | any |
@@ -41,6 +41,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | dev shell cleanup | `metal/roles/pxe_server/templates/dnsmasq.conf.j2` uses `ansible.netcommon.ipmath`, which nixpkgs' Ansible does not ship (it moved to `ansible.utils`): `metal/` fails before and after the cleanup | 12 (replaces `metal/`) |
 | 8e | `make dev-fresh` on the workstation hits the main run's 60-minute `go test` timeout (the first sync's waits count inside the tests) | any |
 | 8e | Browser SSO tests flake on Kanidm's login page (OpenCloud, Grafana, paperless: "login page never loaded", `chrome-error`); a rerun passes | any |
-| 10e | Woodpecker's server generates a temporary `WOODPECKER_GRPC_SECRET` at each start (agents sign in again with the agent secret) | 11b |
+| 10e | Woodpecker's server generates a temporary `WOODPECKER_GRPC_SECRET` at each start (agents sign in again with the agent secret; 11b's agent rotation restarts the server anyway) | any |
 | 10e | `TestNodeRestart` once took about 23 minutes (more than its 20): the watchdog had to restart istio-cni three times; a rerun passed in 10 | 12 (nodes) |
-| 11a | A whole-cluster restore takes the manual apps from their own pushes, another moment than OpenBao's: harmless while generated secrets never change, which 11b's rotation changes | 11b |
+| 11a | A whole-cluster restore takes the manual apps from their own pushes, another moment than OpenBao's: since 11b rotates generated secrets, a manual app restored from before a rotation holds the old value (rotate it again after such a restore) | any |
