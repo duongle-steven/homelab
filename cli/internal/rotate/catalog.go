@@ -27,7 +27,7 @@ const (
 	KindKaniopClient    Kind = "kaniop-client"    // kaniop.rs/force-secret-rotation, then restart the readers
 	KindKanidmAdmin     Kind = "kanidm-admin"     // kaniop writes new admin passwords when their Secret is deleted
 	KindOpenTofu        Kind = "opentofu"         // -replace, apply, push
-	KindWoodpeckerAgent Kind = "woodpecker-agent" // one token per agent replica, the old agent deleted afterwards
+	KindWoodpeckerAgent Kind = "woodpecker-agent" // a new shared agent secret, every agent row deleted, the agents registered again
 	KindWoodpeckerToken Kind = "woodpecker-token" // Woodpecker's token reset for the admin user
 	KindCNPG            Kind = "cnpg-password"    // CloudNativePG's password in its own Secret, with the derived keys
 	KindManual          Kind = "manual"           // a person acts; lab gives the steps

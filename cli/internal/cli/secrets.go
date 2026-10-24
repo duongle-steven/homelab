@@ -247,6 +247,9 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 				rotate.KindGenerated:    rotate.Generated{Store: store, Workloads: workloads},
 				rotate.KindForgejoToken: rotate.ForgejoToken{API: rotate.ForgejoClient{Endpoint: endpoint, Tokens: store}, Store: store, Workloads: workloads},
 				rotate.KindForgejoOAuth: rotate.ForgejoOAuth{API: rotate.ForgejoClient{Endpoint: endpoint, Tokens: store}, Store: store, Workloads: workloads},
+				rotate.KindKaniopClient: rotate.KaniopClient{Kube: kube, Dyn: dyn, Store: store, Workloads: workloads, Waits: workloads},
+				rotate.KindKanidmAdmin:  rotate.KanidmAdmin{Kube: kube, Store: store, Waits: workloads},
+				rotate.KindCNPG:         rotate.CNPGPassword{Kube: kube, Store: store, Workloads: workloads},
 				rotate.KindNtfyOverlap:  rotate.NtfyOverlap{Store: store, Workloads: workloads, Check: rotate.NtfyCheck(pods), Confirm: ask},
 				rotate.KindAppPassword: rotate.AppPassword{Store: store, Workloads: workloads, Apps: map[string]rotate.App{
 					"forgejo":   rotate.ForgejoAdmin{Endpoint: endpoint},
