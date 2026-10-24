@@ -230,6 +230,16 @@ func TestMethodErrorsHideValues(t *testing.T) {
 				n := 0
 				run(t, Generated{Store: kv, Workloads: fakeReaders{log: log, failing: true}, Random: fixed(&n)}, e)
 			}
+			for _, name := range []string{"ntfy.alerts-token", "ntfy.phone-token"} {
+				e := catalogEntry(t, name)
+				log := &[]string{}
+				kv := newKV(log, map[string]map[string]string{e.Paths[0]: {e.Settings["key"]: current}, RecordPath(e): {pendingKey: newValue}})
+				kv.failing, kv.failWrites = stage == "store", stage == "write"
+				n := 0
+				failing := func(_ context.Context, _, token string) error { return fmt.Errorf("ntfy refused %s", token) }
+				run(t, NtfyOverlap{Store: kv, Workloads: fakeReaders{log: log, failing: true}, Random: fixed(&n), Check: failing}, e)
+				run(t, NtfyOverlap{Store: kv, Workloads: fakeReaders{log: log}, Random: fixed(&n), Check: NtfyCheck(fakeExec{log: log, failing: true})}, e)
+			}
 			for _, name := range []string{"forgejo.admin", "grafana.admin", "paperless.admin"} {
 				e := catalogEntry(t, name)
 				log := &[]string{}

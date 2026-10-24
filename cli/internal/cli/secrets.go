@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -206,6 +207,20 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 	b := backup.New(dyn, kube)
 	workloads := &workload.Client{Kube: kube, Dyn: dyn, Poll: 5 * time.Second, Wait: 10 * time.Minute}
 	pods := workload.Exec{Kube: kube, Config: config}
+	// A question about people (who must act before an old value goes) is asked even with --yes, and only on a
+	// terminal of a person's run: never in the CronJob
+	var ask func(context.Context, string) error
+	if scheduled, _ := cmd.Flags().GetBool("scheduled"); !scheduled && stdinIsTerminal(cmd) {
+		ask = func(_ context.Context, question string) error {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s [y/N] ", question)
+			answer, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+			switch strings.ToLower(strings.TrimSpace(answer)) {
+			case "y", "yes":
+				return nil
+			}
+			return errors.New("not confirmed: the old value stays; run the same command again once it is done")
+		}
+	}
 	// Forgejo's endpoint is reached only when a rotation needs it (the sandbox's asks docker for the node)
 	var cleanups []func()
 	var ep *forgejo.Endpoint
@@ -229,7 +244,8 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 			Entries: entries,
 			// Each kind's method comes with its own task (docs/superpowers/plans/2026-10-24-secrets-rotation.md)
 			Methods: map[rotate.Kind]rotate.Method{
-				rotate.KindGenerated: rotate.Generated{Store: store, Workloads: workloads},
+				rotate.KindGenerated:   rotate.Generated{Store: store, Workloads: workloads},
+				rotate.KindNtfyOverlap: rotate.NtfyOverlap{Store: store, Workloads: workloads, Check: rotate.NtfyCheck(pods), Confirm: ask},
 				rotate.KindAppPassword: rotate.AppPassword{Store: store, Workloads: workloads, Apps: map[string]rotate.App{
 					"forgejo":   rotate.ForgejoAdmin{Endpoint: endpoint},
 					"grafana":   rotate.GrafanaAdmin{Exec: pods},
