@@ -240,6 +240,17 @@ func TestMethodErrorsHideValues(t *testing.T) {
 				run(t, NtfyOverlap{Store: kv, Workloads: fakeReaders{log: log, failing: true}, Random: fixed(&n), Check: failing}, e)
 				run(t, NtfyOverlap{Store: kv, Workloads: fakeReaders{log: log}, Random: fixed(&n), Check: NtfyCheck(fakeExec{log: log, failing: true})}, e)
 			}
+			for _, name := range []string{"forgejo.deploy-token", "forgejo.argocd-token", "forgejo.woodpecker-oauth"} {
+				e := catalogEntry(t, name)
+				log := &[]string{}
+				kv := newKV(log, map[string]map[string]string{e.Paths[0]: {"token": current, "client_secret": current}})
+				kv.failing, kv.failWrites = stage == "store", stage == "write"
+				api := newFakeForgejo(log, kv)
+				api.tokens["deploy"]["lab"], api.tokens["argocd"]["argocd"] = current, current
+				api.failing = stage == "app"
+				run(t, ForgejoToken{API: api, Store: kv, Workloads: fakeReaders{log: log, failing: true}}, e)
+				run(t, ForgejoOAuth{API: api, Store: kv, Workloads: fakeReaders{log: log, failing: true}}, e)
+			}
 			for _, name := range []string{"forgejo.admin", "grafana.admin", "paperless.admin"} {
 				e := catalogEntry(t, name)
 				log := &[]string{}

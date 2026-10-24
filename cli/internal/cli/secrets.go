@@ -244,8 +244,10 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 			Entries: entries,
 			// Each kind's method comes with its own task (docs/superpowers/plans/2026-10-24-secrets-rotation.md)
 			Methods: map[rotate.Kind]rotate.Method{
-				rotate.KindGenerated:   rotate.Generated{Store: store, Workloads: workloads},
-				rotate.KindNtfyOverlap: rotate.NtfyOverlap{Store: store, Workloads: workloads, Check: rotate.NtfyCheck(pods), Confirm: ask},
+				rotate.KindGenerated:    rotate.Generated{Store: store, Workloads: workloads},
+				rotate.KindForgejoToken: rotate.ForgejoToken{API: rotate.ForgejoClient{Endpoint: endpoint, Tokens: store}, Store: store, Workloads: workloads},
+				rotate.KindForgejoOAuth: rotate.ForgejoOAuth{API: rotate.ForgejoClient{Endpoint: endpoint, Tokens: store}, Store: store, Workloads: workloads},
+				rotate.KindNtfyOverlap:  rotate.NtfyOverlap{Store: store, Workloads: workloads, Check: rotate.NtfyCheck(pods), Confirm: ask},
 				rotate.KindAppPassword: rotate.AppPassword{Store: store, Workloads: workloads, Apps: map[string]rotate.App{
 					"forgejo":   rotate.ForgejoAdmin{Endpoint: endpoint},
 					"grafana":   rotate.GrafanaAdmin{Exec: pods},
