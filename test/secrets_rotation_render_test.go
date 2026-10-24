@@ -26,6 +26,9 @@ func TestSecretsRotationRender(t *testing.T) {
 	assert.Equal(t, "ntfy", exec)
 	claims := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and (.rules[].resources[] == "persistentvolumeclaims")) | .metadata.namespace`)
 	assert.Equal(t, "woodpecker", claims)
+	// Only named objects are changed: Argo CD's namespace allows refreshing one ExternalSecret and nothing else
+	assert.Equal(t, "externalsecrets argocd-repo-forgejo", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "argocd") | .rules[] | .resources[0] + " " + (.resourceNames | join(","))`))
+	assert.Equal(t, "agent-config-woodpecker-agent-0,agent-config-woodpecker-agent-1", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "woodpecker") | .rules[] | select(.resources[0] == "persistentvolumeclaims") | .resourceNames | join(",")`))
 	alerts := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "PrometheusRule") | .spec.groups[0].rules[].alert`)
 	assert.Equal(t, []string{"SecretRotationFailed", "SecretRotationOverdue"}, strings.Fields(alerts))
 }

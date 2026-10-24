@@ -292,16 +292,22 @@ func Scheduled(e Entry) bool {
 	return e.Period > 0 && !slices.Contains([]Kind{KindManual, KindOpenTofu, KindNever, KindAutomatic, KindScript}, e.Kind)
 }
 
-// CheckScheduled compares what the scheduled rotation may touch with what its entries need: the reader namespaces in
-// platform/secrets-rotation/values.yaml (its RBAC) and the paths in platform/openbao/values.yaml (policy rotator).
+// CheckScheduled compares what the scheduled rotation may touch with what its entries need: the readers in
+// platform/secrets-rotation/values.yaml (its RBAC: namespaces, ExternalSecrets, Deployments, StatefulSets) and the
+// paths in platform/openbao/values.yaml (policy rotator).
 func CheckScheduled(root string, entries []Entry) []string {
 	var problems []string
 	raw, err := os.ReadFile(filepath.Join(root, "platform/secrets-rotation/values.yaml"))
 	if err != nil {
 		return []string{fmt.Sprintf("platform/secrets-rotation/values.yaml: %v", err)}
 	}
+	type access struct {
+		ExternalSecrets []string `yaml:"externalSecrets"`
+		Deployments     []string `yaml:"deployments"`
+		StatefulSets    []string `yaml:"statefulsets"`
+	}
 	var v struct {
-		Readers []string `yaml:"readers"`
+		Readers map[string]access `yaml:"readers"`
 	}
 	if err := yaml.Unmarshal(raw, &v); err != nil {
 		return []string{fmt.Sprintf("platform/secrets-rotation/values.yaml: %v", err)}
@@ -310,15 +316,22 @@ func CheckScheduled(root string, entries []Entry) []string {
 	if err != nil {
 		return []string{fmt.Sprintf("platform/openbao/values.yaml: %v", err)}
 	}
-	needed := map[string]bool{}
+	// What the scheduled entries need, by namespace and kind: "ExternalSecret", "Deployment", "StatefulSet"
+	needed := map[string]map[string][]string{}
 	for _, e := range entries {
 		if !Scheduled(e) || e.Pending != "" {
 			continue
 		}
 		for _, r := range namespaced(e) {
-			needed[r.Namespace] = true
-			if !slices.Contains(v.Readers, r.Namespace) {
+			if needed[r.Namespace] == nil {
+				needed[r.Namespace] = map[string][]string{}
+			}
+			if _, ok := v.Readers[r.Namespace]; !ok {
 				problems = append(problems, fmt.Sprintf("%s: %s's readers are there, not in platform/secrets-rotation's readers", r.Namespace, e.Name))
+			}
+			needed[r.Namespace]["ExternalSecret"] = append(needed[r.Namespace]["ExternalSecret"], r.ExternalSecrets...)
+			for _, w := range r.Workloads {
+				needed[r.Namespace][w.Kind] = append(needed[r.Namespace][w.Kind], w.Name)
 			}
 		}
 		for _, p := range e.Paths {
@@ -327,10 +340,25 @@ func CheckScheduled(root string, entries []Entry) []string {
 			}
 		}
 	}
-	for _, ns := range v.Readers {
-		if !needed[ns] {
+	for ns, got := range v.Readers {
+		if needed[ns] == nil {
 			problems = append(problems, fmt.Sprintf("%s: no scheduled entry reads there, yet platform/secrets-rotation may touch it", ns))
+			continue
+		}
+		for kind, allowed := range map[string][]string{"ExternalSecret": got.ExternalSecrets, "Deployment": got.Deployments, "StatefulSet": got.StatefulSets} {
+			want := needed[ns][kind]
+			for _, name := range allowed {
+				if !slices.Contains(want, name) {
+					problems = append(problems, fmt.Sprintf("%s: %s %s is allowed but no scheduled entry needs it", ns, kind, name))
+				}
+			}
+			for _, name := range want {
+				if !slices.Contains(allowed, name) {
+					problems = append(problems, fmt.Sprintf("%s: %s %s is needed by a scheduled entry but not allowed", ns, kind, name))
+				}
+			}
 		}
 	}
-	return problems
+	slices.Sort(problems)
+	return slices.Compact(problems)
 }

@@ -110,10 +110,10 @@ func TestCheckReportsMissingValues(t *testing.T) {
 // namespaces of the periodic entries' readers, and OpenBao's policy rotator names each of their paths
 func TestCheckScheduledAccess(t *testing.T) {
 	root := t.TempDir()
-	write(t, root, "platform/secrets-rotation/values.yaml", "readers: [ntfy, extra]\n")
+	write(t, root, "platform/secrets-rotation/values.yaml", "readers:\n  ntfy: {externalSecrets: [ntfy-auth, stale], deployments: [ntfy]}\n  extra: {externalSecrets: [x]}\n")
 	write(t, root, "platform/openbao/values.yaml", `policy = "path \"secret/data/ntfy/generated/alerts-token\" { capabilities = [\"read\"] }"`+"\n")
 	entries, err := parse([]byte(`
-- {name: a, kind: ntfy-overlap, period: 2160h, paths: [ntfy/generated/alerts-token], readers: [{namespace: ntfy}]}
+- {name: a, kind: ntfy-overlap, period: 2160h, paths: [ntfy/generated/alerts-token], readers: [{namespace: ntfy, externalSecrets: [ntfy-auth], workloads: [{kind: Deployment, name: ntfy}, {kind: StatefulSet, name: missing}]}]}
 - {name: b, kind: generated, period: 2160h, paths: [zot/generated/ci], readers: [{namespace: zot}]}
 - {name: c, kind: generated, paths: [paperless/generated/admin], readers: [{namespace: paperless}]}
 - {name: d, kind: opentofu, period: 2160h, paths: [cert-manager/cloudflare], readers: [{namespace: cert-manager}], settings: {unit: u, resource: r}}
@@ -122,7 +122,8 @@ func TestCheckScheduledAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := strings.Join(CheckScheduled(root, entries), "\n")
-	for _, want := range []string{"zot: b's readers", "extra: no scheduled entry", "zot/generated/ci: b's path"} {
+	for _, want := range []string{"zot: b's readers", "extra: no scheduled entry", "zot/generated/ci: b's path",
+		"ntfy: ExternalSecret stale", "ntfy: StatefulSet missing"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("CheckScheduled = %q, missing %q", got, want)
 		}

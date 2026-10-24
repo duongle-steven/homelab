@@ -5,10 +5,24 @@
 image: ""
 # 03:00 in global.timezone: an hour after Velero's daily backup, which the rotation wants from the last 24 hours
 schedule: "0 3 * * *"
-# The namespaces whose readers the scheduled entries refresh and restart: lab secrets check compares this list with
-# the catalog (cli/internal/rotate/catalog.yaml)
-readers: [argocd, monitoring-system, ntfy, woodpecker, zot]
-# Of those, where it checks a credential from inside the app's pod (ntfy denies callers outside the mesh) and where it
-# deletes the agents' config volumes (a new agent secret: the agents register again)
-execIn: [ntfy]
-claimsIn: [woodpecker]
+# What the scheduled entries' readers are, by namespace: the rotation may patch only these ExternalSecrets (refresh) and
+# workloads (rolling restart), exec into the pods of `exec`, and delete only the claims in `claims` (Woodpecker's agent
+# ids). lab secrets check compares this with the catalog (cli/internal/rotate/catalog.yaml)
+readers:
+  argocd:
+    externalSecrets: [argocd-repo-forgejo]
+  monitoring-system:
+    externalSecrets: [ntfy]
+  ntfy:
+    externalSecrets: [ntfy-auth]
+    deployments: [ntfy]
+    # ntfy denies callers outside the mesh: the new token is checked from its own pod
+    exec: true
+  woodpecker:
+    externalSecrets: [woodpecker-secret, woodpecker-agent]
+    statefulsets: [woodpecker-server, woodpecker-agent]
+    # The agents' config volumes hold only their ids (one per replica: platform/woodpecker's agent.replicaCount)
+    claims: [agent-config-woodpecker-agent-0, agent-config-woodpecker-agent-1]
+  zot:
+    externalSecrets: [zot-auth]
+    statefulsets: [zot]

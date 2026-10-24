@@ -46,8 +46,10 @@ passphrase has its own script (`scripts/rotate-state-passphrase`).
 The CronJob `secrets-rotation/secrets-rotation` runs `lab secrets rotate --scheduled` at 03:00 (in
 `global.timezone`): the entries with a period (90 days) whose turn came, counted from their creation until their first
 rotation, and the interrupted ones. It never runs manual or OpenTofu entries, and leaves an interrupted rotation by
-command to a person. Its access is only what those entries need: a role per namespace and OpenBao's role `rotator`
-(`lab secrets check` keeps both in step with the catalog).
+command to a person. Its Kubernetes access names what those entries need (each namespace's ExternalSecrets, workloads
+and Woodpecker's agent claims) and OpenBao's role `rotator` their paths; `lab secrets check` keeps both in step with
+the catalog. That access is still powerful: it reads Forgejo's admin password and writes the deploy token, which reach
+`ops/homelab`, what Argo CD deploys, so treat the job like an admin.
 
 - A failed run alerts (`SecretRotationFailed`, through ntfy and Telegram): `kubectl -n secrets-rotation logs
   job/<job>` names the secret; fix the cause, then `lab secrets rotate <name>` finishes it.

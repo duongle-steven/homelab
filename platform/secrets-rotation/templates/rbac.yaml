@@ -56,36 +56,50 @@ rules:
     resources: [backups]
     verbs: [get, list]
 {{- include "secrets-rotation.binding" (dict "namespace" "velero" "from" .Release.Namespace) }}
-{{- range .Values.readers }}
+{{- range $ns, $r := .Values.readers }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: secrets-rotation
-  namespace: {{ . }}
+  namespace: {{ $ns }}
 rules:
   - apiGroups: [external-secrets.io]
     resources: [externalsecrets]
-    verbs: [get, list, patch]
+    resourceNames: {{ $r.externalSecrets | toJson }}
+    verbs: [get, patch]
+  {{- if or $r.deployments $r.statefulsets }}
+  # Listing finds who owns what (Kanidm's StatefulSets are kaniop's); only the named ones are patched (restarted)
   - apiGroups: [apps]
-    resources: [deployments, statefulsets]
-    verbs: [get, list, patch]
-  - apiGroups: [apps]
-    resources: [replicasets]
+    resources: [deployments, statefulsets, replicasets]
     verbs: [get, list]
-  # Waiting restarts a crash-looping pod once; Woodpecker's idle check lists step pods
+  {{- with $r.deployments }}
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: {{ . | toJson }}
+    verbs: [patch]
+  {{- end }}
+  {{- with $r.statefulsets }}
+  - apiGroups: [apps]
+    resources: [statefulsets]
+    resourceNames: {{ . | toJson }}
+    verbs: [patch]
+  {{- end }}
+  # Waiting restarts a crash-looping pod once; Woodpecker's idle check lists step pods; its agents start again
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, delete]
-  {{- if has . $.Values.execIn }}
+  {{- end }}
+  {{- if $r.exec }}
   - apiGroups: [""]
     resources: [pods/exec]
     verbs: [create, get]
   {{- end }}
-  {{- if has . $.Values.claimsIn }}
+  {{- with $r.claims }}
   - apiGroups: [""]
     resources: [persistentvolumeclaims]
-    verbs: [get, list, delete]
+    resourceNames: {{ . | toJson }}
+    verbs: [get, delete]
   {{- end }}
-{{- include "secrets-rotation.binding" (dict "namespace" . "from" $.Release.Namespace) }}
+{{- include "secrets-rotation.binding" (dict "namespace" $ns "from" $.Release.Namespace) }}
 {{- end }}
