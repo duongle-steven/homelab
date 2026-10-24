@@ -55,32 +55,31 @@
 
 - name: woodpecker.agent
   kind: woodpecker-agent
-  pending: "Task 8 (per-agent tokens)"
-  class: 0
-  reason: Woodpecker 3's per-agent tokens give an official overlap (a new agent token, then the old agent is deleted)
+  class: 2
+  reason: >-
+    Woodpecker keeps the secret an agent registered with as its row's token, so the rotation deletes every agent row
+    and the agents' ids and registers them again with the new one: CI stops meanwhile (after the idle wait)
   period: 2160h
-  # One token per agent replica at secret/woodpecker/agent-<n>; the generated secret is the one that exists today
   paths: [woodpecker/generated/agent]
   readers:
-    - {namespace: woodpecker, externalSecrets: [woodpecker-agent], workloads: [{kind: StatefulSet, name: woodpecker-agent}]}
+    - namespace: woodpecker
+      externalSecrets: [woodpecker-secret, woodpecker-agent]
+      workloads: [{kind: StatefulSet, name: woodpecker-server}, {kind: StatefulSet, name: woodpecker-agent}]
   idle: woodpecker
-  settings: {path-prefix: woodpecker/agent-, admin-token: woodpecker.admin-token}
+  settings: {key: secret, length: 32, special: false, server: woodpecker-server, agents: woodpecker-agent}
 
 - name: woodpecker.admin-token
   kind: woodpecker-token
-  pending: "Task 8 (the admin token)"
   class: 1
-  reason: only lab reads it; the token reset invalidates every earlier token of that user
+  reason: only lab reads it; the token reset ends every earlier token of that user
   period: 2160h
   paths: [woodpecker/admin-token]
   steps: >-
     The first token needs a person: Forgejo's site admin (WOODPECKER_ADMIN) signs in to Woodpecker once and writes
     the token with the admin role (docs/how-to-guides/woodpecker.md)
-  settings: {user: WOODPECKER_ADMIN}
 
 - name: registry.ci
-  kind: generated
-  pending: "Task 8 (Woodpecker's org secret registry_password changes with it)"
+  kind: generated-org-secret
   class: 2
   reason: zot's htpasswd and Woodpecker's org secret registry_password change together; wait for no running pipeline
   period: 2160h

@@ -19,26 +19,27 @@ import (
 type Kind string
 
 const (
-	KindGenerated       Kind = "generated"        // random value in OpenBao, refresh the readers, restart
-	KindAppPassword     Kind = "app-password"     // change it in the app, then in OpenBao
-	KindNtfyOverlap     Kind = "ntfy-overlap"     // ntfy lists two tokens for a while
-	KindForgejoToken    Kind = "forgejo-token"    // a new Forgejo access token, then the old one deleted
-	KindForgejoOAuth    Kind = "forgejo-oauth"    // Forgejo regenerates an OAuth2 application's secret
-	KindKaniopClient    Kind = "kaniop-client"    // kaniop.rs/force-secret-rotation, then restart the readers
-	KindKanidmAdmin     Kind = "kanidm-admin"     // kaniop writes new admin passwords when their Secret is deleted
-	KindOpenTofu        Kind = "opentofu"         // -replace, apply, push
-	KindWoodpeckerAgent Kind = "woodpecker-agent" // a new shared agent secret, every agent row deleted, the agents registered again
-	KindWoodpeckerToken Kind = "woodpecker-token" // Woodpecker's token reset for the admin user
-	KindCNPG            Kind = "cnpg-password"    // CloudNativePG's password in its own Secret, with the derived keys
-	KindManual          Kind = "manual"           // a person acts; lab gives the steps
-	KindScript          Kind = "script"           // an existing script does it; lab points to it
-	KindNever           Kind = "never"            // not rotated, with the reason
-	KindAutomatic       Kind = "automatic"        // already short-lived
+	KindGenerated       Kind = "generated"            // random value in OpenBao, refresh the readers, restart
+	KindAppPassword     Kind = "app-password"         // change it in the app, then in OpenBao
+	KindNtfyOverlap     Kind = "ntfy-overlap"         // ntfy lists two tokens for a while
+	KindForgejoToken    Kind = "forgejo-token"        // a new Forgejo access token, then the old one deleted
+	KindForgejoOAuth    Kind = "forgejo-oauth"        // Forgejo regenerates an OAuth2 application's secret
+	KindKaniopClient    Kind = "kaniop-client"        // kaniop.rs/force-secret-rotation, then restart the readers
+	KindKanidmAdmin     Kind = "kanidm-admin"         // kaniop writes new admin passwords when their Secret is deleted
+	KindOpenTofu        Kind = "opentofu"             // -replace, apply, push
+	KindWoodpeckerAgent Kind = "woodpecker-agent"     // a new shared agent secret, every agent row deleted, the agents registered again
+	KindWoodpeckerToken Kind = "woodpecker-token"     // Woodpecker's token reset for the admin user
+	KindCNPG            Kind = "cnpg-password"        // CloudNativePG's password in its own Secret, with the derived keys
+	KindOrgSecret       Kind = "generated-org-secret" // a generated secret that a Woodpecker org secret repeats
+	KindManual          Kind = "manual"               // a person acts; lab gives the steps
+	KindScript          Kind = "script"               // an existing script does it; lab points to it
+	KindNever           Kind = "never"                // not rotated, with the reason
+	KindAutomatic       Kind = "automatic"            // already short-lived
 )
 
 var kinds = []Kind{
 	KindGenerated, KindAppPassword, KindNtfyOverlap, KindForgejoToken, KindForgejoOAuth, KindKaniopClient,
-	KindKanidmAdmin, KindOpenTofu, KindWoodpeckerAgent, KindWoodpeckerToken, KindCNPG, KindManual, KindScript,
+	KindKanidmAdmin, KindOpenTofu, KindWoodpeckerAgent, KindWoodpeckerToken, KindCNPG, KindOrgSecret, KindManual, KindScript,
 	KindNever, KindAutomatic,
 }
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
@@ -256,6 +257,14 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 		ep = &found
 		return found, nil
 	}
+	// Woodpecker's API on ci.<domain>, reached as Forgejo is (the sandbox's on the node)
+	woodpecker := rotate.WoodpeckerClient{Store: store, URL: func(ctx context.Context) (string, *http.Client, error) {
+		ep, err := endpoint(ctx)
+		if err != nil {
+			return "", nil, err
+		}
+		return "https://ci." + e.Domain, ep.HTTP, nil
+	}}
 	return &rotation{
 		Rotator: &rotate.Rotator{
 			Entries: entries,
@@ -269,8 +278,11 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 				rotate.KindCNPG:         rotate.CNPGPassword{Kube: kube, Store: store, Workloads: workloads},
 				rotate.KindOpenTofu: rotate.OpenTofu{Root: repositoryRoot(), Run: rotate.Terragrunt(cmd.OutOrStdout()), Store: store, Workloads: workloads, Waits: workloads,
 					Nudge: func(ctx context.Context) error { return nudgeInfraSecrets(ctx, dyn) }},
-				rotate.KindManual:      rotate.Manual{Out: cmd.OutOrStdout(), Workloads: workloads, Confirm: ask},
-				rotate.KindNtfyOverlap: rotate.NtfyOverlap{Store: store, Workloads: workloads, Check: rotate.NtfyCheck(pods), Confirm: ask},
+				rotate.KindManual:          rotate.Manual{Out: cmd.OutOrStdout(), Workloads: workloads, Confirm: ask},
+				rotate.KindWoodpeckerToken: rotate.WoodpeckerToken{API: woodpecker, Store: store},
+				rotate.KindWoodpeckerAgent: rotate.WoodpeckerAgent{API: woodpecker, Kube: kube, Store: store, Workloads: workloads, Waits: workloads},
+				rotate.KindOrgSecret:       rotate.RegistryCI{Generated: rotate.Generated{Store: store, Workloads: workloads}, API: woodpecker},
+				rotate.KindNtfyOverlap:     rotate.NtfyOverlap{Store: store, Workloads: workloads, Check: rotate.NtfyCheck(pods), Confirm: ask},
 				rotate.KindAppPassword: rotate.AppPassword{Store: store, Workloads: workloads, Apps: map[string]rotate.App{
 					"forgejo":   rotate.ForgejoAdmin{Endpoint: endpoint},
 					"grafana":   rotate.GrafanaAdmin{Exec: pods},

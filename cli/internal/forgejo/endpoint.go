@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -50,7 +51,8 @@ func SandboxEndpoint(domain, node string, caPEM []byte) (Endpoint, func(), error
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{RootCAs: pool},
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			if h, port, err := net.SplitHostPort(addr); err == nil && h == host {
+			// git. and the sandbox's other hosts (ci.: lab's rotations) answer on the node's Gateway
+			if h, port, err := net.SplitHostPort(addr); err == nil && (h == host || strings.HasSuffix(h, "."+domain)) {
 				addr = net.JoinHostPort(node, port)
 			}
 			return dialer.DialContext(ctx, network, addr)

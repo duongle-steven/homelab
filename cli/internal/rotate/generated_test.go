@@ -3,7 +3,9 @@ package rotate
 import (
 	"context"
 	"fmt"
+	"io"
 	"maps"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -251,6 +253,20 @@ func TestMethodErrorsHideValues(t *testing.T) {
 				run(t, ForgejoToken{API: api, Store: kv, Workloads: fakeReaders{log: log, failing: true}}, e)
 				run(t, ForgejoOAuth{API: api, Store: kv, Workloads: fakeReaders{log: log, failing: true}}, e)
 			}
+			for _, name := range []string{"woodpecker.admin-token", "registry.ci"} {
+				e := catalogEntry(t, name)
+				log := &[]string{}
+				kv := newKV(log, map[string]map[string]string{e.Paths[0]: {"token": current, "password": current}, "woodpecker/admin-token": {"token": current}, RecordPath(e): {pendingKey: newValue}})
+				kv.failing, kv.failWrites = stage == "store", stage == "write"
+				// Woodpecker echoes what it was sent in its errors
+				echo := func(context.Context) (string, *http.Client, error) {
+					return "http://woodpecker.invalid", &http.Client{Transport: echoTransport{}}, nil
+				}
+				n := 0
+				api := WoodpeckerClient{URL: echo, Store: kv}
+				run(t, WoodpeckerToken{API: api, Store: kv}, e)
+				run(t, RegistryCI{Generated: Generated{Store: kv, Workloads: fakeReaders{log: log}, Random: fixed(&n)}, API: api}, e)
+			}
 			for _, name := range []string{"forgejo.admin", "grafana.admin", "paperless.admin"} {
 				e := catalogEntry(t, name)
 				log := &[]string{}
@@ -262,4 +278,15 @@ func TestMethodErrorsHideValues(t *testing.T) {
 			}
 		})
 	}
+}
+
+// echoTransport fails every request with its headers and body in the error, as a careless server or proxy might
+type echoTransport struct{}
+
+func (echoTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	var body []byte
+	if r.Body != nil {
+		body, _ = io.ReadAll(r.Body)
+	}
+	return nil, fmt.Errorf("refused %s with %v and %s", r.URL, r.Header, body)
 }

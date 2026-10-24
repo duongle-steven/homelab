@@ -79,8 +79,23 @@ kubectl -n openbao create token openbao-admin --audience=openbao --duration=10m 
   secret registry_password
 ```
 
-After zot's `ci` password is rotated, update `registry_password` the same way (`PATCH
-$ci/api/orgs/$org/secrets/registry_password`).
+`lab secrets rotate registry.ci` changes zot's `ci` password and `registry_password` together.
+
+## The admin token lab uses (once per cluster)
+
+`lab secrets rotate` changes Woodpecker's agent secret, `registry_password` and its own token through Woodpecker's
+API, as Woodpecker's admin (`WOODPECKER_ADMIN`, Forgejo's `forgejo_admin`), with the token kept in OpenBao at
+`secret/woodpecker/admin-token`. The first one needs a person: sign in to `https://ci.<domain>` as `forgejo_admin`
+(Forgejo's own login, in a private window), create a personal access token (avatar → Personal access token), open
+OpenBao with the admin role ([Emergency access](../concepts/secrets-management.md#emergency-access)) and write it
+without it showing:
+
+```sh
+bao kv put secret/woodpecker/admin-token token=-    # paste the token, then Ctrl-D
+```
+
+From then on `lab secrets rotate woodpecker.admin-token` replaces it (every 90 days on schedule); a token lost in
+between (the reset ends the old one before OpenBao keeps the new) is made again the same way.
 
 ## When something changes
 
