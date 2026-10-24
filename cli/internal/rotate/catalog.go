@@ -65,6 +65,7 @@ type Entry struct {
 	Steps    string            `yaml:"steps"`    // what a person does, for manual and script entries
 	Idle     string            `yaml:"idle"`     // "woodpecker": wait for no running pipeline
 	Settings map[string]string `yaml:"settings"` // method-specific: app, Forgejo account, OpenTofu unit and resource, kaniop client
+	Envs     []string          `yaml:"envs"`     // the environments that have it (production, sandbox); empty = every one
 }
 
 //go:embed catalog.yaml
@@ -111,6 +112,11 @@ func (e Entry) validate() error {
 	}
 	if e.Period < 0 {
 		return errors.New("negative period")
+	}
+	for _, env := range e.Envs {
+		if env != "production" && env != "sandbox" {
+			return fmt.Errorf("unknown environment %q (production or sandbox)", env)
+		}
 	}
 	if e.Period > 0 && e.Kind == KindManual {
 		return errors.New("a manual entry cannot rotate on a schedule")

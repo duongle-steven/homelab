@@ -36,6 +36,15 @@ type Options struct {
 	SkipBackupCheck string // the reason; empty = check
 	Now             time.Time
 	By              string // the person or job, recorded
+	Env             string // the environment rotated (production, sandbox): entries of another one are left alone
+}
+
+// elsewhere names the environments an entry belongs to when env is not one of them
+func elsewhere(e Entry, env string) string {
+	if env == "" || len(e.Envs) == 0 || slices.Contains(e.Envs, env) {
+		return ""
+	}
+	return strings.Join(e.Envs, ", ") + " only"
 }
 
 // Result is what happened to one entry.
@@ -86,6 +95,8 @@ func (r *Rotator) Plan(ctx context.Context, names []string, o Options) ([]Entry,
 				problems = append(problems, fmt.Sprintf("no secret %q in the catalog; closest: %s", name, strings.Join(closest(r.Entries, name), ", ")))
 			case e.Pending != "":
 				problems = append(problems, fmt.Sprintf("%s is not rotated yet: pending %s", name, e.Pending))
+			case elsewhere(e, o.Env) != "":
+				problems = append(problems, fmt.Sprintf("%s is %s, not %s", name, elsewhere(e, o.Env), o.Env))
 			case !slices.ContainsFunc(plan, func(p Entry) bool { return p.Name == name }):
 				plan = append(plan, e)
 			}
@@ -168,6 +179,9 @@ func (r *Rotator) Skip(e Entry, o Options) string {
 	}
 	if e.Pending != "" {
 		return "pending " + e.Pending
+	}
+	if where := elsewhere(e, o.Env); where != "" {
+		return where
 	}
 	if o.Scheduled && e.Period == 0 {
 		// Only an interrupted rotation by command reaches a scheduled plan: a person finishes it

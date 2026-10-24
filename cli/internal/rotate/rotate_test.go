@@ -940,3 +940,26 @@ func TestLockKeepsItsOwnLeaseAfterAConflict(t *testing.T) {
 		t.Fatalf("the run gave up its own lock: %v", cause)
 	}
 }
+
+// An entry of another environment is never touched: --all on the sandbox skips production's Cloudflare tokens (whose
+// OpenTofu units are production's), and a named one is refused
+func TestRotateOnlyThisEnvironment(t *testing.T) {
+	prod := Entry{Name: "cloudflare.cert-manager", Kind: KindGenerated, Envs: []string{"production"}}
+	both := Entry{Name: "grafana.admin", Kind: KindGenerated}
+	r, calls, _ := rotator([]Entry{prod, both}, nil)
+	o := Options{All: true, Yes: true, Now: now, By: "steven", Env: "sandbox"}
+	plan, err := r.Plan(context.Background(), nil, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := r.Run(context.Background(), plan, Options{All: true, Yes: true, Now: now, By: "steven", Env: "sandbox", SkipBackupCheck: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(results[0].Outcome, "production only") || slices.ContainsFunc(*calls, func(c string) bool { return strings.HasPrefix(c, "cloudflare") }) {
+		t.Fatalf("results %+v, calls %v", results, *calls)
+	}
+	if _, err := r.Plan(context.Background(), []string{"cloudflare.cert-manager"}, Options{Env: "sandbox"}); err == nil || !strings.Contains(err.Error(), "production only") {
+		t.Fatalf("a named entry of another environment: %v", err)
+	}
+}

@@ -132,6 +132,7 @@ func newSecretsCmd() *cobra.Command {
 				SkipBackupCheck: strings.TrimSpace(skip),
 				Now:             time.Now(),
 				By:              who(),
+				Env:             rotationEnv(cmd),
 			}
 			// The catalog alone answers a mistyped name or bad flags, before reaching any cluster (only the due
 			// entries of --scheduled need the records)
@@ -408,6 +409,15 @@ func rotationTarget(cmd *cobra.Command) (env.Env, *rest.Config, *secrets.Store, 
 		return env.Env{}, nil, nil, err
 	}
 	return e, config, store, nil
+}
+
+// rotationEnv is the environment a run rotates: --env, or the CronJob's HOMELAB_ENV
+func rotationEnv(cmd *cobra.Command) string {
+	if inCluster, _ := cmd.Flags().GetBool("in-cluster"); inCluster {
+		return os.Getenv("HOMELAB_ENV")
+	}
+	name, _ := cmd.Flags().GetString("env")
+	return name
 }
 
 func who() string {

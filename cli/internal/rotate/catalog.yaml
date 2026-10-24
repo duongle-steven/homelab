@@ -10,6 +10,7 @@
 #   readers   namespace, ExternalSecrets and workloads to restart; people: true when people re-enter the value
 #   steps     what a person does (manual and script)
 #   idle      what must be idle first
+#   envs      the environments that have it (production, sandbox); empty = every one
 #   pending   the task that creates what this entry names; skips the check that the repository has it
 #   settings  method-specific (app, account, OpenTofu unit and resource, kaniop client); a generated secret's key,
 #             length and special are its generator's in platform/generated-secrets (a test keeps them in step)
@@ -204,6 +205,7 @@
   settings: {namespace: kanidm, accounts: "admin,idm_admin"}
 
 - name: cloudflare.cert-manager
+  envs: [production]
   kind: opentofu
   class: 1
   reason: >-
@@ -216,6 +218,7 @@
   settings: {unit: infra/production/cloudflare, resource: cloudflare_account_token.cert_manager}
 
 - name: cloudflare.external-dns
+  envs: [production]
   kind: opentofu
   class: 1
   reason: >-
@@ -228,6 +231,7 @@
   settings: {unit: infra/production/cloudflare, resource: cloudflare_account_token.external_dns}
 
 - name: cloudflare.tunnel
+  envs: [production]
   kind: opentofu
   class: 2
   reason: >-
@@ -239,6 +243,7 @@
   settings: {unit: infra/production/cloudflare, resource: random_password.tunnel_secret}
 
 - name: backup.r2-token
+  envs: [production]
   kind: opentofu
   class: 1
   reason: >-
@@ -251,6 +256,7 @@
   settings: {unit: infra/production/backup, resource: cloudflare_account_token.backup}
 
 - name: backup.kopia-password
+  envs: [production]
   kind: never
   reason: >-
     Velero uses one password for every repository and has no change-password, so a new value makes every existing
@@ -259,6 +265,7 @@
   paths: [velero/encryption]
 
 - name: velero.s3
+  envs: [sandbox]
   kind: generated
   class: 1
   reason: sandbox only, the stand-in S3 server's secret key; a failed upload is retried by the next schedule
@@ -269,11 +276,13 @@
   settings: {key: password, length: 32, special: false}
 
 - name: velero.encryption
+  envs: [sandbox]
   kind: never
   reason: sandbox only; the same as backup.kopia-password, Velero cannot change the password of existing repositories
   paths: [velero/generated/encryption]
 
 - name: renovate.github-app-key
+  envs: [production]
   kind: manual
   class: 0
   reason: a GitHub App holds several private keys, so the new one works beside the old
@@ -296,6 +305,7 @@
   settings: {secret: forgejo-db-app, namespace: forgejo, derived: "uri,fqdn-uri,jdbc-uri,fqdn-jdbc-uri,pgpass"}
 
 - name: telegram.bot-token
+  envs: [production]
   kind: manual
   class: 1
   reason: Alertmanager retries, and ntfy still delivers; it reads bot_token_file at every notification, no restart
