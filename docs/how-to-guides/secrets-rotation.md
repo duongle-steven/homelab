@@ -24,7 +24,7 @@ go -C cli run ./cmd/lab secrets rotate --all            # assume everything leak
 
 `lab` prints the plan first: what restarts (a workload with one replica stops briefly), who must act, and what it
 skips with the reason (never rotated, another environment's, a person's step). It wants a completed off-site backup
-from the last 24 hours, so a failed rotation can be restored; `--skip-backup-check='<reason>'` overrides it and keeps
+from the last 30 hours (a day, plus the daily run still copying at 03:00), so a failed rotation can be restored; `--skip-backup-check='<reason>'` overrides it and keeps
 the reason. It stops at the first failure and says what is done and what is left; running the same command again
 resumes an interrupted rotation where it stopped, without making a third value. A rotation by a person and the
 CronJob's never run at once on one secret (a Lease `secrets-rotation/rotate-<name>`).

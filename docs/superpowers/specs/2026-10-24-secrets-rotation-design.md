@@ -276,6 +276,8 @@ catalog above or a decision:
     environment variable). `ntfy.alerts-password` has no runtime reader.
 11. **No class 3 secret.** None of the secrets the spike covered loses data or stays stuck after a failed rotation.
 
+12. The final review: the backup check accepts a completed scheduled run started in the last 30 hours, not 24: the 03:00 rotation starts an hour after the 02:00 daily backup, which may still be copying to R2, so yesterday's run must count.
+
 ## Left to the builder
 
 The catalog's format, the record's location, the CronJob's namespace and RBAC, the overdue

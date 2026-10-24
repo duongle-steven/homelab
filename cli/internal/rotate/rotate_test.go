@@ -331,16 +331,33 @@ func TestRotateRefusesWithoutRecentBackup(t *testing.T) {
 	stale := []backup.Run{
 		{Name: "push-1", App: "paperless", Phase: "Completed", Started: now.Add(-time.Hour)},
 		{Name: "daily-2", Schedule: "daily", Phase: "PartiallyFailed", Started: now.Add(-2 * time.Hour)},
-		{Name: "daily-1", Schedule: "daily", Phase: "Completed", Started: now.Add(-25 * time.Hour)},
+		{Name: "daily-1", Schedule: "daily", Phase: "Completed", Started: now.Add(-31 * time.Hour)},
 	}
 	r, calls, records := rotator([]Entry{generated("grafana.admin")}, nil)
 	r.Backups = func(context.Context) ([]backup.Run, error) { return stale, nil }
 	_, err := r.Run(context.Background(), r.Entries, Options{Yes: true, Now: now})
-	if err == nil || !strings.Contains(err.Error(), "24 hours") || !strings.Contains(err.Error(), "--skip-backup-check") {
+	if err == nil || !strings.Contains(err.Error(), "30 hours") || !strings.Contains(err.Error(), "--skip-backup-check") {
 		t.Fatalf("Run error = %v", err)
 	}
 	if len(*calls) != 0 || len(records.sets) != 0 {
 		t.Fatalf("something ran: %v %v", *calls, records.sets)
+	}
+}
+
+// The CronJob runs at 03:00, an hour after the daily backup starts: yesterday's completed run counts while today's
+// still copies its volumes to R2
+func TestRotateAcceptsYesterdaysBackupWhileTodaysRuns(t *testing.T) {
+	runs := []backup.Run{
+		{Name: "daily-2", Schedule: "daily", Phase: "WaitingForPluginOperations", Started: now.Add(-time.Hour)},
+		{Name: "daily-1", Schedule: "daily", Phase: "Completed", Started: now.Add(-25 * time.Hour)},
+	}
+	r, calls, _ := rotator([]Entry{generated("grafana.admin")}, nil)
+	r.Backups = func(context.Context) ([]backup.Run, error) { return runs, nil }
+	if _, err := r.Run(context.Background(), r.Entries, Options{Yes: true, Now: now}); err != nil {
+		t.Fatal(err)
+	}
+	if len(*calls) != 4 {
+		t.Fatalf("calls = %v", *calls)
 	}
 }
 

@@ -109,7 +109,7 @@ func newSecretsCmd() *cobra.Command {
 		Short: "Replace secrets by their official method, resuming an interrupted rotation",
 		Long: "Prints the plan (what restarts, marking workloads with one replica, which stop briefly, and who must act), " +
 			"asks, then rotates one entry after another and stops at the first failure. It first wants a completed " +
-			"scheduled off-site backup from the last 24 hours, and each entry's lock (Lease secrets-rotation/rotate-<name>). " +
+			"scheduled off-site backup started in the last 30 hours, and each entry's lock (Lease secrets-rotation/rotate-<name>). " +
 			"--scheduled (the CronJob) rotates the due entries and finishes interrupted rotations, never manual or " +
 			"OpenTofu ones, without asking. It fails when an entry failed, was named but not rotated (never), or is " +
 			"more than 14 days past its due date (counted from its creation until its first rotation).",

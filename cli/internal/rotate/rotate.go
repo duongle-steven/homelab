@@ -58,8 +58,9 @@ type Result struct {
 // OverdueMargin is how long past its due date an entry may stay before a run fails for it (SecretRotationOverdue).
 const OverdueMargin = 14 * 24 * time.Hour
 
-// BackupAge is how recent the off-site backup must be before a rotation.
-const BackupAge = 24 * time.Hour
+// BackupAge is how recent the off-site backup must be before a rotation: a day, plus the hours the daily run may still
+// be copying when the 03:00 rotation starts (yesterday's completed run then counts)
+const BackupAge = 30 * time.Hour
 
 // Rotator runs rotations.
 type Rotator struct {
