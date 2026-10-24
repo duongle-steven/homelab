@@ -2,6 +2,7 @@ package rotate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -27,13 +28,16 @@ func TestOpenTofuRunsReplaceThenSecrets(t *testing.T) {
 		}
 		return nil
 	}
-	m := OpenTofu{Root: "/repo", Run: run, Store: kv, Workloads: fakeReaders{log: log}, Waits: fastWaiter{}}
+	m := OpenTofu{Root: "/repo", Run: run, Store: kv, Workloads: fakeReaders{log: log}, Waits: fastWaiter{},
+		Confirm: func(context.Context, string) error { return nil }}
 	for range 2 {
 		if err := m.Prepare(ctx, e); err != nil {
 			t.Fatal(err)
 		}
 	}
 	want := []string{
+		// The plan first, for the person to read: it may hold more than the replacement (drift, someone's change)
+		"/repo/infra/production/cloudflare: plan --non-interactive -- -replace=cloudflare_account_token.external_dns",
 		"/repo/infra/production/cloudflare: apply --non-interactive -- -auto-approve -replace=cloudflare_account_token.external_dns",
 		"/repo/infra/production/secrets: apply --non-interactive -- -auto-approve",
 		// The rerun applies the secrets unit again (idempotent), never the replace
@@ -62,7 +66,8 @@ func TestOpenTofuWaitsForThePush(t *testing.T) {
 	e := catalogEntry(t, "cloudflare.cert-manager")
 	log := &[]string{}
 	kv := newKV(&[]string{}, map[string]map[string]string{"cert-manager/cloudflare": {"api_token": "old-token"}})
-	m := OpenTofu{Root: "/repo", Run: func(context.Context, string, ...string) error { return nil }, Store: kv, Workloads: fakeReaders{log: log}, Waits: fastWaiter{fail: true}}
+	m := OpenTofu{Root: "/repo", Run: func(context.Context, string, ...string) error { return nil }, Store: kv, Workloads: fakeReaders{log: log}, Waits: fastWaiter{fail: true},
+		Confirm: func(context.Context, string) error { return nil }}
 	if err := m.Prepare(ctx, e); err != nil {
 		t.Fatal(err)
 	}
@@ -115,4 +120,27 @@ func (f fastWaiter) Until(ctx context.Context, what string, done func() (bool, e
 		return fmt.Errorf("waited for %s", what)
 	}
 	return nil
+}
+
+// Without a person's yes after the plan nothing is applied: one apply changes everything pending in the unit
+func TestOpenTofuAsksAfterThePlan(t *testing.T) {
+	ctx := context.Background()
+	e := catalogEntry(t, "cloudflare.cert-manager")
+	var runs []string
+	run := func(_ context.Context, dir string, args ...string) error {
+		runs = append(runs, args[0])
+		return nil
+	}
+	kv := newKV(&[]string{}, map[string]map[string]string{"cert-manager/cloudflare": {"api_token": "old-token"}})
+	m := OpenTofu{Root: "/repo", Run: run, Store: kv, Workloads: fakeReaders{log: &[]string{}}, Waits: fastWaiter{}}
+	if err := m.Prepare(ctx, e); err == nil || !strings.Contains(err.Error(), "terminal") {
+		t.Fatalf("Prepare without a person = %v", err)
+	}
+	m.Confirm = func(context.Context, string) error { return errors.New("no") }
+	if err := m.Prepare(ctx, e); err == nil {
+		t.Fatal("Prepare went on after a no")
+	}
+	if slices.Contains(runs, "apply") {
+		t.Fatalf("runs = %v: applied without a yes", runs)
+	}
 }

@@ -13,7 +13,8 @@ go -C cli run ./cmd/lab secrets list                 # every secret: its method,
 ```
 
 `make infra env=production` ends by naming OpenTofu's secrets that are due (Cloudflare's tokens, R2's): only the
-workstation can rotate them, since the cluster holds no Cloudflare credentials.
+workstation can rotate them, since the cluster holds no Cloudflare credentials. `lab` shows the unit's plan with the
+replacement and applies it only once you approve: anything else pending in that unit is applied with it.
 
 ## Rotate one, or all
 

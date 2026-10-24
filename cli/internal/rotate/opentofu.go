@@ -25,6 +25,8 @@ type OpenTofu struct {
 	Waits     Waiter
 	// Nudge asks infra-secrets to push again now rather than at its next refresh (nil: wait for it)
 	Nudge func(ctx context.Context) error
+	// Confirm asks the person at the terminal to approve the plan (nil: no terminal, nothing is applied)
+	Confirm func(ctx context.Context, question string) error
 }
 
 // Terragrunt runs terragrunt in dir with the terminal attached (it prints the plan it applies).
@@ -81,7 +83,19 @@ func (m OpenTofu) Prepare(ctx context.Context, e Entry) error {
 	}
 	apply := []string{"apply", "--non-interactive", "--", "-auto-approve"}
 	if state["replaced"] == "" {
-		if err := m.run(ctx, filepath.Join(m.Root, unit), append(slices.Clone(apply), "-replace="+resource)...); err != nil {
+		// One apply changes everything pending in the unit (drift, a provider upgrade, someone's change): the person
+		// reads the plan and approves it
+		if m.Confirm == nil {
+			return fmt.Errorf("%s replaces an OpenTofu resource: run lab secrets rotate %s on a terminal, to read and approve the plan", e.Name, e.Name)
+		}
+		dir := filepath.Join(m.Root, unit)
+		if err := m.run(ctx, dir, "plan", "--non-interactive", "--", "-replace="+resource); err != nil {
+			return err
+		}
+		if err := m.Confirm(ctx, fmt.Sprintf("Apply this plan in %s (it replaces %s)? Anything else in it is applied too.", unit, resource)); err != nil {
+			return errors.New("the plan was not approved: nothing changed")
+		}
+		if err := m.run(ctx, dir, append(slices.Clone(apply), "-replace="+resource)...); err != nil {
 			return err
 		}
 		state["replaced"] = "yes"

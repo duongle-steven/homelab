@@ -276,7 +276,7 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 				rotate.KindKanidmAdmin:  rotate.KanidmAdmin{Kube: kube, Store: store, Waits: workloads},
 				rotate.KindCNPG:         rotate.CNPGPassword{Kube: kube, Store: store, Workloads: workloads},
 				rotate.KindOpenTofu: rotate.OpenTofu{Root: repositoryRoot(), Run: rotate.Terragrunt(cmd.OutOrStdout()), Store: store, Workloads: workloads, Waits: workloads,
-					Nudge: func(ctx context.Context) error { return nudgeInfraSecrets(ctx, dyn) }},
+					Nudge: func(ctx context.Context) error { return nudgeInfraSecrets(ctx, dyn) }, Confirm: ask},
 				rotate.KindManual:          rotate.Manual{Out: cmd.OutOrStdout(), Workloads: workloads, Confirm: ask},
 				rotate.KindWoodpeckerToken: rotate.WoodpeckerToken{API: woodpecker, Store: store},
 				rotate.KindWoodpeckerAgent: rotate.WoodpeckerAgent{API: woodpecker, Kube: kube, Store: store, Workloads: workloads, Waits: workloads},
