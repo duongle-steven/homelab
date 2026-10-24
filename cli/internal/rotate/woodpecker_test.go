@@ -203,3 +203,27 @@ func TestRegistryCIUpdatesTheOrgSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Without a working admin token (production's needs a person once) a Woodpecker rotation changes nothing: no new
+// agent secret, no new zot password, so CI keeps working
+func TestWoodpeckerNeedsTheAdminTokenFirst(t *testing.T) {
+	ctx := context.Background()
+	for _, name := range []string{"woodpecker.agent", "registry.ci"} {
+		e := catalogEntry(t, name)
+		f, kv, api := woodpeckerFixture(t)
+		kv.data[e.Paths[0]] = map[string]string{"secret": "old", "password": "old"}
+		f.token = "the-token-someone-reset"
+		n := 0
+		var m Method = WoodpeckerAgent{API: api, Kube: fake.NewClientset(), Store: kv, Workloads: fakeReaders{log: &[]string{}}, Waits: fastWaiter{}, Random: fixed(&n)}
+		if name == "registry.ci" {
+			m = RegistryCI{Generated: Generated{Store: kv, Workloads: fakeReaders{log: &[]string{}}, Random: fixed(&n)}, API: api}
+		}
+		err := m.Prepare(ctx, e)
+		if err == nil || !strings.Contains(err.Error(), "admin token") {
+			t.Fatalf("%s: Prepare = %v", name, err)
+		}
+		if n != 0 || kv.data[e.Paths[0]]["secret"] != "old" || kv.data[e.Paths[0]]["password"] != "old" {
+			t.Fatalf("%s changed something: %v", name, kv.data[e.Paths[0]])
+		}
+	}
+}

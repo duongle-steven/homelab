@@ -84,6 +84,23 @@ func (c WoodpeckerClient) do(ctx context.Context, token, method, path string, bo
 	return resp.StatusCode, raw, nil
 }
 
+// Ready checks, before anything changes, that Woodpecker's API takes the stored admin token: a rotation that changes
+// the agent secret or zot's password and then cannot reach the API would leave CI half switched
+func (c WoodpeckerClient) Ready(ctx context.Context) error {
+	token, err := c.token(ctx)
+	if err != nil {
+		return err
+	}
+	ok, err := c.TokenWorks(ctx, token)
+	if err != nil {
+		return fmt.Errorf("Woodpecker's API with the admin token at secret/%s: %w", woodpeckerTokenPath, err)
+	}
+	if !ok {
+		return errors.New("Woodpecker refuses the admin token at secret/" + woodpeckerTokenPath + ": write a new one (docs/how-to-guides/woodpecker.md)")
+	}
+	return nil
+}
+
 // ResetToken makes the admin a new token (Woodpecker ends every earlier one) and returns it.
 func (c WoodpeckerClient) ResetToken(ctx context.Context) (string, error) {
 	_, raw, err := c.do(ctx, "", http.MethodDelete, "/api/user/token", nil, nil)
@@ -211,6 +228,9 @@ type WoodpeckerAgent struct {
 }
 
 func (m WoodpeckerAgent) Prepare(ctx context.Context, e Entry) error {
+	if err := m.API.Ready(ctx); err != nil {
+		return err
+	}
 	value, err := pending(ctx, m.Store, m.Random, e)
 	if err != nil {
 		return hide(err, value)
@@ -316,6 +336,13 @@ func ptrValue(p *int32, fallback int32) int32 {
 type RegistryCI struct {
 	Generated
 	API WoodpeckerClient
+}
+
+func (m RegistryCI) Prepare(ctx context.Context, e Entry) error {
+	if err := m.API.Ready(ctx); err != nil {
+		return err
+	}
+	return m.Generated.Prepare(ctx, e)
 }
 
 func (m RegistryCI) Switch(ctx context.Context, e Entry) error {
