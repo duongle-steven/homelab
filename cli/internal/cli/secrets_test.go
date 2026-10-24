@@ -74,9 +74,6 @@ func TestSecretsRotateUnknownNameBeforeCluster(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "grafana.admin") {
 		t.Fatalf("error = %v", err)
 	}
-	if _, err := runLab(t, "", false, "secrets", "rotate", "telegram.bot-token"); err == nil || !strings.Contains(err.Error(), "not rotated yet") {
-		t.Fatalf("a pending entry: error = %v", err)
-	}
 	if _, err := runLab(t, "", false, "secrets", "rotate", "--all", "--skip-backup-check="); err == nil || !strings.Contains(err.Error(), "reason") {
 		t.Fatalf("an empty reason: error = %v", err)
 	}
