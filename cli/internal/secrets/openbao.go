@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"time"
 
 	bao "github.com/openbao/openbao/api/v2"
 	authv1 "k8s.io/api/authentication/v1"
@@ -44,6 +45,25 @@ func open(ctx context.Context, kube kubernetes.Interface, address string, httpCl
 	if err != nil {
 		return nil, fmt.Errorf("token for openbao/openbao-admin: %w", err)
 	}
+	return openAs(ctx, address, httpClient, "admin", request.Status.Token)
+}
+
+// OpenAs logs in to OpenBao with role and a service account token for audience openbao (the scheduled rotation's own,
+// projected into its pod), reaching it through the API server's proxy as Open does.
+func OpenAs(ctx context.Context, config *rest.Config, role, jwt string) (*Store, error) {
+	kube, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	httpClient, err := rest.HTTPClientFor(config)
+	if err != nil {
+		return nil, err
+	}
+	address := kube.CoreV1().RESTClient().Get().Namespace("openbao").Resource("services").Name("http:openbao:8200").SubResource("proxy").URL().String()
+	return openAs(ctx, address, httpClient, role, jwt)
+}
+
+func openAs(ctx context.Context, address string, httpClient *http.Client, role, jwt string) (*Store, error) {
 	config := bao.DefaultConfig()
 	config.Address = address
 	config.HttpClient = httpClient
@@ -53,12 +73,12 @@ func open(ctx context.Context, kube kubernetes.Interface, address string, httpCl
 	}
 	// Never a token from the environment (BAO_TOKEN): only the admin login below
 	client.ClearToken()
-	login, err := client.Logical().WriteWithContext(ctx, "auth/kubernetes/login", map[string]any{"role": "admin", "jwt": request.Status.Token})
+	login, err := client.Logical().WriteWithContext(ctx, "auth/kubernetes/login", map[string]any{"role": role, "jwt": jwt})
 	if err != nil {
-		return nil, fmt.Errorf("log in to OpenBao with the role admin failed")
+		return nil, fmt.Errorf("log in to OpenBao with the role %s failed", role)
 	}
 	if login == nil || login.Auth == nil || login.Auth.ClientToken == "" {
-		return nil, fmt.Errorf("OpenBao returned no token for the role admin")
+		return nil, fmt.Errorf("OpenBao returned no token for the role %s", role)
 	}
 	client.SetToken(login.Auth.ClientToken)
 	return &Store{client: client, kv: client.KVv2("secret")}, nil
@@ -99,6 +119,72 @@ func (s *Store) Write(ctx context.Context, path string, data map[string]string) 
 	}
 	if _, err := s.kv.Put(ctx, path, fields); err != nil {
 		return fmt.Errorf("write OpenBao secret/%s failed", path)
+	}
+	return nil
+}
+
+// Metadata returns the custom metadata of secret/<path>, or nil when the path has no metadata.
+func (s *Store) Metadata(ctx context.Context, path string) (map[string]string, error) {
+	meta, err := s.kv.GetMetadata(ctx, path)
+	if errors.Is(err, bao.ErrSecretNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read the metadata of OpenBao secret/%s failed", path)
+	}
+	custom := make(map[string]string, len(meta.CustomMetadata))
+	for key, value := range meta.CustomMetadata {
+		text, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("OpenBao secret/%s has a non-string custom metadata key %s", path, key)
+		}
+		custom[key] = text
+	}
+	return custom, nil
+}
+
+// Created is when secret/<path> was created (its metadata's created_time), or zero when it does not exist.
+func (s *Store) Created(ctx context.Context, path string) (time.Time, error) {
+	meta, err := s.kv.GetMetadata(ctx, path)
+	if errors.Is(err, bao.ErrSecretNotFound) {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("read the metadata of OpenBao secret/%s failed", path)
+	}
+	return meta.CreatedTime, nil
+}
+
+// SetMetadata merges set into the custom metadata of secret/<path>; an empty value removes its key. The other keys
+// (ESO's managed-by) and the path's settings stay. It reads and writes the whole metadata, so it needs only the
+// read and update capabilities, not patch.
+func (s *Store) SetMetadata(ctx context.Context, path string, set map[string]string) error {
+	input := bao.KVMetadataPutInput{CustomMetadata: map[string]any{}}
+	meta, err := s.kv.GetMetadata(ctx, path)
+	switch {
+	case errors.Is(err, bao.ErrSecretNotFound):
+	case err != nil:
+		return fmt.Errorf("read the metadata of OpenBao secret/%s failed", path)
+	default:
+		input = bao.KVMetadataPutInput{
+			CASRequired:        meta.CASRequired,
+			CustomMetadata:     meta.CustomMetadata,
+			DeleteVersionAfter: meta.DeleteVersionAfter,
+			MaxVersions:        meta.MaxVersions,
+		}
+		if input.CustomMetadata == nil {
+			input.CustomMetadata = map[string]any{}
+		}
+	}
+	for key, value := range set {
+		if value == "" {
+			delete(input.CustomMetadata, key)
+		} else {
+			input.CustomMetadata[key] = value
+		}
+	}
+	if err := s.kv.PutMetadata(ctx, path, input); err != nil {
+		return fmt.Errorf("write the metadata of OpenBao secret/%s failed", path)
 	}
 	return nil
 }

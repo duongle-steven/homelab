@@ -499,3 +499,31 @@ func TestRestoreStopsKanidmWithoutItsOperator(t *testing.T) {
 		}
 	}
 }
+
+// Woodpecker's agents keep their ids on claims nobody backs up; a restored server database knows other ids, so the
+// restore starts the agents again on new claims and they register anew (the whole-cluster restore waited 30
+// minutes on an agent crash-looping with "AgentID not found in database")
+func TestRestoreResetsWoodpeckersAgentIDs(t *testing.T) {
+	c, rec, _ := restoreFixture(t)
+	ctx := context.Background()
+	agents := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: "woodpecker-agent"},
+		Spec:       appsv1.StatefulSetSpec{Replicas: ptr.To[int32](1), VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{ObjectMeta: metav1.ObjectMeta{Name: "agent-config"}}}},
+	}
+	if _, err := c.Kube.AppsV1().StatefulSets("ntfy").Create(ctx, agents, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Kube.CoreV1().PersistentVolumeClaims("ntfy").Create(ctx, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: "agent-config-woodpecker-agent-0"}}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	previous := agentIDs
+	agentIDs = map[string]string{"ntfy": "woodpecker-agent"}
+	t.Cleanup(func() { agentIDs = previous })
+	if err := c.RestoreApp(ctx, "ntfy", Offsite, time.Time{}, daily); err != nil {
+		t.Fatal(err)
+	}
+	rec.index(t, "delete persistentvolumeclaims ntfy agent-config-woodpecker-agent-0")
+	if _, err := c.Kube.CoreV1().PersistentVolumeClaims("ntfy").Get(ctx, "ntfy", metav1.GetOptions{}); err != nil {
+		t.Fatalf("the restored claim went: %v", err)
+	}
+}

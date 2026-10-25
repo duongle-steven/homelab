@@ -3,7 +3,6 @@ package backup
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -18,6 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+
+	"github.com/duongle-steven/homelab/cli/internal/workload"
 )
 
 // Source is where a restore takes a volume from.
@@ -36,7 +37,7 @@ var (
 	CNPGClusters    = schema.GroupVersionResource{Group: "postgresql.cnpg.io", Version: "v1", Resource: "clusters"}
 	Kanidms         = schema.GroupVersionResource{Group: "kaniop.rs", Version: "v1beta1", Resource: "kanidms"}
 	VolumeSnapshots = schema.GroupVersionResource{Group: "snapshot.storage.k8s.io", Version: "v1", Resource: "volumesnapshots"}
-	ExternalSecrets = schema.GroupVersionResource{Group: "external-secrets.io", Version: "v1", Resource: "externalsecrets"}
+	ExternalSecrets = workload.ExternalSecrets
 )
 
 // Plan is a whole-cluster restore: the scheduled run for every app with a daily volume (OpenBao first), and each
@@ -206,6 +207,9 @@ func (c *Client) restoreApp(ctx context.Context, app string, src Source, at time
 	if err := c.start(ctx, app, saved); err != nil {
 		return stopped(err)
 	}
+	if err := c.resetAgentIDs(ctx, app); err != nil {
+		return stopped(err)
+	}
 	if saved.openbao {
 		if err := c.restoreOpenBao(ctx); err != nil {
 			return stopped(err)
@@ -368,7 +372,7 @@ func (c *Client) stop(ctx context.Context, app string, claims []corev1.Persisten
 	}
 	var kaniop []string
 	for _, st := range statefulSets.Items {
-		if ownedBy(st.OwnerReferences, "Kanidm") {
+		if workload.OwnedBy(st.OwnerReferences, "Kanidm") {
 			kaniop = append(kaniop, st.Name)
 			continue
 		}
@@ -472,15 +476,6 @@ func (c *Client) stop(ctx context.Context, app string, claims []corev1.Persisten
 		}
 		return true, nil
 	})
-}
-
-func ownedBy(refs []metav1.OwnerReference, kind string) bool {
-	for _, r := range refs {
-		if r.Kind == kind {
-			return true
-		}
-	}
-	return false
 }
 
 // start puts back what stop changed, the clusters' reconciliation first
@@ -796,13 +791,19 @@ func (c *Client) refreshReaders(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list externalsecrets: %w", err)
 	}
-	stamp := c.Now().UTC().Format(time.RFC3339)
-	readers := map[string]bool{}
+	names := map[string][]string{}
 	for _, es := range list.Items {
-		if err := c.patch(ctx, ExternalSecrets, es.GetNamespace(), es.GetName(), map[string]any{"metadata": map[string]any{"annotations": map[string]any{"force-sync": stamp}}}); err != nil {
+		names[es.GetNamespace()] = append(names[es.GetNamespace()], es.GetName())
+	}
+	// restore waits for Argo CD at its end, not for each refresh: an ExternalSecret that cannot refresh must not stop it
+	for ns, n := range names {
+		if err := c.workload().ForceSync(ctx, ns, n); err != nil {
 			return err
 		}
-		readers[es.GetNamespace()] = true
+	}
+	readers := map[string]bool{}
+	for ns := range names {
+		readers[ns] = true
 	}
 	delete(readers, "openbao")
 	delete(readers, "argocd")
@@ -817,63 +818,6 @@ func (c *Client) refreshReaders(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-// restartWorkloads is kubectl rollout restart for every Deployment and StatefulSet in the namespace
-func (c *Client) restartWorkloads(ctx context.Context, ns string) error {
-	patch := []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":%q}}}}}`, c.Now().UTC().Format(time.RFC3339)))
-	apps := c.Kube.AppsV1()
-	deployments, err := apps.Deployments(ns).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
-	for _, d := range deployments.Items {
-		if _, err := apps.Deployments(ns).Patch(ctx, d.Name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-			return err
-		}
-	}
-	statefulSets, err := apps.StatefulSets(ns).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
-	for _, s := range statefulSets.Items {
-		if ownedBy(s.OwnerReferences, "Kanidm") {
-			continue
-		}
-		if _, err := apps.StatefulSets(ns).Patch(ctx, s.Name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// waitWorkloads waits for the app's Deployments and StatefulSets to be ready, restarting crash-looping pods once each
-// like waitHealthy
-func (c *Client) waitWorkloads(ctx context.Context, app string) error {
-	restarted := map[string]bool{}
-	return c.until(ctx, app+"'s workloads ready", func() (bool, error) {
-		c.restartCrashLooping(ctx, app, restarted)
-		apps := c.Kube.AppsV1()
-		deployments, err := apps.Deployments(app).List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return false, err
-		}
-		for _, d := range deployments.Items {
-			if d.Status.ReadyReplicas < ptr.Deref(d.Spec.Replicas, 1) {
-				return false, nil
-			}
-		}
-		statefulSets, err := apps.StatefulSets(app).List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return false, err
-		}
-		for _, st := range statefulSets.Items {
-			if st.Status.ReadyReplicas < ptr.Deref(st.Spec.Replicas, 1) {
-				return false, nil
-			}
-		}
-		return true, nil
-	})
 }
 
 // waitApplications waits for every Application to be Synced and Healthy, naming the ones that are not
@@ -900,25 +844,12 @@ func (c *Client) waitApplications(ctx context.Context) error {
 	return err
 }
 
-func (c *Client) restartCrashLooping(ctx context.Context, app string, restarted map[string]bool) {
-	pods, err := c.Kube.CoreV1().Pods(app).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return
-	}
-	for _, p := range pods.Items {
-		if !restarted[p.Name] && crashLooping(p) {
-			restarted[p.Name] = true
-			_ = c.Kube.CoreV1().Pods(app).Delete(ctx, p.Name, metav1.DeleteOptions{})
-		}
-	}
-}
-
 // waitHealthy waits for the Application to be Synced and Healthy, restarting the app's pods that crash-looped while
 // their database was away (Forgejo's init container), once each
 func (c *Client) waitHealthy(ctx context.Context, app string) error {
 	restarted := map[string]bool{}
 	return c.until(ctx, "Application "+app+" Synced and Healthy", func() (bool, error) {
-		c.restartCrashLooping(ctx, app, restarted)
+		c.workload().RestartCrashLooping(ctx, app, restarted)
 		a, err := c.Dyn.Resource(Applications).Namespace("argocd").Get(ctx, app, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
@@ -929,34 +860,53 @@ func (c *Client) waitHealthy(ctx context.Context, app string) error {
 	})
 }
 
-func crashLooping(p corev1.Pod) bool {
-	for _, s := range append(p.Status.InitContainerStatuses, p.Status.ContainerStatuses...) {
-		if s.State.Waiting != nil && s.State.Waiting.Reason == "CrashLoopBackOff" {
-			return true
-		}
-	}
-	return false
-}
-
 // until polls done every c.Poll for up to c.Wait; an error from done ends it
 func (c *Client) until(ctx context.Context, what string, done func() (bool, error)) error {
-	ctx, cancel := context.WithTimeout(ctx, c.Wait)
-	defer cancel()
-	for {
-		ok, err := done()
-		if err != nil {
-			return err
-		}
-		if ok {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return fmt.Errorf("waited %s for %s", c.Wait, what)
-			}
-			return ctx.Err()
-		case <-time.After(c.Poll):
+	return c.workload().Until(ctx, what, done)
+}
+
+// workload is the shared reader handling on this client's clients and timings
+func (c *Client) workload() *workload.Client {
+	return &workload.Client{Kube: c.Kube, Dyn: c.Dyn, Poll: c.Poll, Wait: c.Wait}
+}
+
+// restartWorkloads is kubectl rollout restart for every Deployment and StatefulSet in the namespace
+func (c *Client) restartWorkloads(ctx context.Context, ns string) error {
+	refs, err := c.workload().Workloads(ctx, ns)
+	if err != nil {
+		return err
+	}
+	return c.workload().Restart(ctx, ns, refs)
+}
+
+// waitWorkloads waits for the app's Deployments and StatefulSets to be ready, restarting crash-looping pods once each
+// like waitHealthy
+func (c *Client) waitWorkloads(ctx context.Context, app string) error {
+	return c.workload().WaitNamespaceReady(ctx, app)
+}
+
+// agentIDs names, by namespace, the StatefulSet whose claims hold only ids its pods registered with the app: they are
+// not backed up (homelab/backup none), so after the app's data is restored they name what the restored data may not
+// know (Woodpecker's agents: "AgentID not found in database") and start again on new claims
+var agentIDs = map[string]string{"woodpecker": "woodpecker-agent"}
+
+func (c *Client) resetAgentIDs(ctx context.Context, app string) error {
+	name, ok := agentIDs[app]
+	if !ok {
+		return nil
+	}
+	sts, err := c.Kube.AppsV1().StatefulSets(app).Get(ctx, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var claims []string
+	for i := range ptr.Deref(sts.Spec.Replicas, 1) {
+		for _, t := range sts.Spec.VolumeClaimTemplates {
+			claims = append(claims, fmt.Sprintf("%s-%s-%d", t.Name, name, i))
 		}
 	}
+	return c.workload().ResetClaims(ctx, app, claims)
 }

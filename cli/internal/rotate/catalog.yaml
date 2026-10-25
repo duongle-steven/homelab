@@ -1,0 +1,351 @@
+# Every secret the homelab holds and how it is replaced (docs/superpowers/specs/2026-10-24-secrets-rotation-design.md,
+# decision 3 and its amendments). `lab secrets check` fails when a secret the repository creates has no entry here.
+#
+#   name      what lab secrets rotate takes
+#   kind      how it is replaced (cli/internal/rotate/catalog.go)
+#   class     0 an official overlap (both values work), 1 a failure nobody notices, 2 a person retries, 3 loses data
+#   reason    why that class, or why never
+#   period    how often the scheduled run replaces it; none means by command only
+#   paths     OpenBao paths under secret/ (every destination of a generated secret)
+#   readers   namespace, ExternalSecrets and workloads to restart; people: true when people re-enter the value
+#   steps     what a person does (manual and script)
+#   idle      what must be idle first
+#   workstation  rotated only from a person's run (make infra env=production names it when due), never the CronJob
+#   envs      the environments that have it (production, sandbox); empty = every one
+#   pending   the task that creates what this entry names; skips the check that the repository has it
+#   settings  method-specific (app, account, OpenTofu unit and resource, kaniop client); a generated secret's key,
+#             length and special are its generator's in platform/generated-secrets (a test keeps them in step)
+
+- name: forgejo.admin
+  kind: app-password
+  class: 1
+  reason: run while lab infra forgejo sync and Forgejo's init container are not running; they read it
+  paths: [forgejo/generated/admin]
+  readers:
+    - {namespace: forgejo, externalSecrets: [forgejo-admin], workloads: [{kind: Deployment, name: forgejo}]}
+  settings: {app: forgejo, key: password, length: 32, special: true}
+
+- name: grafana.admin
+  kind: app-password
+  class: 1
+  reason: only people use it, occasionally
+  paths: [grafana/generated/admin]
+  readers:
+    - {namespace: grafana, externalSecrets: [grafana-admin], workloads: [{kind: Deployment, name: grafana}]}
+  settings: {app: grafana, key: password, length: 32, special: true}
+
+- name: paperless.admin
+  kind: app-password
+  class: 1
+  reason: only people use it, occasionally
+  paths: [paperless/generated/admin]
+  readers:
+    - {namespace: paperless, externalSecrets: [paperless-secret], workloads: [{kind: Deployment, name: paperless}]}
+  settings: {app: paperless, key: PAPERLESS_ADMIN_PASSWORD, length: 32, special: true}
+
+- name: paperless.secret-key
+  kind: generated
+  class: 2
+  reason: >-
+    paperless has no SECRET_KEY_FALLBACKS, so every session ends and people log in again; restart while no task is
+    queued, the hourly task retrains the classifier file
+  paths: [paperless/generated/secret-key]
+  readers:
+    - {namespace: paperless, externalSecrets: [paperless-secret], workloads: [{kind: Deployment, name: paperless}]}
+  idle: paperless
+  settings: {key: PAPERLESS_SECRET_KEY, length: 64, special: false}
+
+- name: woodpecker.agent
+  kind: woodpecker-agent
+  class: 2
+  reason: >-
+    Woodpecker keeps the secret an agent registered with as its row's token, so the rotation deletes every agent row
+    and the agents' ids and registers them again with the new one: CI stops meanwhile (after the idle wait)
+  period: 2160h
+  paths: [woodpecker/generated/agent]
+  readers:
+    - namespace: woodpecker
+      externalSecrets: [woodpecker-secret, woodpecker-agent]
+      workloads: [{kind: StatefulSet, name: woodpecker-server}, {kind: StatefulSet, name: woodpecker-agent}]
+  idle: woodpecker
+  settings: {key: secret, length: 32, special: false, server: woodpecker-server, agents: woodpecker-agent}
+
+- name: woodpecker.admin-token
+  kind: woodpecker-token
+  class: 1
+  reason: only lab reads it; the token reset ends every earlier token of that user
+  period: 2160h
+  paths: [woodpecker/admin-token]
+  steps: >-
+    The first token needs a person: Forgejo's site admin (WOODPECKER_ADMIN) signs in to Woodpecker once and writes
+    the token with the admin role (docs/how-to-guides/woodpecker.md)
+
+- name: registry.ci
+  kind: generated-org-secret
+  class: 2
+  reason: >-
+    zot's htpasswd and Woodpecker's org secret registry_password change together (through Woodpecker's API with
+    woodpecker.admin-token, checked first); wait for no running pipeline
+  period: 2160h
+  paths: [zot/generated/ci]
+  readers:
+    - {namespace: zot, externalSecrets: [zot-auth], workloads: [{kind: StatefulSet, name: zot}]}
+  idle: woodpecker
+  settings: {org-secret: registry_password, woodpecker-org: ci, key: password, length: 32, special: false}
+
+- name: ntfy.alerts-token
+  kind: ntfy-overlap
+  class: 0
+  reason: ntfy accepts several tokens per user; each step is an ntfy restart, Alertmanager reads the file at every notification
+  period: 2160h
+  paths: [ntfy/generated/alerts-token, monitoring-system/generated/ntfy]
+  readers:
+    - {namespace: ntfy, externalSecrets: [ntfy-auth], workloads: [{kind: Deployment, name: ntfy}]}
+    - {namespace: monitoring-system, externalSecrets: [ntfy]}
+  settings: {user: alerts, key: token, length: 29, special: false}
+
+- name: ntfy.alerts-password
+  kind: generated
+  class: 1
+  reason: nothing reads it at runtime but ntfy's own NTFY_AUTH_USERS
+  period: 2160h
+  paths: [ntfy/generated/alerts-password]
+  readers:
+    - {namespace: ntfy, externalSecrets: [ntfy-auth], workloads: [{kind: Deployment, name: ntfy}]}
+  settings: {key: password, length: 32, special: false}
+
+- name: ntfy.phone-token
+  kind: ntfy-overlap
+  class: 0
+  reason: both tokens are listed until people confirm the new one, then the old one is dropped
+  paths: [ntfy/generated/phone-token]
+  readers:
+    - {namespace: ntfy, externalSecrets: [ntfy-auth], workloads: [{kind: Deployment, name: ntfy}]}
+    - {people: true}
+  settings: {user: phone, key: token, length: 29, special: false}
+
+- name: ntfy.phone-password
+  kind: generated
+  class: 2
+  reason: people re-enter it in their phones
+  paths: [ntfy/generated/phone-password]
+  readers:
+    - {namespace: ntfy, externalSecrets: [ntfy-auth], workloads: [{kind: Deployment, name: ntfy}]}
+    - {people: true}
+  settings: {key: password, length: 32, special: false}
+
+- name: forgejo.deploy-token
+  # Its method needs Forgejo's admin password, which reaches ops/homelab and so the cluster: never the CronJob's
+  workstation: true
+  kind: forgejo-token
+  class: 0
+  reason: a new Forgejo access token is created, then the old one deleted
+  period: 2160h
+  paths: [forgejo/deploy]
+  settings: {account: deploy}
+
+- name: forgejo.argocd-token
+  # Its method needs Forgejo's admin password, which reaches ops/homelab and so the cluster: never the CronJob's
+  workstation: true
+  kind: forgejo-token
+  class: 0
+  reason: a new Forgejo access token is created, then the old one deleted
+  period: 2160h
+  paths: [argocd/forgejo]
+  readers:
+    - {namespace: argocd, externalSecrets: [argocd-repo-forgejo]}
+  settings: {account: argocd}
+
+- name: forgejo.woodpecker-oauth
+  kind: forgejo-oauth
+  class: 2
+  reason: Forgejo regenerates the OAuth2 application's secret with no overlap, so a login fails until Woodpecker restarts
+  paths: [woodpecker/forgejo]
+  readers:
+    - {namespace: woodpecker, externalSecrets: [woodpecker-secret], workloads: [{kind: StatefulSet, name: woodpecker-server}]}
+  idle: woodpecker
+
+- name: kanidm-client.actualbudget
+  kind: kaniop-client
+  class: 2
+  reason: a login fails until Actual Budget restarts (it reads the secret at start); open sessions stay
+  readers:
+    - {namespace: actualbudget, workloads: [{kind: Deployment, name: actualbudget}]}
+  settings: {client: actualbudget, namespace: actualbudget}
+
+- name: kanidm-client.argocd
+  kind: kaniop-client
+  class: 1
+  reason: Argo CD reads the new secret live
+  readers:
+    - {namespace: argocd}
+  settings: {client: argocd, namespace: argocd}
+
+- name: kanidm-client.forgejo
+  kind: kaniop-client
+  class: 2
+  reason: a login fails until Forgejo restarts (it reads the secret at start)
+  readers:
+    - {namespace: forgejo, workloads: [{kind: Deployment, name: forgejo}]}
+  settings: {client: forgejo, namespace: forgejo}
+
+- name: kanidm-client.grafana
+  kind: kaniop-client
+  class: 2
+  reason: every login fails (401 at the token exchange) until Grafana restarts
+  readers:
+    - {namespace: grafana, workloads: [{kind: Deployment, name: grafana}]}
+  settings: {client: grafana, namespace: grafana}
+
+- name: kanidm-client.paperless
+  kind: kaniop-client
+  class: 2
+  reason: a login fails until paperless restarts (it reads the secret at start)
+  readers:
+    - {namespace: paperless, workloads: [{kind: Deployment, name: paperless}]}
+  settings: {client: paperless, namespace: paperless}
+
+- name: kanidm.admin-passwords
+  kind: kanidm-admin
+  class: 1
+  reason: only lab, the tests and kaniop use admin and idm_admin; kaniop writes new ones when their Secret is deleted
+  settings: {namespace: kanidm, accounts: "admin,idm_admin"}
+
+- name: cloudflare.cert-manager
+  envs: [production]
+  kind: opentofu
+  class: 1
+  reason: >-
+    -replace destroys the old token in the same apply, before infra-secrets pushes the new one; cert-manager reads the
+    token at each DNS01 solve and retries (confirm at the first production rotation)
+  period: 2160h
+  paths: [cert-manager/cloudflare]
+  readers:
+    - {namespace: cert-manager, externalSecrets: [cloudflare-api-token]}
+  settings: {unit: infra/production/cloudflare, resource: cloudflare_account_token.cert_manager}
+
+- name: cloudflare.external-dns
+  envs: [production]
+  kind: opentofu
+  class: 1
+  reason: >-
+    -replace destroys the old token in the same apply; external-dns reads it as an environment variable, restarts and
+    retries on its next sync (confirm at the first production rotation)
+  period: 2160h
+  paths: [external-dns/cloudflare]
+  readers:
+    - {namespace: external-dns, externalSecrets: [cloudflare-api-token], workloads: [{kind: Deployment, name: external-dns}]}
+  settings: {unit: infra/production/cloudflare, resource: cloudflare_account_token.external_dns}
+
+- name: cloudflare.tunnel
+  envs: [production]
+  kind: opentofu
+  class: 2
+  reason: >-
+    -replace of the tunnel secret updates the same Tunnel in place; cloudflared keeps serving until it restarts, and
+    with one replica the public routes drop for the restart (seamless with two; confirm in production)
+  paths: [cloudflared/cloudflare]
+  readers:
+    - {namespace: cloudflared, externalSecrets: [cloudflared-credentials], workloads: [{kind: Deployment, name: cloudflared}]}
+  settings: {unit: infra/production/cloudflare, resource: random_password.tunnel_secret}
+
+- name: backup.r2-token
+  envs: [production]
+  kind: opentofu
+  class: 1
+  reason: >-
+    one apply replaces the token; a failed upload is retried by the next schedule; never rotate at 02:00, the daily
+    backup (confirm in production)
+  period: 2160h
+  paths: [velero/repository]
+  readers:
+    - {namespace: velero, externalSecrets: [velero-credentials], workloads: [{kind: Deployment, name: velero}]}
+  settings: {unit: infra/production/backup, resource: cloudflare_account_token.backup}
+
+- name: backup.kopia-password
+  envs: [production]
+  kind: never
+  reason: >-
+    Velero uses one password for every repository and has no change-password, so a new value makes every existing
+    repository unreadable; Kopia's own change-password only re-wraps the key, so it gains nothing against a leak. After
+    a leak: new repositories (new password, new prefix) while the old ones age out, by hand
+  paths: [velero/encryption]
+
+- name: velero.s3
+  envs: [sandbox]
+  kind: generated
+  class: 1
+  reason: sandbox only, the stand-in S3 server's secret key; a failed upload is retried by the next schedule
+  paths: [velero/generated/s3]
+  readers:
+    # The S3 server (templates/s3-dev.yaml) and Velero, its client
+    - {namespace: velero, externalSecrets: [s3, velero-credentials], workloads: [{kind: Deployment, name: s3}, {kind: Deployment, name: velero}]}
+  settings: {key: password, length: 32, special: false}
+
+- name: velero.encryption
+  envs: [sandbox]
+  kind: never
+  reason: sandbox only; the same as backup.kopia-password, Velero cannot change the password of existing repositories
+  paths: [velero/generated/encryption]
+
+- name: renovate.github-app-key
+  envs: [production]
+  kind: manual
+  class: 0
+  reason: a GitHub App holds several private keys, so the new one works beside the old
+  paths: [renovate/github-app]
+  readers:
+    - {namespace: renovate, externalSecrets: [renovate-github-app]}
+  steps: >-
+    Generate a new private key in the GitHub App's settings (GitHub has no API for it), give it to OpenTofu
+    (HOMELAB_GITHUB_APP_KEY, docs/how-to-guides/renovate.md), run make infra env=production, then delete the old key.
+    lab stops and gives these steps, then deletes the old key
+
+- name: forgejo-db
+  kind: cnpg-password
+  class: 1
+  reason: >-
+    the instance manager applies the new password to the role within seconds; Forgejo keeps its open connections, and
+    a restart right after makes it class 1 (2 at worst: a request fails while a new connection is refused)
+  readers:
+    - {namespace: forgejo, workloads: [{kind: Deployment, name: forgejo}]}
+  settings: {secret: forgejo-db-app, namespace: forgejo, derived: "uri,fqdn-uri,jdbc-uri,fqdn-jdbc-uri,pgpass"}
+
+- name: telegram.bot-token
+  envs: [production]
+  kind: manual
+  class: 1
+  reason: Alertmanager retries, and ntfy still delivers; it reads bot_token_file at every notification, no restart
+  paths: [monitoring-system/telegram]
+  readers:
+    - {namespace: monitoring-system, externalSecrets: [telegram]}
+  steps: >-
+    Revoke the token with BotFather (/revoke; there is no overlap), then write the new one to OpenBao with the admin
+    role (docs/how-to-guides/alerts.md)
+
+- name: openbao.unseal-key
+  kind: never
+  reason: it holds all of OpenBao's data; a new key means a new OpenBao, so nothing is gained against a leak
+
+- name: wireguard.private-key
+  kind: never
+  reason: it is in every peer; replacing it means changing every device by hand
+  paths: [wireguard/private-key]
+
+- name: state.passphrase
+  kind: script
+  class: 1
+  reason: only the workstation and CI read it
+  steps: Run scripts/rotate-state-passphrase (it re-encrypts OpenTofu's state)
+
+- name: renovate.token
+  kind: automatic
+  reason: each Renovate run mints its own installation token and revokes it when the run ends
+
+- name: state.r2-credentials
+  kind: automatic
+  reason: the R2 credentials for OpenTofu's state expire (lab infra state credentials)
+
+- name: tls.certificates
+  kind: automatic
+  reason: cert-manager renews them

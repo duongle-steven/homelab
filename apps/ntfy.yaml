@@ -115,16 +115,20 @@ externalSecrets:
         data:
           # htpasswd gives user:hash (bcrypt cost 10, ntfy's minimum); ntfy wants user:hash:role
           NTFY_AUTH_USERS: '{{ htpasswd "alerts" .alerts_password "bcrypt" }}:user,{{ htpasswd "phone" .phone_password "bcrypt" }}:user'
-          NTFY_AUTH_TOKENS: 'alerts:tk_{{ .alerts_token }},phone:tk_{{ .phone_token }}'
+          # During a rotation (lab secrets rotate) a user's previous_token is listed too, until it is revoked
+          NTFY_AUTH_TOKENS: >-
+            alerts:tk_{{ .alerts_token }}{{ with index . "alerts_previous_token" }},alerts:tk_{{ . }}{{ end }},phone:tk_{{ .phone_token }}{{ with index . "phone_previous_token" }},phone:tk_{{ . }}{{ end }}
     data:
       - secretKey: alerts_password
         remoteRef: {key: ntfy/generated/alerts-password, property: password}
-      - secretKey: alerts_token
-        remoteRef: {key: ntfy/generated/alerts-token, property: token}
       - secretKey: phone_password
         remoteRef: {key: ntfy/generated/phone-password, property: password}
-      - secretKey: phone_token
-        remoteRef: {key: ntfy/generated/phone-token, property: token}
+    # Whole token paths, so previous_token is read only while it exists: <user>_token, <user>_previous_token
+    dataFrom:
+      - extract: {key: ntfy/generated/alerts-token}
+        rewrite: [{regexp: {source: "(.*)", target: "alerts_$1"}}]
+      - extract: {key: ntfy/generated/phone-token}
+        rewrite: [{regexp: {source: "(.*)", target: "phone_$1"}}]
 rawResources:
   # Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
   authorization-policy:

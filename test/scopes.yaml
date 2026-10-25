@@ -47,8 +47,8 @@ skip:
   - cli/internal/cli/infra_state*.go
   - cli/internal/cli/cloudflare*.go
 always: Smoke
-alone: [NodeRestart, BackupRestore]
-full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|NodeRestart|BackupRestore
+alone: [NodeRestart, BackupRestore, Rotation]
+full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|NodeRestart|BackupRestore|Rotation
 groups:
   - paths:
       - Makefile
@@ -83,6 +83,9 @@ groups:
   # Velero, the hourly snapshots and lab backup (OpenBao's snapshot is in the secrets group)
   - paths: [system/velero/**, cli/internal/backup/**, cli/internal/cli/backup*.go, test/backup_test.go]
     tests: BackupRestore
+  # The catalog changes what rotates: TestRotation, alone after the suite
+  - paths: [cli/internal/rotate/**, cli/internal/cli/secrets*.go]
+    tests: Rotation
   - paths: [system/loki/**]
     tests: Logs
   - paths: [system/monitoring-system/**]
@@ -114,6 +117,8 @@ groups:
     tests: SSOZot|GatewayZotLargePush|Woodpecker
   - paths: [platform/woodpecker/**]
     tests: Woodpecker
+  - paths: [platform/secrets-rotation/**, scripts/build-lab-image, cli/Dockerfile]
+    tests: Rotation
   - paths: [apps/actualbudget.yaml]
     tests: SSOActualBudget
   - paths: [apps/paperless.yaml]

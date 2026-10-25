@@ -5,7 +5,7 @@ Every pull request into `dev` or `master`, and every push to them, runs the basi
 
 | Job | Command |
 |---|---|
-| `render`, `go`, `cli`, `infra`, `docs`, `mesh`, `backup-groups`, `env-config`, `secret-stores`, `lint` | `scripts/ci-check <job>` |
+| `render`, `go`, `cli`, `infra`, `docs`, `mesh`, `backup-groups`, `rotation-catalog`, `env-config`, `secret-stores`, `lint` | `scripts/ci-check <job>` |
 | `checks` | succeeds only when every job above did: the one status the ruleset requires |
 
 Run them all locally before a commit (the basic checks), in the dev shell:

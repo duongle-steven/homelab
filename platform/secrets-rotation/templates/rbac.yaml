@@ -1,0 +1,105 @@
+# What the scheduled rotation may touch, and nothing else: its locks here, OpenBao through the API server's proxy
+# (role rotator decides the paths), Velero's backups (the backup check), and in each readers' namespace their
+# ExternalSecrets and workloads (refresh, rolling restart, wait)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secrets-rotation
+  namespace: {{ .Release.Namespace }}
+{{- define "secrets-rotation.binding" }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: secrets-rotation
+  namespace: {{ .namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: secrets-rotation
+subjects:
+  - kind: ServiceAccount
+    name: secrets-rotation
+    namespace: {{ .from }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secrets-rotation
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, create, update, delete]
+{{- include "secrets-rotation.binding" (dict "namespace" .Release.Namespace "from" .Release.Namespace) }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secrets-rotation
+  namespace: openbao
+rules:
+  - apiGroups: [""]
+    resources: [services/proxy]
+    resourceNames: ["http:openbao:8200"]
+    verbs: [get, create, update]
+{{- include "secrets-rotation.binding" (dict "namespace" "openbao" "from" .Release.Namespace) }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secrets-rotation
+  namespace: velero
+rules:
+  - apiGroups: [velero.io]
+    resources: [backups]
+    verbs: [get, list]
+{{- include "secrets-rotation.binding" (dict "namespace" "velero" "from" .Release.Namespace) }}
+{{- range $ns, $r := .Values.readers }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secrets-rotation
+  namespace: {{ $ns }}
+rules:
+  - apiGroups: [external-secrets.io]
+    resources: [externalsecrets]
+    resourceNames: {{ $r.externalSecrets | toJson }}
+    verbs: [get, patch]
+  {{- if or $r.deployments $r.statefulsets }}
+  # Listing finds who owns what (Kanidm's StatefulSets are kaniop's); only the named ones are patched (restarted)
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, replicasets]
+    verbs: [get, list]
+  {{- with $r.deployments }}
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: {{ . | toJson }}
+    verbs: [patch]
+  {{- end }}
+  {{- with $r.statefulsets }}
+  - apiGroups: [apps]
+    resources: [statefulsets]
+    resourceNames: {{ . | toJson }}
+    verbs: [patch]
+  {{- end }}
+  # Waiting restarts a crash-looping pod once; Woodpecker's idle check lists step pods; its agents start again
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, delete]
+  {{- end }}
+  {{- if $r.exec }}
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: [create, get]
+  {{- end }}
+  {{- with $r.claims }}
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    resourceNames: {{ . | toJson }}
+    verbs: [get, delete]
+  {{- end }}
+{{- include "secrets-rotation.binding" (dict "namespace" $ns "from" $.Release.Namespace) }}
+{{- end }}

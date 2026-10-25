@@ -7,6 +7,9 @@ woodpecker:
     # verification itself
     env:
       SSL_CERT_DIR: /etc/ssl/certs:/etc/homelab-dev-ca
+      # The sandbox's test admin is Woodpecker's admin too, so TestSecretsRotation mints the token lab uses (in
+      # production forgejo_admin's, written by a person: docs/how-to-guides/woodpecker.md)
+      WOODPECKER_ADMIN: forgejo_admin,dev-admin
     extraVolumes:
       - name: dev-ca
         # Not optional: the pod waits until trust-manager has copied the CA here

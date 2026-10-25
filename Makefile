@@ -29,7 +29,8 @@ sandbox-checkout:
 # The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on; revision=<sha>
 # syncs that commit instead and pushes nothing (GitHub Actions). Alone tests (TestNodeRestart restarts the node) run
 # after the others. The image caches are filled before a build and, after the tests, with what the node pulled
-# without them (scripts/warm-image-cache)
+# without them (scripts/warm-image-cache); lab's image for the scheduled rotation is built from the checkout
+# (scripts/build-lab-image)
 dev: sandbox-checkout sandbox-clean
 	@if [ -n "$(tests)" ]; then sel="--tests '$(tests)'"; \
 	elif [ "$(scope)" = full ]; then sel=--full; \
@@ -40,6 +41,7 @@ dev: sandbox-checkout sandbox-clean
 	if [ -z "$(revision)" ]; then $(MAKE) sandbox-push; fi && \
 	scripts/warm-image-cache && \
 	(cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$$([ -z "$(revision)" ] || git rev-parse HEAD)" $(terragrunt_apply)) && \
+	scripts/build-lab-image && \
 	{ if { [ -z "$$main" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$main" sandbox-refresh smoke-test; } && \
 	{ [ -z "$$alone" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; }; \
 	then status=0; else status=$$?; fi; scripts/warm-image-cache --node || true; exit $$status; }
@@ -83,6 +85,8 @@ metal:
 # Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
 # The commit make infra started from: verify and push refuse another (a git pull during the apply)
 infra: deploy_commit := $(shell git rev-parse HEAD)
+# The deploy ends naming the secrets due for rotation from here (OpenTofu's: the cluster holds no Cloudflare
+# credentials; Forgejo's tokens: the CronJob never holds Forgejo's admin password)
 # Renovate's GitHub App key (docs/how-to-guides/renovate.md), from the environment or the command line: a relative path
 # names a file where make runs, not in the unit's directory (infra/production/secrets); a quoted ~/ is the home
 # directory. Whole-string tests, so a path may hold spaces.
@@ -102,7 +106,8 @@ infra:
 	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then \
 		$(lab_cli) infra forgejo sync && \
 		$(lab_cli) infra forgejo push --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"} && \
-		(cd infra/production/argocd && $(terragrunt) apply --non-interactive -- -auto-approve); \
+		(cd infra/production/argocd && $(terragrunt) apply --non-interactive -- -auto-approve) && \
+		{ $(lab_cli) secrets list --due --workstation || echo "warning: could not check the secrets rotated from here" >&2; }; \
 	fi
 
 smoke-test:

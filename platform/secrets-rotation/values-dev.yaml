@@ -1,0 +1,5 @@
+# Built from the checkout by make dev (scripts/build-lab-image) and imported on the node: no registry
+image: homelab-lab:dev
+# The sandbox's Gateway serves certificates from the local CA (trust-manager's ConfigMap homelab-dev-ca)
+devCA: true
+env: sandbox

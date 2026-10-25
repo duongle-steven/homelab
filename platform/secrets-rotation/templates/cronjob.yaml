@@ -1,0 +1,59 @@
+# lab secrets rotate --scheduled, daily: the due entries and the interrupted ones; a failed run is a failed Job
+# (alert SecretRotationFailed), and a lock per entry (a Lease here) keeps a person's run and this one apart
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: secrets-rotation
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  timeZone: {{ .Values.global.timezone | quote }}
+  {{- if not .Values.image }}
+  suspend: true
+  {{- end }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          serviceAccountName: secrets-rotation
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: rotate
+              image: {{ .Values.image | default "none" | quote }}
+              args: [secrets, rotate, --scheduled, --in-cluster]
+              env:
+                - {name: HOMELAB_ENV, value: {{ .Values.env | quote }}}
+                - {name: HOMELAB_DOMAIN, value: {{ .Values.global.baseDomain | quote }}}
+                - {name: HOMELAB_ROTATION_JOB, value: "1"}
+                - {name: HOMELAB_OPENBAO_TOKEN_FILE, value: /var/run/secrets/openbao/token}
+                {{- if .Values.devCA }}
+                - {name: SSL_CERT_DIR, value: "/etc/ssl/certs:/etc/homelab-dev-ca"}
+                {{- end }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+              resources:
+                requests: {cpu: 10m, memory: 64Mi}
+              volumeMounts:
+                - {name: openbao-token, mountPath: /var/run/secrets/openbao, readOnly: true}
+                {{- if .Values.devCA }}
+                - {name: dev-ca, mountPath: /etc/homelab-dev-ca, readOnly: true}
+                {{- end }}
+          volumes:
+            # A token only OpenBao accepts (role rotator, platform/openbao)
+            - name: openbao-token
+              projected:
+                sources:
+                  - serviceAccountToken: {audience: openbao, expirationSeconds: 3600, path: token}
+            {{- if .Values.devCA }}
+            - name: dev-ca
+              configMap: {name: homelab-dev-ca, optional: true}
+            {{- end }}
