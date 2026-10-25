@@ -93,6 +93,15 @@ func newSecretsCmd() *cobra.Command {
 				}
 				rot.Rotator.Entries = kept
 			}
+			if workstation, _ := cmd.Flags().GetBool("workstation"); workstation {
+				var kept []rotate.Entry
+				for _, e := range rot.Rotator.Entries {
+					if rotate.FromWorkstation(e) {
+						kept = append(kept, e)
+					}
+				}
+				rot.Rotator.Entries = kept
+			}
 			if due, _ := cmd.Flags().GetBool("due"); due {
 				return printDue(cmd.Context(), cmd.OutOrStdout(), rot.Rotator, time.Now())
 			}
@@ -101,6 +110,7 @@ func newSecretsCmd() *cobra.Command {
 	}
 	list.Flags().String("env", "production", "production, or sandbox")
 	list.Flags().String("kind", "", "only this kind of entry (e.g. opentofu)")
+	list.Flags().Bool("workstation", false, "only the entries a person rotates from here (OpenTofu's, Forgejo's tokens), never the CronJob")
 	list.Flags().Bool("due", false, "only the due entries, one line each with the command that rotates it (make infra env=production)")
 	group.AddCommand(list)
 

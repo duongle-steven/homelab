@@ -167,20 +167,24 @@ func TestSecretsList(t *testing.T) {
 	}
 }
 
-// make infra env=production warns about OpenTofu's due secrets: only those, as one line each with the command
-func TestSecretsListDueOpenTofu(t *testing.T) {
+// make infra env=production warns about the workstation entries that are due, one line each with the command
+func TestSecretsListDueWorkstation(t *testing.T) {
 	recent := time.Now().Add(-24 * time.Hour)
 	fakeRotation(t, memoryRecords{
 		"cloudflare.cert-manager": {Phase: rotate.PhaseDone, At: time.Now().Add(-100 * 24 * time.Hour), By: "steven"},
 		"cloudflare.external-dns": {Phase: rotate.PhaseDone, At: recent, By: "steven"},
 		"backup.r2-token":         {Phase: rotate.PhaseDone, At: recent, By: "steven"},
+		"forgejo.deploy-token":    {Phase: rotate.PhaseDone, At: time.Now().Add(-95 * 24 * time.Hour), By: "steven"},
+		"forgejo.argocd-token":    {Phase: rotate.PhaseDone, At: recent, By: "steven"},
 		"ntfy.alerts-token":       {Phase: rotate.PhaseDone, At: time.Now().Add(-200 * 24 * time.Hour), By: "rotation-job"},
 	})
-	out, err := runLab(t, "", false, "secrets", "list", "--due", "--kind", "opentofu")
+	out, err := runLab(t, "", false, "secrets", "list", "--due", "--workstation")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "due: cloudflare.cert-manager (since " + time.Now().Add(-10*24*time.Hour).Local().Format(time.DateOnly) + "): lab secrets rotate cloudflare.cert-manager\n"
+	// OpenTofu's and Forgejo's tokens (workstation entries), never the CronJob's (ntfy's token is overdue but not listed)
+	want := "due: forgejo.deploy-token (since " + time.Now().Add(-5*24*time.Hour).Local().Format(time.DateOnly) + "): lab secrets rotate forgejo.deploy-token\n" +
+		"due: cloudflare.cert-manager (since " + time.Now().Add(-10*24*time.Hour).Local().Format(time.DateOnly) + "): lab secrets rotate cloudflare.cert-manager\n"
 	if out != want {
 		t.Fatalf("out = %q, want %q", out, want)
 	}

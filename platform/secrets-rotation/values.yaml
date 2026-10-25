@@ -11,8 +11,6 @@ schedule: "0 3 * * *"
 # workloads (rolling restart), exec into the pods of `exec`, and delete only the claims in `claims` (Woodpecker's agent
 # ids). lab secrets check compares this with the catalog (cli/internal/rotate/catalog.yaml)
 readers:
-  argocd:
-    externalSecrets: [argocd-repo-forgejo]
   monitoring-system:
     externalSecrets: [ntfy]
   ntfy:

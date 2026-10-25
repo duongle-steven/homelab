@@ -21,13 +21,14 @@ func TestSecretsRotationRender(t *testing.T) {
 	assert.Equal(t, "openbao", renderVelero(t, "platform/secrets-rotation", "dev", pod+` | .volumes[] | select(.name == "openbao-token") | .projected.sources[0].serviceAccountToken.audience`))
 
 	roles := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role") | .metadata.namespace`)
-	assert.ElementsMatch(t, []string{"secrets-rotation", "openbao", "velero", "argocd", "monitoring-system", "ntfy", "woodpecker", "zot"}, strings.Fields(roles))
+	// Not argocd: Forgejo's tokens rotate from the workstation
+	assert.ElementsMatch(t, []string{"secrets-rotation", "openbao", "velero", "monitoring-system", "ntfy", "woodpecker", "zot"}, strings.Fields(roles))
 	exec := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and (.rules[].resources[] == "pods/exec")) | .metadata.namespace`)
 	assert.Equal(t, "ntfy", exec)
 	claims := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and (.rules[].resources[] == "persistentvolumeclaims")) | .metadata.namespace`)
 	assert.Equal(t, "woodpecker", claims)
-	// Only named objects are changed: Argo CD's namespace allows refreshing one ExternalSecret and nothing else
-	assert.Equal(t, "externalsecrets argocd-repo-forgejo", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "argocd") | .rules[] | .resources[0] + " " + (.resourceNames | join(","))`))
+	// Only named objects are changed: Alertmanager's namespace allows refreshing one ExternalSecret and nothing else
+	assert.Equal(t, "externalsecrets ntfy", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "monitoring-system") | .rules[] | .resources[0] + " " + (.resourceNames | join(","))`))
 	assert.Equal(t, "agent-config-woodpecker-agent-0,agent-config-woodpecker-agent-1", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "woodpecker") | .rules[] | select(.resources[0] == "persistentvolumeclaims") | .resourceNames | join(",")`))
 	// A new cluster is not overdue: the CronJob counts from its creation until its first success
 	assert.Contains(t, renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "PrometheusRule") | .spec.groups[0].rules[] | select(.alert == "SecretRotationOverdue") | .expr`), "kube_cronjob_created")

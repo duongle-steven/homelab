@@ -111,7 +111,7 @@ func (r *Rotator) Plan(ctx context.Context, names []string, o Options) ([]Entry,
 		// Due entries and interrupted rotations; never manual ones (a person acts) or OpenTofu's (from the
 		// workstation only: make infra env=production warns when one is due)
 		for _, e := range r.Entries {
-			if slices.Contains([]Kind{KindManual, KindOpenTofu, KindNever, KindAutomatic, KindScript}, e.Kind) {
+			if FromWorkstation(e) || slices.Contains([]Kind{KindManual, KindNever, KindAutomatic, KindScript}, e.Kind) {
 				continue
 			}
 			rec, err := r.Store.Get(ctx, e)
@@ -380,8 +380,8 @@ func holderID(by string) string {
 }
 
 func (r *Rotator) overdue(ctx context.Context, e Entry, o Options) (bool, error) {
-	// OpenTofu's rotate from the workstation, so the scheduled run never counts them
-	if e.Period == 0 || (o.Scheduled && e.Kind == KindOpenTofu) {
+	// Workstation entries (OpenTofu's, Forgejo's tokens) rotate from a person's run, so the scheduled run never counts them
+	if e.Period == 0 || (o.Scheduled && FromWorkstation(e)) {
 		return false, nil
 	}
 	rec, err := r.Store.Get(ctx, e)

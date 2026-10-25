@@ -289,7 +289,7 @@ func clientTargets(root string) ([]string, error) {
 // Scheduled reports whether the CronJob rotates e (lab secrets rotate --scheduled): an entry with a period that runs
 // in the cluster, never a manual or OpenTofu one.
 func Scheduled(e Entry) bool {
-	return e.Period > 0 && !slices.Contains([]Kind{KindManual, KindOpenTofu, KindNever, KindAutomatic, KindScript}, e.Kind)
+	return e.Period > 0 && !FromWorkstation(e) && !slices.Contains([]Kind{KindManual, KindNever, KindAutomatic, KindScript}, e.Kind)
 }
 
 // CheckScheduled compares what the scheduled rotation may touch with what its entries need: the readers in

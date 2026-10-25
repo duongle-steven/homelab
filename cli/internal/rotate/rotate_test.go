@@ -1014,3 +1014,22 @@ func (m phoneMethod) Revoke(ctx context.Context, e Entry) error {
 	}
 	return m.fakeMethod.Revoke(ctx, e)
 }
+
+// An entry marked workstation (Forgejo's tokens: they need Forgejo's admin password, which the CronJob must not hold)
+// rotates only from a person's run, like OpenTofu's: the scheduled run neither picks it nor counts it overdue
+func TestScheduledLeavesWorkstationEntries(t *testing.T) {
+	day := 24 * time.Hour
+	token := Entry{Name: "forgejo.deploy-token", Kind: KindForgejoToken, Period: 90 * day, Workstation: true}
+	if Scheduled(token) {
+		t.Fatal("Scheduled() includes a workstation entry")
+	}
+	r, _, records := rotator([]Entry{token}, nil)
+	records.records["forgejo.deploy-token"] = Record{Phase: PhaseDone, At: now.Add(-200 * day)}
+	plan, err := r.Plan(context.Background(), nil, Options{Scheduled: true, Now: now})
+	if err != nil || len(plan) != 0 {
+		t.Fatalf("plan = %v, %v", plan, err)
+	}
+	if over, err := r.overdue(context.Background(), token, Options{Scheduled: true, Now: now}); err != nil || over {
+		t.Fatalf("overdue = %v, %v", over, err)
+	}
+}

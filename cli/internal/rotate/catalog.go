@@ -66,7 +66,13 @@ type Entry struct {
 	Idle     string            `yaml:"idle"`     // "woodpecker": wait for no running pipeline
 	Settings map[string]string `yaml:"settings"` // method-specific: app, Forgejo account, OpenTofu unit and resource, kaniop client
 	Envs     []string          `yaml:"envs"`     // the environments that have it (production, sandbox); empty = every one
+	// Workstation entries rotate only from a person's run (make infra env=production names them when due), never the
+	// CronJob: OpenTofu's always, and those whose method needs more than the CronJob may hold
+	Workstation bool `yaml:"workstation"`
 }
+
+// FromWorkstation reports whether only a person's run rotates e
+func FromWorkstation(e Entry) bool { return e.Workstation || e.Kind == KindOpenTofu }
 
 //go:embed catalog.yaml
 var embedded []byte

@@ -124,7 +124,7 @@ func TestMakeInfraProduction(t *testing.T) {
 			"lab infra forgejo sync",
 			"lab infra forgejo push " + commit,
 			"terragrunt argocd apply --non-interactive -- -auto-approve",
-			"lab secrets list --due --kind opentofu",
+			"lab secrets list --due --workstation",
 		}},
 		{"force=1", []string{"force=1"}, nil, []string{
 			"terragrunt production run --all apply --non-interactive -- -auto-approve",
@@ -138,7 +138,7 @@ func TestMakeInfraProduction(t *testing.T) {
 			"lab infra forgejo sync",
 			"lab infra forgejo push " + commit + ` --break-glass=GitHub "outage"; true`,
 			"terragrunt argocd apply --non-interactive -- -auto-approve",
-			"lab secrets list --due --kind opentofu",
+			"lab secrets list --due --workstation",
 		}},
 		{"break-glass reason with a dollar sign", []string{`break_glass=$HOME is down`}, nil, []string{
 			"lab infra forgejo verify " + commit + ` --break-glass=$HOME is down`,
@@ -146,7 +146,7 @@ func TestMakeInfraProduction(t *testing.T) {
 			"lab infra forgejo sync",
 			"lab infra forgejo push " + commit + ` --break-glass=$HOME is down`,
 			"terragrunt argocd apply --non-interactive -- -auto-approve",
-			"lab secrets list --due --kind opentofu",
+			"lab secrets list --due --workstation",
 		}},
 		{"break-glass with force=1", []string{"force=1", "break_glass=outage"}, nil, []string{""}},
 		{"break-glass refused by verify", []string{"break_glass=outage"}, []string{"VERIFY_FAILS=1"}, []string{

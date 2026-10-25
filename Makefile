@@ -85,8 +85,8 @@ metal:
 # Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
 # The commit make infra started from: verify and push refuse another (a git pull during the apply)
 infra: deploy_commit := $(shell git rev-parse HEAD)
-# The deploy ends naming OpenTofu's secrets due for rotation (lab secrets rotate runs them from here: the cluster holds
-# no Cloudflare credentials)
+# The deploy ends naming the secrets due for rotation from here (OpenTofu's: the cluster holds no Cloudflare
+# credentials; Forgejo's tokens: the CronJob never holds Forgejo's admin password)
 # Renovate's GitHub App key (docs/how-to-guides/renovate.md), from the environment or the command line: a relative path
 # names a file where make runs, not in the unit's directory (infra/production/secrets); a quoted ~/ is the home
 # directory. Whole-string tests, so a path may hold spaces.
@@ -107,7 +107,7 @@ infra:
 		$(lab_cli) infra forgejo sync && \
 		$(lab_cli) infra forgejo push --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"} && \
 		(cd infra/production/argocd && $(terragrunt) apply --non-interactive -- -auto-approve) && \
-		{ $(lab_cli) secrets list --due --kind opentofu || echo "warning: could not check OpenTofu's secrets for rotation" >&2; }; \
+		{ $(lab_cli) secrets list --due --workstation || echo "warning: could not check the secrets rotated from here" >&2; }; \
 	fi
 
 smoke-test:

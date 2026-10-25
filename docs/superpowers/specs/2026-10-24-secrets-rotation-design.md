@@ -278,6 +278,8 @@ catalog above or a decision:
 
 12. The final review: the backup check accepts a completed scheduled run started in the last 30 hours, not 24: the 03:00 rotation starts an hour after the 02:00 daily backup, which may still be copying to R2, so yesterday's run must count.
 
+13. The user's decision after the final review: Forgejo's `deploy` and `argocd` tokens rotate from the workstation (catalog `workstation: true`, named by `make infra env=production` when due), not the CronJob: their method needs Forgejo's admin password, which reaches `ops/homelab` and so the cluster. OpenBao's role `rotator` loses that password and both tokens' paths, and the CronJob its access to namespace `argocd`.
+
 ## Left to the builder
 
 The catalog's format, the record's location, the CronJob's namespace and RBAC, the overdue

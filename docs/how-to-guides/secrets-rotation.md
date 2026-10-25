@@ -12,8 +12,9 @@ shortest one it can: a restart of the readers, after waiting for Woodpecker to h
 go -C cli run ./cmd/lab secrets list                 # every secret: its method, class, period, last rotation, next due date
 ```
 
-`make infra env=production` ends by naming OpenTofu's secrets that are due (Cloudflare's tokens, R2's): only the
-workstation can rotate them, since the cluster holds no Cloudflare credentials. `lab` shows the unit's plan with the
+`make infra env=production` ends by naming the secrets due for rotation from the workstation (`lab secrets list --due
+--workstation`): OpenTofu's (Cloudflare's tokens, R2's), since the cluster holds no Cloudflare credentials, and
+Forgejo's `deploy` and `argocd` tokens, whose rotation needs Forgejo's admin password, which the CronJob never holds. `lab` shows the unit's plan with the
 replacement and applies it only once you approve: anything else pending in that unit is applied with it.
 
 ## Rotate one, or all
@@ -46,11 +47,11 @@ passphrase has its own script (`scripts/rotate-state-passphrase`).
 
 The CronJob `secrets-rotation/secrets-rotation` runs `lab secrets rotate --scheduled` at 03:00 (in
 `global.timezone`): the entries with a period (90 days) whose turn came, counted from their creation until their first
-rotation, and the interrupted ones. It never runs manual or OpenTofu entries, and leaves an interrupted rotation by
+rotation, and the interrupted ones. It never runs manual or workstation entries (OpenTofu's, Forgejo's tokens), and leaves an interrupted rotation by
 command to a person. Its Kubernetes access names what those entries need (each namespace's ExternalSecrets, workloads
 and Woodpecker's agent claims) and OpenBao's role `rotator` their paths; `lab secrets check` keeps both in step with
-the catalog. That access is still powerful: it reads Forgejo's admin password and writes the deploy token, which reach
-`ops/homelab`, what Argo CD deploys, so treat the job like an admin.
+the catalog. It never holds Forgejo's admin password (which reaches `ops/homelab`, what Argo CD deploys): taken over,
+it reaches the scheduled entries' secrets (ntfy's, zot's `ci` password, Woodpecker's), not the cluster.
 
 - A failed run alerts (`SecretRotationFailed`, through ntfy and Telegram): `kubectl -n secrets-rotation logs
   job/<job>` names the secret; fix the cause, then `lab secrets rotate <name>` finishes it.
