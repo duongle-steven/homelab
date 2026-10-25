@@ -138,22 +138,9 @@ func TestWoodpeckerAgentDeletesTheRows(t *testing.T) {
 	if len(f.agents) != 0 {
 		t.Fatalf("agent rows left: %v", f.agents)
 	}
-	names := func(list []string) []string { slices.Sort(list); return list }
-	claims, _ := kube.CoreV1().PersistentVolumeClaims("woodpecker").List(ctx, metav1.ListOptions{})
-	var left []string
-	for _, c := range claims.Items {
-		left = append(left, c.Name)
-	}
-	if !slices.Equal(names(left), []string{"data-woodpecker-server-0"}) {
-		t.Fatalf("claims left: %v (the agents' ids go, the server's data stays)", left)
-	}
-	pods, _ := kube.CoreV1().Pods("woodpecker").List(ctx, metav1.ListOptions{})
-	left = nil
-	for _, p := range pods.Items {
-		left = append(left, p.Name)
-	}
-	if !slices.Equal(left, []string{"woodpecker-server-0"}) {
-		t.Fatalf("pods left: %v (the agents start again on new claims)", left)
+	// The agents start again on new claims (workload.ResetClaims): their ids only, not the server's data
+	if !slices.Contains(*log, "reset woodpecker/agent-config-woodpecker-agent-0,agent-config-woodpecker-agent-1") {
+		t.Fatalf("readers: %v", *log)
 	}
 	// Never scaled: Argo CD would put the replicas back at once
 	sts, _ := kube.AppsV1().StatefulSets("woodpecker").Get(ctx, "woodpecker-agent", metav1.GetOptions{})

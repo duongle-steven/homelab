@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
@@ -269,5 +270,39 @@ func TestRunningPod(t *testing.T) {
 	}
 	if _, err := RunningPod(ctx, kube, "paperless", Ref{"DaemonSet", "x"}); err == nil {
 		t.Fatal("a DaemonSet was accepted")
+	}
+}
+
+// A StatefulSet pod whose claim holds only derived state (Woodpecker's agent id) starts again on a new claim: the
+// claim and the pod go, the pod once more after the old claim is gone (the StatefulSet may have remade it on the
+// terminating claim), and the other claims stay
+func TestResetClaims(t *testing.T) {
+	ctx := context.Background()
+	claim := func(name string) *corev1.PersistentVolumeClaim {
+		return &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Namespace: "woodpecker", Name: name, UID: types.UID("uid-" + name)}}
+	}
+	pod := func(name, claimName string) *corev1.Pod {
+		return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "woodpecker", Name: name},
+			Spec: corev1.PodSpec{Volumes: []corev1.Volume{{Name: "c", VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: claimName}}}}}}
+	}
+	kube := fake.NewClientset(claim("agent-config-woodpecker-agent-0"), claim("data-woodpecker-server-0"),
+		pod("woodpecker-agent-0", "agent-config-woodpecker-agent-0"), pod("woodpecker-server-0", "data-woodpecker-server-0"))
+	c := &Client{Kube: kube, Poll: time.Millisecond, Wait: time.Second}
+	if err := c.ResetClaims(ctx, "woodpecker", []string{"agent-config-woodpecker-agent-0", "agent-config-woodpecker-agent-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := kube.CoreV1().PersistentVolumeClaims("woodpecker").Get(ctx, "agent-config-woodpecker-agent-0", metav1.GetOptions{}); err == nil {
+		t.Fatal("the agent's claim is still there")
+	}
+	if _, err := kube.CoreV1().Pods("woodpecker").Get(ctx, "woodpecker-agent-0", metav1.GetOptions{}); err == nil {
+		t.Fatal("the agent's pod is still there")
+	}
+	for _, kept := range []string{"data-woodpecker-server-0"} {
+		if _, err := kube.CoreV1().PersistentVolumeClaims("woodpecker").Get(ctx, kept, metav1.GetOptions{}); err != nil {
+			t.Fatalf("%s went: %v", kept, err)
+		}
+	}
+	if _, err := kube.CoreV1().Pods("woodpecker").Get(ctx, "woodpecker-server-0", metav1.GetOptions{}); err != nil {
+		t.Fatalf("the server's pod went: %v", err)
 	}
 }

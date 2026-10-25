@@ -10,9 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/duongle-steven/homelab/cli/internal/workload"
@@ -264,47 +262,15 @@ func (m WoodpeckerAgent) Switch(ctx context.Context, e Entry) error {
 			return err
 		}
 	}
-	// Each agent starts again without its id: its config claims (homelab/backup none) are deleted, which waits for
-	// the pod, then the pod; the StatefulSet makes both again. Never scaled: Argo CD would put the replicas back.
-	claims := m.Kube.CoreV1().PersistentVolumeClaims(ns)
-	pods := m.Kube.CoreV1().Pods(ns)
+	// Each agent starts again without its id (its config claims, homelab/backup none, are made anew). Never scaled:
+	// Argo CD would put the replicas back
+	var claims []string
 	for i := range ptrValue(sts.Spec.Replicas, 1) {
-		pod := fmt.Sprintf("%s-%d", agents, i)
-		old := map[string]types.UID{}
 		for _, t := range sts.Spec.VolumeClaimTemplates {
-			name := t.Name + "-" + pod
-			c, err := claims.Get(ctx, name, metav1.GetOptions{})
-			if apierrors.IsNotFound(err) {
-				continue
-			}
-			if err != nil {
-				return fmt.Errorf("claim %s/%s: %w", ns, name, err)
-			}
-			old[name] = c.UID
-			if err := claims.Delete(ctx, name, metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &c.UID}}); err != nil && !apierrors.IsNotFound(err) {
-				return fmt.Errorf("delete claim %s/%s: %w", ns, name, err)
-			}
-		}
-		if err := pods.Delete(ctx, pod, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-			return fmt.Errorf("delete pod %s/%s: %w", ns, pod, err)
-		}
-		// The StatefulSet may have made the pod again before the old claim went: once the claim is gone, the pod goes
-		// once more, so the StatefulSet makes it with a new claim
-		if err := m.Waits.Until(ctx, "the old claims of "+ns+"/"+pod+" deleted", func() (bool, error) {
-			for name, uid := range old {
-				if c, err := claims.Get(ctx, name, metav1.GetOptions{}); err == nil && c.UID == uid {
-					return false, nil
-				}
-			}
-			return true, nil
-		}); err != nil {
-			return err
-		}
-		if err := pods.Delete(ctx, pod, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-			return fmt.Errorf("delete pod %s/%s: %w", ns, pod, err)
+			claims = append(claims, fmt.Sprintf("%s-%s-%d", t.Name, agents, i))
 		}
 	}
-	return nil
+	return m.Workloads.ResetClaims(ctx, ns, claims)
 }
 
 func (m WoodpeckerAgent) Verify(ctx context.Context, e Entry) error {

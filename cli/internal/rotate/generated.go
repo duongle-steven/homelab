@@ -25,6 +25,7 @@ type Readers interface {
 	RefreshExternalSecrets(ctx context.Context, namespace string, names []string) error
 	Restart(ctx context.Context, namespace string, workloads []workload.Ref) error
 	WaitReady(ctx context.Context, namespace string, workloads []workload.Ref) error
+	ResetClaims(ctx context.Context, namespace string, claims []string) error
 }
 
 // pendingKey holds the new value of a rotation under way, in the data of the entry's record path

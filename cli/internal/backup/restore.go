@@ -207,6 +207,9 @@ func (c *Client) restoreApp(ctx context.Context, app string, src Source, at time
 	if err := c.start(ctx, app, saved); err != nil {
 		return stopped(err)
 	}
+	if err := c.resetAgentIDs(ctx, app); err != nil {
+		return stopped(err)
+	}
 	if saved.openbao {
 		if err := c.restoreOpenBao(ctx); err != nil {
 			return stopped(err)
@@ -880,4 +883,30 @@ func (c *Client) restartWorkloads(ctx context.Context, ns string) error {
 // like waitHealthy
 func (c *Client) waitWorkloads(ctx context.Context, app string) error {
 	return c.workload().WaitNamespaceReady(ctx, app)
+}
+
+// agentIDs names, by namespace, the StatefulSet whose claims hold only ids its pods registered with the app: they are
+// not backed up (homelab/backup none), so after the app's data is restored they name what the restored data may not
+// know (Woodpecker's agents: "AgentID not found in database") and start again on new claims
+var agentIDs = map[string]string{"woodpecker": "woodpecker-agent"}
+
+func (c *Client) resetAgentIDs(ctx context.Context, app string) error {
+	name, ok := agentIDs[app]
+	if !ok {
+		return nil
+	}
+	sts, err := c.Kube.AppsV1().StatefulSets(app).Get(ctx, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var claims []string
+	for i := range ptr.Deref(sts.Spec.Replicas, 1) {
+		for _, t := range sts.Spec.VolumeClaimTemplates {
+			claims = append(claims, fmt.Sprintf("%s-%s-%d", t.Name, name, i))
+		}
+	}
+	return c.workload().ResetClaims(ctx, app, claims)
 }

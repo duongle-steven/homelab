@@ -82,6 +82,10 @@ func (f fakeReaders) WaitReady(_ context.Context, namespace string, refs []workl
 	return f.do("wait", namespace, refNames(refs))
 }
 
+func (f fakeReaders) ResetClaims(_ context.Context, namespace string, claims []string) error {
+	return f.do("reset", namespace, claims)
+}
+
 const newValue = "N3w-value-0123456789"
 
 // fixed returns newValue and counts its calls

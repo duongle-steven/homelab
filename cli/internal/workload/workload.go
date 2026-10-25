@@ -12,6 +12,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -285,4 +286,54 @@ func (c *Client) Until(ctx context.Context, what string, done func() (bool, erro
 		case <-time.After(c.Poll):
 		}
 	}
+}
+
+// ResetClaims starts the pods on claims holding only derived state (Woodpecker's agent ids) again on new claims:
+// each claim (missing ones are skipped) is deleted at the version read, then the pods mounting it; once the old
+// claim is gone, those pods go once more, so their StatefulSet makes them with a new claim.
+func (c *Client) ResetClaims(ctx context.Context, namespace string, names []string) error {
+	claims := c.Kube.CoreV1().PersistentVolumeClaims(namespace)
+	pods := c.Kube.CoreV1().Pods(namespace)
+	deletePods := func(claim string) error {
+		list, err := pods.List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+		for _, p := range list.Items {
+			for _, v := range p.Spec.Volumes {
+				if v.PersistentVolumeClaim != nil && v.PersistentVolumeClaim.ClaimName == claim {
+					if err := pods.Delete(ctx, p.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+						return fmt.Errorf("delete pod %s/%s: %w", namespace, p.Name, err)
+					}
+				}
+			}
+		}
+		return nil
+	}
+	for _, name := range names {
+		old, err := claims.Get(ctx, name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("claim %s/%s: %w", namespace, name, err)
+		}
+		uid := old.UID
+		if err := claims.Delete(ctx, name, metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &uid}}); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete claim %s/%s: %w", namespace, name, err)
+		}
+		if err := deletePods(name); err != nil {
+			return err
+		}
+		if err := c.Until(ctx, "claim "+namespace+"/"+name+" deleted", func() (bool, error) {
+			current, err := claims.Get(ctx, name, metav1.GetOptions{})
+			return err != nil || current.UID != uid, nil
+		}); err != nil {
+			return err
+		}
+		if err := deletePods(name); err != nil {
+			return err
+		}
+	}
+	return nil
 }
