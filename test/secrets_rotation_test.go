@@ -207,6 +207,9 @@ func dailyBackup(t *testing.T) {
 		} `json:"spec"`
 	}
 	kubectlJSON(t, &schedule, "-n", "velero", "get", "schedules.velero.io", "daily")
+	// A new cluster is read-only until lab backup enable; it is read-only again afterwards, as TestBackupRestore expects
+	lab(t, "backup", "enable", "--yes", "--env", "sandbox")
+	defer lab(t, "backup", "disable", "--yes", "--env", "sandbox")
 	name := fmt.Sprintf("daily-rotation-%d", time.Now().Unix())
 	manifest, err := json.Marshal(map[string]any{
 		"apiVersion": "velero.io/v1", "kind": "Backup",
