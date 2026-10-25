@@ -24,11 +24,11 @@ func TestRepositoryMap(t *testing.T) {
 		{"CLAUDE.md", "", ""},
 		{"system/loki/values.yaml", "Logs|Smoke", ""},
 		{"system/istio-system/values.yaml", "Egress|Gateway|Identity|Mesh|Smoke", "NodeRestart"},
-		{"infra/root.hcl", full, "BackupRestore|NodeRestart"},
-		{"infra/sandbox/cluster/config.json", full, "BackupRestore|NodeRestart"},
-		{"infra/_modules/k3d/main.tf", full, "BackupRestore|NodeRestart"},
-		{"scripts/env-values", full, "BackupRestore|NodeRestart"},
-		{"system/egress/values.yaml", full, "BackupRestore|NodeRestart"},
+		{"infra/root.hcl", full, "BackupRestore|NodeRestart|Rotation"},
+		{"infra/sandbox/cluster/config.json", full, "BackupRestore|NodeRestart|Rotation"},
+		{"infra/_modules/k3d/main.tf", full, "BackupRestore|NodeRestart|Rotation"},
+		{"scripts/env-values", full, "BackupRestore|NodeRestart|Rotation"},
+		{"system/egress/values.yaml", full, "BackupRestore|NodeRestart|Rotation"},
 		{"platform/openbao/values.yaml", "Forgejo|Gateway|Identity|Logs|Monitoring|Ntfy|SSO|Secrets|Smoke|Woodpecker", "BackupRestore"},
 		{"platform/kanidm/values.yaml", "ForgejoDeploy|GatewayZotLargePush|Identity|SSO|Smoke|Woodpecker", ""},
 		// lab's Forgejo deploy runs against the sandbox; its offline parts are skipped
@@ -42,8 +42,8 @@ func TestRepositoryMap(t *testing.T) {
 		{"apps/blog.yaml", "Smoke", ""},
 		{"system/kured/values.yaml", "Smoke", ""},
 		{"test/state_rotation_test.go", "", ""},
-		{"Makefile", full, "BackupRestore|NodeRestart"},
-		{"scripts/something-new", full, "BackupRestore|NodeRestart"},
+		{"Makefile", full, "BackupRestore|NodeRestart|Rotation"},
+		{"scripts/something-new", full, "BackupRestore|NodeRestart|Rotation"},
 	} {
 		s, err := c.Select([]string{tc.file}, FileTests(root))
 		if err != nil {

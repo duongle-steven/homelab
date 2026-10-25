@@ -9,7 +9,7 @@ import (
 
 // The scheduled rotation (platform/secrets-rotation): daily at 03:00, one run at a time, suspended until production
 // has lab's image; it may exec only into ntfy and delete claims only in woodpecker (step 11b)
-func TestSecretsRotationRender(t *testing.T) {
+func TestSecretsCronJobRender(t *testing.T) {
 	const cron = `select(.kind == "CronJob")`
 	assert.Equal(t, `0 3 * * *`, renderVelero(t, "platform/secrets-rotation", "", cron+` | .spec.schedule`))
 	assert.Equal(t, "Forbid", renderVelero(t, "platform/secrets-rotation", "", cron+` | .spec.concurrencyPolicy`))

@@ -40,9 +40,10 @@ func grafanaStatus(password string) int {
 	return status
 }
 
-// lab secrets rotate on the sandbox, one entry per kind of method: the new value works, the old one is refused,
+// TestRotation runs lab secrets rotate on the sandbox, one entry per kind of method, alone after the suite (it restarts
+// most apps): the new value works, the old one is refused,
 // and the readers run again (the sandbox has one replica per app: their short stops are not checked) (step 11b)
-func TestSecretsRotation(t *testing.T) {
+func TestRotation(t *testing.T) {
 	secretsSandboxOnly(t)
 	waitForUnsealed(t)
 
@@ -205,6 +206,8 @@ func jobSucceeds(t *testing.T, options *k8s.KubectlOptions, job string) bool {
 // dailyBackup takes an off-site backup the way the daily schedule does, and waits for it
 func dailyBackup(t *testing.T) {
 	t.Helper()
+	// OpenBao's snapshot claim binds at its CronJob's first run (:55): before it Velero cannot back it up
+	runCronJob(t, "openbao", "openbao-snapshot")
 	var schedule struct {
 		Spec struct {
 			Template map[string]any `json:"template"`
