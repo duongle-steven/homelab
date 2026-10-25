@@ -29,6 +29,10 @@ func TestSecretsRotationRender(t *testing.T) {
 	// Only named objects are changed: Argo CD's namespace allows refreshing one ExternalSecret and nothing else
 	assert.Equal(t, "externalsecrets argocd-repo-forgejo", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "argocd") | .rules[] | .resources[0] + " " + (.resourceNames | join(","))`))
 	assert.Equal(t, "agent-config-woodpecker-agent-0,agent-config-woodpecker-agent-1", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "woodpecker") | .rules[] | select(.resources[0] == "persistentvolumeclaims") | .resourceNames | join(",")`))
+	// A new cluster is not overdue: the CronJob counts from its creation until its first success
+	assert.Contains(t, renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "PrometheusRule") | .spec.groups[0].rules[] | select(.alert == "SecretRotationOverdue") | .expr`), "kube_cronjob_created")
+	assert.Equal(t, "production", renderVelero(t, "platform/secrets-rotation", "", pod+` | .containers[0].env[] | select(.name == "HOMELAB_ENV") | .value`))
+	assert.Equal(t, "sandbox", renderVelero(t, "platform/secrets-rotation", "dev", pod+` | .containers[0].env[] | select(.name == "HOMELAB_ENV") | .value`))
 	alerts := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "PrometheusRule") | .spec.groups[0].rules[].alert`)
 	assert.Equal(t, []string{"SecretRotationFailed", "SecretRotationOverdue"}, strings.Fields(alerts))
 }

@@ -2,3 +2,4 @@
 image: homelab-lab:dev
 # The sandbox's Gateway serves certificates from the local CA (trust-manager's ConfigMap homelab-dev-ca)
 devCA: true
+env: sandbox

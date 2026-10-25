@@ -21,9 +21,13 @@ spec:
               Job {{ "{{" }} $labels.job_name {{ "}}" }} failed: kubectl -n {{ .Release.Namespace }} logs job/{{ "{{" }} $labels.job_name {{ "}}" }}
               names the secret; lab secrets list shows what is due or interrupted (docs/how-to-guides/secrets-rotation.md).
         - alert: SecretRotationOverdue
+          # Never succeeded counts from the CronJob's creation: a new cluster is not overdue before its first 03:00
           expr: |
             (time() - max(kube_cronjob_status_last_successful_time{namespace="{{ .Release.Namespace }}", cronjob="secrets-rotation"}) > 3 * 86400)
-            or absent(kube_cronjob_status_last_successful_time{namespace="{{ .Release.Namespace }}", cronjob="secrets-rotation"})
+            or (
+              absent(kube_cronjob_status_last_successful_time{namespace="{{ .Release.Namespace }}", cronjob="secrets-rotation"})
+              and on () (time() - max(kube_cronjob_created{namespace="{{ .Release.Namespace }}", cronjob="secrets-rotation"}) > 3 * 86400)
+            )
           for: 1h
           labels:
             severity: warning

@@ -312,9 +312,17 @@ func CheckScheduled(root string, entries []Entry) []string {
 	if err := yaml.Unmarshal(raw, &v); err != nil {
 		return []string{fmt.Sprintf("platform/secrets-rotation/values.yaml: %v", err)}
 	}
-	policy, err := os.ReadFile(filepath.Join(root, "platform/openbao/values.yaml"))
+	values, err := os.ReadFile(filepath.Join(root, "platform/openbao/values.yaml"))
 	if err != nil {
 		return []string{fmt.Sprintf("platform/openbao/values.yaml: %v", err)}
+	}
+	policy := rotatorPolicy(string(values))
+	if policy == "" {
+		return []string{"platform/openbao/values.yaml: no policy rotator"}
+	}
+	// The pending values of command-only rotations are not the job's: only metadata (the records) on the whole branch
+	if strings.Contains(policy, `secret/data/rotation/*\"`) {
+		problems = append(problems, "secret/data/rotation/*: rotator reaches every rotation record's pending value; name the scheduled entries' instead")
 	}
 	// What the scheduled entries need, by namespace and kind: "ExternalSecret", "Deployment", "StatefulSet"
 	needed := map[string]map[string][]string{}
@@ -334,8 +342,11 @@ func CheckScheduled(root string, entries []Entry) []string {
 				needed[r.Namespace][w.Kind] = append(needed[r.Namespace][w.Kind], w.Name)
 			}
 		}
+		if !strings.Contains(policy, `secret/data/`+RecordPath(e)+`\"`) {
+			problems = append(problems, fmt.Sprintf("%s: %s's record (its pending value) is not in OpenBao's policy rotator", RecordPath(e), e.Name))
+		}
 		for _, p := range e.Paths {
-			if !strings.Contains(string(policy), `secret/data/`+p+`\"`) {
+			if !strings.Contains(policy, `secret/data/`+p+`\"`) {
 				problems = append(problems, fmt.Sprintf("%s: %s's path is not in OpenBao's policy rotator (platform/openbao/values.yaml)", p, e.Name))
 			}
 		}
@@ -361,4 +372,18 @@ func CheckScheduled(root string, entries []Entry) []string {
 	}
 	slices.Sort(problems)
 	return slices.Compact(problems)
+}
+
+// rotatorPolicy is the text of OpenBao's policy request "rotator" (platform/openbao/values.yaml's initialize
+// "policies"), the first request of that name; its role request comes later
+func rotatorPolicy(values string) string {
+	i := strings.Index(values, `request "rotator"`)
+	if i < 0 {
+		return ""
+	}
+	rest := values[i:]
+	if j := strings.Index(rest[1:], `request "`); j >= 0 {
+		rest = rest[:j+1]
+	}
+	return rest
 }

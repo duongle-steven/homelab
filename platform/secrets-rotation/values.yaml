@@ -3,6 +3,8 @@
 # lab's image, pinned by digest: GitHub Actions builds it from master (.github/workflows/lab-image.yaml). Empty until
 # the first release builds it: the CronJob stays suspended meanwhile (CLAUDE.md, before the first production deploy)
 image: ""
+# The environment lab rotates (catalog entries of another one are left alone)
+env: production
 # 03:00 in global.timezone: an hour after Velero's daily backup, which the rotation wants from the last 24 hours
 schedule: "0 3 * * *"
 # What the scheduled entries' readers are, by namespace: the rotation may patch only these ExternalSecrets (refresh) and

@@ -29,7 +29,7 @@ spec:
               image: {{ .Values.image | default "none" | quote }}
               args: [secrets, rotate, --scheduled, --in-cluster]
               env:
-                - {name: HOMELAB_ENV, value: {{ ternary "sandbox" "production" (.Values.devCA | default false) | quote }}}
+                - {name: HOMELAB_ENV, value: {{ .Values.env | quote }}}
                 - {name: HOMELAB_DOMAIN, value: {{ .Values.global.baseDomain | quote }}}
                 - {name: HOMELAB_ROTATION_JOB, value: "1"}
                 - {name: HOMELAB_OPENBAO_TOKEN_FILE, value: /var/run/secrets/openbao/token}

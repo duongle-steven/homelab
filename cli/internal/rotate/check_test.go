@@ -111,7 +111,14 @@ func TestCheckReportsMissingValues(t *testing.T) {
 func TestCheckScheduledAccess(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "platform/secrets-rotation/values.yaml", "readers:\n  ntfy: {externalSecrets: [ntfy-auth, stale], deployments: [ntfy]}\n  extra: {externalSecrets: [x]}\n")
-	write(t, root, "platform/openbao/values.yaml", `policy = "path \"secret/data/ntfy/generated/alerts-token\" { capabilities = [\"read\"] }"`+"\n")
+	// zot's path appears only in another policy, and a's rotation record is missing from rotator
+	write(t, root, "platform/openbao/values.yaml", `request "other" {
+  policy = "path \"secret/data/zot/generated/ci\" { capabilities = [\"read\"] }"
+}
+request "rotator" {
+  policy = "path \"secret/data/ntfy/generated/alerts-token\" { capabilities = [\"read\"] }\npath \"secret/data/rotation/*\" { capabilities = [\"read\"] }"
+}
+`)
 	entries, err := parse([]byte(`
 - {name: a, kind: ntfy-overlap, period: 2160h, paths: [ntfy/generated/alerts-token], readers: [{namespace: ntfy, externalSecrets: [ntfy-auth], workloads: [{kind: Deployment, name: ntfy}, {kind: StatefulSet, name: missing}]}]}
 - {name: b, kind: generated, period: 2160h, paths: [zot/generated/ci], readers: [{namespace: zot}]}
@@ -123,7 +130,8 @@ func TestCheckScheduledAccess(t *testing.T) {
 	}
 	got := strings.Join(CheckScheduled(root, entries), "\n")
 	for _, want := range []string{"zot: b's readers", "extra: no scheduled entry", "zot/generated/ci: b's path",
-		"ntfy: ExternalSecret stale", "ntfy: StatefulSet missing"} {
+		"ntfy: ExternalSecret stale", "ntfy: StatefulSet missing",
+		"rotation/a: a's record", "secret/data/rotation/*: rotator reaches every rotation record"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("CheckScheduled = %q, missing %q", got, want)
 		}
