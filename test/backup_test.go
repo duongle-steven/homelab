@@ -141,6 +141,12 @@ func TestBackupRestore(t *testing.T) {
 	require.NoError(t, err)
 	k8s.KubectlApplyFromString(t, velero, string(manifest))
 	waitBackup(t, backup)
+	// Snapshots are one per claim and hour (snapshots.sh skips an hour's existing one): this hour's, taken before the
+	// test's data, would be what the local restore reads
+	for _, claim := range []string{"forgejo-data", "forgejo-db-1"} {
+		_, _ = k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", "forgejo"), "delete", "volumesnapshots.snapshot.storage.k8s.io",
+			claim+"-"+time.Now().UTC().Format("2006010215"), "--ignore-not-found")
+	}
 	runCronJob(t, "velero", "snapshots")
 	for _, claim := range []string{"forgejo-data", "forgejo-db-1"} {
 		require.Eventually(t, func() bool {
