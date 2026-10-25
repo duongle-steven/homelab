@@ -214,3 +214,49 @@ func TestWoodpeckerNeedsTheAdminTokenFirst(t *testing.T) {
 		}
 	}
 }
+
+// Woodpecker's server just restarted: the Gateway answers 503 for a while; the rotation waits for its API instead of
+// failing half-way (a --all run stopped there, its agents' secret already new)
+func TestWoodpeckerAgentWaitsForTheAPI(t *testing.T) {
+	ctx := context.Background()
+	e := catalogEntry(t, "woodpecker.agent")
+	f, kv, api := woodpeckerFixture(t)
+	kv.data["woodpecker/generated/agent"] = map[string]string{"secret": "old"}
+	unavailable := 3
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/agents" && unavailable > 0 {
+			unavailable--
+			http.Error(w, "upstream connect error", http.StatusServiceUnavailable)
+			return
+		}
+		f.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	api.URL = func(context.Context) (string, *http.Client, error) { return server.URL, server.Client(), nil }
+	agents := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Namespace: "woodpecker", Name: "woodpecker-agent"}, Spec: appsv1.StatefulSetSpec{Replicas: ptr.To[int32](1)}}
+	n := 0
+	m := WoodpeckerAgent{API: api, Kube: fake.NewClientset(agents), Store: kv, Workloads: fakeReaders{log: &[]string{}}, Waits: retryWaiter{tries: 10}, Random: fixed(&n)}
+	if err := m.Prepare(ctx, e); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Switch(ctx, e); err != nil {
+		t.Fatalf("Switch = %v, want it to wait out the 503s", err)
+	}
+	if len(f.agents) != 0 {
+		t.Fatalf("agent rows left: %v", f.agents)
+	}
+}
+
+// retryWaiter calls done up to tries times
+type retryWaiter struct{ tries int }
+
+func (r retryWaiter) Until(_ context.Context, what string, done func() (bool, error)) error {
+	for range r.tries {
+		if ok, err := done(); err != nil {
+			return err
+		} else if ok {
+			return nil
+		}
+	}
+	return fmt.Errorf("waited for %s", what)
+}

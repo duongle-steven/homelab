@@ -122,6 +122,11 @@ func TestRotation(t *testing.T) {
 	t.Run("all", func(t *testing.T) {
 		// Assume everything leaked, from a script (no terminal): manual steps and other environments' entries are
 		// skipped, the phone token waits for people, and the run goes through the rest
+		// Nobody re-enters the phone token in this sandbox: its wait is closed afterwards (both tokens stay valid), even
+		// if the run fails, or the scheduled run below would report it as a rotation to finish by hand (as it does in
+		// production)
+		defer baoPutMeta(t, "rotation/ntfy.phone-token", map[string]string{"rotation-phase": "done", "rotation-method": "ntfy-overlap",
+			"rotated-by": "test", "rotated-at": time.Now().UTC().Format(time.RFC3339)})
 		out := lab(t, "secrets", "rotate", "--all", "--env", "sandbox", "--yes", "--skip-backup-check=sandbox test")
 		results := out[strings.LastIndex(out, "Results:"):]
 		assert.NotContains(t, results, "failed")
@@ -129,10 +134,6 @@ func TestRotation(t *testing.T) {
 		assert.Contains(t, results, "ntfy.phone-token: waiting for people")
 		assert.Contains(t, results, "cloudflare.cert-manager: skipped: production only")
 		assert.Contains(t, results, "grafana.admin: rotated")
-		// Nobody re-enters the phone token in this sandbox: close its wait (both tokens stay valid), or the scheduled
-		// run below would report it as a rotation to finish by hand (which is what it does in production)
-		baoPutMeta(t, "rotation/ntfy.phone-token", map[string]string{"rotation-phase": "done", "rotation-method": "ntfy-overlap",
-			"rotated-by": "test", "rotated-at": time.Now().UTC().Format(time.RFC3339)})
 		waitForApp(t, "https://"+grafanaHost+"/api/health")
 		waitForApp(t, "https://"+forgejoHost+"/api/healthz")
 	})

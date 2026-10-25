@@ -253,14 +253,26 @@ func (m WoodpeckerAgent) Switch(ctx context.Context, e Entry) error {
 	if err := m.Workloads.WaitReady(ctx, ns, server0); err != nil {
 		return err
 	}
-	ids, err := m.API.Agents(ctx)
-	if err != nil {
-		return err
-	}
-	for _, id := range ids {
-		if err := m.API.DeleteAgent(ctx, id); err != nil {
-			return err
+	// The restarted server answers through the Gateway only once its route has an endpoint again: until then 503s
+	var lastErr error
+	if err := m.Waits.Until(ctx, "Woodpecker's API after its restart", func() (bool, error) {
+		ids, err := m.API.Agents(ctx)
+		if err != nil {
+			lastErr = err
+			return false, nil
 		}
+		for _, id := range ids {
+			if err := m.API.DeleteAgent(ctx, id); err != nil {
+				lastErr = err
+				return false, nil
+			}
+		}
+		return true, nil
+	}); err != nil {
+		if lastErr != nil {
+			return fmt.Errorf("%w: %v", err, lastErr)
+		}
+		return err
 	}
 	// Each agent starts again without its id (its config claims, homelab/backup none, are made anew). Never scaled:
 	// Argo CD would put the replicas back
