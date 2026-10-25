@@ -66,6 +66,10 @@ the backups it may need to restore from.
 - **Retention by count:** the CronJob `velero/prune` keeps the newest 30 completed copies of the schedule and of each
   app. It runs only while the location is writable. Velero's own expiry is ten years, so a cluster that was down for
   months loses nothing.
+- **A copy cut short** (a power cut while its data movers copied) ends `Failed`, and prune deletes it once a newer copy
+  of its group completed. Velero may leave a `VolumeSnapshot` it made for that copy (labelled
+  `velero.io/backup-name`): prune deletes every such snapshot whose backup no longer exists, in either mode, since no
+  restore can need it.
 - **The alert `VeleroNoRecentBackup`** (through ntfy) fires when no daily copy succeeded for 26 hours. That includes
   a cluster never enabled.
 
