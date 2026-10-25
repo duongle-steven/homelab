@@ -243,8 +243,8 @@ func TestMethodErrorsHideValues(t *testing.T) {
 				kv.failing, kv.failWrites = stage == "store", stage == "write"
 				n := 0
 				failing := func(_ context.Context, _, token string) error { return fmt.Errorf("ntfy refused %s", token) }
-				run(t, NtfyOverlap{Store: kv, Workloads: fakeReaders{log: log, failing: true}, Random: fixed(&n), Check: failing}, e)
-				run(t, NtfyOverlap{Store: kv, Workloads: fakeReaders{log: log}, Random: fixed(&n), Check: NtfyCheck(fakeExec{log: log, failing: true})}, e)
+				run(t, NtfyOverlap{Sleep: noSleep, Store: kv, Workloads: fakeReaders{log: log, failing: true}, Random: fixed(&n), Check: failing}, e)
+				run(t, NtfyOverlap{Sleep: noSleep, Store: kv, Workloads: fakeReaders{log: log}, Random: fixed(&n), Check: NtfyCheck(fakeExec{log: log, failing: true})}, e)
 			}
 			for _, name := range []string{"forgejo.deploy-token", "forgejo.argocd-token", "forgejo.woodpecker-oauth"} {
 				e := catalogEntry(t, name)

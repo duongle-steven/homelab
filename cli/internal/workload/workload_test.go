@@ -306,3 +306,14 @@ func TestResetClaims(t *testing.T) {
 		t.Fatalf("the server's pod went: %v", err)
 	}
 }
+
+// A reader that does not come back is named, with why: the namespace alone does not say which of its workloads
+func TestWaitReadyNamesTheWorkload(t *testing.T) {
+	ready := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "velero", Name: "velero"}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)},
+		Status: appsv1.DeploymentStatus{Replicas: 1, UpdatedReplicas: 1, ReadyReplicas: 1, AvailableReplicas: 1}}
+	c := &Client{Kube: fake.NewClientset(ready), Poll: time.Millisecond, Wait: 50 * time.Millisecond}
+	err := c.WaitReady(context.Background(), "velero", []Ref{{Kind: "Deployment", Name: "velero"}, {Kind: "Deployment", Name: "s3"}})
+	if err == nil || !strings.Contains(err.Error(), "Deployment velero/s3") || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("err = %v, want it to name Deployment velero/s3 and why", err)
+	}
+}

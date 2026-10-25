@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/duongle-steven/homelab/cli/internal/workload"
 )
@@ -26,7 +28,12 @@ type NtfyOverlap struct {
 	Check func(ctx context.Context, user, token string) error
 	// Confirm asks a person; nil without a terminal
 	Confirm func(ctx context.Context, question string) error
+	// Sleep waits (time.Sleep that ctx ends when nil)
+	Sleep func(ctx context.Context, d time.Duration) error
 }
+
+// mountedFileSync is how long the kubelet may take to update a mounted Secret's files (Alertmanager's token)
+const mountedFileSync = 90 * time.Second
 
 func (m NtfyOverlap) Prepare(ctx context.Context, e Entry) error {
 	value, err := pending(ctx, m.Store, m.Random, e)
@@ -88,6 +95,24 @@ func (m NtfyOverlap) Revoke(ctx context.Context, e Entry) error {
 		}
 		if m.Confirm(ctx, fmt.Sprintf("Has everyone entered the new %s token in their phones? The old one stops working.", e.Settings["user"])) != nil {
 			return later
+		}
+	}
+	// A reader with no workload to restart reads a mounted file (Alertmanager): the old token goes once the kubelet
+	// had time to write the new one there
+	if slices.ContainsFunc(namespaced(e), func(r Reader) bool { return len(r.Workloads) == 0 }) {
+		sleep := m.Sleep
+		if sleep == nil {
+			sleep = func(ctx context.Context, d time.Duration) error {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(d):
+					return nil
+				}
+			}
+		}
+		if err := sleep(ctx, mountedFileSync); err != nil {
+			return err
 		}
 	}
 	for _, path := range e.Paths {

@@ -82,7 +82,9 @@
 - name: registry.ci
   kind: generated-org-secret
   class: 2
-  reason: zot's htpasswd and Woodpecker's org secret registry_password change together; wait for no running pipeline
+  reason: >-
+    zot's htpasswd and Woodpecker's org secret registry_password change together (through Woodpecker's API with
+    woodpecker.admin-token, checked first); wait for no running pipeline
   period: 2160h
   paths: [zot/generated/ci]
   readers:

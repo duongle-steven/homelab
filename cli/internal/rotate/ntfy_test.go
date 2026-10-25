@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 const oldToken = "0ldtokenabcdefghijklmnopqrst"
@@ -27,7 +28,7 @@ func TestNtfyOverlapRevokesAfterVerify(t *testing.T) {
 	kv := ntfyKV(log, e)
 	var checked []string
 	n := 0
-	m := NtfyOverlap{Store: kv, Workloads: fakeReaders{log: log}, Random: fixed(&n), Check: func(_ context.Context, user, token string) error {
+	m := NtfyOverlap{Sleep: noSleep, Store: kv, Workloads: fakeReaders{log: log}, Random: fixed(&n), Check: func(_ context.Context, user, token string) error {
 		checked = append(checked, user+":"+token)
 		return nil
 	}}
@@ -84,7 +85,7 @@ func TestNtfyOverlapVerifyFailsOnABadToken(t *testing.T) {
 	e := catalogEntry(t, "ntfy.alerts-token")
 	log := &[]string{}
 	n := 0
-	m := NtfyOverlap{Store: ntfyKV(log, e), Workloads: fakeReaders{log: log}, Random: fixed(&n), Check: func(context.Context, string, string) error {
+	m := NtfyOverlap{Sleep: noSleep, Store: ntfyKV(log, e), Workloads: fakeReaders{log: log}, Random: fixed(&n), Check: func(context.Context, string, string) error {
 		return errors.New("ntfy answered 401")
 	}}
 	if err := m.Prepare(ctx, e); err != nil {
@@ -102,7 +103,7 @@ func TestNtfyOverlapPhoneWaitsForPeople(t *testing.T) {
 	log := &[]string{}
 	n := 0
 	kv := ntfyKV(log, e)
-	m := NtfyOverlap{Store: kv, Workloads: fakeReaders{log: log}, Random: fixed(&n), Check: func(context.Context, string, string) error { return nil }}
+	m := NtfyOverlap{Sleep: noSleep, Store: kv, Workloads: fakeReaders{log: log}, Random: fixed(&n), Check: func(context.Context, string, string) error { return nil }}
 	if err := m.Prepare(ctx, e); err != nil {
 		t.Fatal(err)
 	}
@@ -121,3 +122,26 @@ func TestNtfyOverlapPhoneWaitsForPeople(t *testing.T) {
 		t.Fatalf("asked %q, data %v", asked, kv.data[e.Paths[0]])
 	}
 }
+
+// Alertmanager reads its token from a mounted file, which the kubelet updates within about a minute of the Secret:
+// the old token is dropped only once that has passed, so no notification meets a 401
+func TestNtfyOverlapWaitsForMountedFiles(t *testing.T) {
+	ctx := context.Background()
+	e := catalogEntry(t, "ntfy.alerts-token")
+	log := &[]string{}
+	n := 0
+	var slept []time.Duration
+	m := NtfyOverlap{Store: ntfyKV(log, e), Workloads: fakeReaders{log: log}, Random: fixed(&n),
+		Check: func(context.Context, string, string) error { return nil }, Sleep: func(_ context.Context, d time.Duration) error { slept = append(slept, d); return nil }}
+	if err := m.Prepare(ctx, e); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Revoke(ctx, e); err != nil {
+		t.Fatal(err)
+	}
+	if len(slept) != 1 || slept[0] < 90*time.Second {
+		t.Fatalf("slept %v before dropping the old token, want at least 90s for Alertmanager's file", slept)
+	}
+}
+
+func noSleep(context.Context, time.Duration) error { return nil }

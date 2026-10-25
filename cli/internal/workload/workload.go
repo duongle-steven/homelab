@@ -171,24 +171,39 @@ func (c *Client) WaitReady(ctx context.Context, namespace string, workloads []Re
 		}
 	}
 	restarted := map[string]bool{}
-	return c.Until(ctx, namespace+"'s workloads ready", func() (bool, error) {
+	// waiting names the workload not ready at the last look, and why, for the timeout's message
+	var waiting string
+	err := c.Until(ctx, namespace+"'s workloads ready", func() (bool, error) {
 		c.RestartCrashLooping(ctx, namespace, restarted)
 		apps := c.Kube.AppsV1()
 		for _, w := range workloads {
+			ready, why := false, "rollout not complete"
 			if w.Kind == deployment {
 				d, err := apps.Deployments(namespace).Get(ctx, w.Name, metav1.GetOptions{})
-				if err != nil || !deploymentRolledOut(d) {
-					return false, nil
+				if err != nil {
+					why = err.Error()
+				} else {
+					ready = deploymentRolledOut(d)
 				}
-				continue
+			} else {
+				s, err := apps.StatefulSets(namespace).Get(ctx, w.Name, metav1.GetOptions{})
+				if err != nil {
+					why = err.Error()
+				} else {
+					ready = statefulSetRolledOut(s)
+				}
 			}
-			s, err := apps.StatefulSets(namespace).Get(ctx, w.Name, metav1.GetOptions{})
-			if err != nil || !statefulSetRolledOut(s) {
+			if !ready {
+				waiting = fmt.Sprintf("%s %s/%s: %s", w.Kind, namespace, w.Name, why)
 				return false, nil
 			}
 		}
 		return true, nil
 	})
+	if err != nil && waiting != "" {
+		return fmt.Errorf("%w (%s)", err, waiting)
+	}
+	return err
 }
 
 // WaitNamespaceReady waits until every Deployment and StatefulSet of the namespace has its replicas ready, listing them
