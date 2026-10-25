@@ -76,3 +76,12 @@ func TestAlertmanagerTelegramProductionOnly(t *testing.T) {
 	assert.Empty(t, renderVelero(t, "system/monitoring-system", "dev", `select(.kind == "Alertmanager") | .spec.volumes[]? | .name`))
 	assert.Empty(t, renderVelero(t, "system/monitoring-system", "dev", `select(.kind == "ExternalSecret" and .metadata.name == "telegram") | .metadata.name`))
 }
+
+// values-dev.yaml restates Alertmanager's receivers without Telegram (Helm replaces lists): they must stay the same
+// otherwise
+func TestAlertmanagerDevReceiversFollowProduction(t *testing.T) {
+	const config = `select(.kind == "Secret" and .metadata.name == "alertmanager-monitoring-system-kube-pro-alertmanager") | .data."alertmanager.yaml" | @base64d | from_yaml`
+	prod := renderVelero(t, "system/monitoring-system", "", config+` | .receivers | map(del(.telegram_configs)) | to_json`)
+	dev := renderVelero(t, "system/monitoring-system", "dev", config+` | .receivers | to_json`)
+	assert.JSONEq(t, prod, dev, "system/monitoring-system/values-dev.yaml's receivers differ from values.yaml's beyond Telegram")
+}

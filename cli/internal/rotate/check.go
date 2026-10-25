@@ -141,6 +141,11 @@ func checkReferences(root string, entries []Entry) []string {
 		if r := e.Settings["resource"]; e.Kind == KindOpenTofu && r != "" && !resources[r] {
 			problems = append(problems, fmt.Sprintf("%s: resource %s is not under infra/_modules", e.Name, r))
 		}
+		if u := e.Settings["unit"]; e.Kind == KindOpenTofu && u != "" {
+			if _, err := os.Stat(filepath.Join(root, u, "terragrunt.hcl")); err != nil {
+				problems = append(problems, fmt.Sprintf("%s: unit %s has no terragrunt.hcl", e.Name, u))
+			}
+		}
 		for _, rd := range e.Readers {
 			for _, es := range rd.ExternalSecrets {
 				if !names[es] {

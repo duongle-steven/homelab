@@ -46,12 +46,10 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 11a | A whole-cluster restore takes the manual apps from their own pushes, another moment than OpenBao's: since 11b rotates generated secrets, a manual app restored from before a rotation holds the old value (rotate it again after such a restore) | any |
 | 11b | `workload.WaitReady`: StatefulSets with `OnDelete` or a partitioned update never meet `CurrentRevision == UpdateRevision` (none in the repo), and a swallowed `Get` error leaves a timeout without its cause | any |
 | 11b | ESO's `refreshTime` is in whole seconds: a refresh in the same second as the previous one is not seen (documented in `workload.go`) | any |
-| 11b | The catalog's ExternalSecret reference check matches any `name:`/`forceRename:`/`existingSecret:` value, and does not check OpenTofu units or reader workload names | any |
+| 11b | The catalog's ExternalSecret reference check matches any `name:`/`forceRename:`/`existingSecret:` value, and does not check reader workload names (rendering every chart would be slow) | any |
 | 11b | A lock renewal that reached the API server but whose answer was lost is now kept; one that times out on both the update and the re-read still aborts the run as "lost the lock" (fail-safe, resumable) | any |
 | 11b | `lab secrets list` and the `--scheduled` plan write the first-seen baseline (a write from a read path) | any |
-| 11b | `system/monitoring-system/values-dev.yaml` restates the receivers list without Telegram (Helm replaces lists): keep it in step with `values.yaml` | any |
 | 11b | `NtfyCheck` passes the token in `wget`'s arguments inside ntfy's own pod (where it is already in the environment) | any |
 | 11b | `OpenTofu.Prepare` replaces again if it crashes between the apply and recording it (no overlap: harmless) | any |
-| 11b | ESO's `force-sync` annotation on PushSecrets (the OpenTofu rotations' nudge) is unverified; without it the wait lasts until `infra-secrets`' refresh | 12 (production) |
 | 11b | lab's image is pinned by hand after a release: a release that changes the catalog and the CronJob's access together runs the old catalog until the digest is set; the GHCR package must be public | 12 (production) |
-| 11b | `TestSecretsRotation`'s sub-tests read the "old" value after an earlier interrupted run may already hold the new one (handled for `woodpecker.agent` only) | any |
+| 11b | `TestRotation`'s sub-tests read the "old" value after an earlier interrupted run may already hold the new one (handled for `woodpecker.agent` only) | any |

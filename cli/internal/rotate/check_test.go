@@ -67,11 +67,13 @@ func TestCheckRepository(t *testing.T) {
 func TestCheckReferences(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "infra/_modules/x/main.tf", "resource \"cloudflare_account_token\" \"real\" {\n}\n")
+	write(t, root, "infra/production/cloudflare/terragrunt.hcl", "")
 	write(t, root, "apps/a.yaml", "externalSecrets:\n  x:\n    forceRename: real-es\n")
 	write(t, root, "platform/b/templates/e.yaml", "kind: ExternalSecret\nmetadata:\n  name: other-es\n")
 	entries, err := parse([]byte(`
-- {name: good, kind: opentofu, settings: {resource: cloudflare_account_token.real}, readers: [{namespace: a, externalSecrets: [real-es, other-es]}]}
-- {name: bad.resource, kind: opentofu, settings: {resource: cloudflare_account_token.gone}}
+- {name: good, kind: opentofu, settings: {unit: infra/production/cloudflare, resource: cloudflare_account_token.real}, readers: [{namespace: a, externalSecrets: [real-es, other-es]}]}
+- {name: bad.resource, kind: opentofu, settings: {unit: infra/production/cloudflare, resource: cloudflare_account_token.gone}}
+- {name: bad.unit, kind: opentofu, settings: {unit: infra/production/gone, resource: cloudflare_account_token.real}}
 - {name: bad.es, kind: generated, readers: [{namespace: a, externalSecrets: [gone-es]}]}
 - {name: later, kind: opentofu, pending: a later task, settings: {resource: x.y}, readers: [{namespace: a, externalSecrets: [nope]}]}
 `))
@@ -79,7 +81,7 @@ func TestCheckReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := checkReferences(root, entries)
-	if len(got) != 2 || !strings.Contains(got[0]+got[1], "cloudflare_account_token.gone") || !strings.Contains(got[0]+got[1], "gone-es") {
+	if all := strings.Join(got, "\n"); len(got) != 3 || !strings.Contains(all, "cloudflare_account_token.gone") || !strings.Contains(all, "gone-es") || !strings.Contains(all, "infra/production/gone") {
 		t.Fatalf("checkReferences = %q", got)
 	}
 }
