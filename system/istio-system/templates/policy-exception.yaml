@@ -1,0 +1,44 @@
+# Pod Security restricted (system/kyverno) does not hold here: each exception says why in homelab/reason
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: istio-cni
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    homelab/reason: "istio-cni installs the CNI plugin on the node and redirects pods' traffic: root, NET_ADMIN and friends, hostPath, unconfined AppArmor"
+spec:
+  policyRefs:
+    - {name: disallow-capabilities, kind: ValidatingPolicy}
+    - {name: disallow-capabilities-strict, kind: ValidatingPolicy}
+    - {name: disallow-host-path, kind: ValidatingPolicy}
+    - {name: disallow-privilege-escalation, kind: ValidatingPolicy}
+    - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+    - {name: require-run-as-non-root-user, kind: ValidatingPolicy}
+    - {name: restrict-seccomp-strict, kind: ValidatingPolicy}
+    - {name: restrict-volume-types, kind: ValidatingPolicy}
+    - {name: restrict-apparmor-profiles, kind: ValidatingPolicy}
+  matchConditions:
+    - name: istio-cni
+      expression: "object.metadata.name.startsWith('istio-cni-node')"
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: ztunnel
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    homelab/reason: "ztunnel enters every meshed pod's network namespace: root, NET_ADMIN, SYS_ADMIN, hostPath for its socket"
+spec:
+  policyRefs:
+    - {name: disallow-capabilities, kind: ValidatingPolicy}
+    - {name: disallow-capabilities-strict, kind: ValidatingPolicy}
+    - {name: disallow-host-path, kind: ValidatingPolicy}
+    - {name: disallow-privilege-escalation, kind: ValidatingPolicy}
+    - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+    - {name: require-run-as-non-root-user, kind: ValidatingPolicy}
+    - {name: restrict-seccomp-strict, kind: ValidatingPolicy}
+    - {name: restrict-volume-types, kind: ValidatingPolicy}
+  matchConditions:
+    - name: ztunnel
+      expression: "object.metadata.name.startsWith('ztunnel')"

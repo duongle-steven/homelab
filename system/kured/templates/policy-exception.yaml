@@ -1,0 +1,19 @@
+# Pod Security restricted (system/kyverno) does not hold here: each exception says why in homelab/reason
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: kured
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    homelab/reason: "kured reboots its node: privileged in the host PID namespace"
+spec:
+  policyRefs:
+    - {name: disallow-host-namespaces, kind: ValidatingPolicy}
+    - {name: disallow-privileged-containers, kind: ValidatingPolicy}
+    - {name: disallow-privilege-escalation, kind: ValidatingPolicy}
+    - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+    - {name: restrict-seccomp-strict, kind: ValidatingPolicy}
+  matchConditions:
+    - name: kured
+      expression: "object.metadata.name.startsWith('kured')"

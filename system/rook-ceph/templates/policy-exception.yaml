@@ -1,0 +1,15 @@
+# Pod Security restricted (system/kyverno) does not hold here: each exception says why in homelab/reason
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: rook
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    homelab/reason: "production only: Rook 1.13's charts set no seccomp or privilege escalation; revisit with Rook's upgrade in 12b"
+spec:
+  policyRefs:
+    - {name: disallow-privilege-escalation, kind: ValidatingPolicy}
+    - {name: restrict-seccomp-strict, kind: ValidatingPolicy}
+  matchConditions:
+    - name: rook
+      expression: "object.metadata.name.startsWith('rook-ceph-')"

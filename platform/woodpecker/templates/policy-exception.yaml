@@ -1,0 +1,15 @@
+# Pod Security restricted (system/kyverno) does not hold here: each exception says why in homelab/reason
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: woodpecker
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    homelab/reason: "Woodpecker's server and agent images run as root (no USER); its step pods run in user namespaces"
+spec:
+  policyRefs:
+    - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+  matchConditions:
+    - name: woodpecker
+      expression: "object.metadata.name.startsWith('woodpecker-server') || object.metadata.name.startsWith('woodpecker-agent')"

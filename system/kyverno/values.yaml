@@ -6,6 +6,11 @@ kyverno:
     # Audit: an unreachable Kyverno never blocks a deploy
     forceFailurePolicyIgnore:
       enabled: true
+    # Each exception lives beside what it excuses, in that component's namespace. Whoever can create one there skips
+    # the policies it names: restrict that before Enforce (15b-2)
+    policyExceptions:
+      enabled: true
+      namespace: "*"
   # The API server calls these webhooks: outside the mesh (CLAUDE.md, mesh)
   # Outside the mesh, each opens only its webhook port (templates/network-policy.yaml: the chart's own opens every
   # port to everyone)

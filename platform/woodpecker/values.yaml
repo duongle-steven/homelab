@@ -1,5 +1,11 @@
 woodpecker:
   agent:
+    # Pod Security restricted (system/kyverno); the user is the image's (templates/policy-exception.yaml)
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
     replicaCount: 2
     # The agent secret comes from OpenBao (woodpecker-agent), not the chart's Secret
     mapAgentSecret: false
@@ -33,6 +39,11 @@ woodpecker:
       # No step reads a Secret of this namespace (woodpecker-secret holds the Forgejo client and the agent secret)
       WOODPECKER_BACKEND_K8S_ALLOW_NATIVE_SECRETS: false
   server:
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
     createAgentSecret: false
     resources:
       requests: {cpu: 50m, memory: 128Mi}

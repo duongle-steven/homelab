@@ -14,6 +14,9 @@ base: &ambient
     platform: k3s
 istiod:
   <<: *ambient
+  # Pod Security restricted (system/kyverno)
+  seccompProfile:
+    type: RuntimeDefault
   pilot:
     # Two replicas on different nodes: a rebooted node's ztunnel gets its config at once instead of waiting for
     # istiod to come back on that node (docs/reference/architecture/networking.md, node restarts)

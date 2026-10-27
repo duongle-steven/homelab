@@ -1,0 +1,15 @@
+# Pod Security restricted (system/kyverno) does not hold here: each exception says why in homelab/reason
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: secrets-rotation
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    homelab/reason: "production's lab image is set by digest after the first release builds it (CLAUDE.md); until then the CronJob is suspended"
+spec:
+  policyRefs:
+    - {name: require-pinned-images, kind: ValidatingPolicy}
+  matchConditions:
+    - name: secrets-rotation
+      expression: "object.metadata.name.startsWith('secrets-rotation')"

@@ -1,6 +1,20 @@
 app-template:
+  # Pod Security restricted (system/kyverno): the image's user 65532
+  defaultPodOptions:
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
   controllers:
     cloudflared:
+      defaultContainerOptionsStrategy: merge
+      defaultContainerOptions:
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
       containers:
         app:
           image:
