@@ -1,0 +1,3 @@
+# gitleaks' default rules (scripts/check-leaks). An allowlist entry needs the reason next to it.
+[extend]
+useDefault = true

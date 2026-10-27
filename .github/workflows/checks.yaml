@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        check: [render, go, cli, infra, docs, mesh, backup-groups, rotation-catalog, env-config, secret-stores, lint]
+        check: [render, go, cli, infra, docs, mesh, backup-groups, rotation-catalog, env-config, secret-stores, lint, leaks, iac, images]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -39,6 +39,18 @@ jobs:
           gc-max-store-size-linux: 8G
           # Only runs on dev and master save: pull request entries (up to 8G each) would evict theirs
           save: ${{ github.event_name == 'push' }}
+      # Trivy's databases, one cache per job and day (iac needs only the checks bundle, images the vulnerability
+      # database): Trivy downloads only what is older than its own refresh period
+      - name: day
+        if: matrix.check == 'iac' || matrix.check == 'images'
+        id: day
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: matrix.check == 'iac' || matrix.check == 'images'
+        with:
+          path: ~/.cache/trivy
+          key: trivy-${{ matrix.check }}-${{ steps.day.outputs.day }}
+          restore-keys: trivy-${{ matrix.check }}-
       - name: scripts/ci-check ${{ matrix.check }}
         env:
           CHECK: ${{ matrix.check }}

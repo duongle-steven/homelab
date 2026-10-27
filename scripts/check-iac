@@ -1,0 +1,10 @@
+#!/bin/sh
+# Fails on a HIGH or CRITICAL finding of Trivy's config checks in every Dockerfile and in OpenTofu (infra/), scanned
+# once from the root so .trivyignore.yaml's paths name one file each. Kubernetes manifests are Kyverno's (step 15b).
+# Accepted findings are in .trivyignore.yaml, each with its reason. Git-ignored trees (state, caches, the built
+# site) are skipped.
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+exec "${TRIVY:-trivy}" config --quiet --misconfig-scanners dockerfile,terraform --severity HIGH,CRITICAL --exit-code 1 \
+	--ignorefile .trivyignore.yaml --skip-dirs '**/.terragrunt-cache' --skip-dirs '**/.terraform' --skip-dirs .state \
+	--skip-dirs .direnv --skip-dirs site --skip-dirs .superpowers --skip-dirs .claude .

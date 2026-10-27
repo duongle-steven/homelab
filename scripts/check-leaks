@@ -1,0 +1,15 @@
+#!/bin/sh
+# Fails when the commits a change brings ($BASE..HEAD) hold a secret gitleaks recognises (.gitleaks.toml: its default
+# rules). Only those commits: the history before them is not this check's (docs/how-to-guides/ci.md). A new branch's
+# first push has no BASE (GitHub's before is forty zeros): HEAD's own commit is scanned. Findings are redacted.
+set -eu
+case "${BASE:-}" in
+	"" | 0000000000000000000000000000000000000000) range="HEAD^..HEAD" ;;
+	*) range="$BASE..HEAD" ;;
+esac
+# A repository with one commit has no HEAD^
+git rev-parse -q --verify HEAD^ >/dev/null || range=HEAD
+config=$(git rev-parse --show-toplevel)/.gitleaks.toml
+[ -f "$config" ] || config=$(dirname "$0")/../.gitleaks.toml
+# --verbose names each finding (commit, file, line, rule); --redact masks the value
+exec gitleaks git --no-banner --redact --verbose --exit-code 1 --config "$config" --log-opts "$range" .

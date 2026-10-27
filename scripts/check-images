@@ -1,0 +1,62 @@
+#!/bin/sh
+# Fails when an image a change brings has a CRITICAL vulnerability with a fix (Trivy). The images are those in the
+# renders of the charts and app files the change touches (lab test charts, or TARGETS) that were not in the same
+# targets' renders at $BASE (default origin/dev): a bump or a new image is scanned, an untouched one is not.
+# IMAGES_ONLY=1 prints the new images without scanning. Accepted CVEs: .trivyignore.yaml, with reason and expiry.
+set -eu
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+base=${BASE:-origin/dev}
+case "$base" in 0000000000000000000000000000000000000000) base=HEAD^ ;; esac
+if [ "${TARGETS+set}" = set ]; then
+	targets=$TARGETS
+else
+	targets=$(go -C cli run ./cmd/lab test charts --base "$base")
+fi
+work=$(mktemp -d)
+# shellcheck disable=SC2329 # called by the EXIT trap
+cleanup() { git -C "$root" worktree remove --force "$work/base" >/dev/null 2>&1 || true; rm -rf "$work"; }
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+git worktree add -q --detach "$work/base" "$base"
+
+# images <dir> <target>: every image in the target's renders (production's and the sandbox's), from <dir>'s
+# checkout; a missing target has none. Images are the values of keys image and imageName (CloudNativePG's Cluster),
+# and env values whose name holds IMAGE (operators that start other images: Rook, CloudNativePG, kaniop)
+images() {
+	if [ ! -e "$1/$2" ]; then
+		return 0
+	fi
+	for env in "" dev; do
+		# shellcheck disable=SC2086 # $env is a word or nothing
+		(cd "$1" && scripts/render-chart "$2" $env) >"$work/render" || {
+			echo "check-images: rendering $2 ${env:-production} failed" >&2
+			return 1
+		}
+		yq -N '.. | select(tag == "!!map") | (.image, .imageName) | select(tag == "!!str")' "$work/render"
+		yq -N '.. | select(tag == "!!map" and has("env")) | .env | select(tag == "!!seq") | .[] |
+			select((.name // "") | test("IMAGE")) | .value | select(tag == "!!str" and test("^[a-z0-9.-]+(:[0-9]+)?/"))' "$work/render"
+	done
+}
+
+: >"$work/new"
+: >"$work/old"
+for t in $targets; do
+	images "$root" "$t" >>"$work/new"
+	images "$work/base" "$t" >>"$work/old"
+done
+sort -u "$work/old" -o "$work/old"
+sort -u "$work/new" | comm -23 - "$work/old" >"$work/scan"
+
+if [ "${IMAGES_ONLY:-}" = 1 ]; then
+	cat "$work/scan"
+	exit 0
+fi
+[ -s "$work/scan" ] || { echo "check-images: no new image"; exit 0; }
+status=0
+while read -r image; do
+	echo "check-images: $image"
+	"${TRIVY:-trivy}" image --quiet --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code 1 \
+		--ignorefile .trivyignore.yaml "$image" || status=1
+done <"$work/scan"
+exit "$status"
