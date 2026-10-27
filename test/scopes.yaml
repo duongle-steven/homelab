@@ -47,8 +47,8 @@ skip:
   - cli/internal/cli/infra_state*.go
   - cli/internal/cli/cloudflare*.go
 always: Smoke
-alone: [NodeRestart, BackupRestore, Rotation]
-full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|NodeRestart|BackupRestore|Rotation
+alone: [NodeRestart, NodePowerCut, BackupRestore, Rotation]
+full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|NodeRestart|NodePowerCut|BackupRestore|Rotation
 groups:
   - paths:
       - Makefile
@@ -77,7 +77,7 @@ groups:
       - system/csi-hostpath/**
     tests: full
   - paths: [system/istio-system/**]
-    tests: Mesh|Gateway|Egress|Identity|NodeRestart
+    tests: Mesh|Gateway|Egress|Identity|NodeRestart|NodePowerCut
   - paths: [system/cert-manager/**]
     tests: Gateway|Identity|SSO
   # Velero, the hourly snapshots and lab backup (OpenBao's snapshot is in the secrets group)
