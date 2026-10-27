@@ -90,6 +90,8 @@ groups:
     tests: Logs
   - paths: [system/kiali/**]
     tests: SSOKiali|KialiRender
+  - paths: [system/kyverno/**]
+    tests: Policy
   - paths: [system/monitoring-system/**]
     tests: Monitoring|Mesh|Ntfy|Logs
   - paths:

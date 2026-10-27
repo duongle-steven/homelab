@@ -1,0 +1,69 @@
+#!/bin/sh
+# Fails when a workload breaks one of Kyverno's policies (system/kyverno: Pod Security restricted, pinned images,
+# allowed registries) without a PolicyException, as the cluster's Audit would report it (step 15b). Every chart and
+# app file is rendered for both environments (TARGETS limits them, WORKLOADS takes a rendered file instead); only
+# workloads are kept, and Helm tests, which Argo CD never deploys, are dropped.
+set -eu
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+scripts/render-chart system/kyverno | yq 'select(.kind == "ValidatingPolicy")' >"$work/policies.yaml"
+
+# keep <kinds expression> <file> [namespace]: the documents of those kinds as the API server stores them (no null
+# fields: it drops them, and Kyverno's CEL errs on them), in the namespace Argo CD gives a chart that names none
+# (the component's or app's name), without comments or an empty document
+keep() {
+	yq "select($1) | del(.. | select(tag == \"!!null\")) | .metadata.namespace = (.metadata.namespace // \"${3:-default}\") | ... comments = \"\"" "$2" |
+		awk 'BEGIN { d = 0 } /^---$/ { if (d == 0) next } { d = 1; print }'
+}
+workloads='(.kind == "Deployment" or .kind == "StatefulSet" or .kind == "DaemonSet" or .kind == "Job" or .kind == "CronJob" or .kind == "Pod") and ((.metadata.annotations["helm.sh/hook"] // "") | test("test") | not)'
+
+: >"$work/exceptions.yaml"
+if [ -n "${WORKLOADS:-}" ]; then
+	mkdir -p "$work/prod"
+	keep "$workloads" "$WORKLOADS" >"$work/prod/workloads.yaml"
+	keep '.kind == "PolicyException"' "$WORKLOADS" >>"$work/exceptions.yaml"
+else
+	if [ "${TARGETS+set}" != set ]; then
+		TARGETS="$(for d in system/*/ platform/*/; do [ -f "$d/Chart.yaml" ] && echo "${d%/}"; done) apps/matrix $(ls apps/*.yaml)"
+	fi
+	for env in prod dev; do
+		mkdir -p "$work/$env"
+		for t in $TARGETS; do
+			arg=; [ "$env" = dev ] && arg=dev
+			# shellcheck disable=SC2086 # $arg is a word or nothing
+			scripts/render-chart "$t" $arg >"$work/render" || { echo "check-policy: rendering $t $env failed" >&2; exit 1; }
+			n=$(echo "$t" | tr / _)
+			ns=$(basename "$t" .yaml)
+			keep "$workloads" "$work/render" "$ns" >"$work/$env/$n.yaml"
+			[ "$env" = prod ] && keep '.kind == "PolicyException"' "$work/render" "$ns" >>"$work/exceptions.yaml"
+		done
+		find "$work/$env" -empty -delete
+	done
+fi
+
+status=0
+for env in prod dev; do
+	[ -d "$work/$env" ] || continue
+	exceptions=
+	[ -s "$work/exceptions.yaml" ] && exceptions="--exception $work/exceptions.yaml"
+	# shellcheck disable=SC2086 # $exceptions is two words or nothing
+	kyverno apply "$work/policies.yaml" $exceptions --resource "$work/$env" --policy-report >"$work/out" 2>"$work/err" || true
+	sed -n '/^apiVersion: openreports/,$p' "$work/out" >"$work/report.yaml"
+	if [ ! -s "$work/report.yaml" ]; then
+		echo "check-policy: kyverno apply gave no report ($env):" >&2
+		cat "$work/err" >&2
+		exit 1
+	fi
+	yq -r '.results[] | select(.result == "fail" or .result == "error") |
+		.result + " " + .policy + " " + .resources[0].kind + "/" + .resources[0].namespace + "/" + .resources[0].name + ": " + (.message // "")' \
+		"$work/report.yaml" | sort -u | sed "s/^/$env: /" >"$work/bad"
+	if [ -s "$work/bad" ]; then
+		cat "$work/bad"
+		status=1
+	fi
+done
+[ "$status" = 0 ] && echo "check-policy: every workload passes"
+exit "$status"

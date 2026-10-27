@@ -1,0 +1,14 @@
+# Under the mesh-wide deny-all (system/istio-system): who may call into this namespace. The API server calls the
+# admission and cleanup controllers' webhooks, which are outside the mesh (values.yaml); the other controllers take
+# no calls
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow
+  namespace: {{ .Release.Namespace }}
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["{{ .Release.Namespace }}"]

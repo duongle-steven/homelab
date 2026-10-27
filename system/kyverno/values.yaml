@@ -1,0 +1,25 @@
+# Kyverno (docs/superpowers/specs/2026-10-27-policy-design.md): Pod Security restricted, pinned images and allowed
+# registries, in Audit (step 15b-1; Enforce is 15b-2). scripts/check-policy runs the same policies in CI. A workload
+# that must break one has a PolicyException in its own chart or app file, with its reason.
+kyverno:
+  features:
+    # Audit: an unreachable Kyverno never blocks a deploy
+    forceFailurePolicyIgnore:
+      enabled: true
+  # The API server calls these webhooks: outside the mesh (CLAUDE.md, mesh)
+  # Outside the mesh, each opens only its webhook port (templates/network-policy.yaml: the chart's own opens every
+  # port to everyone)
+  admissionController:
+    podLabels:
+      istio.io/dataplane-mode: none
+  cleanupController:
+    podLabels:
+      istio.io/dataplane-mode: none
+kyverno-policies:
+  podSecurityStandard: restricted
+  validationFailureAction: Audit
+  failurePolicy: Ignore
+  # Woodpecker's step pods run in user namespaces (hostUsers: false)
+  podSecurityUserNamespaces: true
+# Registries images may come from (templates/images.yaml); zot (registry.<domain>) is added there
+registries: [docker.io, ghcr.io, quay.io, registry.k8s.io, gcr.io, code.forgejo.org, public.ecr.aws, lscr.io, reg.kyverno.io]

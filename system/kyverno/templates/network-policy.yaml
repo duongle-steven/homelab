@@ -1,0 +1,20 @@
+# The admission and cleanup controllers are outside the mesh (the API server calls their webhooks): only the webhook
+# port is open
+{{- range list "admission-controller" "cleanup-controller" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kyverno-{{ . }}-webhook
+  namespace: {{ $.Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: {{ . }}
+      app.kubernetes.io/part-of: kyverno
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 9443
+{{- end }}
