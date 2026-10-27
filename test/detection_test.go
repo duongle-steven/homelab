@@ -130,9 +130,9 @@ func TestCheckImages(t *testing.T) {
 	dir, commits := gitRepo(t,
 		map[string]string{"scripts/render-chart": fakeRenderer, "charts/web.yaml": podWith("docker.io/library/nginx:1.29.0", "quay.io/x/kept:1.0")},
 		map[string]string{"charts/web.yaml": podWith("docker.io/library/nginx:1.29.1", "quay.io/x/kept:1.0", pinned) +
-			"---\nkind: Cluster\nspec:\n  imageName: ghcr.io/cloudnative-pg/postgresql:18.1\n"+
-			"---\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - image: quay.io/x/kept:1.0\n"+
-			"          env:\n            - name: ROOK_CSIADDONS_IMAGE\n              value: quay.io/csiaddons/k8s-sidecar:v0.14.0\n"+
+			"---\nkind: Cluster\nspec:\n  imageName: ghcr.io/cloudnative-pg/postgresql:18.1\n" +
+			"---\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - image: quay.io/x/kept:1.0\n" +
+			"          env:\n            - name: ROOK_CSIADDONS_IMAGE\n              value: quay.io/csiaddons/k8s-sidecar:v0.14.0\n" +
 			"            - name: LOG_LEVEL\n              value: info\n",
 			"charts/new.yaml": podWith("ghcr.io/x/new:2.0"), "charts/broken.yaml": ""})
 	base := "BASE=" + commits[0]
