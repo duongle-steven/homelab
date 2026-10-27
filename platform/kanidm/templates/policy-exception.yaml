@@ -1,0 +1,17 @@
+# Pod Security restricted (system/kyverno) does not hold here: each exception says why in homelab/reason
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: kanidm
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    homelab/reason: "kaniop creates Kanidm's StatefulSet and takes only the pod's securityContext (seccomp is set), not the container's; Kanidm's image runs as root (no USER)"
+spec:
+  policyRefs:
+    - {name: disallow-privilege-escalation, kind: ValidatingPolicy}
+    - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+  matchConditions:
+    - name: kanidm
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && object.metadata.name.startsWith('kanidm-')"

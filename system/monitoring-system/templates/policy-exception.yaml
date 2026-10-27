@@ -12,6 +12,7 @@ metadata:
 spec:
   policyRefs:
     - {name: disallow-host-namespaces, kind: ValidatingPolicy}
+    - {name: disallow-host-ports, kind: ValidatingPolicy}
     - {name: disallow-host-path, kind: ValidatingPolicy}
     - {name: disallow-privilege-escalation, kind: ValidatingPolicy}
     - {name: restrict-seccomp-strict, kind: ValidatingPolicy}

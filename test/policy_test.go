@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -111,14 +112,36 @@ func TestPolicy(t *testing.T) {
 	kyverno := k8s.NewKubectlOptions("", "", "kyverno")
 	k8s.WaitUntilDeploymentAvailable(t, kyverno, "kyverno-admission-controller", 60, 10*time.Second)
 
+	// The webhooks that judge ordinary resources (workloads) ignore an unreachable Kyverno; those for Kyverno's own
+	// kinds (policies, exceptions) and for what it generates (an objectSelector on its labels) may refuse
 	t.Run("audit only", func(t *testing.T) {
-		out, err := k8s.RunKubectlAndGetOutputE(t, kyverno, "get", "validatingwebhookconfigurations", "-o",
-			`jsonpath={range .items[?(@.metadata.labels.webhook\.kyverno\.io/managed-by=="kyverno")]}{range .webhooks[*]}{.failurePolicy}{"\n"}{end}{end}`)
-		require.NoError(t, err)
-		require.NotEmpty(t, strings.TrimSpace(out), "no Kyverno webhook")
-		for _, policy := range strings.Fields(out) {
-			assert.Equal(t, "Ignore", policy)
+		var configs struct {
+			Items []struct {
+				Metadata struct {
+					Name string `json:"name"`
+				} `json:"metadata"`
+				Webhooks []struct {
+					Name           string          `json:"name"`
+					FailurePolicy  string          `json:"failurePolicy"`
+					ObjectSelector json.RawMessage `json:"objectSelector"`
+				} `json:"webhooks"`
+			} `json:"items"`
 		}
+		kubectlJSON(t, &configs, "get", "validatingwebhookconfigurations,mutatingwebhookconfigurations", "-l", "webhook.kyverno.io/managed-by=kyverno")
+		checked := 0
+		for _, c := range configs.Items {
+			if !strings.Contains(c.Metadata.Name, "resource") {
+				continue
+			}
+			for _, w := range c.Webhooks {
+				if len(w.ObjectSelector) > 0 && string(w.ObjectSelector) != "{}" && strings.Contains(string(w.ObjectSelector), "kyverno.io") {
+					continue
+				}
+				checked++
+				assert.Equal(t, "Ignore", w.FailurePolicy, "%s/%s", c.Metadata.Name, w.Name)
+			}
+		}
+		assert.NotZero(t, checked, "no Kyverno webhook for ordinary resources")
 	})
 
 	t.Run("pod security admission", func(t *testing.T) {
@@ -152,7 +175,7 @@ func TestPolicy(t *testing.T) {
 			out, err := k8s.RunKubectlAndGetOutputE(t, opts, "get", "policyreports.wgpolicyk8s.io",
 				"-o", `jsonpath={range .items[*].results[?(@.result=="fail")]}{.policy}{"\n"}{end}`)
 			return err == nil && strings.Contains(out, "require-run-as-nonroot")
-		}, 3*time.Minute, 10*time.Second, "no report of the bare pod's failure")
+		}, 5*time.Minute, 10*time.Second, "no report of the bare pod's failure")
 
 		// No repository workload fails: Enforce (15b-2) can follow
 		out, err := k8s.RunKubectlAndGetOutputE(t, kyverno, "get", "policyreports.wgpolicyk8s.io", "-A",

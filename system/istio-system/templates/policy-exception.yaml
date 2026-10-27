@@ -46,3 +46,19 @@ spec:
   matchConditions:
     - name: ztunnel
       expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('ztunnel'))"
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: gateways
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    homelab/reason: "Istio generates the Gateways' Deployments from the Gateway API (gateway-istio, public-istio) without a seccomp profile; setting one needs the Gateways' parametersRef: revisit"
+spec:
+  policyRefs:
+    - {name: restrict-seccomp-strict, kind: ValidatingPolicy}
+  matchConditions:
+    - name: gateways
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('gateway-istio') || object.metadata.name.startsWith('public-istio'))"
