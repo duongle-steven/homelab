@@ -1,0 +1,55 @@
+#!/bin/sh
+# Fails when an image a change brings has a CRITICAL vulnerability with a fix (Trivy). The images are those in the
+# renders of the charts and app files the change touches (lab test charts, or TARGETS) that were not in the same
+# targets' renders at $BASE (default origin/dev): a bump or a new image is scanned, an untouched one is not.
+# IMAGES_ONLY=1 prints the new images without scanning. Accepted CVEs: .trivyignore.yaml, with reason and expiry.
+set -eu
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+base=${BASE:-origin/dev}
+case "$base" in 0000000000000000000000000000000000000000) base=HEAD^ ;; esac
+if [ "${TARGETS+set}" = set ]; then
+	targets=$TARGETS
+else
+	targets=$(go -C cli run ./cmd/lab test charts --base "$base")
+fi
+work=$(mktemp -d)
+trap 'git -C "$root" worktree remove --force "$work/base" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
+git worktree add -q --detach "$work/base" "$base"
+
+# images <dir> <target>: every image string in the target's render, from <dir>'s checkout; a missing target has none
+images() {
+	if [ ! -e "$1/$2" ]; then
+		return 0
+	fi
+	(cd "$1" && scripts/render-chart "$2") >"$work/render" || {
+		echo "check-images: rendering $2 failed" >&2
+		return 1
+	}
+	yq -N '.. | select(tag == "!!map" and has("image")) | .image | select(tag == "!!str")' "$work/render"
+}
+
+: >"$work/new"
+: >"$work/old"
+for t in $targets; do
+	images "$root" "$t" >>"$work/new"
+	images "$work/base" "$t" >>"$work/old"
+done
+sort -u "$work/old" -o "$work/old"
+sort -u "$work/new" | comm -23 - "$work/old" >"$work/scan"
+
+if [ "${IMAGES_ONLY:-}" = 1 ]; then
+	cat "$work/scan"
+	exit 0
+fi
+[ -s "$work/scan" ] || { echo "check-images: no new image"; exit 0; }
+skip=
+[ "${TRIVY_SKIP_DB_UPDATE:-}" = 1 ] && skip=--skip-db-update
+status=0
+while read -r image; do
+	echo "check-images: $image"
+	# shellcheck disable=SC2086 # $skip is one flag or nothing
+	"${TRIVY:-trivy}" image --quiet $skip --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code 1 \
+		--ignorefile .trivyignore.yaml "$image" || status=1
+done <"$work/scan"
+exit "$status"

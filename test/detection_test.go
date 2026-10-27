@@ -39,7 +39,13 @@ func gitRepo(t *testing.T, files ...map[string]string) (string, []string) {
 	var commits []string
 	for i, set := range files {
 		for name, content := range set {
+			require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755))
 			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644))
+		}
+		for name := range set {
+			if strings.HasPrefix(name, "scripts/") {
+				require.NoError(t, os.Chmod(filepath.Join(dir, name), 0o755))
+			}
 		}
 		run("add", "-A")
 		run("commit", "-q", "-m", "commit "+string(rune('a'+i)))
@@ -104,4 +110,44 @@ func TestCheckIaC(t *testing.T) {
 	failing, _ := fakeTrivy(t, "1")
 	_, err = runCheck(t, "check-iac", "..", "TRIVY="+failing)
 	assert.Error(t, err, "a finding passed")
+}
+
+// fakeRenderer is a scripts/render-chart that prints the target's file, and fails for a target named broken
+const fakeRenderer = "#!/bin/sh\n[ \"$1\" = charts/broken.yaml ] && { echo 'render failed' >&2; exit 1; }\ncat \"$1\"\n"
+
+// images scans only the images a change brings: new at HEAD in the charts it touches, digest and registry port kept
+func TestCheckImages(t *testing.T) {
+	podWith := func(images ...string) string {
+		var b strings.Builder
+		b.WriteString("kind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n")
+		for _, i := range images {
+			b.WriteString("        - image: " + i + "\n")
+		}
+		return b.String()
+	}
+	pinned := "registry.example:5000/team/app@sha256:" + strings.Repeat("a", 64)
+	dir, commits := gitRepo(t,
+		map[string]string{"scripts/render-chart": fakeRenderer, "charts/web.yaml": podWith("docker.io/library/nginx:1.29.0", "quay.io/x/kept:1.0")},
+		map[string]string{"charts/web.yaml": podWith("docker.io/library/nginx:1.29.1", "quay.io/x/kept:1.0", pinned) +
+			"---\nkind: Cluster\nspec:\n  image: ghcr.io/cloudnative-pg/postgresql:18.1\n",
+			"charts/new.yaml": podWith("ghcr.io/x/new:2.0"), "charts/broken.yaml": ""})
+	base := "BASE=" + commits[0]
+
+	out, err := runCheck(t, "check-images", dir, base, "TARGETS=charts/web.yaml charts/new.yaml", "IMAGES_ONLY=1")
+	require.NoError(t, err, out)
+	assert.Equal(t, []string{"docker.io/library/nginx:1.29.1", "ghcr.io/cloudnative-pg/postgresql:18.1", "ghcr.io/x/new:2.0", pinned},
+		strings.Fields(out), "only the images new at HEAD, whole")
+
+	_, err = runCheck(t, "check-images", dir, base, "TARGETS=charts/web.yaml charts/broken.yaml", "IMAGES_ONLY=1")
+	assert.Error(t, err, "a render that fails must fail the check")
+
+	trivy, args := fakeTrivy(t, "1")
+	_, err = runCheck(t, "check-images", dir, base, "TARGETS=charts/new.yaml", "TRIVY="+trivy)
+	assert.Error(t, err, "a finding passed")
+	calls, _ := os.ReadFile(args)
+	assert.Regexp(t, `image .*--severity CRITICAL .*--ignore-unfixed .*--exit-code 1 .*ghcr.io/x/new:2.0`, string(calls))
+
+	out, err = runCheck(t, "check-images", dir, "BASE="+commits[1], "TARGETS=", "IMAGES_ONLY=1")
+	assert.NoError(t, err, out)
+	assert.Empty(t, strings.Fields(out), "no target, nothing to scan")
 }
