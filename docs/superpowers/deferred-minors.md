@@ -71,3 +71,4 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 14e | `make dev` counts a failed `git diff` (unknown base, shallow clone) as "changed" and deploys both optional apps silently: warn | any |
 | 14e | `TestSetSandboxApps` does not assert the other documents unchanged or that a blank list is a no-op | any |
 | 14e | `infra/_modules/argocd`'s hash covers `system/argocd` only: a change to `set-sandbox-apps.sh` (or `set-revision.sh`) does not re-run the bootstrap | any |
+| 15b | `scripts/check-policy` takes about four minutes (every chart, both environments) on every pull request: limit it to the touched charts once policies are stable | any |
