@@ -18,8 +18,11 @@ case "$*" in
   *"get backupstoragelocations.velero.io default"*) cat "$FIXTURES/mode" ;;
   *"get backups.velero.io"*) cat "$FIXTURES/backups" ;;
   *"get persistentvolumeclaims"*) cat "$FIXTURES/pvcs" ;;
+  *"get volumesnapshots.snapshot.storage.k8s.io -A -l velero.io/backup-name"*) cat "$FIXTURES/velerosnapshots" 2>/dev/null || true ;;
   *"get volumesnapshots.snapshot.storage.k8s.io"*) cat "$FIXTURES/snapshots" ;;
-  *"delete volumesnapshots.snapshot.storage.k8s.io"*) echo "$*" | sed 's/.*-n \([^ ]*\) delete volumesnapshots.snapshot.storage.k8s.io \([^ ]*\).*/deleted \1\/\2/' >> "$FIXTURES/actions" ;;
+  *"delete volumesnapshots.snapshot.storage.k8s.io"*)
+    if [ -n "$(grep -x "$(echo "$*" | sed 's/.* delete volumesnapshots.snapshot.storage.k8s.io \([^ ]*\).*/\1/')" "$FIXTURES/undeletable" 2>/dev/null)" ]; then echo "Error from server: the server is unavailable" >&2; exit 1; fi
+    echo "$*" | sed 's/.*-n \([^ ]*\) delete volumesnapshots.snapshot.storage.k8s.io \([^ ]*\).*/deleted \1\/\2/' >> "$FIXTURES/actions" ;;
   *"create -f -"*)
     doc=$(cat)
     case "$doc" in
@@ -42,8 +45,8 @@ func runVeleroScript(t *testing.T, script string, fixtures map[string]string) []
 	cmd := exec.Command("sh", "../system/velero/files/"+script)
 	cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "FIXTURES="+dir, "KEEP=30", "SNAPSHOT_HOURS=48", "NAMESPACE=velero")
 	out, err := cmd.CombinedOutput()
-	if fixtures["broken"] != "" {
-		require.Error(t, err, "%s must fail when a snapshot could not be taken:\n%s", script, out)
+	if fixtures["broken"] != "" || fixtures["undeletable"] != "" {
+		require.Error(t, err, "%s must fail when a snapshot could not be taken or deleted:\n%s", script, out)
 	} else {
 		require.NoError(t, err, "%s failed:\n%s", script, out)
 	}
@@ -93,6 +96,28 @@ func TestVeleroPrune(t *testing.T) {
 	t.Run("a group with only failed backups keeps them", func(t *testing.T) {
 		assert.Empty(t, runVeleroScript(t, "prune.sh", map[string]string{"mode": "ReadWrite", "backups": backups("daily", 3, "Failed")}))
 	})
+}
+
+// A backup cut short (a power cut while its data movers copied) can leave a VolumeSnapshot Velero made for it: prune
+// deletes the snapshots whose backup is gone, whatever the location's mode, and never one whose backup still exists
+func TestVeleroPruneOrphanSnapshots(t *testing.T) {
+	list := "2026-10-24T02:00:00Z|daily-1|daily||Completed\n2026-10-25T02:00:00Z|daily-2|daily||InProgress\n"
+	// namespace name backup; a label of 63 characters may be Velero's shortened form of a longer name
+	long := strings.Repeat("x", 63)
+	snapshots := "kanidm velero-kanidm-data-a daily-1\nforgejo velero-forgejo-data-b daily-2\nkanidm velero-kanidm-data-c gone-3\nntfy velero-ntfy-d " + long + "\n"
+	// A snapshot that cannot be deleted fails the Job at the end, after the other orphans and the retention by count
+	t.Run("one undeletable", func(t *testing.T) {
+		more := snapshots + "ntfy velero-ntfy-e gone-4\n"
+		assert.Equal(t, []string{"deleted ntfy/velero-ntfy-e", "delete weekly-01", "delete weekly-02"},
+			runVeleroScript(t, "prune.sh", map[string]string{"mode": "ReadWrite", "backups": list + backups("weekly", 32, "Completed"),
+				"velerosnapshots": more, "undeletable": "velero-kanidm-data-c\n"}))
+	})
+	for _, mode := range []string{"ReadWrite", "ReadOnly"} {
+		t.Run(mode, func(t *testing.T) {
+			assert.Equal(t, []string{"deleted kanidm/velero-kanidm-data-c"},
+				runVeleroScript(t, "prune.sh", map[string]string{"mode": mode, "backups": list, "velerosnapshots": snapshots}))
+		})
+	}
 }
 
 // Hourly local snapshots of the labelled volumes, kept 48 hours (spec decision 3)

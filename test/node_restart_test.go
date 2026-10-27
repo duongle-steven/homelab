@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	"net/http"
 	"os/exec"
 	"strings"
 	"testing"
@@ -60,6 +61,9 @@ func TestNodeRestartWatchdogJobs(t *testing.T) {
 type restartPod struct {
 	Namespace, Name, Phase, Redirection string
 	OptedOut                            bool // labelled istio.io/dataplane-mode=none, or on the host network
+	// Ready: every container ready; Started: when the earliest running container started (TestNodePowerCut)
+	Ready   bool
+	Started time.Time
 }
 
 // restartBlockers lists what still keeps the cluster from being recovered after a node restart: ztunnel not Ready,
@@ -125,6 +129,11 @@ func clusterState(t *testing.T) (pods []restartPod, meshed map[string]bool, ztun
 				Phase             string `json:"phase"`
 				ContainerStatuses []struct {
 					Ready bool `json:"ready"`
+					State struct {
+						Running *struct {
+							StartedAt time.Time `json:"startedAt"`
+						} `json:"running"`
+					} `json:"state"`
 				} `json:"containerStatuses"`
 			} `json:"status"`
 		} `json:"items"`
@@ -150,13 +159,21 @@ func clusterState(t *testing.T) (pods []restartPod, meshed map[string]bool, ztun
 		if p.Metadata.Namespace == "istio-system" && p.Metadata.Labels["app"] == "ztunnel" {
 			ztunnelReady = append(ztunnelReady, len(p.Status.ContainerStatuses) > 0 && p.Status.ContainerStatuses[0].Ready)
 		}
-		pods = append(pods, restartPod{
+		pod := restartPod{
 			Namespace:   p.Metadata.Namespace,
 			Name:        p.Metadata.Name,
 			Phase:       p.Status.Phase,
 			Redirection: p.Metadata.Annotations["ambient.istio.io/redirection"],
 			OptedOut:    p.Metadata.Labels["istio.io/dataplane-mode"] == "none" || p.Spec.HostNetwork,
-		})
+			Ready:       len(p.Status.ContainerStatuses) > 0,
+		}
+		for _, c := range p.Status.ContainerStatuses {
+			pod.Ready = pod.Ready && c.Ready
+			if r := c.State.Running; r != nil && (pod.Started.IsZero() || r.StartedAt.Before(pod.Started)) {
+				pod.Started = r.StartedAt
+			}
+		}
+		pods = append(pods, pod)
 	}
 	return pods, meshed, ztunnelReady, true
 }
@@ -282,4 +299,158 @@ func hasServerError(codes map[string]int) bool {
 		}
 	}
 	return false
+}
+
+func TestNodePowerCutBlockers(t *testing.T) {
+	cut := time.Date(2026, 10, 25, 8, 0, 0, 0, time.UTC)
+	after, before := cut.Add(3*time.Minute), cut.Add(-time.Hour)
+	fresh := restartPod{Namespace: "ntfy", Name: "ntfy-1", Phase: "Running", Ready: true, Started: after}
+	for _, c := range []struct {
+		name      string
+		pods      []restartPod
+		heartbeat time.Time
+		nodeReady bool
+		want      string
+	}{
+		{"recovered", []restartPod{fresh}, after, true, ""},
+		{"finished pods ignored", []restartPod{fresh, {Namespace: "velero", Name: "prune-1", Phase: "Succeeded", Started: before}}, after, true, ""},
+		// Right after the restart the API server still reports what it knew before the cut
+		{"pod state from before the cut", []restartPod{{Namespace: "ntfy", Name: "ntfy-1", Phase: "Running", Ready: true, Started: before}}, after, true, "not restarted since the cut"},
+		{"node heartbeat from before the cut", []restartPod{fresh}, before, true, "node"},
+		{"node not Ready", []restartPod{fresh}, after, false, "node"},
+		{"container not ready", []restartPod{{Namespace: "ntfy", Name: "ntfy-1", Phase: "Running", Started: after}}, after, true, "not ready"},
+		{"pod Unknown", []restartPod{{Namespace: "ntfy", Name: "ntfy-1", Phase: "Unknown"}}, after, true, "ntfy/ntfy-1"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			blockers := strings.Join(powerCutBlockers(c.pods, c.nodeReady, c.heartbeat, cut), "\n")
+			if c.want == "" {
+				assert.Empty(t, blockers)
+			} else {
+				assert.Contains(t, blockers, c.want)
+			}
+		})
+	}
+	// Before the cut (a zero cut time) only readiness counts
+	settled := restartPod{Namespace: "ntfy", Name: "ntfy-1", Phase: "Running", Ready: true, Started: before}
+	assert.Empty(t, powerCutBlockers([]restartPod{settled}, true, before, time.Time{}))
+	settled.Ready = false
+	assert.NotEmpty(t, powerCutBlockers([]restartPod{settled}, true, before, time.Time{}))
+}
+
+// powerCutBlockers lists what restartBlockers cannot see after a power cut, while the API server still reports what it
+// knew before: the node not Ready or its last heartbeat from before the cut, and pods (finished ones aside) whose
+// containers are not all ready or started before the cut (the cut killed every container on the node).
+func powerCutBlockers(pods []restartPod, nodeReady bool, heartbeat, cut time.Time) []string {
+	var blockers []string
+	if !nodeReady || !heartbeat.After(cut) {
+		blockers = append(blockers, fmt.Sprintf("node: Ready %t, last heartbeat %s", nodeReady, heartbeat.Format(time.TimeOnly)))
+	}
+	for _, p := range pods {
+		switch {
+		case p.Phase == "Succeeded" || p.Phase == "Failed":
+		case p.Phase != "Running":
+			blockers = append(blockers, fmt.Sprintf("%s/%s is %s", p.Namespace, p.Name, p.Phase))
+		case !p.Started.After(cut):
+			blockers = append(blockers, fmt.Sprintf("%s/%s not restarted since the cut", p.Namespace, p.Name))
+		case !p.Ready:
+			blockers = append(blockers, fmt.Sprintf("%s/%s not ready", p.Namespace, p.Name))
+		}
+	}
+	return blockers
+}
+
+// nodeState reads the sandbox node's Ready condition and its last heartbeat; ok is false while the API server does
+// not answer
+func nodeState(t *testing.T) (ready bool, heartbeat time.Time, ok bool) {
+	var node struct {
+		Status struct {
+			Conditions []struct {
+				Type              string    `json:"type"`
+				Status            string    `json:"status"`
+				LastHeartbeatTime time.Time `json:"lastHeartbeatTime"`
+			} `json:"conditions"`
+		} `json:"status"`
+	}
+	if !getResource(t, "default", &node, "node", k3dNode) {
+		return false, time.Time{}, false
+	}
+	for _, c := range node.Status.Conditions {
+		if c.Type == "Ready" {
+			return c.Status == "True", c.LastHeartbeatTime, true
+		}
+	}
+	return false, time.Time{}, true
+}
+
+// TestNodePowerCut cuts the sandbox node's power (docker kill: SIGKILL, nothing flushed, no graceful stop), starts it
+// again, and waits until it is really back: the node Ready after the cut, every pod restarted and ready, the mesh as
+// TestNodeRestart wants it and the apps answering as before. Data acknowledged before the cut must be there: an issue
+// in Forgejo, a message in ntfy, a secret in OpenBao (docs/superpowers/specs/2026-10-25-power-cut-design.md). make
+// dev runs it alone, after TestNodeRestart.
+func TestNodePowerCut(t *testing.T) {
+	meshSandboxOnly(t)
+	hosts := map[string]string{}
+	for _, app := range smokeApps("dev") {
+		hosts[app.name] = routeHost(t, app.namespace, app.name)
+	}
+	var want map[string]int
+	// As strict as the recovery below (every pod ready, the node Ready), so a pod already failing is not blamed on the
+	// cut: before it, any start time and heartbeat count
+	require.Eventually(t, func() bool {
+		want = appCodes(hosts)
+		pods, meshed, ztunnel, ok := clusterState(t)
+		ready, heartbeat, nodeOK := nodeState(t)
+		return ok && nodeOK && len(restartBlockers(pods, meshed, ztunnel, want, want)) == 0 &&
+			len(powerCutBlockers(pods, ready, heartbeat, time.Time{})) == 0 && !hasServerError(want)
+	}, 10*time.Minute, 15*time.Second, "the sandbox is not healthy before the cut")
+	t.Logf("before the cut: %v", want)
+
+	// Markers are test strings, never secrets
+	marker := fmt.Sprint("power-cut-", time.Now().UnixNano())
+	repo := "/repos/" + secretValue(t, "forgejo", "forgejo-admin", "username") + "/power-cut"
+	forgejoAs(t, "", "DELETE", repo, nil, nil)
+	require.Equal(t, http.StatusCreated, forgejoAs(t, "", "POST", "/user/repos", map[string]any{"name": "power-cut"}, nil))
+	defer forgejoAs(t, "", "DELETE", repo, nil, nil)
+	var issue struct {
+		Number int `json:"number"`
+	}
+	require.Equal(t, http.StatusCreated, forgejoAs(t, "", "POST", repo+"/issues", map[string]any{"title": marker}, &issue))
+	status, body := ntfyRequest(t, http.MethodPost, "/alerts", ntfyToken(t, "alerts"), marker)
+	require.Equal(t, http.StatusOK, status, body)
+	admin(t, "kv", "put", "secret/smoke/power-cut", "value="+marker)
+	defer admin(t, "kv", "metadata", "delete", "secret/smoke/power-cut")
+	time.Sleep(5 * time.Second)
+
+	out, err := exec.Command("docker", "kill", k3dNode).CombinedOutput()
+	require.NoError(t, err, "docker kill %s: %s", k3dNode, out)
+	cut := time.Now()
+	out, err = exec.Command("docker", "start", k3dNode).CombinedOutput()
+	require.NoError(t, err, "docker start %s: %s", k3dNode, out)
+
+	var blockers []string
+	recovered := assert.Eventually(t, func() bool {
+		pods, meshed, ztunnel, ok := clusterState(t)
+		ready, heartbeat, nodeOK := nodeState(t)
+		if !ok || !nodeOK {
+			blockers = []string{"API server not answering"}
+			return false
+		}
+		blockers = append(powerCutBlockers(pods, ready, heartbeat, cut), restartBlockers(pods, meshed, ztunnel, want, appCodes(hosts))...)
+		return len(blockers) == 0
+	}, 20*time.Minute, 15*time.Second, "the sandbox did not recover from a power cut")
+	if !recovered {
+		t.Fatalf("still blocking:\n%s", strings.Join(blockers, "\n"))
+	}
+	t.Logf("recovered %s after the cut", time.Since(cut).Round(time.Second))
+
+	var got struct {
+		Title string `json:"title"`
+	}
+	assert.Equal(t, http.StatusOK, forgejoAs(t, "", "GET", fmt.Sprintf("%s/issues/%d", repo, issue.Number), nil, &got))
+	assert.Equal(t, marker, got.Title, "Forgejo's issue")
+	status, body = ntfyRequest(t, http.MethodGet, "/alerts/json?poll=1&since=1h", ntfyToken(t, "phone"), "")
+	assert.Equal(t, http.StatusOK, status)
+	assert.Contains(t, body, marker, "ntfy's message")
+	waitForUnsealed(t)
+	assert.Equal(t, marker, admin(t, "kv", "get", "-field=value", "secret/smoke/power-cut"), "OpenBao's secret")
 }

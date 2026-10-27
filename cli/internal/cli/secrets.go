@@ -36,7 +36,7 @@ import (
 func newSecretsCmd() *cobra.Command {
 	group := &cobra.Command{
 		Use:   "secrets",
-		Short: "Secrets rotation: the catalog, its check, list and rotate",
+		Short: "Secrets rotation: the catalog, its check, list, rotate and force-unlock",
 		Long: "The catalog (cli/internal/rotate/catalog.yaml) lists every secret and how it is replaced " +
 			"(docs/superpowers/specs/2026-10-24-secrets-rotation-design.md).",
 	}
@@ -196,7 +196,69 @@ func newSecretsCmd() *cobra.Command {
 	rotateCmd.Flags().String("skip-backup-check", "", "rotate without a recent off-site backup; the reason is recorded")
 	rotateCmd.Flags().Bool("in-cluster", false, "run in the CronJob's pod (platform/secrets-rotation): its service account and OpenBao role rotator")
 	group.AddCommand(rotateCmd)
+
+	unlock := &cobra.Command{
+		Use:   "force-unlock <name> <holder>",
+		Short: "Remove the lock a rotation that died left behind (Lease secrets-rotation/rotate-<name>)",
+		Long: "Like tofu force-unlock: a run killed with its node (a power cut) keeps the entry locked until its Lease " +
+			"expires (the run's wait plus five minutes). Name the holder the refused run printed; another holder (a " +
+			"live run) is refused. The next rotate resumes from the phase the dead run recorded.",
+		Example: "  lab secrets force-unlock ntfy.alerts-token steven@workstation/3f9a1c2e",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name, holder := args[0], args[1]
+			entries, err := rotate.Load()
+			if err != nil {
+				return err
+			}
+			if _, err := (&rotate.Rotator{Entries: entries}).Plan(cmd.Context(), []string{name}, rotate.Options{Env: rotationEnv(cmd)}); err != nil {
+				return err
+			}
+			locker, err := newLocker(cmd)
+			if err != nil {
+				return err
+			}
+			ctx := cmd.Context()
+			held, err := locker.Holder(ctx, name)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s is locked by %s since %s, last renewed %s, expiring %s.\n", name, held.Holder,
+				held.Acquired.Local().Format(time.DateTime), held.Renewed.Local().Format(time.DateTime), held.Until.Local().Format(time.DateTime))
+			if held.Holder != holder {
+				return fmt.Errorf("%s is locked by %q, not %q: nothing unlocked", name, held.Holder, holder)
+			}
+			if err := confirm(cmd, "Only if that run is dead: a live one would go on without its lock. Unlock?"); err != nil {
+				return err
+			}
+			if _, err := locker.ForceUnlock(ctx, name, holder); err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s unlocked: lab secrets rotate %s resumes it.\n", name, name)
+			return err
+		},
+	}
+	unlock.Flags().String("env", "production", "production, or sandbox")
+	unlock.Flags().Bool("yes", false, "do not ask for confirmation (required without a terminal)")
+	group.AddCommand(unlock)
 	return group
+}
+
+// newLocker reaches the rotation locks of --env's cluster (tests replace it)
+var newLocker = func(cmd *cobra.Command) (*rotate.LeaseLocker, error) {
+	e, err := forgejoEnv(cmd)
+	if err != nil {
+		return nil, err
+	}
+	config, err := clientcmd.BuildConfigFromFlags("", e.Kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("kubeconfig %s: %w", e.Kubeconfig, err)
+	}
+	kube, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return &rotate.LeaseLocker{Kube: kube, Namespace: "secrets-rotation"}, nil
 }
 
 // rotation is a Rotator on one cluster, with what the plan shows
