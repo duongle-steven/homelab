@@ -65,3 +65,4 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15a | `.trivyignore.yaml`'s 90-day expiry for CVEs is a convention, not checked | any |
 | 15a | `check-leaks` scans only the merge-commit range's own diffs: a change made only in a merge commit is not scanned; run directly without BASE it scans one commit | any |
 | 15a | `TestCheckIaC` uses a fake Trivy: the ignore file's effect is proven only by the real run in CI | any |
+| 15a | `TestBackupRestore`'s one-app restore once read the repository back as 404 right after `lab backup restore forgejo` (a rerun passed): find whether Forgejo answered before its restored data was in place | any |
