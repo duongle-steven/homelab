@@ -14,6 +14,8 @@ spec:
   redirectUrl:
     - https://{{ .Values.host }}.{{ .Values.global.baseDomain }}/kiali
   disableConsentPrompt: true
+  # Kiali accepts only RS256 ID tokens; Kanidm signs with ES256 unless this client asks for RS256
+  jwtLegacyCryptoEnable: true
   preferShortUsername: true
   strictRedirectUrl: true
   # Kiali reads the client secret from a file named oidc-secret
