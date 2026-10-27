@@ -14,6 +14,7 @@ else
 	targets=$(go -C cli run ./cmd/lab test charts --base "$base")
 fi
 work=$(mktemp -d)
+# shellcheck disable=SC2329 # called by the EXIT trap
 cleanup() { git -C "$root" worktree remove --force "$work/base" >/dev/null 2>&1 || true; rm -rf "$work"; }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
