@@ -58,6 +58,8 @@ variable "caches" {
     "quay.io"          = { remote = "https://quay.io", port = 5103 }
     "registry.k8s.io"  = { remote = "https://registry.k8s.io", port = 5104 }
     "code.forgejo.org" = { remote = "https://code.forgejo.org", port = 5105 }
+    # Kyverno's images (system/kyverno)
+    "reg.kyverno.io" = { remote = "https://reg.kyverno.io", port = 5106 }
   }
   description = "Pull-through caches by registry; the host port is only k3d's (WSL cannot reach published ports), the node uses port 5000"
 }
