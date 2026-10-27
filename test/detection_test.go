@@ -75,6 +75,7 @@ func TestCheckLeaks(t *testing.T) {
 	out, err := runCheck(t, "check-leaks", dir, "BASE="+commits[0])
 	require.Error(t, err, "a leak in the change passed:\n%s", out)
 	assert.NotContains(t, out, key[4:], "the secret was printed")
+	assert.Contains(t, out, "config.env", "the finding names its file")
 	out, err = runCheck(t, "check-leaks", dir, "BASE="+commits[1])
 	assert.NoError(t, err, "a leak before BASE failed the check:\n%s", out)
 	// A new branch's first push: GitHub's before is forty zeros; only HEAD's own commit is scanned
@@ -129,13 +130,17 @@ func TestCheckImages(t *testing.T) {
 	dir, commits := gitRepo(t,
 		map[string]string{"scripts/render-chart": fakeRenderer, "charts/web.yaml": podWith("docker.io/library/nginx:1.29.0", "quay.io/x/kept:1.0")},
 		map[string]string{"charts/web.yaml": podWith("docker.io/library/nginx:1.29.1", "quay.io/x/kept:1.0", pinned) +
-			"---\nkind: Cluster\nspec:\n  image: ghcr.io/cloudnative-pg/postgresql:18.1\n",
+			"---\nkind: Cluster\nspec:\n  imageName: ghcr.io/cloudnative-pg/postgresql:18.1\n"+
+			"---\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n        - image: quay.io/x/kept:1.0\n"+
+			"          env:\n            - name: ROOK_CSIADDONS_IMAGE\n              value: quay.io/csiaddons/k8s-sidecar:v0.14.0\n"+
+			"            - name: LOG_LEVEL\n              value: info\n",
 			"charts/new.yaml": podWith("ghcr.io/x/new:2.0"), "charts/broken.yaml": ""})
 	base := "BASE=" + commits[0]
 
 	out, err := runCheck(t, "check-images", dir, base, "TARGETS=charts/web.yaml charts/new.yaml", "IMAGES_ONLY=1")
 	require.NoError(t, err, out)
-	assert.Equal(t, []string{"docker.io/library/nginx:1.29.1", "ghcr.io/cloudnative-pg/postgresql:18.1", "ghcr.io/x/new:2.0", pinned},
+	assert.Equal(t, []string{"docker.io/library/nginx:1.29.1", "ghcr.io/cloudnative-pg/postgresql:18.1", "ghcr.io/x/new:2.0",
+		"quay.io/csiaddons/k8s-sidecar:v0.14.0", pinned},
 		strings.Fields(out), "only the images new at HEAD, whole")
 
 	_, err = runCheck(t, "check-images", dir, base, "TARGETS=charts/web.yaml charts/broken.yaml", "IMAGES_ONLY=1")

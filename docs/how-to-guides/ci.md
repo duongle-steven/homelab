@@ -35,12 +35,13 @@ What to do about a finding:
 - **A leaked secret:** it is public once pushed. Rotate it (`lab secrets rotate <name>`, or the provider's console),
   then remove it from the branch. Rewriting history does not take it back.
 - **An image:** bump it to a release that fixes the CVE (Renovate usually has one). If none exists and the risk is
-  understood, add the CVE to `.trivyignore.yaml` under `vulnerabilities` with the image's path, a `statement` and an
-  `expired_at` at most 90 days away.
+  understood, add the CVE to `.trivyignore.yaml` under `vulnerabilities` with a `statement` naming the image and an
+  `expired_at` at most 90 days away (an entry ignores the CVE in every image).
 - **A Dockerfile or OpenTofu finding:** fix it, or add it to `.trivyignore.yaml` under `misconfigurations` with the
   file's path from the root and a `statement`.
 
-Trivy keeps its databases in `~/.cache/trivy`. GitHub Actions restores them from a cache keyed by day.
+Trivy keeps its databases in `~/.cache/trivy` and downloads them again when they are older than its refresh period.
+GitHub Actions restores them from a cache per job, keyed by day.
 
 ## A failed run
 

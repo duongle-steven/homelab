@@ -39,25 +39,23 @@ jobs:
           gc-max-store-size-linux: 8G
           # Only runs on dev and master save: pull request entries (up to 8G each) would evict theirs
           save: ${{ github.event_name == 'push' }}
-      # Trivy's vulnerability and check databases, once a day: the Trivy jobs then do not each download them
+      # Trivy's databases, one cache per job and day (iac needs only the checks bundle, images the vulnerability
+      # database): Trivy downloads only what is older than its own refresh period
       - name: day
         if: matrix.check == 'iac' || matrix.check == 'images'
         id: day
         run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         if: matrix.check == 'iac' || matrix.check == 'images'
-        id: trivy-cache
         with:
           path: ~/.cache/trivy
-          key: trivy-${{ steps.day.outputs.day }}
-          restore-keys: trivy-
+          key: trivy-${{ matrix.check }}-${{ steps.day.outputs.day }}
+          restore-keys: trivy-${{ matrix.check }}-
       - name: scripts/ci-check ${{ matrix.check }}
         env:
           CHECK: ${{ matrix.check }}
           # The pull request's base, or the previous commit of a push (forty zeros for a new branch: lab renders all)
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          # Today's databases came from the cache: no download
-          TRIVY_SKIP_DB_UPDATE: ${{ steps.trivy-cache.outputs.cache-hit == 'true' && '1' || '' }}
         run: nix develop --command scripts/ci-check "$CHECK"
 
   # The one required status: fails unless every check succeeded (a cancelled or skipped check fails it too)

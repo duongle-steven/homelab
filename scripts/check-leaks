@@ -11,4 +11,5 @@ esac
 git rev-parse -q --verify HEAD^ >/dev/null || range=HEAD
 config=$(git rev-parse --show-toplevel)/.gitleaks.toml
 [ -f "$config" ] || config=$(dirname "$0")/../.gitleaks.toml
-exec gitleaks git --no-banner --redact --exit-code 1 --config "$config" --log-opts "$range" .
+# --verbose names each finding (commit, file, line, rule); --redact masks the value
+exec gitleaks git --no-banner --redact --verbose --exit-code 1 --config "$config" --log-opts "$range" .
