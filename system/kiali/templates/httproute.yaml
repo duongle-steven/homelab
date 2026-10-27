@@ -1,0 +1,19 @@
+# The LAN Gateway only: Kiali is never published through the Tunnel
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: kiali
+  namespace: {{ .Release.Namespace }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: gateway
+      namespace: istio-system
+      sectionName: https
+  hostnames:
+    - {{ .Values.host }}.{{ .Values.global.baseDomain }}
+  rules:
+    - backendRefs:
+        - name: kiali
+          port: 20001

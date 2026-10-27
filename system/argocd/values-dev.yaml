@@ -33,6 +33,7 @@ argocd-apps:
                     - path: system/cert-manager
                     - path: system/monitoring-system
                     - path: system/loki
+                    - path: system/kiali
                     - path: platform/external-secrets
                     - path: platform/openbao
                     - path: platform/generated-secrets

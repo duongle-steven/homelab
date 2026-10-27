@@ -20,6 +20,11 @@ secrets:
     key: PAPERLESS_SECRET_KEY
     length: 64
     destinations: [paperless/generated/secret-key]
+  # Kiali signs its session cookies with it (AES: 32 characters)
+  - name: kiali.signing-key
+    key: key
+    length: 32
+    destinations: [kiali/generated/signing-key]
   - name: grafana.admin
     key: password
     special: true

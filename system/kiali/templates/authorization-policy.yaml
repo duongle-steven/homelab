@@ -1,0 +1,26 @@
+# Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow
+  namespace: {{ .Release.Namespace }}
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["{{ .Release.Namespace }}"]
+    # Gateway: Kiali's UI and API
+    - from:
+        - source:
+            principals: ["cluster.local/ns/istio-system/sa/gateway-istio"]
+      to:
+        - operation:
+            ports: ["20001"]
+    # Prometheus: Kiali's own metrics
+    - from:
+        - source:
+            principals: ["cluster.local/ns/monitoring-system/sa/monitoring-system-kube-pro-prometheus"]
+      to:
+        - operation:
+            ports: ["9090"]

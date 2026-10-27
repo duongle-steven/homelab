@@ -1,0 +1,24 @@
+# Admins only: no other group gets a scope, so Kanidm refuses everyone else
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmOAuth2Client
+metadata:
+  name: kiali
+  namespace: {{ .Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+    namespace: kanidm
+  displayname: Kiali
+  origin: https://{{ .Values.host }}.{{ .Values.global.baseDomain }}
+  # Kiali's redirect URI is its web root (server.web_fqdn and web_root in templates/config.yaml)
+  redirectUrl:
+    - https://{{ .Values.host }}.{{ .Values.global.baseDomain }}/kiali
+  disableConsentPrompt: true
+  preferShortUsername: true
+  strictRedirectUrl: true
+  # Kiali reads the client secret from a file named oidc-secret
+  secretKeyAliases:
+    clientSecret: [oidc-secret]
+  scopeMap:
+    - group: homelab-admins
+      scopes: [openid, profile, email]

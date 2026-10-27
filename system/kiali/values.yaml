@@ -1,0 +1,14 @@
+# Kiali (docs/superpowers/specs/2026-10-27-kiali-design.md): rendered here rather than with the kiali-server chart,
+# whose config.yaml is its values as they are: it cannot take the issuer from global.baseDomain, and it generates a
+# new login signing key at every render (Argo CD would roll the pod and end every session at each sync). The
+# templates follow kiali-server 2.33.0's (its viewer ClusterRole, probes and security context).
+host: kiali
+image: quay.io/kiali/kiali:v2.33.0
+# The sandbox trusts its CA for the calls to Kanidm (values-dev.yaml)
+devCA: false
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 512Mi

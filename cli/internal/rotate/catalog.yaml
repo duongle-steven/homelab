@@ -43,6 +43,15 @@
     - {namespace: paperless, externalSecrets: [paperless-secret], workloads: [{kind: Deployment, name: paperless}]}
   settings: {app: paperless, key: PAPERLESS_ADMIN_PASSWORD, length: 32, special: true}
 
+- name: kiali.signing-key
+  kind: generated
+  class: 2
+  reason: every Kiali session ends (admins sign in again)
+  paths: [kiali/generated/signing-key]
+  readers:
+    - {namespace: kiali, externalSecrets: [kiali-signing-key], workloads: [{kind: Deployment, name: kiali}]}
+  settings: {key: key, length: 32, special: false}
+
 - name: paperless.secret-key
   kind: generated
   class: 2
@@ -196,6 +205,14 @@
   readers:
     - {namespace: grafana, workloads: [{kind: Deployment, name: grafana}]}
   settings: {client: grafana, namespace: grafana}
+
+- name: kanidm-client.kiali
+  kind: kaniop-client
+  class: 2
+  reason: a login fails until Kiali restarts (it reads the secret file at start); only admins use it
+  readers:
+    - {namespace: kiali, workloads: [{kind: Deployment, name: kiali}]}
+  settings: {client: kiali, namespace: kiali}
 
 - name: kanidm-client.paperless
   kind: kaniop-client

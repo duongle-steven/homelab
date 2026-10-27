@@ -22,6 +22,13 @@ spec:
       to:
         - operation:
             ports: ["9090"]
+    # Kiali's graph and metrics (system/kiali)
+    - from:
+        - source:
+            principals: ["cluster.local/ns/kiali/sa/kiali"]
+      to:
+        - operation:
+            ports: ["9090"]
     # Grafana's Alertmanager data source
     - from:
         - source:

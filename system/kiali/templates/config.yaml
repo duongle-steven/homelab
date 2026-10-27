@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kiali
+  namespace: {{ .Release.Namespace }}
+data:
+  config.yaml: |
+    istio_namespace: istio-system
+    auth:
+      strategy: openid
+      openid:
+        client_id: kiali
+        issuer_uri: https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/kiali
+        # k3s's API server has no OIDC: Kiali reads with its own service account (templates/rbac.yaml, read-only)
+        disable_rbac: true
+        username_claim: preferred_username
+        scopes: [openid, profile, email]
+    deployment:
+      namespace: {{ .Release.Namespace }}
+      instance_name: kiali
+      cluster_wide_access: true
+      view_only_mode: true
+    login_token:
+      # Read from the mounted file /kiali-override-secrets/login-token-signing-key/value.txt (templates/signing-key.yaml)
+      signing_key: secret:kiali-signing-key:key
+    server:
+      port: 20001
+      web_root: /kiali
+      # The OIDC redirect URI comes from these, never from request headers
+      web_fqdn: {{ .Values.host }}.{{ .Values.global.baseDomain }}
+      web_port: "443"
+      web_schema: https
+      observability:
+        metrics:
+          enabled: true
+          port: 9090
+    external_services:
+      prometheus:
+        url: http://prometheus-operated.monitoring-system:9090
+      # Kiali's Grafana links need its API: off; Grafana has the same metrics
+      grafana:
+        enabled: false
+      tracing:
+        enabled: false
+      istio:
+        root_namespace: istio-system
