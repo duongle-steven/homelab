@@ -1,7 +1,16 @@
+# Pod Security restricted (system/kyverno): RuntimeDefault seccomp, no privilege escalation
+defaultPodOptions:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
 # Alerts (Alertmanager posts to topic alerts); published through the Cloudflare Tunnel in production, so nothing is
 # readable or writable without a user (docs/how-to-guides/alerts.md)
 controllers:
   main:
+    defaultContainerOptionsStrategy: merge
+    defaultContainerOptions:
+      securityContext:
+        allowPrivilegeEscalation: false
     containers:
       main:
         image:
@@ -157,3 +166,18 @@ rawResources:
             to:
               - operation:
                   ports: ["80"]
+  # Pod Security restricted (system/kyverno) does not hold for this image: why, in homelab/reason
+  policy-exception:
+    forceRename: pod-security
+    manifest:
+      apiVersion: policies.kyverno.io/v1
+      kind: PolicyException
+      metadata:
+        annotations:
+          homelab/reason: "ntfy's image runs as root (no USER); a non-root user needs its cache and auth files owned by it"
+      spec:
+        policyRefs:
+          - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+        matchConditions:
+          - name: ntfy
+            expression: "object.metadata.name.startsWith('ntfy')"

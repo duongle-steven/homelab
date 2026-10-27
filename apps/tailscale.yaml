@@ -1,5 +1,14 @@
+# Pod Security restricted (system/kyverno): RuntimeDefault seccomp, no privilege escalation
+defaultPodOptions:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
 controllers:
   tailscale:
+    defaultContainerOptionsStrategy: merge
+    defaultContainerOptions:
+      securityContext:
+        allowPrivilegeEscalation: false
     # tailscale stores its state in the Secret tailscale (TS_KUBE_SECRET); app-template 5 disables the token by default
     pod:
       automountServiceAccountToken: true
@@ -80,3 +89,20 @@ rawResources:
           - ports:
               - protocol: UDP
                 port: 41641
+  # Pod Security restricted (system/kyverno) does not hold for this image: why, in homelab/reason
+  policy-exception:
+    forceRename: pod-security
+    manifest:
+      apiVersion: policies.kyverno.io/v1
+      kind: PolicyException
+      metadata:
+        annotations:
+          homelab/reason: "tailscale routes the LAN (NET_ADMIN, root)"
+      spec:
+        policyRefs:
+          - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+          - {name: disallow-capabilities, kind: ValidatingPolicy}
+          - {name: disallow-capabilities-strict, kind: ValidatingPolicy}
+        matchConditions:
+          - name: tailscale
+            expression: "object.metadata.name.startsWith('tailscale')"

@@ -1,5 +1,14 @@
+# Pod Security restricted (system/kyverno): RuntimeDefault seccomp, no privilege escalation
+defaultPodOptions:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
 controllers:
   wireguard:
+    defaultContainerOptionsStrategy: merge
+    defaultContainerOptions:
+      securityContext:
+        allowPrivilegeEscalation: false
     # A router: ambient would send the VPN clients' forwarded TCP to ztunnel, and strict mTLS refuses it
     pod:
       labels:
@@ -108,3 +117,20 @@ rawResources:
           - ports:
               - protocol: UDP
                 port: 51820
+  # Pod Security restricted (system/kyverno) does not hold for this image: why, in homelab/reason
+  policy-exception:
+    forceRename: pod-security
+    manifest:
+      apiVersion: policies.kyverno.io/v1
+      kind: PolicyException
+      metadata:
+        annotations:
+          homelab/reason: "wireguard routes the LAN (NET_ADMIN, root)"
+      spec:
+        policyRefs:
+          - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+          - {name: disallow-capabilities, kind: ValidatingPolicy}
+          - {name: disallow-capabilities-strict, kind: ValidatingPolicy}
+        matchConditions:
+          - name: wireguard
+            expression: "object.metadata.name.startsWith('wireguard')"

@@ -1,5 +1,14 @@
+# Pod Security restricted (system/kyverno): RuntimeDefault seccomp, no privilege escalation
+defaultPodOptions:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
 controllers:
   main:
+    defaultContainerOptionsStrategy: merge
+    defaultContainerOptions:
+      securityContext:
+        allowPrivilegeEscalation: false
     containers:
       main:
         image:
@@ -42,3 +51,19 @@ rawResources:
             to:
               - operation:
                   ports: ["3000"]
+  # Pod Security restricted (system/kyverno) does not hold for this image: why, in homelab/reason
+  policy-exception:
+    forceRename: pod-security
+    manifest:
+      apiVersion: policies.kyverno.io/v1
+      kind: PolicyException
+      metadata:
+        annotations:
+          homelab/reason: "the blog's image is built as root by its own pipeline, which is not written yet; its tag is latest until that pipeline tags releases"
+      spec:
+        policyRefs:
+          - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+          - {name: require-pinned-images, kind: ValidatingPolicy}
+        matchConditions:
+          - name: blog
+            expression: "object.metadata.name.startsWith('blog')"

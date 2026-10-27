@@ -1,5 +1,14 @@
+# Pod Security restricted (system/kyverno): RuntimeDefault seccomp, no privilege escalation
+defaultPodOptions:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
 controllers:
   main:
+    defaultContainerOptionsStrategy: merge
+    defaultContainerOptions:
+      securityContext:
+        allowPrivilegeEscalation: false
     containers:
       main:
         image:
@@ -174,3 +183,18 @@ rawResources:
             to:
               - operation:
                   ports: ["3000"]
+  # Pod Security restricted (system/kyverno) does not hold for this image: why, in homelab/reason
+  policy-exception:
+    forceRename: pod-security
+    manifest:
+      apiVersion: policies.kyverno.io/v1
+      kind: PolicyException
+      metadata:
+        annotations:
+          homelab/reason: "homepage's image runs as root (USER root; it chowns its config at start)"
+      spec:
+        policyRefs:
+          - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+        matchConditions:
+          - name: homepage
+            expression: "object.metadata.name.startsWith('homepage')"

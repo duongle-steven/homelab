@@ -1,11 +1,24 @@
+# Pod Security restricted (system/kyverno): RuntimeDefault seccomp, no privilege escalation
+defaultPodOptions:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
 controllers:
   main:
+    defaultContainerOptionsStrategy: merge
+    defaultContainerOptions:
+      securityContext:
+        allowPrivilegeEscalation: false
     containers:
       main:
         image:
           repository: docker.io/ollama/ollama
           tag: 0.40.3
   ui:
+    defaultContainerOptionsStrategy: merge
+    defaultContainerOptions:
+      securityContext:
+        allowPrivilegeEscalation: false
     containers:
       main:
         image:
@@ -83,3 +96,18 @@ rawResources:
             to:
               - operation:
                   ports: ["11434", "8080"]
+  # Pod Security restricted (system/kyverno) does not hold for this image: why, in homelab/reason
+  policy-exception:
+    forceRename: pod-security
+    manifest:
+      apiVersion: policies.kyverno.io/v1
+      kind: PolicyException
+      metadata:
+        annotations:
+          homelab/reason: "ollama and open-webui run as root (open-webui's USER 0:0); production only: revisit in 12b"
+      spec:
+        policyRefs:
+          - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+        matchConditions:
+          - name: ollama
+            expression: "object.metadata.name.startsWith('ollama')"

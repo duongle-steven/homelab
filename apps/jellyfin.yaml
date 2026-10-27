@@ -1,8 +1,14 @@
 defaultPodOptions:
   securityContext:
+    seccompProfile:
+      type: RuntimeDefault
     fsGroup: 1000
 controllers:
   main:
+    defaultContainerOptionsStrategy: merge
+    defaultContainerOptions:
+      securityContext:
+        allowPrivilegeEscalation: false
     containers:
       main:
         image:
@@ -168,3 +174,18 @@ rawResources:
             to:
               - operation:
                   ports: ["8096", "5055", "9696", "7878", "8989", "9091"]
+  # Pod Security restricted (system/kyverno) does not hold for this image: why, in homelab/reason
+  policy-exception:
+    forceRename: pod-security
+    manifest:
+      apiVersion: policies.kyverno.io/v1
+      kind: PolicyException
+      metadata:
+        annotations:
+          homelab/reason: "jellyfin, the linuxserver *arr images and transmission run as root (s6-overlay drops to PUID); production only, so a non-root user is unproven: revisit in 12b"
+      spec:
+        policyRefs:
+          - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+        matchConditions:
+          - name: jellyfin
+            expression: "object.metadata.name.startsWith('jellyfin')"
