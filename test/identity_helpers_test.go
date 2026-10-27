@@ -467,7 +467,8 @@ func appLogin(t *testing.T, account string, c credentials, startURL, appHost str
 
 	var cookies []*http.Cookie
 	require.NoError(t, chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
-		got, err := network.GetCookies().WithURLs([]string{"https://" + appHost + "/"}).Do(ctx)
+		// The start URL too: an app under a path (Kiali's /kiali) scopes its cookies to it
+		got, err := network.GetCookies().WithURLs([]string{"https://" + appHost + "/", startURL}).Do(ctx)
 		for _, c := range got {
 			cookies = append(cookies, &http.Cookie{Name: c.Name, Value: c.Value})
 		}

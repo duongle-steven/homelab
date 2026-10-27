@@ -1,0 +1,39 @@
+# Prometheus scrapes the mesh: ztunnel's TCP metrics between workloads (L4: ambient without waypoints makes no HTTP
+# metrics inside the mesh), the Gateways' HTTP metrics for what enters, and istiod's control plane. Kiali's graph
+# (system/kiali) and Grafana read them. The PodMonitor CRD comes from monitoring-system, which waits for this chart's
+# CRDs: the same cycle as certificate.yaml, so these apply once it exists.
+{{- range $name, $monitor := dict
+  "ztunnel" (dict "labels" (dict "app" "ztunnel") "port" "ztunnel-stats" "path" "/stats/prometheus" "keep" "istio_.*")
+  "istiod" (dict "labels" (dict "app" "istiod") "port" "http-monitoring" "path" "/metrics" "keep" "")
+  "gateways" (dict "exists" "gateway.networking.k8s.io/gateway-name" "port" "metrics" "path" "/stats/prometheus" "keep" "istio_.*") }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    {{- with $monitor.labels }}
+    matchLabels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $monitor.exists }}
+    matchExpressions:
+      - key: {{ . }}
+        operator: Exists
+    {{- end }}
+  podMetricsEndpoints:
+    - port: {{ $monitor.port }}
+      path: {{ $monitor.path }}
+      interval: 30s
+      {{- with $monitor.keep }}
+      # Only Istio's standard metrics: Envoy's own series are many and nothing here reads them
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: {{ . }}
+          action: keep
+      {{- end }}
+{{- end }}

@@ -103,7 +103,7 @@ func TestBackupRestore(t *testing.T) {
 		runCronJob(t, "velero", "prune")
 		logs, err := k8s.RunKubectlAndGetOutputE(t, velero, "logs", "-l", "job-name", "--tail=-1", "--prefix")
 		require.NoError(t, err)
-		assert.Contains(t, logs, "nothing pruned")
+		assert.Contains(t, logs, "no backup pruned")
 	})
 
 	repo := fmt.Sprintf("backup-probe-%d", time.Now().Unix())

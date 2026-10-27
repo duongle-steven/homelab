@@ -1,0 +1,17 @@
+# Kiali signs its session cookies with it (32 characters: AES-256); generated in platform/generated-secrets
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kiali-signing-key
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretStoreRef:
+    kind: SecretStore
+    name: openbao
+  target:
+    name: kiali-signing-key
+  data:
+    - secretKey: key
+      remoteRef:
+        key: kiali/generated/signing-key
+        property: key
