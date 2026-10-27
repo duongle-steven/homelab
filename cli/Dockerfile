@@ -8,5 +8,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags=-s -o /lab ./cmd/lab
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99
+# distroless's nonroot user, stated so the scan (scripts/check-iac) sees it
+USER 65532:65532
 COPY --from=build /lab /lab
 ENTRYPOINT ["/lab"]

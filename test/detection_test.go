@@ -77,3 +77,31 @@ func TestCheckLeaks(t *testing.T) {
 	out, err = runCheck(t, "check-leaks", dir, "BASE=")
 	assert.NoError(t, err, out)
 }
+
+// fakeTrivy writes a trivy that records its arguments in dir/args (one call per line) and exits with code
+func fakeTrivy(t *testing.T, code string) (string, string) {
+	dir := t.TempDir()
+	script := "#!/bin/sh\necho \"$*\" >> " + dir + "/args\nexit " + code + "\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "trivy"), []byte(script), 0o755))
+	return filepath.Join(dir, "trivy"), filepath.Join(dir, "args")
+}
+
+// iac runs Trivy's config checks once over the repository, Dockerfiles and OpenTofu only (Kubernetes is Kyverno's),
+// failing on HIGH and CRITICAL; .trivyignore.yaml's paths are from the root, so one entry cannot hide another file's
+func TestCheckIaC(t *testing.T) {
+	trivy, args := fakeTrivy(t, "0")
+	out, err := runCheck(t, "check-iac", "..", "TRIVY="+trivy)
+	require.NoError(t, err, out)
+	calls, err := os.ReadFile(args)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(calls)), "\n")
+	require.Len(t, lines, 1, "one scan from the root")
+	for _, want := range []string{"config ", "--misconfig-scanners dockerfile,terraform", "--severity HIGH,CRITICAL", "--exit-code 1",
+		"--ignorefile .trivyignore.yaml", "--skip-dirs **/.terragrunt-cache", "--skip-dirs .state"} {
+		assert.Contains(t, lines[0], want)
+	}
+	assert.True(t, strings.HasSuffix(lines[0], " ."), lines[0])
+	failing, _ := fakeTrivy(t, "1")
+	_, err = runCheck(t, "check-iac", "..", "TRIVY="+failing)
+	assert.Error(t, err, "a finding passed")
+}

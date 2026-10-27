@@ -1,0 +1,10 @@
+# Findings scripts/check-iac and check-images accept, each with its reason; a CVE also with expired_at at most 90 days
+# away, so it is looked at again (docs/how-to-guides/ci.md)
+misconfigurations:
+  - id: DS-0002
+    paths: [Dockerfile]
+    statement: upstream's docs image (mkdocs onto nginx); this repository does not deploy it
+  - id: DS-0002
+    paths: [metal/roles/pxe_server/files/dnsmasq/Dockerfile, metal/roles/pxe_server/files/http/Dockerfile]
+    statement: metal's PXE images on the workstation during an install; dnsmasq binds ports 67 and 69 as root
+vulnerabilities: []
