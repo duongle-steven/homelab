@@ -59,3 +59,4 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 11c | The "being rotated by" error suggests `lab secrets force-unlock <name> <holder>` without `--env` (the holder check refuses a wrong cluster's lock) | any |
 | 14d | `system/kiali` copies kiali-server 2.33.0's templates by hand: a Renovate bump of Kiali's image does not show changes the chart made to its config, RBAC or probes (compare with the chart's render when bumping) | any |
 | 14d | No test that an anonymous visitor to Kiali is sent to Kanidm (the API without a session answers 401, checked by hand in the review) | any |
+| 14d | `TestBackupRestore`'s whole-cluster restore once read Forgejo right after `lab backup restore` and got 503 (Forgejo not ready yet; a rerun passed): wait for Forgejo before reading | any |
