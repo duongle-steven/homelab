@@ -6,6 +6,8 @@ metadata:
   name: matrix
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "production only: dendrite's chart runs as root and its signing-key Job uses unpinned bitnami/kubectl and busybox; revisit in 12b"
 spec:
   policyRefs:
@@ -15,4 +17,4 @@ spec:
     - {name: require-pinned-images, kind: ValidatingPolicy}
   matchConditions:
     - name: matrix
-      expression: "object.metadata.name.startsWith('matrix-') || object.metadata.name.startsWith('generate-signing-key')"
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('matrix-') || object.metadata.name.startsWith('generate-signing-key'))"

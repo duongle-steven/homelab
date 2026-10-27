@@ -6,6 +6,8 @@ metadata:
   name: hostpath-plugin
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "the sandbox's CSI driver mounts volumes on its node: privileged, hostPath"
 spec:
   policyRefs:
@@ -17,4 +19,4 @@ spec:
     - {name: restrict-volume-types, kind: ValidatingPolicy}
   matchConditions:
     - name: hostpath-plugin
-      expression: "object.metadata.name.startsWith('csi-hostpathplugin')"
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('csi-hostpathplugin'))"

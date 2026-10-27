@@ -6,6 +6,8 @@ metadata:
   name: node-exporter
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "node-exporter reads its node's metrics: host network and PID, the host's / and /proc read-only"
 spec:
   policyRefs:
@@ -16,4 +18,4 @@ spec:
     - {name: restrict-volume-types, kind: ValidatingPolicy}
   matchConditions:
     - name: node-exporter
-      expression: "object.metadata.name.startsWith('monitoring-system-prometheus-node-exporter')"
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('monitoring-system-prometheus-node-exporter'))"

@@ -125,6 +125,8 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
+          # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
           homelab/reason: "wireguard routes the LAN (NET_ADMIN, root)"
       spec:
         policyRefs:
@@ -133,4 +135,4 @@ rawResources:
           - {name: disallow-capabilities-strict, kind: ValidatingPolicy}
         matchConditions:
           - name: wireguard
-            expression: "object.metadata.name.startsWith('wireguard')"
+            expression: "object.metadata.namespace == 'wireguard' && object.metadata.name.startsWith('wireguard')"

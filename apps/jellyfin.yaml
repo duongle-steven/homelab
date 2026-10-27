@@ -182,10 +182,12 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
+          # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
           homelab/reason: "jellyfin, the linuxserver *arr images and transmission run as root (s6-overlay drops to PUID); production only, so a non-root user is unproven: revisit in 12b"
       spec:
         policyRefs:
           - {name: require-run-as-nonroot, kind: ValidatingPolicy}
         matchConditions:
           - name: jellyfin
-            expression: "object.metadata.name.startsWith('jellyfin')"
+            expression: "object.metadata.namespace == 'jellyfin' && object.metadata.name.startsWith('jellyfin')"

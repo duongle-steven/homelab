@@ -6,6 +6,8 @@ metadata:
   name: alloy
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "Alloy reads every pod's log files on its node (/var/log/pods, hostPath) as root"
 spec:
   policyRefs:
@@ -17,4 +19,4 @@ spec:
     - {name: restrict-volume-types, kind: ValidatingPolicy}
   matchConditions:
     - name: alloy
-      expression: "object.metadata.name.startsWith('loki-alloy')"
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('loki-alloy'))"

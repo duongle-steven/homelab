@@ -73,6 +73,27 @@ func TestCheckPolicy(t *testing.T) {
 		assert.Error(t, err, "%s passed", c.policy)
 		assert.True(t, strings.Contains(out, c.policy), "%s not named in:\n%s", c.policy, out)
 	}
+	// An exception excuses its namespace's workload only: the same name elsewhere still fails
+	exception := `apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: pod-security
+  namespace: fixture
+spec:
+  policyRefs:
+    - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+  matchConditions:
+    - name: rooted
+      expression: "object.metadata.namespace == 'fixture' && object.metadata.name.startsWith('rooted')"
+`
+	rooted := deployment("rooted", "ghcr.io/x/app:1.2.3", false)
+	out, err = check(rooted + "---\n" + exception)
+	assert.Error(t, err, "the bare deployment still breaks policies the exception does not name")
+	assert.NotContains(t, out, "require-run-as-nonroot", "the exception did not excuse its workload")
+	elsewhere := strings.Replace(rooted, "namespace: fixture", "namespace: other", 1)
+	out, _ = check(elsewhere + "---\n" + exception)
+	assert.Contains(t, out, "require-run-as-nonroot Deployment/other/rooted", "an exception excused another namespace's workload")
+
 	// docker.io is implied for a bare name; a digest pins
 	out, err = check(deployment("hub", "library/busybox@sha256:"+strings.Repeat("b", 64), true))
 	assert.NoError(t, err, out)
@@ -128,13 +149,13 @@ func TestPolicy(t *testing.T) {
 		defer k8s.DeleteNamespace(t, opts, namespace)
 		k8s.RunKubectl(t, opts, "run", "bare", "--image=docker.io/library/busybox:1.37.0", "--restart=Never", "--", "sleep", "300")
 		require.Eventually(t, func() bool {
-			out, err := k8s.RunKubectlAndGetOutputE(t, opts, "get", "policyreports.openreports.io,policyreports.wgpolicyk8s.io",
+			out, err := k8s.RunKubectlAndGetOutputE(t, opts, "get", "policyreports.wgpolicyk8s.io",
 				"-o", `jsonpath={range .items[*].results[?(@.result=="fail")]}{.policy}{"\n"}{end}`)
 			return err == nil && strings.Contains(out, "require-run-as-nonroot")
 		}, 3*time.Minute, 10*time.Second, "no report of the bare pod's failure")
 
 		// No repository workload fails: Enforce (15b-2) can follow
-		out, err := k8s.RunKubectlAndGetOutputE(t, kyverno, "get", "policyreports.openreports.io,policyreports.wgpolicyk8s.io", "-A",
+		out, err := k8s.RunKubectlAndGetOutputE(t, kyverno, "get", "policyreports.wgpolicyk8s.io", "-A",
 			"-o", `jsonpath={range .items[*]}{.metadata.namespace}{" "}{range .results[?(@.result=="fail")]}{.policy}{","}{end}{"\n"}{end}`)
 		require.NoError(t, err)
 		var failing []string

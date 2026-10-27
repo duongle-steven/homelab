@@ -6,6 +6,8 @@ metadata:
   name: node-agent
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "Velero's node agent reads every pod's volumes on its node as root"
 spec:
   policyRefs:
@@ -13,7 +15,7 @@ spec:
     - {name: require-run-as-non-root-user, kind: ValidatingPolicy}
   matchConditions:
     - name: node-agent
-      expression: "object.metadata.name.startsWith('node-agent')"
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('node-agent'))"
 ---
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException
@@ -21,10 +23,12 @@ metadata:
   name: velero
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "velero's image runs as the non-numeric user cnb, so runAsNonRoot cannot be stated without guessing its uid: revisit"
 spec:
   policyRefs:
     - {name: require-run-as-nonroot, kind: ValidatingPolicy}
   matchConditions:
     - name: velero
-      expression: "object.metadata.name.startsWith('velero')"
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('velero'))"

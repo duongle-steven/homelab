@@ -59,10 +59,12 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
+          # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
           homelab/reason: "the excalidraw image is nginx serving port 80 as root"
       spec:
         policyRefs:
           - {name: require-run-as-nonroot, kind: ValidatingPolicy}
         matchConditions:
           - name: excalidraw
-            expression: "object.metadata.name.startsWith('excalidraw')"
+            expression: "object.metadata.namespace == 'excalidraw' && object.metadata.name.startsWith('excalidraw')"

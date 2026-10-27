@@ -6,10 +6,12 @@ metadata:
   name: woodpecker
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "Woodpecker's server and agent images run as root (no USER); its step pods run in user namespaces"
 spec:
   policyRefs:
     - {name: require-run-as-nonroot, kind: ValidatingPolicy}
   matchConditions:
     - name: woodpecker
-      expression: "object.metadata.name.startsWith('woodpecker-server') || object.metadata.name.startsWith('woodpecker-agent')"
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('woodpecker-server') || object.metadata.name.startsWith('woodpecker-agent'))"

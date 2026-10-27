@@ -97,6 +97,8 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
+          # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
           homelab/reason: "tailscale routes the LAN (NET_ADMIN, root)"
       spec:
         policyRefs:
@@ -105,4 +107,4 @@ rawResources:
           - {name: disallow-capabilities-strict, kind: ValidatingPolicy}
         matchConditions:
           - name: tailscale
-            expression: "object.metadata.name.startsWith('tailscale')"
+            expression: "object.metadata.namespace == 'tailscale' && object.metadata.name.startsWith('tailscale')"

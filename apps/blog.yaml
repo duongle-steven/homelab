@@ -59,6 +59,8 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
+          # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
           homelab/reason: "the blog's image is built as root by its own pipeline, which is not written yet; its tag is latest until that pipeline tags releases"
       spec:
         policyRefs:
@@ -66,4 +68,4 @@ rawResources:
           - {name: require-pinned-images, kind: ValidatingPolicy}
         matchConditions:
           - name: blog
-            expression: "object.metadata.name.startsWith('blog')"
+            expression: "object.metadata.namespace == 'blog' && object.metadata.name.startsWith('blog')"

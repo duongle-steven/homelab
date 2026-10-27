@@ -6,6 +6,8 @@ metadata:
   name: istio-cni
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "istio-cni installs the CNI plugin on the node and redirects pods' traffic: root, NET_ADMIN and friends, hostPath, unconfined AppArmor"
 spec:
   policyRefs:
@@ -20,7 +22,7 @@ spec:
     - {name: restrict-apparmor-profiles, kind: ValidatingPolicy}
   matchConditions:
     - name: istio-cni
-      expression: "object.metadata.name.startsWith('istio-cni-node')"
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('istio-cni-node'))"
 ---
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException
@@ -28,6 +30,8 @@ metadata:
   name: ztunnel
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "ztunnel enters every meshed pod's network namespace: root, NET_ADMIN, SYS_ADMIN, hostPath for its socket"
 spec:
   policyRefs:
@@ -41,4 +45,4 @@ spec:
     - {name: restrict-volume-types, kind: ValidatingPolicy}
   matchConditions:
     - name: ztunnel
-      expression: "object.metadata.name.startsWith('ztunnel')"
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('ztunnel'))"

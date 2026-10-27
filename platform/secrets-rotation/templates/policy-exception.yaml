@@ -6,10 +6,12 @@ metadata:
   name: secrets-rotation
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "production's lab image is set by digest after the first release builds it (CLAUDE.md); until then the CronJob is suspended"
 spec:
   policyRefs:
     - {name: require-pinned-images, kind: ValidatingPolicy}
   matchConditions:
     - name: secrets-rotation
-      expression: "object.metadata.name.startsWith('secrets-rotation')"
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('secrets-rotation'))"

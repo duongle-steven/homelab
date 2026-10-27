@@ -48,7 +48,7 @@ skip:
   - cli/internal/cli/cloudflare*.go
 always: Smoke
 alone: [NodeRestart, NodePowerCut, BackupRestore, Rotation]
-full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|NodeRestart|NodePowerCut|BackupRestore|Rotation
+full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|Policy|NodeRestart|NodePowerCut|BackupRestore|Rotation
 groups:
   - paths:
       - Makefile

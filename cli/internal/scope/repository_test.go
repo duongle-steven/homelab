@@ -16,7 +16,7 @@ func TestRepositoryMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	full := "Egress|Forgejo|Gateway|Identity|Logs|Mesh|Monitoring|Ntfy|SSO|Secrets|Smoke|Woodpecker"
+	full := "Egress|Forgejo|Gateway|Identity|Logs|Mesh|Monitoring|Ntfy|Policy|SSO|Secrets|Smoke|Woodpecker"
 	for _, tc := range []struct {
 		file, main, alone string
 	}{
