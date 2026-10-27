@@ -6,6 +6,11 @@ kind: AuthorizationPolicy
 metadata:
   name: allow
   namespace: {{ .Release.Namespace }}
+  # Its CRD comes from istio-system, which holds PolicyExceptions whose CRD comes from here: a cycle on a fresh
+  # cluster. Argo CD refuses a sync with a PolicyException whose CRD is missing even with SkipDryRunOnMissingResource,
+  # so the cycle breaks here: Kyverno installs its CRDs, istio-system follows, and this is applied at the next retry
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   action: ALLOW
   rules:
