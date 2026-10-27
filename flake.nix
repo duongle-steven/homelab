@@ -24,6 +24,7 @@
             docker
             dyff
             git
+            gitleaks # scripts/check-leaks
             glibcLocales
             go
             gotestsum
@@ -36,6 +37,7 @@
             openssh_gssapi
             unstable.opentofu # Drop-in replacement for Terraform (nixos-26.05 ships 1.11)
             unstable.terragrunt
+            unstable.trivy # scripts/check-iac and check-images (0.76.1 is not packaged yet)
             qrencode
             renovate # renovate-config-validator (scripts/lint)
             shellcheck

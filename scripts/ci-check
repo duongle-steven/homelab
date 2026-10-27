@@ -4,8 +4,8 @@
 # changed since $BASE (default origin/dev; lab test charts).
 set -eu
 cd "$(git rev-parse --show-toplevel)"
-offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestNodePowerCutBlockers|TestIstioCNIWatchdog|TestState|TestArgoCD(Revision|RootPreservesResources|BackupEndpoint)|TestArgoCDServiceMonitors|TestArgoCDChooseValues|TestMakeDevRevision|TestMakeInfraProduction|TestGeneratedSecrets|TestKeptValue|TestRenovate|TestWoodpeckerRender|TestKialiRender|TestWoodpeckerForgejoTeams|TestForgejoDatabaseBeforeForgejo|TestCheckBackupGroups|TestVeleroRender|TestVeleroLocationEndpoint|TestOpenBaoSnapshotJob|TestVeleroPrune|TestVeleroSnapshots|TestArgoCDBackupSync|TestExternalSecretsWebhookIgnoredWhileDown|TestCSIHostPathDataOnNodeDisk|TestNtfyAcceptsPreviousToken|TestSecretsCronJobRender|TestAlertmanagerTelegramProductionOnly|TestAlertmanagerDevReceiversFollowProduction'
-checks='render go cli infra docs mesh backup-groups rotation-catalog env-config secret-stores lint'
+offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestNodePowerCutBlockers|TestIstioCNIWatchdog|TestState|TestArgoCD(Revision|RootPreservesResources|BackupEndpoint)|TestArgoCDServiceMonitors|TestArgoCDChooseValues|TestMakeDevRevision|TestMakeInfraProduction|TestGeneratedSecrets|TestKeptValue|TestRenovate|TestWoodpeckerRender|TestKialiRender|TestCheckLeaks|TestWoodpeckerForgejoTeams|TestForgejoDatabaseBeforeForgejo|TestCheckBackupGroups|TestVeleroRender|TestVeleroLocationEndpoint|TestOpenBaoSnapshotJob|TestVeleroPrune|TestVeleroSnapshots|TestArgoCDBackupSync|TestExternalSecretsWebhookIgnoredWhileDown|TestCSIHostPathDataOnNodeDisk|TestNtfyAcceptsPreviousToken|TestSecretsCronJobRender|TestAlertmanagerTelegramProductionOnly|TestAlertmanagerDevReceiversFollowProduction'
+checks='render go cli infra docs mesh backup-groups rotation-catalog env-config secret-stores lint leaks'
 
 check() {
 	case "$1" in
@@ -28,6 +28,7 @@ check() {
 		env-config) scripts/check-env-config ;;
 		secret-stores) scripts/check-secret-stores ;;
 		lint) scripts/lint ;;
+		leaks) BASE="${BASE:-origin/dev}" scripts/check-leaks ;;
 		*) echo "ci-check: unknown check $1 (one of: $checks, all)" >&2; exit 2 ;;
 	esac
 }
