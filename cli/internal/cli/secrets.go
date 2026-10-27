@@ -203,7 +203,7 @@ func newSecretsCmd() *cobra.Command {
 		Long: "Like tofu force-unlock: a run killed with its node (a power cut) keeps the entry locked until its Lease " +
 			"expires (the run's wait plus five minutes). Name the holder the refused run printed; another holder (a " +
 			"live run) is refused. The next rotate resumes from the phase the dead run recorded.",
-		Example: "  lab secrets force-unlock ntfy.alerts-token steven@workstation/12345",
+		Example: "  lab secrets force-unlock ntfy.alerts-token steven@workstation/3f9a1c2e",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, holder := args[0], args[1]

@@ -53,3 +53,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 11b | `OpenTofu.Prepare` replaces again if it crashes between the apply and recording it (no overlap: harmless) | any |
 | 11b | lab's image is pinned by hand after a release: a release that changes the catalog and the CronJob's access together runs the old catalog until the digest is set; the GHCR package must be public | 12 (production) |
 | 11b | `TestRotation`'s sub-tests read the "old" value after an earlier interrupted run may already hold the new one (handled for `woodpecker.agent` only) | any |
+| 11c | `make dev-clean` is not idempotent: a second destroy of an already-clean sandbox fails (`argocd` reads `cluster`'s outputs, which no longer exist), so `make dev-fresh` stops there; `make dev scope=full` does the same on an empty sandbox | any |
+| 11c | The prune ClusterRole may delete any `VolumeSnapshot`, the hourly restore points included (RBAC cannot select by label; a ValidatingAdmissionPolicy limiting it to `velero.io/backup-name` would) | 15 (security) |
+| 11c | A cut after Velero set a snapshot's content to `Retain` may leave the storage snapshot when prune deletes the `VolumeSnapshot` (both classes delete by default; unchecked on Ceph) | 12 (nodes) |
+| 11c | The "being rotated by" error suggests `lab secrets force-unlock <name> <holder>` without `--env` (the holder check refuses a wrong cluster's lock) | any |

@@ -330,6 +330,11 @@ func TestNodePowerCutBlockers(t *testing.T) {
 			}
 		})
 	}
+	// Before the cut (a zero cut time) only readiness counts
+	settled := restartPod{Namespace: "ntfy", Name: "ntfy-1", Phase: "Running", Ready: true, Started: before}
+	assert.Empty(t, powerCutBlockers([]restartPod{settled}, true, before, time.Time{}))
+	settled.Ready = false
+	assert.NotEmpty(t, powerCutBlockers([]restartPod{settled}, true, before, time.Time{}))
 }
 
 // powerCutBlockers lists what restartBlockers cannot see after a power cut, while the API server still reports what it
@@ -389,10 +394,14 @@ func TestNodePowerCut(t *testing.T) {
 		hosts[app.name] = routeHost(t, app.namespace, app.name)
 	}
 	var want map[string]int
+	// As strict as the recovery below (every pod ready, the node Ready), so a pod already failing is not blamed on the
+	// cut: before it, any start time and heartbeat count
 	require.Eventually(t, func() bool {
 		want = appCodes(hosts)
 		pods, meshed, ztunnel, ok := clusterState(t)
-		return ok && len(restartBlockers(pods, meshed, ztunnel, want, want)) == 0 && !hasServerError(want)
+		ready, heartbeat, nodeOK := nodeState(t)
+		return ok && nodeOK && len(restartBlockers(pods, meshed, ztunnel, want, want)) == 0 &&
+			len(powerCutBlockers(pods, ready, heartbeat, time.Time{})) == 0 && !hasServerError(want)
 	}, 10*time.Minute, 15*time.Second, "the sandbox is not healthy before the cut")
 	t.Logf("before the cut: %v", want)
 

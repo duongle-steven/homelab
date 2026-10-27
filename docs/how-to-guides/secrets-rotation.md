@@ -39,7 +39,7 @@ that ends while the API server is back within two minutes releases its lock itse
 remove its lock as `tofu force-unlock` does, then resume:
 
 ```sh
-go -C cli run ./cmd/lab secrets force-unlock ntfy.alerts-token steven@workstation/12345   # the holder the refusal printed
+go -C cli run ./cmd/lab secrets force-unlock ntfy.alerts-token steven@workstation/3f9a1c2e   # the holder the refusal printed
 go -C cli run ./cmd/lab secrets rotate ntfy.alerts-token                                  # resumes from the recorded phase
 ```
 
