@@ -61,3 +61,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 14d | No test that an anonymous visitor to Kiali is sent to Kanidm (the API without a session answers 401, checked by hand in the review) | any |
 | 14d | `TestBackupRestore`'s whole-cluster restore once read Forgejo right after `lab backup restore` and got 503 (Forgejo not ready yet; a rerun passed): wait for Forgejo before reading | any |
 | 15a | The root `Dockerfile` (upstream's docs image) uses unpinned tags (`python:3.13-slim`, `nginx:1.27-alpine`); nothing here deploys it: pin or remove it | any |
+| 15a | The blog's image in zot (`registry.<domain>/blog`) is private: `images` cannot pull it once its tag is pinned; give the check zot's read credentials or skip that registry | any |
+| 15a | `.trivyignore.yaml`'s 90-day expiry for CVEs is a convention, not checked | any |
+| 15a | `check-leaks` scans only the merge-commit range's own diffs: a change made only in a merge commit is not scanned; run directly without BASE it scans one commit | any |
+| 15a | `TestCheckIaC` uses a fake Trivy: the ignore file's effect is proven only by the real run in CI | any |
