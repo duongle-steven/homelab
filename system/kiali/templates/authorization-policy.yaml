@@ -17,10 +17,3 @@ spec:
       to:
         - operation:
             ports: ["20001"]
-    # Prometheus: Kiali's own metrics
-    - from:
-        - source:
-            principals: ["cluster.local/ns/monitoring-system/sa/monitoring-system-kube-pro-prometheus"]
-      to:
-        - operation:
-            ports: ["9090"]

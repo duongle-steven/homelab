@@ -4,8 +4,8 @@ Kiali (`system/kiali`) draws the mesh from Prometheus and checks Istio's config.
 on the LAN (in the sandbox `https://kiali.127-0-0-1.nip.io/kiali`) and sign in with Kanidm.
 
 - **Who:** only `homelab-admins`. Kanidm refuses everyone else (the client `kiali` gives no other group a scope).
-- **Read-only:** Kiali shows config and traffic but changes nothing (`view_only_mode`; its service account can only
-  read). Change the mesh in git.
+- **Read-only:** Kiali shows config and traffic but changes nothing: its service account can only read (the API
+  server refuses a write), and `view_only_mode` hides the UI's write actions. Change the mesh in git.
 - **Not public:** its route is on the LAN Gateway only, never the Cloudflare Tunnel.
 
 ## What the graph shows

@@ -38,8 +38,16 @@ func TestKialiRender(t *testing.T) {
 			assert.Equal(t, "homelab-admins", renderKiali(t, e, `select(.kind == "KanidmOAuth2Client") | [.spec.scopeMap[].group] | join(",")`))
 			assert.Empty(t, renderKiali(t, e, `select(.kind == "PersistentVolumeClaim") | .metadata.name`))
 			assert.Equal(t, "get,list,watch", renderKiali(t, e,
-				`select(.kind == "ClusterRole") | [.rules[] | select(.resources[] != "pods/portforward" and .resources[] != "tokenreviews") | .verbs[]] | unique | join(",")`),
-				"read-only apart from config dumps and token reviews")
+				`select(.kind == "ClusterRole") | [.rules[] | select(.resources[] != "tokenreviews") | .verbs[]] | unique | join(",")`),
+				"cluster-wide: read-only apart from token reviews")
+			// A port-forward reaches a pod past every AuthorizationPolicy and NetworkPolicy: only istio-system's, for
+			// Envoy's and ztunnel's config dumps
+			assert.Equal(t, "istio-system", renderKiali(t, e,
+				`[select(.rules[]?.resources[]? == "pods/portforward")] | map(.kind + ":" + (.metadata.namespace // "")) | join(",") | sub("Role:", "")`))
+			assert.Equal(t, "Role:kiali-portforward", renderKiali(t, e,
+				`select(.kind == "RoleBinding" and .metadata.namespace == "istio-system") | .roleRef.kind + ":" + .roleRef.name`))
+			assert.Empty(t, renderKiali(t, e, `select(.kind == "AuthorizationPolicy") | .spec.rules[] | select(.to[]?.operation.ports[]? == "9090") | .to`),
+				"nothing scrapes Kiali")
 		})
 	}
 }
@@ -78,7 +86,8 @@ func TestSSOKiali(t *testing.T) {
 			return err == nil && status == http.StatusOK && len(graph.Elements.Edges) > 0
 		}, 5*time.Minute, 15*time.Second, "Kiali's graph has no edge")
 
-		// view_only_mode: a change to an Istio object is refused
+		// A change to an Istio object is refused: Kiali's role only reads (the API server refuses it), and view_only_mode
+		// hides the UI's write actions
 		status, _ := getJSONE("PATCH", base+"/api/namespaces/istio-system/istio/security.istio.io/v1/AuthorizationPolicy/deny-all",
 			cookies, "", "", map[string]any{"metadata": map[string]any{"labels": map[string]string{"kiali-test": "x"}}}, nil)
 		assert.NotEqual(t, http.StatusOK, status, "Kiali changed an AuthorizationPolicy")

@@ -10,5 +10,6 @@ resources:
   requests:
     cpu: 10m
     memory: 64Mi
+  # kiali-server's: the graph cache may grow to its default 1000 MB
   limits:
-    memory: 512Mi
+    memory: 1Gi

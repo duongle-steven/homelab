@@ -1,4 +1,4 @@
-# Read-only (kiali-server 2.33.0's viewer role without OpenShift's rules): view_only_mode, and no role that writes
+# Read-only (kiali-server 2.33.0's viewer role without OpenShift's rules, port-forwards only in istio-system): view_only_mode, and no role that writes
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -11,12 +11,8 @@ metadata:
   name: kiali-viewer
 rules:
   - apiGroups: [""]
-    resources: [configmaps, endpoints, namespaces, nodes, pods, pods/log, replicationcontrollers, services]
+    resources: [configmaps, namespaces, pods, pods/log, replicationcontrollers, services]
     verbs: [get, list, watch]
-  # Workload details: Envoy's and ztunnel's config dumps, read through a port-forward
-  - apiGroups: [""]
-    resources: [pods/portforward]
-    verbs: [create]
   - apiGroups: [apps]
     resources: [daemonsets, deployments, replicasets, statefulsets]
     verbs: [get, list, watch]
@@ -44,6 +40,32 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: kiali-viewer
+subjects:
+  - kind: ServiceAccount
+    name: kiali
+    namespace: {{ .Release.Namespace }}
+---
+# Envoy's and ztunnel's config dumps, read through a port-forward: only in istio-system (the Gateways, ztunnel), since
+# a port-forward reaches a pod past every AuthorizationPolicy and NetworkPolicy
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kiali-portforward
+  namespace: istio-system
+rules:
+  - apiGroups: [""]
+    resources: [pods/portforward]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kiali-portforward
+  namespace: istio-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kiali-portforward
 subjects:
   - kind: ServiceAccount
     name: kiali
