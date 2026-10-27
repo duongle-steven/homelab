@@ -251,3 +251,49 @@ func TestReplicas(t *testing.T) {
 		t.Fatalf("StatefulSet without replicas: %d, %v", n, err)
 	}
 }
+
+// fakeLocker replaces newLocker with a fake cluster holding grafana.admin's lock for holder
+func fakeLocker(t *testing.T, holder string) *fake.Clientset {
+	t.Helper()
+	kube := fake.NewClientset()
+	locker := &rotate.LeaseLocker{Kube: kube, Namespace: "secrets-rotation"}
+	if _, _, err := locker.Lock(context.Background(), rotate.Entry{Name: "grafana.admin"}, holder, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	previous := newLocker
+	newLocker = func(*cobra.Command) (*rotate.LeaseLocker, error) { return locker, nil }
+	t.Cleanup(func() { newLocker = previous })
+	return kube
+}
+
+func leaseExists(t *testing.T, kube *fake.Clientset) bool {
+	t.Helper()
+	_, err := kube.CoordinationV1().Leases("secrets-rotation").Get(context.Background(), "rotate-grafana.admin", metav1.GetOptions{})
+	return err == nil
+}
+
+func TestSecretsForceUnlockAsksFirst(t *testing.T) {
+	kube := fakeLocker(t, "steven@workstation/1")
+	out, err := runLab(t, "", false, "secrets", "force-unlock", "grafana.admin", "steven@workstation/1")
+	if err == nil || !strings.Contains(err.Error(), "--yes") || !leaseExists(t, kube) {
+		t.Fatalf("without a terminal: %v, %q", err, out)
+	}
+	if !strings.Contains(out, "steven@workstation/1") {
+		t.Fatalf("the holder is not shown before asking: %q", out)
+	}
+	out, err = runLab(t, "y\n", true, "secrets", "force-unlock", "grafana.admin", "steven@workstation/1")
+	if err != nil || leaseExists(t, kube) || !strings.Contains(out, "unlocked") {
+		t.Fatalf("after yes: %v, %q", err, out)
+	}
+}
+
+func TestSecretsForceUnlockRefusesAnotherHolder(t *testing.T) {
+	kube := fakeLocker(t, "rotation-job/2")
+	_, err := runLab(t, "", false, "secrets", "force-unlock", "grafana.admin", "steven@workstation/1", "--yes")
+	if err == nil || !strings.Contains(err.Error(), "rotation-job/2") || !leaseExists(t, kube) {
+		t.Fatalf("error = %v", err)
+	}
+	if _, err := runLab(t, "", false, "secrets", "force-unlock", "grafana.admn", "x", "--yes"); err == nil || !strings.Contains(err.Error(), "grafana.admin") {
+		t.Fatalf("a mistyped name: %v", err)
+	}
+}

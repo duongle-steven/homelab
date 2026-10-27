@@ -31,6 +31,21 @@ the reason. It stops at the first failure and says what is done and what is left
 resumes an interrupted rotation where it stopped, without making a third value. A rotation by a person and the
 CronJob's never run at once on one secret (a Lease `secrets-rotation/rotate-<name>`).
 
+### A run that died
+
+A run killed with its node (a power cut) or one whose release found the API server restarting leaves its Lease, and
+the next run is refused, naming the holder, until the Lease expires (the run's 30-minute wait plus 5 minutes). A run
+that ends while the API server is back within two minutes releases its lock itself. When you know that run is dead,
+remove its lock as `tofu force-unlock` does, then resume:
+
+```sh
+go -C cli run ./cmd/lab secrets force-unlock ntfy.alerts-token steven@workstation/12345   # the holder the refusal printed
+go -C cli run ./cmd/lab secrets rotate ntfy.alerts-token                                  # resumes from the recorded phase
+```
+
+`force-unlock` shows the holder and its times and asks first (`--yes` without a terminal). It refuses another holder:
+a live run (the CronJob's, or someone else's) keeps its lock.
+
 Some steps need a person, and `lab` stops to give them:
 
 - **Renovate's GitHub App key:** generate a new key in the App's settings (GitHub has no API for it), give it to
