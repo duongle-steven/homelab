@@ -65,7 +65,8 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15a | `.trivyignore.yaml`'s 90-day expiry for CVEs is a convention, not checked | any |
 | 15a | `check-leaks` scans only the merge-commit range's own diffs: a change made only in a merge commit is not scanned; run directly without BASE it scans one commit | any |
 | 15a | `TestCheckIaC` uses a fake Trivy: the ignore file's effect is proven only by the real run in CI | any |
-| 15a | `TestBackupRestore`'s one-app restore once read the repository back as 404 right after `lab backup restore forgejo` (a rerun passed): find whether Forgejo answered before its restored data was in place | any |
+| 15a | `TestBackupRestore`'s one-app restore read (again in 15b's run) the repository back as 404 right after `lab backup restore forgejo` (a rerun passed): find whether Forgejo answered before its restored data was in place | any |
+| 15b | `TestBackupRestore`'s whole-cluster restore once found OpenBao's marker missing right after `lab backup restore` (`No value found`), though OpenBao's restore Job completed; its log was gone (the pod deleted) and a rerun passed that part: keep the Job's log in `lab`'s output | any |
 | 14e | `deployedNamespaces` counts every namespace as present after a failed list without saying so: print one line | any |
 | 14e | `Rotator.Run` still checks `overdue` for an entry skipped as not deployed (harmless while no optional app's entry has a period) | any |
 | 14e | `make dev` counts a failed `git diff` (unknown base, shallow clone) as "changed" and deploys both optional apps silently: warn | any |
