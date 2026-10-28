@@ -23,6 +23,12 @@ kyverno:
   # Only validating policies here: no generate or mutate-existing policy for it to run
   backgroundController:
     enabled: false
+  # Its default client rate limit (20/s, burst 50) left no room to renew its leader Lease while it aggregated the
+  # cluster's reports, so it lost the lease and restarted, again and again (the sandbox, 2026-10-28)
+  reportsController:
+    extraArgs:
+      clientRateLimitQPS: 50
+      clientRateLimitBurst: 100
 kyverno-policies:
   podSecurityStandard: restricted
   validationFailureAction: Audit
