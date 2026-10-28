@@ -2,6 +2,10 @@
 # registries, in Audit (step 15b-1; Enforce is 15b-2). scripts/check-policy runs the same policies in CI. A workload
 # that must break one has a PolicyException in its own chart or app file, with its reason.
 kyverno:
+  # The same images from ghcr.io: reg.kyverno.io fronts it, and the sandbox's pull-through cache cannot follow that
+  global:
+    image:
+      registry: ghcr.io
   features:
     # Audit: an unreachable Kyverno never blocks a deploy
     forceFailurePolicyIgnore:
@@ -41,4 +45,4 @@ kyverno-policies:
   # Woodpecker's step pods run in user namespaces (hostUsers: false)
   podSecurityUserNamespaces: true
 # Registries images may come from (templates/images.yaml); zot (registry.<domain>) is added there
-registries: [docker.io, ghcr.io, quay.io, registry.k8s.io, gcr.io, code.forgejo.org, public.ecr.aws, lscr.io, reg.kyverno.io]
+registries: [docker.io, ghcr.io, quay.io, registry.k8s.io, gcr.io, code.forgejo.org, public.ecr.aws, lscr.io]
