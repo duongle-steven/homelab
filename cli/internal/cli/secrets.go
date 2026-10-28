@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"text/tabwriter"
 	"time"
 
@@ -362,12 +363,13 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 			},
 			Store: rotate.OpenBaoRecords{Store: store},
 			// The CronJob's namespace (Task 9), which a person's run reaches too
-			Lock:    &rotate.LeaseLocker{Kube: kube, Namespace: "secrets-rotation", Out: cmd.OutOrStdout()},
-			Backups: b.Runs,
-			Idle:    func(ctx context.Context, what string) (bool, error) { return idle(ctx, kube, pods, what) },
-			Out:     cmd.OutOrStdout(),
-			Poll:    15 * time.Second,
-			Wait:    30 * time.Minute,
+			Lock:     &rotate.LeaseLocker{Kube: kube, Namespace: "secrets-rotation", Out: cmd.OutOrStdout()},
+			Backups:  b.Runs,
+			Idle:     func(ctx context.Context, what string) (bool, error) { return idle(ctx, kube, pods, what) },
+			Deployed: deployedNamespaces(cmd.Context(), kube),
+			Out:      cmd.OutOrStdout(),
+			Poll:     15 * time.Second,
+			Wait:     30 * time.Minute,
 		},
 		Replicas: func(ctx context.Context, namespace string, w workload.Ref) (int32, error) {
 			return replicas(ctx, kube, namespace, w)
@@ -628,4 +630,24 @@ func printList(ctx context.Context, out io.Writer, r *rotate.Rotator, now time.T
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", e.Name, e.Kind, class, period, last, next)
 	}
 	return w.Flush()
+}
+
+// deployedNamespaces reports whether a namespace exists, reading them once, on first use (only --all asks: the
+// CronJob's role cannot list namespaces). A failed read counts every namespace as present: the entry rotates
+func deployedNamespaces(ctx context.Context, kube kubernetes.Interface) func(string) bool {
+	var once sync.Once
+	var names map[string]bool
+	return func(namespace string) bool {
+		once.Do(func() {
+			list, err := kube.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+			if err != nil {
+				return
+			}
+			names = map[string]bool{}
+			for _, n := range list.Items {
+				names[n.Name] = true
+			}
+		})
+		return names == nil || names[namespace]
+	}
 }

@@ -247,7 +247,7 @@ func watchdogJobs(t *testing.T, logged map[string]bool) []watchdogJob {
 func TestNodeRestart(t *testing.T) {
 	meshSandboxOnly(t)
 	hosts := map[string]string{}
-	for _, app := range smokeApps("dev") {
+	for _, app := range deployedSmokeApps(t, "dev") {
 		hosts[app.name] = routeHost(t, app.namespace, app.name)
 	}
 	var want map[string]int
@@ -390,7 +390,7 @@ func nodeState(t *testing.T) (ready bool, heartbeat time.Time, ok bool) {
 func TestNodePowerCut(t *testing.T) {
 	meshSandboxOnly(t)
 	hosts := map[string]string{}
-	for _, app := range smokeApps("dev") {
+	for _, app := range deployedSmokeApps(t, "dev") {
 		hosts[app.name] = routeHost(t, app.namespace, app.name)
 	}
 	var want map[string]int

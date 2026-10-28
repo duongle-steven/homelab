@@ -11,6 +11,10 @@ terragrunt_apply = $(terragrunt) run --all apply --non-interactive -- -auto-appr
 # make dev: the sandbox tests the branch's changes can affect (test/scopes.yaml), or scope=full, or tests=<regex>
 scope ?= auto
 base ?= origin/dev
+# Apps the sandbox deploys only when asked (make dev apps=paperless,opencloud or apps=all) or when the branch changes
+# their file since base: docs/installation/sandbox.md
+optional_apps = paperless opencloud
+apps ?=
 tests ?=
 revision ?=
 lab_cli = cd cli && go run ./cmd/lab
@@ -38,10 +42,17 @@ dev: sandbox-checkout sandbox-clean
 	main=$$(eval "$(lab) $$sel") && alone=$$(eval "$(lab) $$sel --alone") || exit 1; \
 	if [ -z "$$main$$alone" ]; then echo "make dev: nothing to test in the sandbox (no change outside test/scopes.yaml's skip)"; exit 0; fi; \
 	echo "make dev: main run '$$main', then alone '$$alone'"; \
+	opt=$$( { if [ "$(apps)" = all ]; then echo "$(optional_apps)"; else echo "$(apps)" | tr , ' '; fi; \
+		for a in $(optional_apps); do git diff --quiet "$(base)...HEAD" -- "apps/$$a.yaml" 2>/dev/null || echo "$$a"; done; } | \
+		tr ' ' '\n' | sed '/^$$/d' | sort -u | tr '\n' ' '); \
+	for a in $$opt; do case " $(optional_apps) " in *" $$a "*) ;; *) echo "make dev: $$a is not an optional app ($(optional_apps))" >&2; exit 1 ;; esac; done; \
+	echo "make dev: optional apps '$$opt'"; \
 	if [ -z "$(revision)" ]; then $(MAKE) sandbox-push; fi && \
 	scripts/warm-image-cache && \
-	(cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$$([ -z "$(revision)" ] || git rev-parse HEAD)" $(terragrunt_apply)) && \
+	(cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$$([ -z "$(revision)" ] || git rev-parse HEAD)" HOMELAB_SANDBOX_APPS="$$opt" $(terragrunt_apply)) && \
+	for a in $(optional_apps); do case " $$opt " in *" $$a "*) ;; *) kubectl --kubeconfig infra/sandbox/kubeconfig.yaml delete namespace "$$a" --ignore-not-found --wait=false >/dev/null ;; esac; done && \
 	scripts/build-lab-image && \
+	export HOMELAB_SANDBOX_APPS="$$opt" && \
 	{ if { [ -z "$$main" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$main" sandbox-refresh smoke-test; } && \
 	{ [ -z "$$alone" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; }; \
 	then status=0; else status=$$?; fi; scripts/warm-image-cache --node || true; exit $$status; }

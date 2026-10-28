@@ -41,6 +41,12 @@ variable "seed_repository" {
   description = "Repository the seed syncs from (config.json's seed_repository)"
 }
 
+variable "optional_apps" {
+  type        = list(string)
+  default     = []
+  description = "The sandbox's optional apps to deploy (set-sandbox-apps.sh): paperless, opencloud"
+}
+
 variable "revision" {
   type        = string
   default     = ""
@@ -79,13 +85,14 @@ locals {
     SEED_REPOSITORY = var.seed_repository
     REVISION        = var.revision
     BACKUP_S3_URL   = var.backup_s3_url
+    OPTIONAL_APPS   = join(" ", var.optional_apps)
   }
   command = "sh ${abspath("${path.module}/bootstrap.sh")}"
 }
 
 # It has no destroy-time action: destroying it leaves Argo CD running
 resource "terraform_data" "bootstrap" {
-  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, var.revision, var.backup_s3_url]
+  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, var.revision, var.backup_s3_url, var.optional_apps]
 
   lifecycle {
     precondition {

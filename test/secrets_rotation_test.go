@@ -134,6 +134,10 @@ func TestRotation(t *testing.T) {
 		assert.Contains(t, results, "ntfy.phone-token: waiting for people")
 		assert.Contains(t, results, "cloudflare.cert-manager: skipped: production only")
 		assert.Contains(t, results, "grafana.admin: rotated")
+		// paperless is optional in the sandbox: --all skips its entries when it is not deployed
+		if !appDeployed(t, "paperless") {
+			assert.Contains(t, results, "paperless.secret-key: skipped: not deployed here")
+		}
 		waitForApp(t, "https://"+grafanaHost+"/api/health")
 		waitForApp(t, "https://"+forgejoHost+"/api/healthz")
 	})
@@ -159,7 +163,7 @@ func TestRotation(t *testing.T) {
 			return status == http.StatusOK
 		}, 5*time.Minute, 5*time.Second, "the token the CronJob made is refused")
 		// An interrupted rotation by command cannot be finished by the CronJob: the run fails, which alerts
-		baoPutMeta(t, "rotation/kanidm-client.paperless", map[string]string{"rotation-phase": "switched", "rotation-method": "kaniop-client"})
+		baoPutMeta(t, "rotation/kanidm-client.grafana", map[string]string{"rotation-phase": "switched", "rotation-method": "kaniop-client"})
 		failing := job + "-f"
 		k8s.RunKubectl(t, options, "create", "job", failing, "--from=cronjob/secrets-rotation")
 		require.False(t, jobSucceeds(t, options, failing), "a run with an interrupted rotation by command succeeded")
@@ -168,7 +172,7 @@ func TestRotation(t *testing.T) {
 			return err == nil && len(alerts) > 0
 		}, 10*time.Minute, 15*time.Second, "SecretRotationFailed does not fire")
 		// A person finishes it, and the next run succeeds again
-		rotateSecrets(t, "kanidm-client.paperless")
+		rotateSecrets(t, "kanidm-client.grafana")
 		k8s.RunKubectl(t, options, "delete", "job", failing)
 	})
 }

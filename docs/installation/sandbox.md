@@ -43,7 +43,7 @@ export KUBECONFIG=$PWD/infra/sandbox/kubeconfig.yaml  # from the repository root
 - <https://grafana.127-0-0-1.nip.io> ("Sign in with Kanidm", or user `admin` with `kubectl -n grafana get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`)
 - <https://registry.127-0-0-1.nip.io> (zot; log in with Kanidm, then create an API key under your user menu and `docker login registry.127-0-0-1.nip.io -u <username> -p <key>`)
 - <https://git.127-0-0-1.nip.io> (Forgejo; "Sign in with Kanidm", or user `forgejo_admin` with `kubectl -n forgejo get secret forgejo-admin -o jsonpath='{.data.password}' | base64 -d`; `ops/homelab` stays empty until `TestForgejoDeploy` runs `lab infra forgejo sync` and `push`; SSH on `127.0.0.1:22`)
-- <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io>: log in with Kanidm (paperless also has a local `admin`, password in OpenBao `secret/paperless/generated/admin`, property `PAPERLESS_ADMIN_PASSWORD`)
+- <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io> (only with `make dev apps=paperless`: paperless and OpenCloud are optional here, [Sandbox tests](../how-to-guides/sandbox-tests.md#optional-apps)): log in with Kanidm (paperless also has a local `admin`, password in OpenBao `secret/paperless/generated/admin`, property `PAPERLESS_ADMIN_PASSWORD`)
 - <https://drive.127-0-0-1.nip.io> (OpenCloud): log in with Kanidm and accept the consent page once
 - <https://home.127-0-0-1.nip.io>, <https://drop.127-0-0-1.nip.io>, <https://speedtest.127-0-0-1.nip.io>
 

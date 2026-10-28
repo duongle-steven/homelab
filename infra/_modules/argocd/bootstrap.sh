@@ -39,6 +39,9 @@ fi
 # The sandbox on GitHub Actions syncs one commit (REVISION) instead of branch sandbox
 sh "$(dirname "$0")/set-revision.sh" "${REVISION:-}" < "$manifests" > "$manifests.rev"
 mv "$manifests.rev" "$manifests"
+# The sandbox's optional apps (OPTIONAL_APPS, from make dev)
+sh "$(dirname "$0")/set-sandbox-apps.sh" "${OPTIONAL_APPS:-}" < "$manifests" > "$manifests.rev"
+mv "$manifests.rev" "$manifests"
 # Production's off-site backup endpoint, which holds R2's account id (infra/production/argocd)
 sh "$(dirname "$0")/set-backup-endpoint.sh" "${BACKUP_S3_URL:-}" < "$manifests" > "$manifests.rev"
 mv "$manifests.rev" "$manifests"

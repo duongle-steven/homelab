@@ -36,4 +36,5 @@ jobs:
           save: false  # only runs on dev save (sandbox.yaml, checks.yaml)
       - uses: ./.github/actions/sandbox
         with:
-          make-args: scope=full
+          # The runner has the memory: every optional app too (paperless, opencloud), as production has them
+          make-args: scope=full apps=all

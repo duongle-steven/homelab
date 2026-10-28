@@ -297,3 +297,10 @@ func TestSecretsForceUnlockRefusesAnotherHolder(t *testing.T) {
 		t.Fatalf("a mistyped name: %v", err)
 	}
 }
+
+func TestDeployedNamespaces(t *testing.T) {
+	deployed := deployedNamespaces(context.Background(), fake.NewClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ntfy"}}))
+	if !deployed("ntfy") || deployed("paperless") {
+		t.Fatal("deployedNamespaces does not follow the cluster's namespaces")
+	}
+}
