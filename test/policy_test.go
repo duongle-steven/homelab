@@ -177,17 +177,68 @@ func TestPolicy(t *testing.T) {
 			return err == nil && strings.Contains(out, "require-run-as-nonroot")
 		}, 5*time.Minute, 10*time.Second, "no report of the bare pod's failure")
 
-		// No repository workload fails: Enforce (15b-2) can follow
-		out, err := k8s.RunKubectlAndGetOutputE(t, kyverno, "get", "policyreports.wgpolicyk8s.io", "-A",
-			"-o", `jsonpath={range .items[*]}{.metadata.namespace}{" "}{range .results[?(@.result=="fail")]}{.policy}{","}{end}{"\n"}{end}`)
-		require.NoError(t, err)
-		var failing []string
-		for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-			fields := strings.Fields(line)
-			if len(fields) == 2 && !strings.HasPrefix(fields[0], "policy-test-") {
-				failing = append(failing, line)
+		// No repository workload fails: Enforce (15b-2) can follow. Only pods created once every PolicyException
+		// existed count: a pod (and its Deployment's report) admitted while Kyverno had not yet cached the
+		// exceptions keeps its fail until the next background scan (6 hours here), which is a startup race, not a
+		// missing fix; scripts/ci-check policy judges every rendered workload anyway
+		type meta struct {
+			Namespace         string    `json:"namespace"`
+			UID               string    `json:"uid"`
+			CreationTimestamp time.Time `json:"creationTimestamp"`
+		}
+		var exceptions, pods struct {
+			Items []struct {
+				Metadata meta `json:"metadata"`
+			} `json:"items"`
+		}
+		kubectlJSON(t, &exceptions, "get", "policyexceptions.policies.kyverno.io", "-A")
+		require.NotEmpty(t, exceptions.Items, "no PolicyException in the sandbox")
+		var newest time.Time
+		for _, e := range exceptions.Items {
+			if e.Metadata.CreationTimestamp.After(newest) {
+				newest = e.Metadata.CreationTimestamp
 			}
 		}
+		kubectlJSON(t, &pods, "get", "pods", "-A")
+		created := map[string]time.Time{}
+		for _, p := range pods.Items {
+			created[p.Metadata.UID] = p.Metadata.CreationTimestamp
+		}
+		var reports struct {
+			Items []struct {
+				Metadata meta `json:"metadata"`
+				Scope    struct {
+					Kind string `json:"kind"`
+					Name string `json:"name"`
+					UID  string `json:"uid"`
+				} `json:"scope"`
+				Results []struct {
+					Policy string `json:"policy"`
+					Result string `json:"result"`
+				} `json:"results"`
+			} `json:"items"`
+		}
+		kubectlJSON(t, &reports, "get", "policyreports.wgpolicyk8s.io", "-A")
+		var failing []string
+		judged, stale := 0, 0
+		for _, r := range reports.Items {
+			if r.Scope.Kind != "Pod" || strings.HasPrefix(r.Metadata.Namespace, "policy-test-") {
+				continue
+			}
+			// A minute's margin for Kyverno to cache the newest exception
+			if c, ok := created[r.Scope.UID]; !ok || !c.After(newest.Add(time.Minute)) {
+				stale++
+				continue
+			}
+			judged++
+			for _, res := range r.Results {
+				if res.Result == "fail" {
+					failing = append(failing, fmt.Sprintf("%s/%s: %s", r.Metadata.Namespace, r.Scope.Name, res.Policy))
+				}
+			}
+		}
+		t.Logf("judged the reports of %d pods created after the newest PolicyException (%s); skipped %d older", judged, newest, stale)
+		assert.NotZero(t, judged, "no pod created after the newest PolicyException to judge")
 		assert.Empty(t, failing, "workloads failing Kyverno's policies (a fix or a PolicyException is missing)")
 	})
 }

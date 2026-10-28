@@ -54,8 +54,13 @@ namespaces, privileged, added capabilities), its namespace must be `privileged` 
 ## Reports
 
 ```sh
-kubectl get policyreports -A                      # one per namespace
-kubectl -n <namespace> get policyreports -o yaml  # each result: pass, fail, skip
+kubectl get policyreports -A                      # one per resource (its scope)
+kubectl -n <namespace> get policyreports -o yaml  # each result: fail, error or warn (passes are not kept)
 ```
 
 `TestPolicy` checks that no workload of this repository fails. That is the condition for switching to Enforce.
+
+On a fresh cluster a pod can start before Kyverno has cached the PolicyException beside it, so its report (and its
+Deployment's) shows a `fail` the exception excuses, until the next background scan (every 6 hours in the sandbox, every
+hour in production) or the pod is recreated. `TestPolicy` therefore judges only the reports of pods created a minute
+after the newest exception; `scripts/ci-check policy` judges every rendered workload, so nothing escapes both.
