@@ -178,25 +178,33 @@ func TestPolicy(t *testing.T) {
 		}, 5*time.Minute, 10*time.Second, "no report of the bare pod's failure")
 
 		// No repository workload fails: Enforce (15b-2) can follow. Only pods created once every PolicyException
-		// existed count: a pod (and its Deployment's report) admitted while Kyverno had not yet cached the
+		// existed in its current form (created or last changed) count: a pod (and its Deployment's report) admitted while Kyverno had not yet cached the
 		// exceptions keeps its fail until the next background scan (6 hours here), which is a startup race, not a
 		// missing fix; scripts/ci-check policy judges every rendered workload anyway
 		type meta struct {
 			Namespace         string    `json:"namespace"`
 			UID               string    `json:"uid"`
 			CreationTimestamp time.Time `json:"creationTimestamp"`
+			ManagedFields     []struct {
+				Time time.Time `json:"time"`
+			} `json:"managedFields"`
 		}
 		var exceptions, pods struct {
 			Items []struct {
 				Metadata meta `json:"metadata"`
 			} `json:"items"`
 		}
-		kubectlJSON(t, &exceptions, "get", "policyexceptions.policies.kyverno.io", "-A")
+		kubectlJSON(t, &exceptions, "get", "policyexceptions.policies.kyverno.io", "-A", "--show-managed-fields")
 		require.NotEmpty(t, exceptions.Items, "no PolicyException in the sandbox")
 		var newest time.Time
 		for _, e := range exceptions.Items {
 			if e.Metadata.CreationTimestamp.After(newest) {
 				newest = e.Metadata.CreationTimestamp
+			}
+			for _, f := range e.Metadata.ManagedFields {
+				if f.Time.After(newest) {
+					newest = f.Time
+				}
 			}
 		}
 		// k3s's own pods (kube-system) are not the repository's; passes leave no report, so the pods judged are
@@ -239,7 +247,7 @@ func TestPolicy(t *testing.T) {
 			}
 		}
 		// On a fresh cluster few pods start that late; the renders are judged in full by scripts/ci-check policy
-		t.Logf("judged %d of %d pods: those created after the newest PolicyException (%s)", len(fresh), len(pods.Items), newest)
+		t.Logf("judged %d of %d pods: those created after the newest PolicyException change (%s)", len(fresh), len(pods.Items), newest)
 		assert.Empty(t, failing, "workloads failing Kyverno's policies (a fix or a PolicyException is missing)")
 	})
 }
