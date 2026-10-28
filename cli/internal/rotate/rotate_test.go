@@ -1040,17 +1040,21 @@ func TestRotateAllSkipsMissingNamespaces(t *testing.T) {
 	r := &Rotator{Methods: map[Kind]Method{KindGenerated: fakeMethod{}}, Deployed: func(ns string) bool { return ns != "paperless" }}
 	absent := Entry{Name: "paperless.secret-key", Kind: KindGenerated, Readers: []Reader{{Namespace: "paperless"}}}
 	shared := Entry{Name: "ntfy.alerts-token", Kind: KindGenerated, Readers: []Reader{{Namespace: "ntfy"}, {Namespace: "paperless"}}}
-	if got := r.Skip(absent, Options{All: true}); !strings.Contains(got, "not deployed") {
+	if got := r.Skip(absent, Options{All: true, Env: "sandbox"}); !strings.Contains(got, "not deployed") {
 		t.Fatalf("--all: Skip = %q", got)
 	}
-	if got := r.Skip(shared, Options{All: true}); got != "" {
+	// Production deploys every app: a missing namespace there is a problem the run must hit, not skip
+	if got := r.Skip(absent, Options{All: true, Env: "production"}); got != "" {
+		t.Fatalf("production skipped an entry: %q", got)
+	}
+	if got := r.Skip(shared, Options{All: true, Env: "sandbox"}); got != "" {
 		t.Fatalf("an entry with a deployed reader was skipped: %q", got)
 	}
-	if got := r.Skip(absent, Options{}); got != "" {
+	if got := r.Skip(absent, Options{Env: "sandbox"}); got != "" {
 		t.Fatalf("a named entry was skipped: %q", got)
 	}
 	r.Deployed = nil
-	if got := r.Skip(absent, Options{All: true}); got != "" {
+	if got := r.Skip(absent, Options{All: true, Env: "sandbox"}); got != "" {
 		t.Fatalf("without Deployed every namespace counts as present: %q", got)
 	}
 }

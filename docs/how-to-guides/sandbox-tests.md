@@ -20,10 +20,13 @@ Paperless and OpenCloud take about 900 MB, so the local sandbox runs them only w
 - **on request**: `make dev apps=paperless`, `apps=paperless,opencloud`, or `apps=all`, for example with
   `make dev-fresh apps=all`.
 
-`make dev` prints the list (`optional apps '...'`). An app left out is removed, its namespace and volumes too. Its
-tests skip (`TestSSOPaperless`, `TestSSOOpenCloud`, the smoke check), and `lab secrets rotate --all` skips its
-secrets ("not deployed here"). GitHub Actions' sandboxes (the release, a retargeted pull request, on demand) always run
-with `apps=all`, so paperless and OpenCloud are proved before every release.
+`make dev` prints the list (`optional apps '...'`) and refuses a name that is not an optional app. An app left out is
+removed: Argo CD deletes its Application, and `make dev` deletes its namespace (Argo CD keeps namespaces it created),
+volumes included. Its tests skip (`TestSSOPaperless`, `TestSSOOpenCloud`, the smoke check), and in the sandbox
+`lab secrets rotate --all` skips its secrets ("not deployed here"). An app the list names but that is absent fails
+the tests instead. GitHub Actions' release, retarget and on-demand sandboxes run with `apps=all`, so paperless and
+OpenCloud are proved before every release; a pull request labelled `sandbox` deploys them only when it changes their
+files, as `make dev` does.
 
 For example, the Loki and OpenBao tests only:
 

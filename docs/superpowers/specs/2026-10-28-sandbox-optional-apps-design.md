@@ -29,13 +29,15 @@ touch them.
      ApplicationSet's git generator. The bootstrap re-applies when the list changes.
    - `make dev` computes the list: the `optional_apps` named in the Makefile whose file changed since the base, plus
      `apps=`. It prints the list.
-   - Removing an app from the list deletes its Application. `root`'s `preserveResourcesOnDeletion` concerns `root`,
-     not `apps`, so the app's namespace and volumes go with it. That is fine in the sandbox.
+   - Removing an app from the list deletes its Application. Argo CD keeps a namespace it created
+     (`CreateNamespace=true`), so `make dev` deletes the namespaces of the optional apps it left out, volumes
+     included; that is fine in the sandbox. *(review)*
+   - The tests get the list (`HOMELAB_SANDBOX_APPS`): an app it names that is absent fails, never skips, so the
+     release sandbox cannot go green without them. *(review)*
 5. *(Claude's call)* **Tests follow what is deployed.**
    - `TestSSOPaperless`, `TestSSOOpenCloud` and the smoke list skip an app whose Application does not exist, and say so.
-   - `lab secrets rotate --all` skips an entry whose readers' namespaces do not exist, reported as "not deployed",
-     instead of failing. Production has every namespace, so nothing changes there; `TestRotation`'s `--all` passes
-     without the optional apps.
+   - `lab secrets rotate --all --env sandbox` skips an entry whose readers' namespaces do not exist, reported as
+     "not deployed", instead of failing. Production is unchanged: a missing namespace there is hit, not skipped.
    - The scheduled rotation already rotates no paperless entry (they have no period).
 6. *(Claude's call)* **Docs:** `docs/installation/sandbox.md` and `docs/how-to-guides/sandbox-tests.md` (optional apps,
    `apps=`), and CLAUDE.md's Sandbox section.

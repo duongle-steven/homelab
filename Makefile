@@ -45,11 +45,14 @@ dev: sandbox-checkout sandbox-clean
 	opt=$$( { if [ "$(apps)" = all ]; then echo "$(optional_apps)"; else echo "$(apps)" | tr , ' '; fi; \
 		for a in $(optional_apps); do git diff --quiet "$(base)...HEAD" -- "apps/$$a.yaml" 2>/dev/null || echo "$$a"; done; } | \
 		tr ' ' '\n' | sed '/^$$/d' | sort -u | tr '\n' ' '); \
+	for a in $$opt; do case " $(optional_apps) " in *" $$a "*) ;; *) echo "make dev: $$a is not an optional app ($(optional_apps))" >&2; exit 1 ;; esac; done; \
 	echo "make dev: optional apps '$$opt'"; \
 	if [ -z "$(revision)" ]; then $(MAKE) sandbox-push; fi && \
 	scripts/warm-image-cache && \
 	(cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$$([ -z "$(revision)" ] || git rev-parse HEAD)" HOMELAB_SANDBOX_APPS="$$opt" $(terragrunt_apply)) && \
+	for a in $(optional_apps); do case " $$opt " in *" $$a "*) ;; *) kubectl --kubeconfig infra/sandbox/kubeconfig.yaml delete namespace "$$a" --ignore-not-found --wait=false >/dev/null ;; esac; done && \
 	scripts/build-lab-image && \
+	export HOMELAB_SANDBOX_APPS="$$opt" && \
 	{ if { [ -z "$$main" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$main" sandbox-refresh smoke-test; } && \
 	{ [ -z "$$alone" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; }; \
 	then status=0; else status=$$?; fi; scripts/warm-image-cache --node || true; exit $$status; }

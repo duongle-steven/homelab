@@ -66,3 +66,8 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15a | `check-leaks` scans only the merge-commit range's own diffs: a change made only in a merge commit is not scanned; run directly without BASE it scans one commit | any |
 | 15a | `TestCheckIaC` uses a fake Trivy: the ignore file's effect is proven only by the real run in CI | any |
 | 15a | `TestBackupRestore`'s one-app restore once read the repository back as 404 right after `lab backup restore forgejo` (a rerun passed): find whether Forgejo answered before its restored data was in place | any |
+| 14e | `deployedNamespaces` counts every namespace as present after a failed list without saying so: print one line | any |
+| 14e | `Rotator.Run` still checks `overdue` for an entry skipped as not deployed (harmless while no optional app's entry has a period) | any |
+| 14e | `make dev` counts a failed `git diff` (unknown base, shallow clone) as "changed" and deploys both optional apps silently: warn | any |
+| 14e | `TestSetSandboxApps` does not assert the other documents unchanged or that a blank list is a no-op | any |
+| 14e | `infra/_modules/argocd`'s hash covers `system/argocd` only: a change to `set-sandbox-apps.sh` (or `set-revision.sh`) does not re-run the bootstrap | any |

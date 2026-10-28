@@ -69,8 +69,8 @@ type Rotator struct {
 	Store   Records
 	// Backups lists the off-site runs (backup.Client.Runs)
 	Backups func(ctx context.Context) ([]backup.Run, error)
-	// Deployed reports whether a reader's namespace exists (nil: every one does). --all skips an entry none of
-	// whose readers is deployed: the sandbox runs paperless and OpenCloud only on request
+	// Deployed reports whether a reader's namespace exists (nil: every one does). --all in the sandbox skips an
+	// entry none of whose readers is deployed: it runs paperless and OpenCloud only on request
 	Deployed func(namespace string) bool
 	// Idle reports whether what (an entry's Idle: woodpecker, paperless) is idle
 	Idle func(ctx context.Context, what string) (bool, error)
@@ -187,7 +187,8 @@ func (r *Rotator) Skip(e Entry, o Options) string {
 	if where := elsewhere(e, o.Env); where != "" {
 		return where
 	}
-	if o.All && r.Deployed != nil && len(e.Readers) > 0 && !slices.ContainsFunc(e.Readers, func(rd Reader) bool { return r.Deployed(rd.Namespace) }) {
+	// Only the sandbox leaves apps out (paperless, OpenCloud); production deploys every one
+	if o.All && o.Env == "sandbox" && r.Deployed != nil && len(e.Readers) > 0 && !slices.ContainsFunc(e.Readers, func(rd Reader) bool { return r.Deployed(rd.Namespace) }) {
 		return "not deployed here (its readers' namespaces do not exist)"
 	}
 	if o.Scheduled && e.Period == 0 {
