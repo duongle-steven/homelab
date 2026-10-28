@@ -63,6 +63,6 @@ kubectl -n <namespace> get policyreports -o yaml  # each result: fail, error or 
 On a fresh cluster a pod can start before Kyverno has cached the PolicyException beside it, so its report (and its
 Deployment's) shows a `fail` the exception excuses, until the next background scan (every 6 hours in the sandbox, every
 hour in production) or the pod is recreated. `TestPolicy` therefore judges only the reports of pods created a minute
-after the newest exception (k3s's own pods in `kube-system` are not the repository's). On a fresh sandbox that is few
+after the newest exception was created or changed (k3s's own pods in `kube-system` are not the repository's). On a fresh sandbox that is few
 pods (often only CronJob runs): there `TestPolicy` does not prove the renders clean, `scripts/ci-check policy` does.
 Before Enforce (15b-2), read the reports of a sandbox that has run a background scan since its first sync.

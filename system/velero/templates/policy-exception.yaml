@@ -25,10 +25,10 @@ metadata:
   annotations:
     # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-    homelab/reason: "velero's image runs as the non-numeric user cnb, so runAsNonRoot cannot be stated without guessing its uid: revisit"
+    homelab/reason: "velero's image runs as the non-numeric user cnb, so runAsNonRoot cannot be stated without guessing its uid: revisit; so do the Kopia repository maintenance Jobs Velero creates from it (<repository>-default-kopia-maintain-job-<n>)"
 spec:
   policyRefs:
     - {name: require-run-as-nonroot, kind: ValidatingPolicy}
   matchConditions:
     - name: velero
-      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('velero'))"
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('velero') || object.metadata.name.contains('-kopia-maintain-job-'))"
