@@ -1033,3 +1033,24 @@ func TestScheduledLeavesWorkstationEntries(t *testing.T) {
 		t.Fatalf("overdue = %v, %v", over, err)
 	}
 }
+
+// An app the sandbox does not deploy (paperless, OpenCloud: optional there) is skipped by --all, never by name, and
+// an entry with any reader namespace present still rotates
+func TestRotateAllSkipsMissingNamespaces(t *testing.T) {
+	r := &Rotator{Methods: map[Kind]Method{KindGenerated: fakeMethod{}}, Deployed: func(ns string) bool { return ns != "paperless" }}
+	absent := Entry{Name: "paperless.secret-key", Kind: KindGenerated, Readers: []Reader{{Namespace: "paperless"}}}
+	shared := Entry{Name: "ntfy.alerts-token", Kind: KindGenerated, Readers: []Reader{{Namespace: "ntfy"}, {Namespace: "paperless"}}}
+	if got := r.Skip(absent, Options{All: true}); !strings.Contains(got, "not deployed") {
+		t.Fatalf("--all: Skip = %q", got)
+	}
+	if got := r.Skip(shared, Options{All: true}); got != "" {
+		t.Fatalf("an entry with a deployed reader was skipped: %q", got)
+	}
+	if got := r.Skip(absent, Options{}); got != "" {
+		t.Fatalf("a named entry was skipped: %q", got)
+	}
+	r.Deployed = nil
+	if got := r.Skip(absent, Options{All: true}); got != "" {
+		t.Fatalf("without Deployed every namespace counts as present: %q", got)
+	}
+}
