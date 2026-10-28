@@ -6,6 +6,10 @@ metadata:
 spec:
   domain: {{ .Values.kanidm.host }}.{{ .Values.global.baseDomain }}
   image: {{ .Values.kanidm.image }}
+  # Pod Security restricted (system/kyverno): kaniop takes only the pod's securityContext (templates/policy-exception.yaml)
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
   replicaGroups:
     - name: default
       replicas: 1

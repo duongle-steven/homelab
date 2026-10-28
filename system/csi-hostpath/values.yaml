@@ -5,5 +5,14 @@
 # (templates/driver.yaml: the k3d node's own overlayfs refuses the idmapped mounts of pods in user namespaces).
 snapshot-controller:
   controller:
+    # Pod Security restricted (system/kyverno)
+    podSecurityContext:
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
     # The API server calls its webhook-free controller only through CRs: no mesh exception needed
     replicaCount: 1

@@ -12,7 +12,7 @@ terragrunt_apply = $(terragrunt) run --all apply --non-interactive -- -auto-appr
 scope ?= auto
 base ?= origin/dev
 # Apps the sandbox deploys only when asked (make dev apps=paperless,opencloud or apps=all) or when the branch changes
-# their file since base: docs/installation/sandbox.md
+# their file since base (apps=none: never, even then): docs/how-to-guides/sandbox-tests.md
 optional_apps = paperless opencloud
 apps ?=
 tests ?=
@@ -42,8 +42,8 @@ dev: sandbox-checkout sandbox-clean
 	main=$$(eval "$(lab) $$sel") && alone=$$(eval "$(lab) $$sel --alone") || exit 1; \
 	if [ -z "$$main$$alone" ]; then echo "make dev: nothing to test in the sandbox (no change outside test/scopes.yaml's skip)"; exit 0; fi; \
 	echo "make dev: main run '$$main', then alone '$$alone'"; \
-	opt=$$( { if [ "$(apps)" = all ]; then echo "$(optional_apps)"; else echo "$(apps)" | tr , ' '; fi; \
-		for a in $(optional_apps); do git diff --quiet "$(base)...HEAD" -- "apps/$$a.yaml" 2>/dev/null || echo "$$a"; done; } | \
+	opt=$$( { if [ "$(apps)" = none ]; then :; elif [ "$(apps)" = all ]; then echo "$(optional_apps)"; else echo "$(apps)" | tr , ' '; fi; \
+		[ "$(apps)" = none ] || for a in $(optional_apps); do git diff --quiet "$(base)...HEAD" -- "apps/$$a.yaml" 2>/dev/null || echo "$$a"; done; } | \
 		tr ' ' '\n' | sed '/^$$/d' | sort -u | tr '\n' ' '); \
 	for a in $$opt; do case " $(optional_apps) " in *" $$a "*) ;; *) echo "make dev: $$a is not an optional app ($(optional_apps))" >&2; exit 1 ;; esac; done; \
 	echo "make dev: optional apps '$$opt'"; \

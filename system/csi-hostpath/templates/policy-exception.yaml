@@ -1,0 +1,22 @@
+# Pod Security restricted (system/kyverno) does not hold here: each exception says why in homelab/reason
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: hostpath-plugin
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    homelab/reason: "the sandbox's CSI driver mounts volumes on its node: privileged, hostPath"
+spec:
+  policyRefs:
+    - {name: disallow-host-path, kind: ValidatingPolicy}
+    - {name: disallow-privileged-containers, kind: ValidatingPolicy}
+    - {name: disallow-privilege-escalation, kind: ValidatingPolicy}
+    - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+    - {name: restrict-seccomp-strict, kind: ValidatingPolicy}
+    - {name: restrict-volume-types, kind: ValidatingPolicy}
+  matchConditions:
+    - name: hostpath-plugin
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('csi-hostpathplugin'))"

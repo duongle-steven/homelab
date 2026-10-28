@@ -1,0 +1,33 @@
+# Pod Security restricted (system/kyverno) does not hold here: each exception says why in homelab/reason
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: rook
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    homelab/reason: "production only: Ceph's operator creates OSD, monitor and CSI pods that need the node (privileged, host network, hostPath), and Rook 1.13's charts set no seccomp; the whole namespace is privileged under Pod Security Admission too. Revisit with Rook's upgrade in 12b"
+spec:
+  policyRefs:
+    - {name: disallow-capabilities, kind: ValidatingPolicy}
+    - {name: disallow-capabilities-strict, kind: ValidatingPolicy}
+    - {name: disallow-host-namespaces, kind: ValidatingPolicy}
+    - {name: disallow-host-path, kind: ValidatingPolicy}
+    - {name: disallow-host-ports, kind: ValidatingPolicy}
+    - {name: disallow-host-process, kind: ValidatingPolicy}
+    - {name: disallow-privileged-containers, kind: ValidatingPolicy}
+    - {name: disallow-privilege-escalation, kind: ValidatingPolicy}
+    - {name: disallow-proc-mount, kind: ValidatingPolicy}
+    - {name: disallow-proc-mount-strict, kind: ValidatingPolicy}
+    - {name: disallow-selinux, kind: ValidatingPolicy}
+    - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+    - {name: require-run-as-non-root-user, kind: ValidatingPolicy}
+    - {name: restrict-apparmor-profiles, kind: ValidatingPolicy}
+    - {name: restrict-seccomp, kind: ValidatingPolicy}
+    - {name: restrict-seccomp-strict, kind: ValidatingPolicy}
+    - {name: restrict-sysctls, kind: ValidatingPolicy}
+    - {name: restrict-volume-types, kind: ValidatingPolicy}
+  matchConditions:
+    - name: rook-ceph
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}'"

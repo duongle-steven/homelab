@@ -1,0 +1,19 @@
+# Pod Security restricted (system/kyverno) does not hold here: each exception says why in homelab/reason
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: zot
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    homelab/reason: "zot's image runs as root (USER 0) and its chart has no securityContext values"
+spec:
+  policyRefs:
+    - {name: disallow-privilege-escalation, kind: ValidatingPolicy}
+    - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+    - {name: restrict-seccomp-strict, kind: ValidatingPolicy}
+  matchConditions:
+    - name: zot
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('zot'))"

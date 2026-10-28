@@ -1,18 +1,35 @@
 # Off-site copies of the volumes labelled homelab/backup (docs/how-to-guides/backup-and-restore.md): CSI snapshots moved
 # into a Kopia repository on R2 by Velero's data mover. Volumes only: git rebuilds every other resource.
 velero:
+  # Pod Security restricted (system/kyverno); the user is the image's (templates/policy-exception.yaml)
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
   image:
     # The chart ships 1.18.2
     tag: v1.18.4
   initContainers:
     - name: aws-plugin
       image: velero/velero-plugin-for-aws:v1.14.4
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
       volumeMounts:
         - name: plugins
           mountPath: /target
   # The data mover runs in the node agent: CSI snapshots, no file-system backups of pod volumes
   deployNodeAgent: true
   nodeAgent:
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
     disableHostPath: true
     # Restores run with the app stopped: WaitForFirstConsumer volumes must not wait for a consumer pod
     extraArgs:

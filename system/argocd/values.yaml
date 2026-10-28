@@ -193,8 +193,13 @@ argocd-apps:
               labels:
                 # Every namespace joins Istio's ambient mesh (system/istio-system); exceptions: templatePatch below
                 istio.io/dataplane-mode: ambient
+                # Pod Security Admission, the second layer under Kyverno (system/kyverno): baseline everywhere; the
+                # namespaces whose pods need the node (PolicyExceptions there) are privileged: templatePatch below
+                pod-security.kubernetes.io/enforce: baseline
       # The mesh itself and Ceph (some host-network pods, its own encryption) stay out of the mesh; keep in step with
       # OUTSIDE in scripts/check-mesh-policies and test/mesh_test.go
+      # Privileged under Pod Security Admission: the mesh's CNI and ztunnel, Ceph's OSDs, kured, Alloy, node-exporter
+      # and the sandbox's CSI driver (their PolicyExceptions say why); keep in step with test/policy_test.go
       templatePatch: |
         {{- if has .path.basename (list "istio-system" "rook-ceph") }}
         spec:
@@ -202,6 +207,14 @@ argocd-apps:
             managedNamespaceMetadata:
               labels:
                 istio.io/dataplane-mode: none
+                pod-security.kubernetes.io/enforce: privileged
+        {{- else if has .path.basename (list "kured" "loki" "monitoring-system" "csi-hostpath") }}
+        spec:
+          syncPolicy:
+            managedNamespaceMetadata:
+              labels:
+                istio.io/dataplane-mode: ambient
+                pod-security.kubernetes.io/enforce: privileged
         {{- else if eq .path.basename "velero" }}
         # Every new cluster starts read-only and paused (system/velero); lab backup enable switches these two fields,
         # which syncs then keep
@@ -222,6 +235,16 @@ argocd-apps:
     # One Application per app-template values file apps/<name>.yaml (apps/matrix/ is a chart, synced by root)
     apps:
       namespace: argocd
+      # The VPN routers need NET_ADMIN: privileged under Pod Security Admission (their PolicyExceptions say why)
+      templatePatch: |
+        {{- if has (.path.filename | trimSuffix ".yaml") (list "tailscale" "wireguard") }}
+        spec:
+          syncPolicy:
+            managedNamespaceMetadata:
+              labels:
+                istio.io/dataplane-mode: ambient
+                pod-security.kubernetes.io/enforce: privileged
+        {{- end }}
       # lab backup restore pauses one Application's automated sync while it replaces a volume: without this the
       # ApplicationSet puts it back within seconds
       ignoreApplicationDifferences:

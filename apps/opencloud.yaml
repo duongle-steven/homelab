@@ -2,14 +2,24 @@
 controllers:
   main:
     strategy: Recreate
+    # Pod Security restricted (system/kyverno): the image's own user (1000), RuntimeDefault seccomp, no capabilities
     pod:
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
     defaultContainerOptions:
       image:
         repository: docker.io/opencloudeu/opencloud-rolling
         tag: 8.1.0
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
     initContainers:
       config:
         # Generates opencloud.yaml with OpenCloud's internal secrets once; they live on the config PVC

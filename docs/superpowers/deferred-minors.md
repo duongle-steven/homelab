@@ -65,9 +65,13 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15a | `.trivyignore.yaml`'s 90-day expiry for CVEs is a convention, not checked | any |
 | 15a | `check-leaks` scans only the merge-commit range's own diffs: a change made only in a merge commit is not scanned; run directly without BASE it scans one commit | any |
 | 15a | `TestCheckIaC` uses a fake Trivy: the ignore file's effect is proven only by the real run in CI | any |
-| 15a | `TestBackupRestore`'s one-app restore once read the repository back as 404 right after `lab backup restore forgejo` (a rerun passed): find whether Forgejo answered before its restored data was in place | any |
+| 15a | `TestBackupRestore`'s one-app restore read (again in 15b's run) the repository back as 404 right after `lab backup restore forgejo` (a rerun passed): find whether Forgejo answered before its restored data was in place | any |
+| 15b | `TestBackupRestore`'s whole-cluster restore once found OpenBao's marker missing right after `lab backup restore` (`No value found`), though OpenBao's restore Job completed; its log was gone (the pod deleted) and a rerun passed that part: keep the Job's log in `lab`'s output | any |
 | 14e | `deployedNamespaces` counts every namespace as present after a failed list without saying so: print one line | any |
 | 14e | `Rotator.Run` still checks `overdue` for an entry skipped as not deployed (harmless while no optional app's entry has a period) | any |
 | 14e | `make dev` counts a failed `git diff` (unknown base, shallow clone) as "changed" and deploys both optional apps silently: warn | any |
 | 14e | `TestSetSandboxApps` does not assert the other documents unchanged or that a blank list is a no-op | any |
 | 14e | `infra/_modules/argocd`'s hash covers `system/argocd` only: a change to `set-sandbox-apps.sh` (or `set-revision.sh`) does not re-run the bootstrap | any |
+| 15b | `scripts/check-policy` takes about four minutes (every chart, both environments) on every pull request: limit it to the touched charts once policies are stable | any |
+| 15b | `TestPolicy` judges only pods created a minute after the newest PolicyException (older reports keep the startup race's stale `fail`): on a fresh sandbox that is few pods; judge controller reports after a fresh scan before Enforce | 15b-2 |
+| 15b | The Gateways (`gateway-istio`, `public-istio`) run without a seccomp profile (Istio generates their Deployments; excused): set it through the Gateways' `parametersRef` | 15b-2 |

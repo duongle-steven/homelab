@@ -1,0 +1,44 @@
+# Pinned images and allowed registries, as kyverno-policies' ValidatingPolicies are written: Audit, on pods (Kyverno
+# generates the same check for their controllers)
+{{- $registries := concat .Values.registries (list (printf "registry.%s" .Values.global.baseDomain)) }}
+{{- range $name, $policy := dict
+  "require-pinned-images" (dict
+    "title" "Require pinned images"
+    "description" "An image names a tag other than latest, or a digest (CLAUDE.md: every image pinned exactly)."
+    "expression" "variables.ctnrs.all(c, c.image.contains('@') || (c.image.substring(c.image.lastIndexOf('/') + 1).contains(':') && !c.image.endsWith(':latest')))"
+    "message" "An image must be pinned: a tag other than latest, or a digest.")
+  "allowed-registries" (dict
+    "title" "Allowed registries"
+    "description" "An image comes from a registry this homelab trusts (values.yaml registries, and zot)."
+    "expression" (printf "variables.ctnrs.all(c, (c.image.contains('/') && (c.image.split('/')[0].contains('.') || c.image.split('/')[0].contains(':')) ? c.image.split('/')[0] : 'docker.io') in %s)" (toJson $registries))
+    "message" (printf "An image must come from one of %s." (join ", " $registries))) }}
+---
+apiVersion: policies.kyverno.io/v1beta1
+kind: ValidatingPolicy
+metadata:
+  name: {{ $name }}
+  annotations:
+    policies.kyverno.io/title: {{ $policy.title }}
+    policies.kyverno.io/category: Homelab
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: {{ $policy.description | quote }}
+spec:
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: ctnrs
+      expression: >-
+        object.spec.containers +
+        object.spec.?initContainers.orValue([]) +
+        object.spec.?ephemeralContainers.orValue([])
+  validations:
+    - expression: {{ $policy.expression | quote }}
+      message: {{ $policy.message | quote }}
+  validationActions: [Audit]
+{{- end }}
