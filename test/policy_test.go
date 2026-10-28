@@ -194,7 +194,7 @@ func TestPolicy(t *testing.T) {
 				Metadata meta `json:"metadata"`
 			} `json:"items"`
 		}
-		kubectlJSON(t, &exceptions, "get", "policyexceptions.policies.kyverno.io", "-A")
+		kubectlJSON(t, &exceptions, "get", "policyexceptions.policies.kyverno.io", "-A", "--show-managed-fields")
 		require.NotEmpty(t, exceptions.Items, "no PolicyException in the sandbox")
 		var newest time.Time
 		for _, e := range exceptions.Items {
