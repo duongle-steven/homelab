@@ -20,7 +20,7 @@ Paperless and OpenCloud take about 900 MB, so the local sandbox runs them only w
 - **on request**: `make dev apps=paperless`, `apps=paperless,opencloud`, or `apps=all`, for example with
   `make dev-fresh apps=all`.
 
-`apps=none` leaves both out even when the branch changes their files: a branch that touches every app can then be
+`apps=none` (alone, never with names) leaves both out even when the branch changes their files: a branch that touches every app can then be
 proved in two runs that each fit in memory, `make dev scope=full apps=none` and then
 `make dev apps=all tests='SSOPaperless|SSOOpenCloud|Smoke'`.
 

@@ -24,7 +24,7 @@ var meshOptOuts = []string{
 	"monitoring-system/kube-prometheus-stack-prometheus-operator",
 	"cloudnative-pg/cloudnative-pg",
 	"kyverno/kyverno-admission-controller",
-	"kyverno/kyverno-cleanup-controller",
+	"kyverno/kyverno-cleanup-controller", // production only: the sandbox runs no cleanup controller
 	"wireguard/wireguard",
 	"tailscale/tailscale",
 }

@@ -73,3 +73,5 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 14e | `TestSetSandboxApps` does not assert the other documents unchanged or that a blank list is a no-op | any |
 | 14e | `infra/_modules/argocd`'s hash covers `system/argocd` only: a change to `set-sandbox-apps.sh` (or `set-revision.sh`) does not re-run the bootstrap | any |
 | 15b | `scripts/check-policy` takes about four minutes (every chart, both environments) on every pull request: limit it to the touched charts once policies are stable | any |
+| 15b | `TestPolicy` judges only pods created a minute after the newest PolicyException (older reports keep the startup race's stale `fail`): on a fresh sandbox that is few pods; judge controller reports after a fresh scan before Enforce | 15b-2 |
+| 15b | The Gateways (`gateway-istio`, `public-istio`) run without a seccomp profile (Istio generates their Deployments; excused): set it through the Gateways' `parametersRef` | 15b-2 |

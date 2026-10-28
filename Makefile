@@ -12,7 +12,7 @@ terragrunt_apply = $(terragrunt) run --all apply --non-interactive -- -auto-appr
 scope ?= auto
 base ?= origin/dev
 # Apps the sandbox deploys only when asked (make dev apps=paperless,opencloud or apps=all) or when the branch changes
-# their file since base (apps=none: never, even then): docs/installation/sandbox.md
+# their file since base (apps=none: never, even then): docs/how-to-guides/sandbox-tests.md
 optional_apps = paperless opencloud
 apps ?=
 tests ?=
