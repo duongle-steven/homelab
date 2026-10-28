@@ -4,6 +4,10 @@ kyverno:
   # No cleanup policy
   cleanupController:
     enabled: false
+  # Two aggregation workers (ten by default)
+  reportsController:
+    extraArgs:
+      aggregationWorkers: 2
   features:
     # One worker, every six hours (TestPolicy reads the reports of what it creates, written at admission)
     backgroundScan:

@@ -17,16 +17,21 @@ kyverno:
   admissionController:
     podLabels:
       istio.io/dataplane-mode: none
+    container:
+      extraArgs:
+        allowedResults: fail,error,warn
   cleanupController:
     podLabels:
       istio.io/dataplane-mode: none
   # Only validating policies here: no generate or mutate-existing policy for it to run
   backgroundController:
     enabled: false
-  # Its default client rate limit (20/s, burst 50) left no room to renew its leader Lease while it aggregated the
-  # cluster's reports, so it lost the lease and restarted, again and again (the sandbox, 2026-10-28)
+  # Reports hold only what needs attention (a result per policy and workload otherwise: mostly pass). At the defaults
+  # the reports controller, aggregating them under its client rate limit (20/s, burst 50), could not renew its
+  # leader Lease in time and restarted, again and again (the sandbox, 2026-10-28)
   reportsController:
     extraArgs:
+      allowedResults: fail,error,warn
       clientRateLimitQPS: 50
       clientRateLimitBurst: 100
 kyverno-policies:
