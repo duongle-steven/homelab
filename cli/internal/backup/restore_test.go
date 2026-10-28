@@ -234,6 +234,20 @@ func TestRestoreClusterOpenBaoFirst(t *testing.T) {
 	}
 }
 
+// The snapshot CronJob must not run between the volume's restore and the raft restore: it would replace the restored
+// raft.snap with a snapshot of the new, empty OpenBao, which the raft restore would then read
+func TestRestoreOpenBaoBeforeItsCronJobsResume(t *testing.T) {
+	c, rec, _ := restoreFixture(t)
+	if err := c.RestoreApp(context.Background(), "openbao", Offsite, time.Time{}, daily); err != nil {
+		t.Fatal(err)
+	}
+	bao := rec.index(t, "create jobs openbao")
+	resume := rec.index(t, `patch cronjobs openbao openbao-snapshot {"spec":{"suspend":false}}`)
+	if resume < bao {
+		t.Fatalf("the snapshot CronJob resumed (%d) before the raft restore (%d)", resume, bao)
+	}
+}
+
 // A whole-cluster restore from one app's push would skip OpenBao and every other app, then report success
 func TestPlanClusterRefusesPush(t *testing.T) {
 	c, _, _ := restoreFixture(t)

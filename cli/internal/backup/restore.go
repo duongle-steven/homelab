@@ -220,6 +220,11 @@ func (c *Client) restoreApp(ctx context.Context, app string, src Source, at time
 			return stopped(err)
 		}
 	}
+	// Only now: OpenBao's snapshot CronJob, run before the raft restore, would replace the restored raft.snap with a
+	// snapshot of the new, empty OpenBao
+	if err := c.startCronJobs(ctx, app, saved); err != nil {
+		return stopped(err)
+	}
 	if err := c.resume(ctx, app, saved); err != nil {
 		return stopped(err)
 	}
@@ -478,7 +483,7 @@ func (c *Client) stop(ctx context.Context, app string, claims []corev1.Persisten
 	})
 }
 
-// start puts back what stop changed, the clusters' reconciliation first
+// start puts back what stop changed but the CronJobs (startCronJobs), the clusters' reconciliation first
 func (c *Client) start(ctx context.Context, app string, s *savedApp) error {
 	for _, name := range s.clusters {
 		if err := c.patch(ctx, CNPGClusters, app, name, map[string]any{"metadata": map[string]any{"annotations": map[string]any{"cnpg.io/hibernation": nil}}}); err != nil {
@@ -501,6 +506,11 @@ func (c *Client) start(ctx context.Context, app string, s *savedApp) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// startCronJobs undoes stop's suspension, once the app's own restore steps are done
+func (c *Client) startCronJobs(ctx context.Context, app string, s *savedApp) error {
 	for _, name := range s.CronJobs {
 		if _, err := c.Kube.BatchV1().CronJobs(app).Patch(ctx, name, types.MergePatchType, []byte(`{"spec":{"suspend":false}}`), metav1.PatchOptions{}); err != nil {
 			return err
