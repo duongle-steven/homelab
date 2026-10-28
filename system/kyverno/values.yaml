@@ -20,12 +20,9 @@ kyverno:
   cleanupController:
     podLabels:
       istio.io/dataplane-mode: none
-  # Its first background scan of the whole cluster spent its client rate limit, so renewing its leader Lease timed
-  # out and it restarted, again and again (the sandbox, 2026-10-27)
-  reportsController:
-    extraArgs:
-      clientRateLimitQPS: 100
-      clientRateLimitBurst: 200
+  # Only validating policies here: no generate or mutate-existing policy for it to run
+  backgroundController:
+    enabled: false
 kyverno-policies:
   podSecurityStandard: restricted
   validationFailureAction: Audit

@@ -1,0 +1,17 @@
+# The one-node sandbox shares its node with every component and the tests: Kyverno's first full scan, with the suite
+# running, slowed the API server until k3s lost its own leader lease and restarted (2026-10-27). Less work here:
+kyverno:
+  # No cleanup policy
+  cleanupController:
+    enabled: false
+  features:
+    # One worker, every six hours (TestPolicy reads the reports of what it creates, written at admission)
+    backgroundScan:
+      backgroundScanWorkers: 1
+      backgroundScanInterval: 6h
+    # Only validating policies
+    reporting:
+      mutate: false
+      mutateExisting: false
+      imageVerify: false
+      generate: false
