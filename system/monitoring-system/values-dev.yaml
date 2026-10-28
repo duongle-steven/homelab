@@ -1,6 +1,11 @@
 # The sandbox has no Telegram bot: no volume, and the receivers restated without telegram_configs (Helm replaces
 # lists: keep them in step with values.yaml)
 kube-prometheus-stack:
+  # The sandbox's largest component (1.5 GB): one day is enough for the tests, which read recent series
+  # (docs/superpowers/specs/2026-10-28-sandbox-optional-apps-design.md)
+  prometheus:
+    prometheusSpec:
+      retention: 1d
   alertmanager:
     alertmanagerSpec:
       volumes: []

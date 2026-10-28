@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/gruntwork-io/terratest/modules/k8s"
 )
 
 type smokeApp struct {
@@ -44,6 +46,37 @@ func smokeApps(env string) []smokeApp {
 	}
 }
 
+// optionalApps are deployed in the sandbox only when make dev asks (Makefile's optional_apps,
+// docs/superpowers/specs/2026-10-28-sandbox-optional-apps-design.md); always in production and the release sandbox
+var optionalApps = map[string]bool{"paperless": true, "opencloud": true}
+
+// appDeployed reports whether an app is deployed: an optional one only when its Application exists
+func appDeployed(t *testing.T, app string) bool {
+	if !optionalApps[app] {
+		return true
+	}
+	_, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", "argocd"), "get", "applications.argoproj.io", app)
+	return err == nil
+}
+
+// skipUnlessDeployed skips a test of an optional app the sandbox does not run now
+func skipUnlessDeployed(t *testing.T, app string) {
+	if !appDeployed(t, app) {
+		t.Skipf("%s is not deployed (optional in the sandbox: make dev apps=%s)", app, app)
+	}
+}
+
+// deployedSmokeApps is smokeApps without the optional apps that are not deployed
+func deployedSmokeApps(t *testing.T, env string) []smokeApp {
+	var apps []smokeApp
+	for _, a := range smokeApps(env) {
+		if appDeployed(t, a.namespace) {
+			apps = append(apps, a)
+		}
+	}
+	return apps
+}
+
 func TestSmoke(t *testing.T) {
 	t.Parallel()
 
@@ -51,6 +84,7 @@ func TestSmoke(t *testing.T) {
 		app := app // https://github.com/golang/go/wiki/CommonMistakes#using-goroutines-on-loop-iterator-variables
 		t.Run(app.name, func(t *testing.T) {
 			t.Parallel()
+			skipUnlessDeployed(t, app.namespace)
 
 			// Wait until the Gateway accepted the route with a resolved backend
 			host := routeHost(t, app.namespace, app.name)

@@ -108,3 +108,25 @@ func TestArgoCDBackupEndpoint(t *testing.T) {
 	assert.Equal(t, get(plain, `del(select(.kind == "ApplicationSet" and .metadata.name == "root"))`),
 		get(set, `del(select(.kind == "ApplicationSet" and .metadata.name == "root"))`))
 }
+
+// renderSandboxApps renders system/argocd for the sandbox and adds the optional apps the way the bootstrap does, then
+// lists the apps ApplicationSet's files
+func renderSandboxApps(t *testing.T, apps string) []string {
+	cmd := exec.Command("sh", "-c", `scripts/render-chart system/argocd dev | sh infra/_modules/argocd/set-sandbox-apps.sh "$0" | yq -N 'select(.kind == "ApplicationSet" and .metadata.name == "apps") | .spec.generators[0].matrix.generators[0].git.files[].path'`, apps)
+	cmd.Dir = ".."
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	return strings.Fields(string(out))
+}
+
+// Paperless and OpenCloud are optional in the sandbox (docs/superpowers/specs/2026-10-28-sandbox-optional-apps-design.md)
+func TestSetSandboxApps(t *testing.T) {
+	base := renderSandboxApps(t, "")
+	assert.NotContains(t, base, "apps/paperless.yaml")
+	assert.NotContains(t, base, "apps/opencloud.yaml")
+	assert.Contains(t, base, "apps/excalidraw.yaml")
+	with := renderSandboxApps(t, "paperless opencloud paperless")
+	assert.Equal(t, len(base)+2, len(with), "each named app once: %v", with)
+	assert.Contains(t, with, "apps/paperless.yaml")
+	assert.Contains(t, with, "apps/opencloud.yaml")
+}

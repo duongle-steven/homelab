@@ -10,6 +10,21 @@
 | `make dev tests=<regex>` | Exactly those tests (a `go test -run` regex, example below); a term that matches no test is refused |
 | `make dev revision=<sha>` | The same selection, syncing that commit without pushing branch `sandbox` (what GitHub Actions runs, [CI](ci.md)); it must be the commit checked out (HEAD), because the tests and their scope come from the checkout |
 
+## Optional apps
+
+Paperless and OpenCloud take about 900 MB, so the local sandbox runs them only when asked (the Makefile's
+`optional_apps`):
+
+- **automatically**, when the branch changes their app file (`apps/paperless.yaml`, `apps/opencloud.yaml`): an upgrade
+  is tested before production;
+- **on request**: `make dev apps=paperless`, `apps=paperless,opencloud`, or `apps=all`, for example with
+  `make dev-fresh apps=all`.
+
+`make dev` prints the list (`optional apps '...'`). An app left out is removed, its namespace and volumes too. Its
+tests skip (`TestSSOPaperless`, `TestSSOOpenCloud`, the smoke check), and `lab secrets rotate --all` skips its
+secrets ("not deployed here"). GitHub Actions' sandboxes (the release, a retargeted pull request, on demand) always run
+with `apps=all`, so paperless and OpenCloud are proved before every release.
+
 For example, the Loki and OpenBao tests only:
 
 ```sh
