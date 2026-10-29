@@ -519,6 +519,10 @@ func lokiLines(t *testing.T, query string, since time.Duration) []string {
 // No generated secret's value is in either audit log (a Secret's body is never logged, OpenBao HMACs values)
 func TestSecurityLogsNoSecretValues(t *testing.T) {
 	logsSandboxOnly(t)
+	// On a fresh cluster the suite may reach this before Argo CD synced the apps
+	for _, ns := range []string{"grafana", "forgejo"} {
+		k8s.WaitUntilSecretAvailable(t, k8s.NewKubectlOptions("", "", ns), ns+"-admin", 60, 10*time.Second)
+	}
 	values := map[string]string{
 		"grafana/grafana-admin": secretValue(t, "grafana", "grafana-admin", "admin-password"),
 		"forgejo/forgejo-admin": secretValue(t, "forgejo", "forgejo-admin", "password"),
