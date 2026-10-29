@@ -6,17 +6,18 @@ every other alert ([Alerts](alerts.md)).
 
 | Stream | What | Kept |
 |---|---|---|
-| `{job="audit/k3s"}` | the API server's audit log: one JSON event per request (who, verb, object, response code) | 90 days (7 in the sandbox) |
-| `{job="audit/openbao"}` | OpenBao's audit device: every request and response (who, path, operation); secret values are HMACed | 90 days (7 in the sandbox) |
+| `{job="audit/k3s"}` | the API server's audit log: one JSON event per request (who, verb, object, response code) | 60 days (7 in the sandbox) |
+| `{job="audit/openbao"}` | OpenBao's audit device: every request and response (who, path, operation); secret values are HMACed | 60 days (7 in the sandbox) |
 
 ## Where they come from
 
 - **k3s**: the API server writes `/var/log/kubernetes/audit/audit.log` on each server node (100 MB, 3 rotated files)
   under one policy, `metal/roles/k3s/files/audit-policy.yaml`, used by production's nodes and by the sandbox's k3d
   node. Read-only noise from the control plane, leases, events and health checks is not logged. Secrets, ConfigMaps,
-  token and access reviews, exec, attach and port-forward are logged at `Metadata` (never a body). Changes to RBAC,
-  Kyverno's policies and exceptions, admission webhooks, namespaces and CRDs carry the body sent. Everything else
-  is `Metadata`. Alloy reads the file on the node.
+  token and access reviews, exec, attach and port-forward are logged at `Metadata` (never a body). Service accounts'
+  other reads (get, list, watch) are not logged: controllers watching what they manage were 41% of the volume.
+  Changes to RBAC, Kyverno's policies and exceptions, admission webhooks, namespaces and CRDs carry the body sent
+  (Kyverno rewriting its own webhooks only `Metadata`). Everything else is `Metadata`. Alloy reads the file on the node.
 - **OpenBao**: a `file` audit device writing to stdout, declared in its config (`platform/openbao`), so OpenBao
   creates it at every start. Alloy labels these lines `audit/openbao` and leaves OpenBao's server log under
   `job="pods"`. If every audit device fails OpenBao refuses requests; stdout does not fill up.
@@ -67,5 +68,8 @@ this is accepted, and Alertmanager groups the audit alerts by alert and user, so
 
 ## Retention
 
-Audit streams are kept 90 days (`retention_stream` in `system/loki/values.yaml`), other logs 30. If they outgrow
-Loki's 10Gi volume, the period is shortened (60 days, then 45 or 30), not the volume raised.
+Audit streams are kept 60 days (`retention_stream` in `system/loki/values.yaml`), other logs 30: 90 days would not
+fit Loki's 10Gi volume. The sandbox, idle on one node, writes about 520MiB of audit lines a day and 370MiB of the
+rest, which Loki compresses 6 to 15 times: about 4GiB for 60 days of audit and 1.5GiB for the rest. Production has
+more nodes and apps; `KubePersistentVolumeFillingUp` warns before the volume fills. If they outgrow it, the period is
+shortened (45 days, then 30), not the volume raised.

@@ -287,7 +287,7 @@ const lokiConfig = `select(.kind == "ConfigMap" and .metadata.name == "loki") | 
 
 // Audit streams are kept longer than other logs in production; the sandbox keeps 7 days for everything
 func TestSecurityLogsRetention(t *testing.T) {
-	for env, want := range map[string][2]string{"": {"720h", "2160h"}, "dev": {"168h", "168h"}} {
+	for env, want := range map[string][2]string{"": {"720h", "1440h"}, "dev": {"168h", "168h"}} {
 		t.Run("env="+env, func(t *testing.T) {
 			assert.Equal(t, want[0], renderLoki(t, env, lokiConfig+` | .limits_config.retention_period`))
 			assert.Equal(t, `{job=~"audit/.*"} `+want[1], renderLoki(t, env, lokiConfig+

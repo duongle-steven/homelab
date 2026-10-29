@@ -19,13 +19,15 @@ loki:
             period: 24h
     limits_config:
       retention_period: 720h
-      # The audit logs (job audit/k3s and audit/openbao: docs/how-to-guides/security-logs.md) are kept 90 days. If
-      # they outgrow the 10Gi volume, shorten this (60, then 45 or 30 days), never the volume
+      # The audit logs (job audit/k3s and audit/openbao: docs/how-to-guides/security-logs.md) are kept 60 days: 90 would
+      # not fit the 10Gi volume. The sandbox idling (2026-10-29): about 520MiB a day of audit lines, 370MiB of the rest,
+      # compressed 6 to 15 times, so about 4GiB for 60 days of audit and 1.5GiB for 30 days of the rest on one node.
+      # If they outgrow the volume, shorten this (45, then 30 days), never the volume
       # (docs/superpowers/specs/2026-10-28-security-logs-design.md)
       retention_stream:
         - selector: '{job=~"audit/.*"}'
           priority: 1
-          period: 2160h
+          period: 1440h
     # Alerts from the audit logs (templates/audit-rules.yaml), sent to Alertmanager
     rulerConfig:
       storage:
