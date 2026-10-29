@@ -68,6 +68,11 @@ alloy:
         - name: pod-logs
           hostPath:
             path: /var/log/pods
+        # The API server's audit log on server nodes (metal/roles/k3s/files/audit-policy.yaml); agents have none
+        - name: audit-logs
+          hostPath:
+            path: /var/log/kubernetes/audit
+            type: DirectoryOrCreate
         # Positions and the write-ahead log (loki.write's wal) survive a restart of the pod
         - name: storage
           hostPath:
@@ -88,6 +93,9 @@ alloy:
       extra:
         - name: pod-logs
           mountPath: /var/log/pods
+          readOnly: true
+        - name: audit-logs
+          mountPath: /var/log/kubernetes/audit
           readOnly: true
         - name: storage
           mountPath: /var/lib/alloy
@@ -152,6 +160,20 @@ alloy:
         // containerd's CRI format: time, stream, flags, line
         loki.process "pods" {
           stage.cri {}
+          forward_to = [loki.write.loki.receiver]
+        }
+
+        // The API server's audit log (JSON lines, one event each), rotated by the server: followed by name
+        local.file_match "audit" {
+          path_targets = [{
+            "__path__" = "/var/log/kubernetes/audit/audit.log",
+            "job"      = "audit/k3s",
+            "node"     = sys.env("K8S_NODE_NAME"),
+          }]
+        }
+
+        loki.source.file "audit" {
+          targets    = local.file_match.audit.targets
           forward_to = [loki.write.loki.receiver]
         }
 

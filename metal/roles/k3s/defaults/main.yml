@@ -26,3 +26,9 @@ k3s_server_config:
     - bind-address=0.0.0.0
   kube-proxy-arg:
     - metrics-bind-address=0.0.0.0
+  # The API server's audit log (files/audit-policy.yaml, copied by tasks/main.yml), which Alloy sends to Loki
+  kube-apiserver-arg:
+    - audit-policy-file=/etc/rancher/k3s/audit-policy.yaml
+    - audit-log-path=/var/log/kubernetes/audit/audit.log
+    - audit-log-maxsize=100
+    - audit-log-maxbackup=3

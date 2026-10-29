@@ -71,13 +71,14 @@ locals {
   registries_file = "${var.manifest_dir}/registries.yaml"
   cache_image     = "docker.io/library/registry:3.1.2"
   config          = abspath("${path.module}/k3d.yaml")
+  audit_policy    = abspath("${path.module}/../../../metal/roles/k3s/files/audit-policy.yaml")
   manifest        = "${var.manifest_dir}/gateway-api-${var.gateway_api_version}.yaml"
   node            = "k3d-${var.name}-server-0"
   proxy           = "${var.name}-proxy"
 }
 
 resource "terraform_data" "cluster" {
-  triggers_replace = [filesha1(local.config), local.manifest, var.name, local.registries]
+  triggers_replace = [filesha1(local.config), filesha1(local.audit_policy), local.manifest, var.name, local.registries]
   input            = { name = var.name, kubeconfig = var.kubeconfig }
 
   provisioner "local-exec" {
@@ -96,6 +97,7 @@ resource "terraform_data" "cluster" {
         --registry-use k3d-${name}:${var.caches[host].port} \
 %{endfor~}
         --volume "${local.manifest}:/var/lib/rancher/k3s/server/manifests/gateway-api.yaml@server:*" \
+        --volume "${local.audit_policy}:/etc/rancher/k3s/audit-policy.yaml@server:*" \
         --registry-config "${local.registries_file}"
       k3d kubeconfig get ${var.name} > "${var.kubeconfig}"
     EOT

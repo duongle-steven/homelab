@@ -1,0 +1,53 @@
+# The API server's audit policy (step 15c, docs/how-to-guides/security-logs.md), on production's servers
+# (roles/k3s) and the k3d sandbox (infra/_modules/k3d): who did what, never a secret's value. The first matching rule
+# wins: read-only noise first, then the sensitive resources at Metadata (never a body), then changes worth their body,
+# then Metadata for everything else. After GKE's policy and the Kubernetes documentation's example.
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages:
+  - RequestReceived
+rules:
+  # Read-only noise: the control plane and the nodes watching what they manage
+  - level: None
+    users: ["system:kube-proxy", "system:kube-scheduler", "system:kube-controller-manager", "system:apiserver"]
+    verbs: ["get", "list", "watch"]
+  - level: None
+    userGroups: ["system:nodes"]
+    verbs: ["get", "list", "watch"]
+  - level: None
+    resources:
+      - group: coordination.k8s.io
+        resources: ["leases"]
+      - group: ""
+        resources: ["endpoints", "events"]
+      - group: discovery.k8s.io
+        resources: ["endpointslices"]
+      - group: events.k8s.io
+        resources: ["events"]
+  - level: None
+    nonResourceURLs: ["/healthz*", "/readyz*", "/livez*", "/metrics", "/version", "/openapi*", "/api", "/api/*", "/apis", "/apis/*"]
+  # Sensitive: who and what only. A Secret's or a token's body is never written.
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets", "configmaps", "serviceaccounts/token", "pods/exec", "pods/attach", "pods/portforward"]
+      - group: authentication.k8s.io
+        resources: ["tokenreviews"]
+      - group: authorization.k8s.io
+        resources: ["subjectaccessreviews", "selfsubjectaccessreviews", "localsubjectaccessreviews"]
+  # Changes that grant or weaken access: the body sent
+  - level: Request
+    verbs: ["create", "update", "patch", "delete"]
+    resources:
+      - group: rbac.authorization.k8s.io
+        resources: ["roles", "clusterroles", "rolebindings", "clusterrolebindings"]
+      - group: policies.kyverno.io
+      - group: kyverno.io
+      - group: admissionregistration.k8s.io
+        resources: ["validatingwebhookconfigurations", "mutatingwebhookconfigurations",
+                    "validatingadmissionpolicies", "validatingadmissionpolicybindings"]
+      - group: ""
+        resources: ["namespaces"]
+      - group: apiextensions.k8s.io
+        resources: ["customresourcedefinitions"]
+  - level: Metadata
