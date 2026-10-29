@@ -17,7 +17,8 @@ kyverno:
     reporting:
       mutate: false
       mutateExisting: false
-      imageVerify: false
+      # TestSupplyChain reads its image policy's results
+      imageVerify: true
       generate: false
 
 # The sandbox runs lab's image built from the checkout (scripts/build-lab-image), unsigned: TestSupplyChain proves

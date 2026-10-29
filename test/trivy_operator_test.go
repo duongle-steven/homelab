@@ -1,11 +1,13 @@
 package test
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,4 +75,52 @@ func TestTrivyOperatorRender(t *testing.T) {
 	// The sandbox: one scan at a time, with limits
 	assert.Equal(t, "1", renderTrivyOperator(t, "dev", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-config") | .data["OPERATOR_CONCURRENT_SCAN_JOBS_LIMIT"]`))
 	assert.NotEmpty(t, renderTrivyOperator(t, "dev", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-trivy-config") | .data["trivy.resources.limits.memory"]`))
+}
+
+// In the sandbox: the operator reports running images, an image with a known fixable CRITICAL CVE raises
+// ImageCriticalVulnerability's expression, and no other workload has an unaccepted CRITICAL finding
+func TestTrivyOperator(t *testing.T) {
+	secretsSandboxOnly(t)
+	operator := k8s.NewKubectlOptions("", "", "trivy-operator")
+	k8s.WaitUntilDeploymentAvailable(t, operator, "trivy-operator", 60, 10*time.Second)
+
+	reported := func(namespace string) bool {
+		out, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", namespace), "get", "vulnerabilityreports.aquasecurity.github.io",
+			"-o", "jsonpath={.items[*].report.summary.criticalCount}")
+		return err == nil && strings.TrimSpace(out) != ""
+	}
+	require.Eventually(t, func() bool { return reported("excalidraw") }, 45*time.Minute, 30*time.Second, "no vulnerability report for excalidraw")
+
+	// alpine 3.14.0: four CRITICAL CVEs with a fix (CVE-2021-36159, CVE-2021-3711)
+	namespace := fmt.Sprint("trivy-test-", time.Now().Unix())
+	opts := k8s.NewKubectlOptions("", "", namespace)
+	k8s.CreateNamespace(t, opts, namespace)
+	defer k8s.DeleteNamespace(t, opts, namespace)
+	k8s.RunKubectl(t, opts, "run", "old-alpine", "--image=docker.io/library/alpine:3.14.0", "--restart=Never", "--", "sleep", "3600")
+	fixed := `count by (namespace, resource_kind, resource_name, image_repository) (trivy_vulnerability_id{severity="Critical", fixed_version!=""}) > 0`
+	require.Eventually(t, func() bool {
+		found, err := prometheusQuery(t, fixed)
+		if err != nil {
+			return false
+		}
+		for _, m := range found {
+			if m["namespace"] == namespace {
+				return true
+			}
+		}
+		return false
+	}, 30*time.Minute, 30*time.Second, "ImageCriticalVulnerability's expression does not see alpine 3.14.0 in %s", namespace)
+
+	// The baseline: every other CRITICAL finding is fixed by a bump or accepted (system/trivy-operator/values.yaml)
+	var open []string
+	for _, expr := range []string{fixed, strings.Replace(fixed, `fixed_version!=""`, `fixed_version=""`, 1)} {
+		found, err := prometheusQuery(t, expr)
+		require.NoError(t, err)
+		for _, m := range found {
+			if m["namespace"] != namespace {
+				open = append(open, fmt.Sprintf("%s/%s %s (%s)", m["namespace"], m["resource_name"], m["image_repository"], map[bool]string{true: "fix", false: "no fix"}[expr == fixed]))
+			}
+		}
+	}
+	assert.Empty(t, open, "CRITICAL findings neither fixed nor accepted")
 }

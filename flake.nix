@@ -38,6 +38,7 @@
             unstable.opentofu # Drop-in replacement for Terraform (nixos-26.05 ships 1.11)
             unstable.terragrunt
             unstable.kyverno # scripts/check-policy (nixos-26.05 ships 1.18.2)
+            unstable.cosign # TestSupplyChain (3.1.4 is not packaged yet)
             unstable.zizmor # scripts/check-workflows (nixos-26.05 ships 1.25.2)
             unstable.trivy # scripts/check-iac and check-images (0.76.1 is not packaged yet)
             qrencode

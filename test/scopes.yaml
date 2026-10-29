@@ -93,7 +93,7 @@ groups:
   - paths: [system/kiali/**]
     tests: SSOKiali|KialiRender
   - paths: [system/kyverno/**]
-    tests: Policy
+    tests: Policy|SupplyChain
   - paths: [system/trivy-operator/**]
     tests: TrivyOperator
   - paths: [system/monitoring-system/**]
