@@ -164,8 +164,8 @@ func TestPolicy(t *testing.T) {
 		assert.Contains(t, string(out), "violates PodSecurity")
 	})
 
-	// The reports controller keeps its leader Lease: when its renewal waited behind the background scan's discovery
-	// calls, it lost the lease and restarted about once a minute, and reports came late or never
+	// The reports controller keeps its leader Lease: at its memory limit it stalled, missed the Lease renewal and
+	// exited, again and again, and reports came late or never (system/kyverno/values.yaml)
 	t.Run("reports controller stays up", func(t *testing.T) {
 		pod := `jsonpath={.items[0].status.containerStatuses[0].restartCount} {.items[0].status.containerStatuses[0].ready}`
 		state := func() string {
