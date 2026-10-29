@@ -1,6 +1,22 @@
 # The one-node sandbox shares its node with every component and the tests: Kyverno's first full scan, with the suite
 # running, slowed the API server until k3s lost its own leader lease and restarted (2026-10-27). Less work here:
 kyverno:
+  # Trust the sandbox CA for zot, whose signatures TestSupplyChain verifies (allowInsecureRegistry only allows plain
+  # HTTP)
+  admissionController:
+    container:
+      extraEnvVars:
+        - name: SSL_CERT_DIR
+          value: /etc/ssl/certs:/etc/homelab-dev-ca
+    extraVolumes:
+      - name: dev-ca
+        configMap:
+          name: homelab-dev-ca
+          optional: true
+    extraVolumeMounts:
+      - name: dev-ca
+        mountPath: /etc/homelab-dev-ca
+        readOnly: true
   # No cleanup policy
   cleanupController:
     enabled: false

@@ -131,7 +131,7 @@ func TestSupplyChain(t *testing.T) {
 	k8s.RunKubectl(t, opts, "run", "unsigned", "--image="+unsigned, "--restart=Never")
 	result := func(pod string) string {
 		out, err := k8s.RunKubectlAndGetOutputE(t, opts, "get", "policyreports.wgpolicyk8s.io",
-			"-o", `jsonpath={range .items[?(@.scope.name=="`+pod+`")]}{range .results[?(@.policy=="`+namespace+`")]}{.result}{end}{end}`)
+			"-o", `jsonpath={range .items[?(@.scope.name=="`+pod+`")]}{range .results[?(@.policy=="`+namespace+`")]}{.result} {.message}{end}{end}`)
 		if err != nil {
 			return ""
 		}
@@ -139,6 +139,8 @@ func TestSupplyChain(t *testing.T) {
 	}
 	require.Eventually(t, func() bool { return result("signed") != "" && result("unsigned") != "" }, 5*time.Minute, 10*time.Second,
 		"no report of the test policy for both pods")
-	assert.Equal(t, "pass", result("signed"))
-	assert.Equal(t, "fail", result("unsigned"))
+	// The result, then Kyverno's message (shown when it differs)
+	signedResult, unsignedResult := result("signed"), result("unsigned")
+	assert.True(t, strings.HasPrefix(signedResult, "pass"), signedResult)
+	assert.True(t, strings.HasPrefix(unsignedResult, "fail"), unsignedResult)
 }
