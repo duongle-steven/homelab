@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -785,12 +786,7 @@ func (c *Client) refreshKaniop(ctx context.Context, app string) error {
 			namespaces[ns] = true
 		}
 	}
-	for ns := range namespaces {
-		if err := c.restartWorkloads(ctx, ns); err != nil {
-			return err
-		}
-	}
-	return nil
+	return c.restartAndWait(ctx, slices.Sorted(maps.Keys(namespaces)))
 }
 
 // refreshReaders makes every ExternalSecret read OpenBao again and restarts the workloads of their namespaces (OpenBao
@@ -822,12 +818,7 @@ func (c *Client) refreshReaders(ctx context.Context) error {
 		namespaces = append(namespaces, ns)
 	}
 	sort.Strings(namespaces)
-	for _, ns := range namespaces {
-		if err := c.restartWorkloads(ctx, ns); err != nil {
-			return err
-		}
-	}
-	return nil
+	return c.restartAndWait(ctx, namespaces)
 }
 
 // waitApplications waits for every Application to be Synced and Healthy, naming the ones that are not
@@ -855,10 +846,11 @@ func (c *Client) waitApplications(ctx context.Context) error {
 }
 
 // waitHealthy waits for the Application to be Synced and Healthy, restarting the app's pods that crash-looped while
-// their database was away (Forgejo's init container), once each
+// their database was away (Forgejo's init container), once each, then for the app's pods themselves: Argo CD's
+// health lags the scale-up
 func (c *Client) waitHealthy(ctx context.Context, app string) error {
 	restarted := map[string]bool{}
-	return c.until(ctx, "Application "+app+" Synced and Healthy", func() (bool, error) {
+	err := c.until(ctx, "Application "+app+" Synced and Healthy", func() (bool, error) {
 		c.workload().RestartCrashLooping(ctx, app, restarted)
 		a, err := c.Dyn.Resource(Applications).Namespace("argocd").Get(ctx, app, metav1.GetOptions{})
 		if err != nil {
@@ -868,6 +860,10 @@ func (c *Client) waitHealthy(ctx context.Context, app string) error {
 		health, _, _ := unstructured.NestedString(a.Object, "status", "health", "status")
 		return sync == "Synced" && health == "Healthy", nil
 	})
+	if err != nil {
+		return err
+	}
+	return c.waitWorkloads(ctx, app)
 }
 
 // until polls done every c.Poll for up to c.Wait; an error from done ends it
@@ -880,13 +876,27 @@ func (c *Client) workload() *workload.Client {
 	return &workload.Client{Kube: c.Kube, Dyn: c.Dyn, Poll: c.Poll, Wait: c.Wait}
 }
 
-// restartWorkloads is kubectl rollout restart for every Deployment and StatefulSet in the namespace
-func (c *Client) restartWorkloads(ctx context.Context, ns string) error {
-	refs, err := c.workload().Workloads(ctx, ns)
-	if err != nil {
-		return err
+// restartAndWait is kubectl rollout restart for every Deployment and StatefulSet in the namespaces, all first, then
+// waits for those rollouts: Argo CD's health lags a restart (it still says Healthy right after), and a Recreate
+// workload (Forgejo) serves nothing meanwhile
+func (c *Client) restartAndWait(ctx context.Context, namespaces []string) error {
+	refs := map[string][]workload.Ref{}
+	for _, ns := range namespaces {
+		r, err := c.workload().Workloads(ctx, ns)
+		if err != nil {
+			return err
+		}
+		if err := c.workload().Restart(ctx, ns, r); err != nil {
+			return err
+		}
+		refs[ns] = r
 	}
-	return c.workload().Restart(ctx, ns, refs)
+	for _, ns := range namespaces {
+		if err := c.workload().WaitReady(ctx, ns, refs[ns]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // waitWorkloads waits for the app's Deployments and StatefulSets to be ready, restarting crash-looping pods once each
