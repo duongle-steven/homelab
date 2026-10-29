@@ -147,13 +147,27 @@ func TestBackupRestore(t *testing.T) {
 		_, _ = k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", "forgejo"), "delete", "volumesnapshots.snapshot.storage.k8s.io",
 			claim+"-"+time.Now().UTC().Format("2006010215"), "--ignore-not-found")
 	}
+	// This run's snapshots, not an older hour's (already ready): csi-hostpath copies a volume with tar while it is
+	// written, so changing the data before its snapshot is ready puts the change in it (the restore then brought the
+	// repository back deleted)
+	started := time.Now().Truncate(time.Second)
 	runCronJob(t, "velero", "snapshots")
 	for _, claim := range []string{"forgejo-data", "forgejo-db-1"} {
 		require.Eventually(t, func() bool {
-			ready, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", "forgejo"), "get", "volumesnapshots.snapshot.storage.k8s.io",
-				"-l", "homelab/snapshot=hourly,homelab/pvc="+claim, "-o", "jsonpath={.items[*].status.readyToUse}")
-			return err == nil && strings.Contains(ready, "true")
-		}, 5*time.Minute, 5*time.Second, "no ready local snapshot of %s", claim)
+			out, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", "forgejo"), "get", "volumesnapshots.snapshot.storage.k8s.io",
+				"-l", "homelab/snapshot=hourly,homelab/pvc="+claim, "-o", `jsonpath={range .items[*]}{.metadata.creationTimestamp} {.status.readyToUse}{"\n"}{end}`)
+			if err != nil {
+				return false
+			}
+			for _, line := range strings.Split(out, "\n") {
+				created, ready, _ := strings.Cut(line, " ")
+				at, err := time.Parse(time.RFC3339, created)
+				if err == nil && !at.Before(started) && ready == "true" {
+					return true
+				}
+			}
+			return false
+		}, 5*time.Minute, 5*time.Second, "no ready snapshot of %s from this run", claim)
 	}
 
 	// Lost: the repository with its issue, and the key
