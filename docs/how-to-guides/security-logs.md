@@ -17,7 +17,8 @@ every other alert ([Alerts](alerts.md)).
   token and access reviews, exec, attach and port-forward are logged at `Metadata` (never a body). Service accounts'
   other reads (get, list, watch) are not logged: controllers watching what they manage were 41% of the volume.
   Changes to RBAC, Kyverno's policies and exceptions, admission webhooks, namespaces and CRDs carry the body sent
-  (Kyverno rewriting its own webhooks only `Metadata`). Everything else is `Metadata`. Alloy reads the file on the node.
+  (Kyverno rewriting its own webhooks only `Metadata`). Everything else is `Metadata`. An event over 100KiB (a large
+  CRD) loses its bodies, keeping who and what (`audit.k8s.io/truncated`): Loki refuses a line over 256KB. Alloy reads the file on the node.
 - **OpenBao**: a `file` audit device writing to stdout, declared in its config (`platform/openbao`), so OpenBao
   creates it at every start. Alloy labels these lines `audit/openbao` and leaves OpenBao's server log under
   `job="pods"`. If every audit device fails OpenBao refuses requests; stdout does not fill up.
@@ -55,21 +56,22 @@ this is accepted, and Alertmanager groups the audit alerts by alert and user, so
 
 | Alert | Severity | Meaning | What to do |
 |---|---|---|---|
-| `AuditExecByPerson` | warning | a person exec'd, attached or port-forwarded into a pod | expected if it was you or your tool; otherwise find the user and the session, revoke the credential |
+| `AuditExecByPerson` | warning | a person exec'd, attached or port-forwarded into a pod (Argo CD's web terminal shows as `argocd-server`: the person is in its log) | expected if it was you or your tool; otherwise find the user and the session, revoke the credential |
 | `AuditSecretReadByPerson` | warning | a person read a Secret | same |
 | `AuditClusterAdminBinding` | critical | a binding to `cluster-admin` was created or changed, not by Argo CD | read the body (`requestObject`); delete the binding unless it is in git |
 | `AuditAnonymousAllowed` | critical | an unauthenticated request succeeded (outside the public OIDC discovery URLs) | check the URL; anonymous access should only reach health and discovery |
 | `AuditManyDenied` | warning | more than 20 requests from one address refused in 5 minutes | a broken client or someone probing: find the address and the user |
 | `AuditPolicyExceptionChanged` | warning | a `PolicyException` changed outside Argo CD | an exception bypasses policy; revert it unless it is in git |
-| `OpenBaoRootToken` | critical | a root token was used, or root token generation started | nothing uses root tokens: find who and why, revoke it |
+| `OpenBaoRootToken` | critical | root token generation started or went on (`sys/generate-root`); OpenBao's self-initialisation uses a root token of its own at every fresh start and revokes it, which does not alert | nothing needs a root token: find who and why, cancel the generation or revoke the token |
 | `OpenBaoManyFailedLogins` | warning | more than 10 failed logins at one auth path in 5 minutes | a misconfigured role or someone guessing |
-| `OpenBaoConfigChanged` | critical | a policy, an auth method or role, or an audit device changed | expected only when a person changes OpenBao with the admin role (`docs/concepts/secrets-management.md`) |
+| `OpenBaoConfigChanged` | critical | a policy, an auth method or role, or an audit device changed (not with a root token: `OpenBaoRootToken` covers those) | expected only when a person changes OpenBao with the admin role (`docs/concepts/secrets-management.md`) |
 | `AuditLogsMissing` | critical | no line from k3s for 15 minutes, or from OpenBao for 2 hours | an audit trail stopped: check Alloy on the server nodes, the audit flags, `bao audit list` |
 
 ## Retention
 
 Audit streams are kept 60 days (`retention_stream` in `system/loki/values.yaml`), other logs 30: 90 days would not
 fit Loki's 10Gi volume. The sandbox, idle on one node, writes about 520MiB of audit lines a day and 370MiB of the
-rest, which Loki compresses 6 to 15 times: about 4GiB for 60 days of audit and 1.5GiB for the rest. Production has
+rest, which Loki compresses at least 5.7 times (measured): about 5.4GiB for 60 days of audit and 1.9GiB for the rest,
+7.3GiB of 10Gi. Production has
 more nodes and apps; `KubePersistentVolumeFillingUp` warns before the volume fills. If they outgrow it, the period is
 shortened (45 days, then 30), not the volume raised.

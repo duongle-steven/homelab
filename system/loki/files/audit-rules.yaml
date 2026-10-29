@@ -6,9 +6,11 @@
 groups:
   - name: audit-k3s
     rules:
+      # Argo CD's server execs only for a person, through its web terminal (exec.enabled): the person's name is in
+      # argocd-server's log
       - alert: AuditExecByPerson
         expr: |
-          sum by (user, ns, object, subresource) (count_over_time({job="audit/k3s"} | json user="user.username", subresource="objectRef.subresource", ns="objectRef.namespace", object="objectRef.name" | __error__="" | subresource=~"exec|attach|portforward" | user!~"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:k3s-.*|k3s-cloud-controller-manager|system:apiserver" [5m])) > 0
+          sum by (user, ns, object, subresource) (count_over_time({job="audit/k3s"} | json user="user.username", subresource="objectRef.subresource", ns="objectRef.namespace", object="objectRef.name" | __error__="" | subresource=~"exec|attach|portforward" | (user!~"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:k3s-.*|k3s-cloud-controller-manager|system:apiserver" or user="system:serviceaccount:argocd:argocd-server") [5m])) > 0
         labels:
           severity: warning
           source: audit
@@ -65,15 +67,17 @@ groups:
           description: 'Explore (Loki): {job="audit/k3s"} | json | objectRef_resource="policyexceptions"'
   - name: audit-openbao
     rules:
+      # A root token exists only through sys/generate-root: OpenBao's self-initialisation uses one of its own at
+      # every fresh start (initialize stanzas) and revokes it, so its use is not what alerts
       - alert: OpenBaoRootToken
         expr: |
-          sum by (path) (count_over_time({job="audit/openbao"} |~ `"policies":\["root"\]|"path":"sys/generate-root` | json type="type", path="request.path" | __error__="" | type="request" [5m])) > 0
+          sum by (path) (count_over_time({job="audit/openbao"} |= "sys/generate-root" | json type="type", path="request.path" | __error__="" | type="request" | path=~"sys/generate-root.*" [5m])) > 0
         labels:
           severity: critical
           source: audit
         annotations:
-          summary: 'OpenBao: a root token was used, or root token generation started ({{ $labels.path }})'
-          description: 'Explore (Loki): {job="audit/openbao"} |~ `"policies":\["root"\]|sys/generate-root`'
+          summary: 'OpenBao: root token generation started or went on ({{ $labels.path }})'
+          description: 'Explore (Loki): {job="audit/openbao"} |= "sys/generate-root"; then what the root token did: {job="audit/openbao"} |= `"policies":["root"]`'
       - alert: OpenBaoManyFailedLogins
         expr: |
           sum by (path) (count_over_time({job="audit/openbao"} | json type="type", path="request.path", error="error" | __error__="" | type="response" | path=~"auth/.+/login" | error!="" [5m])) > 10
@@ -83,9 +87,11 @@ groups:
         annotations:
           summary: 'OpenBao: {{ $value }} failed logins at {{ $labels.path }} in 5 minutes'
           description: 'Explore (Loki): {job="audit/openbao"} | json | type="response" | request_path=~"auth/.+/login" | error!=""'
+      # Changes with a root token (display name root) are left to OpenBaoRootToken: the self-initialisation makes them
+      # at every fresh start
       - alert: OpenBaoConfigChanged
         expr: |
-          sum by (user, path, operation) (count_over_time({job="audit/openbao"} | json type="type", path="request.path", operation="request.operation", user="auth.display_name", error="error" | __error__="" | type="response" | operation=~"create|update|delete" | path=~"sys/(policy|policies/acl|auth|audit)(/.*)?|auth/[^/]+/(role/.*|config)" | error="" [5m])) > 0
+          sum by (user, path, operation) (count_over_time({job="audit/openbao"} | json type="type", path="request.path", operation="request.operation", user="auth.display_name", error="error" | __error__="" | type="response" | operation=~"create|update|delete" | path=~"sys/(policy|policies/acl|auth|audit)(/.*)?|auth/[^/]+/(role/.*|config)" | error="" | user!="root" [5m])) > 0
         labels:
           severity: critical
           source: audit

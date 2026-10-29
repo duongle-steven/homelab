@@ -45,6 +45,11 @@ options:
         nodeFilters: [server:*]
       - arg: --kube-apiserver-arg=audit-log-maxbackup=3
         nodeFilters: [server:*]
+      # An event over 100KiB (a large CRD's body) keeps who and what without its bodies: Loki refuses a line over 256KB
+      - arg: --kube-apiserver-arg=audit-log-truncate-enabled=true
+        nodeFilters: [server:*]
+      - arg: --kube-apiserver-arg=audit-log-truncate-max-event-size=102400
+        nodeFilters: [server:*]
   kubeconfig:
     updateDefaultKubeconfig: false
     switchCurrentContext: false

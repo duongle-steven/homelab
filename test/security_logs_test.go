@@ -46,14 +46,18 @@ var auditFlags = []string{
 	"audit-log-path=/var/log/kubernetes/audit/audit.log",
 	"audit-log-maxsize=100",
 	"audit-log-maxbackup=3",
+	// An event over 100KiB loses its bodies, keeping who and what: Loki refuses a line over 256KB (max_line_size),
+	// and a CRD's body reaches 1.5MB
+	"audit-log-truncate-enabled=true",
+	"audit-log-truncate-max-event-size=102400",
 }
 
 type auditRule struct {
 	Level      string   `yaml:"level"`
 	Users      []string `yaml:"users"`
 	UserGroups []string `yaml:"userGroups"`
-	Verbs     []string `yaml:"verbs"`
-	Resources []struct {
+	Verbs      []string `yaml:"verbs"`
+	Resources  []struct {
 		Group     string   `yaml:"group"`
 		Resources []string `yaml:"resources"`
 	} `yaml:"resources"`
@@ -292,6 +296,8 @@ func TestSecurityLogsRetention(t *testing.T) {
 			assert.Equal(t, want[0], renderLoki(t, env, lokiConfig+` | .limits_config.retention_period`))
 			assert.Equal(t, `{job=~"audit/.*"} `+want[1], renderLoki(t, env, lokiConfig+
 				` | .limits_config.retention_stream | map(.selector + " " + .period) | join(",")`))
+			// A query may span everything kept (Loki refuses longer than 721h by default)
+			assert.Equal(t, "1441h", renderLoki(t, env, lokiConfig+` | .limits_config.max_query_length`))
 		})
 	}
 }
@@ -313,13 +319,19 @@ var auditAlerts = map[string]string{
 // Who is not a person: service accounts, nodes and the control plane, k3s's own controllers among them (the sandbox's
 // audit log, 2026-10-29); system:admin, k3s's admin, and anyone signing in are
 var (
-	notPersons = []string{"system:serviceaccount:argocd:argocd-server", "system:node:k3d-homelab-dev-server-0", "system:kube-scheduler",
+	notPersons = []string{"system:serviceaccount:argocd:argocd-application-controller", "system:node:k3d-homelab-dev-server-0", "system:kube-scheduler",
 		"system:apiserver", "system:k3s-supervisor", "system:k3s-controller", "k3s-cloud-controller-manager"}
 	persons = []string{"system:admin", "someone@idm.example"}
 )
 
-// personFilter is the user!~ regexp of a rule's LogQL
-var personFilter = regexp.MustCompile(`user!~"([^"]*)"`)
+// personFilter is the user!~ regexp of a rule's LogQL, personAlso the users it names as persons anyway (or user="...")
+var (
+	personFilter = regexp.MustCompile(`user!~"([^"]*)"`)
+	personAlso   = regexp.MustCompile(`or user="([^"]*)"`)
+)
+
+// argocdServer execs only for a person: Argo CD's web terminal (exec.enabled), never on its own behalf
+const argocdServer = "system:serviceaccount:argocd:argocd-server"
 
 // Loki's ruler loads the alert rules (valid LogQL, lokitool) and sends them to Alertmanager, which groups the audit
 // alerts by user
@@ -357,12 +369,21 @@ func TestSecurityLogsRules(t *testing.T) {
 				m := personFilter.FindStringSubmatch(r.Expr)
 				require.NotNil(t, m, "%s has no user!~ filter", r.Alert)
 				filter := regexp.MustCompile("^(?:" + m[1] + ")$")
+				person := func(u string) bool {
+					for _, also := range personAlso.FindAllStringSubmatch(r.Expr, -1) {
+						if also[1] == u {
+							return true
+						}
+					}
+					return !filter.MatchString(u)
+				}
 				for _, u := range notPersons {
-					assert.True(t, filter.MatchString(u), "%s takes %s for a person", r.Alert, u)
+					assert.False(t, person(u), "%s takes %s for a person", r.Alert, u)
 				}
 				for _, u := range persons {
-					assert.False(t, filter.MatchString(u), "%s leaves out %s", r.Alert, u)
+					assert.True(t, person(u), "%s leaves out %s", r.Alert, u)
 				}
+				assert.Equal(t, r.Alert == "AuditExecByPerson", person(argocdServer), "%s and Argo CD's web terminal", r.Alert)
 			case "AuditManyDenied":
 				// A node's pods retry with their old tokens for about 5 minutes after a power cut (istio-cni: 238 in 5m)
 				assert.Equal(t, "10m", r.For, "%s fires on a power cut's stale tokens", r.Alert)
@@ -469,6 +490,49 @@ func TestSecurityLogsQuietWhenIdle(t *testing.T) {
 		assert.False(t, strings.HasPrefix(a["user"], "system:serviceaccount:"), "%s for %s", a["alertname"], a["user"])
 		assert.NotEqual(t, "AuditLogsMissing", a["alertname"], "an audit trail stopped: %v", a)
 	}
+	// No critical rule matched anything in the last 2 hours, a fresh cluster's start included (OpenBao's
+	// self-initialisation runs with a root token of its own): the repository's rules, evaluated by Loki over the log
+	var parsed struct {
+		Groups []struct {
+			Rules []struct {
+				Alert  string            `yaml:"alert"`
+				Expr   string            `yaml:"expr"`
+				Labels map[string]string `yaml:"labels"`
+			} `yaml:"rules"`
+		} `yaml:"groups"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(renderLoki(t, "", `select(.kind == "ConfigMap" and .metadata.name == "loki-audit-rules") | .data["audit-rules.yaml"]`)), &parsed))
+	options := k8s.NewKubectlOptions("", "", "loki")
+	options.Logger = logger.Discard
+	checked := 0
+	for _, g := range parsed.Groups {
+		for _, r := range g.Rules {
+			if r.Labels["severity"] != "critical" || r.Alert == "AuditLogsMissing" {
+				continue
+			}
+			checked++
+			params := url.Values{}
+			params.Set("query", r.Expr)
+			params.Set("start", fmt.Sprint(time.Now().Add(-2*time.Hour).Unix()))
+			params.Set("end", fmt.Sprint(time.Now().Unix()))
+			params.Set("step", "60")
+			out, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "--raw",
+				"/api/v1/namespaces/loki/services/loki:3100/proxy/loki/api/v1/query_range?"+params.Encode())
+			require.NoError(t, err, r.Alert)
+			var res struct {
+				Data struct {
+					Result []struct {
+						Metric map[string]string `json:"metric"`
+					} `json:"result"`
+				} `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(out), &res), r.Alert)
+			for _, m := range res.Data.Result {
+				t.Errorf("%s would have fired: %v", r.Alert, m.Metric)
+			}
+		}
+	}
+	assert.NotZero(t, checked, "no critical audit rule")
 }
 
 // lokiLines returns every line a LogQL query matches over the last `since`, oldest first, paging past Loki's limit
@@ -540,4 +604,37 @@ func TestSecurityLogsNoSecretValues(t *testing.T) {
 			}
 		}
 	}
+}
+
+// A change too big for one Loki line (a large CRD or Role) still reaches Loki: the API server truncates its body
+func TestSecurityLogsLargeChange(t *testing.T) {
+	logsSandboxOnly(t)
+	options := k8s.NewKubectlOptions("", "", logsNamespace)
+	k8s.RunKubectl(t, options, "get", "namespace", logsNamespace)
+	name := fmt.Sprint("audit-large-", time.Now().UnixNano())
+	names := make([]string, 6000)
+	for i := range names {
+		names[i] = fmt.Sprintf("%s-resource-name-%04d", name, i) // about 300KB in all
+	}
+	role, err := json.Marshal(map[string]any{
+		"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "Role",
+		"metadata": map[string]string{"name": name, "namespace": logsNamespace},
+		"rules":    []map[string]any{{"apiGroups": []string{""}, "resources": []string{"configmaps"}, "verbs": []string{"get"}, "resourceNames": names}},
+	})
+	require.NoError(t, err)
+	require.Greater(t, len(role), 256*1024)
+	cmd := exec.Command("kubectl", "create", "-f", "-")
+	cmd.Stdin = strings.NewReader(string(role))
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "%s", out)
+	defer k8s.RunKubectl(t, options, "delete", "role", name)
+
+	entries := auditEntries(t, fmt.Sprintf(`{job="audit/k3s"} |= %q | json | objectRef_resource="roles" | verb="create"`, name), 15*time.Minute)
+	var event struct {
+		Level       string            `json:"level"`
+		Annotations map[string]string `json:"annotations"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(entries[0].Line), &event))
+	assert.Equal(t, "Request", event.Level)
+	assert.Equal(t, "true", event.Annotations["audit.k8s.io/truncated"], "the event kept its body")
 }
