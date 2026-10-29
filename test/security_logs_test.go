@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -197,17 +199,37 @@ func TestSecurityLogsOpenBao(t *testing.T) {
 	assert.Empty(t, server, "audit lines left under job=pods")
 }
 
-// renderLoki renders system/loki for env ("" or dev) and runs a yq expression on it
-func renderLoki(t *testing.T, env, expr string) string {
+// renders caches each chart's render by directory and env: the tests below query it many times
+var renders sync.Map
+
+// renderYq renders a chart (scripts/render-chart, once per directory and env) and runs a yq expression on it
+func renderYq(t *testing.T, dir, env, expr string) string {
 	t.Helper()
-	cmd := exec.Command("sh", "-c", `scripts/render-chart system/loki $1 | yq -N "$0"`, expr, env)
-	cmd.Dir = ".."
+	key := dir + " " + env
+	cached, ok := renders.Load(key)
+	if !ok {
+		cmd := exec.Command("scripts/render-chart", dir)
+		if env != "" {
+			cmd.Args = append(cmd.Args, env)
+		}
+		cmd.Dir = ".."
+		var stderr strings.Builder
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		require.NoError(t, err, stderr.String())
+		cached, _ = renders.LoadOrStore(key, out)
+	}
+	cmd := exec.Command("yq", "-N", expr)
+	cmd.Stdin = bytes.NewReader(cached.([]byte))
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	require.NoError(t, err, stderr.String())
 	return strings.TrimSpace(string(out))
 }
+
+// renderLoki renders system/loki for env ("" or dev) and runs a yq expression on it
+func renderLoki(t *testing.T, env, expr string) string { return renderYq(t, "system/loki", env, expr) }
 
 // lokiConfig selects Loki's own config in the render
 const lokiConfig = `select(.kind == "ConfigMap" and .metadata.name == "loki") | .data["config.yaml"] | from_yaml`
@@ -287,9 +309,9 @@ func TestSecurityLogsRules(t *testing.T) {
 		`select(.kind == "StatefulSet" and .metadata.name == "loki") | .spec.template.spec.containers[0].volumeMounts[] | select(.name == "audit-rules") | .mountPath`))
 
 	const amConfig = `select(.kind == "Secret" and .metadata.name == "alertmanager-monitoring-system-kube-pro-alertmanager") | .data."alertmanager.yaml" | @base64d | from_yaml`
-	assert.Equal(t, `ntfy alertname,user source="audit"`, renderVelero(t, "system/monitoring-system", "", amConfig+
+	assert.Equal(t, `ntfy alertname,user source="audit"`, renderYq(t, "system/monitoring-system", "", amConfig+
 		` | .route.routes[] | select(.matchers[] == "source=\"audit\"") | .receiver + " " + (.group_by | join(",")) + " " + (.matchers | join(","))`))
-	assert.Equal(t, "9093", renderVelero(t, "system/monitoring-system", "",
+	assert.Equal(t, "9093", renderYq(t, "system/monitoring-system", "",
 		`select(.kind == "AuthorizationPolicy" and .metadata.name == "allow") | .spec.rules[] | select(.from[].source.principals[]? == "cluster.local/ns/loki/sa/loki") | .to[].operation.ports | join(",")`), "Loki's ruler may call Alertmanager")
 }
 
