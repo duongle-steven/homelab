@@ -30,14 +30,17 @@ kyverno:
   # Only validating policies here: no generate or mutate-existing policy for it to run
   backgroundController:
     enabled: false
-  # Reports hold only what needs attention (a result per policy and workload otherwise: mostly pass). At the defaults
-  # the reports controller, aggregating them under its client rate limit (20/s, burst 50), could not renew its
-  # leader Lease in time and restarted, again and again (the sandbox, 2026-10-28)
+  # Reports hold only what needs attention (a result per policy and workload otherwise: mostly pass). The reports
+  # controller renews its leader Lease through the same rate-limited client that its background scan uses, and the
+  # scan re-reads API discovery over and over (about 64 requests at once, every few seconds: 25/s on the sandbox).
+  # At 50/s with a burst of 100 the Lease renewal waited behind them, the controller lost its lease, restarted and
+  # scanned again: 64 restarts in 8 hours (the sandbox, 2026-10-29; at the defaults, 20/s and 50, on 2026-10-28). The
+  # burst holds several discovery rounds; discovery is served from the API server's memory.
   reportsController:
     extraArgs:
       allowedResults: fail,error,warn
-      clientRateLimitQPS: 50
-      clientRateLimitBurst: 100
+      clientRateLimitQPS: 100
+      clientRateLimitBurst: 300
 kyverno-policies:
   podSecurityStandard: restricted
   validationFailureAction: Audit
