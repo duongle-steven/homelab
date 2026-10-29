@@ -160,6 +160,13 @@ alloy:
         // containerd's CRI format: time, stream, flags, line
         loki.process "pods" {
           stage.cri {}
+          // OpenBao's audit device (platform/openbao) writes JSON requests and responses to its stdout
+          stage.match {
+            selector = "{namespace=\"openbao\", container=\"openbao\"} |~ \"^\\\\{.*\\\"type\\\":\\\"(request|response)\\\"\""
+            stage.static_labels {
+              values = {job = "audit/openbao"}
+            }
+          }
           forward_to = [loki.write.loki.receiver]
         }
 

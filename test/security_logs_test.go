@@ -168,3 +168,27 @@ func TestSecurityLogsK3sExec(t *testing.T) {
 	assert.Equal(t, "Metadata", event.Level)
 	assert.NotEmpty(t, entries[0].Labels["node"])
 }
+
+// An OpenBao read is in its audit log, labelled apart from its server log, and the secret's value is not (OpenBao
+// HMACs it)
+func TestSecurityLogsOpenBao(t *testing.T) {
+	logsSandboxOnly(t)
+	value := fmt.Sprint("audit-value-", time.Now().UnixNano())
+	baoPutStdin(t, "smoke/audit-marker", "value", value)
+	t.Cleanup(func() { baoPut(t, "smoke/audit-marker", "", true) })
+	got, err := bao(t, "admin", "openbao", "openbao-admin", "kv", "get", "-field=value", "secret/smoke/audit-marker")
+	require.NoError(t, err)
+	require.Equal(t, value, got)
+
+	entries := auditEntries(t, `{job="audit/openbao"} |= "secret/data/smoke/audit-marker" | json | type="response" | request_operation="read"`, 15*time.Minute)
+	assert.Equal(t, "openbao", entries[0].Labels["namespace"])
+
+	lines, err := lokiQuery(t, `{namespace="openbao"}`, 15*time.Minute)
+	require.NoError(t, err)
+	for _, l := range lines {
+		require.NotContains(t, l.Line, value, "a secret's value in Loki (%s)", l.Labels["job"])
+	}
+	server, err := lokiQuery(t, `{job="pods", namespace="openbao"} |= "secret/data/smoke/audit-marker"`, 15*time.Minute)
+	require.NoError(t, err)
+	assert.Empty(t, server, "audit lines left under job=pods")
+}
