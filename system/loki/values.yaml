@@ -26,11 +26,30 @@ loki:
         - selector: '{job=~"audit/.*"}'
           priority: 1
           period: 2160h
+    # Alerts from the audit logs (templates/audit-rules.yaml), sent to Alertmanager
+    rulerConfig:
+      storage:
+        type: local
+        local:
+          directory: /etc/loki/rules
+      rule_path: /var/loki/rules-temp
+      alertmanager_url: http://monitoring-system-kube-pro-alertmanager.monitoring-system:9093
+      enable_api: true
+      wal:
+        dir: /var/loki/ruler-wal
     compactor:
       retention_enabled: true
       delete_request_store: filesystem
   singleBinary:
     replicas: 1
+    extraVolumes:
+      - name: audit-rules
+        configMap:
+          name: loki-audit-rules
+    extraVolumeMounts:
+      - name: audit-rules
+        mountPath: /etc/loki/rules/fake
+        readOnly: true
     persistence:
       size: 10Gi
       # Not backed up: logs are not worth their space off-site (docs/how-to-guides/backup-and-restore.md)

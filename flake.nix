@@ -47,6 +47,7 @@
             wireguard-tools
             yamllint
             yq-go
+            grafana-loki # lokitool: test/security_logs_test.go lints the alert rules (the same version as Loki, 3.7.8)
 
             (python3.withPackages (p: with p; [
               mkdocs-material

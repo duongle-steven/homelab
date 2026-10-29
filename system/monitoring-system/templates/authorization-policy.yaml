@@ -36,3 +36,10 @@ spec:
       to:
         - operation:
             ports: ["9093"]
+    # Loki's ruler: the alerts from the audit logs (system/loki)
+    - from:
+        - source:
+            principals: ["cluster.local/ns/loki/sa/loki"]
+      to:
+        - operation:
+            ports: ["9093"]

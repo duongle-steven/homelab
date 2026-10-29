@@ -56,6 +56,14 @@ kube-prometheus-stack:
             group_wait: 0s
             group_interval: 1m
             repeat_interval: 1m
+          # Alerts from the audit logs (system/loki): one notification per alert and user, so a tool run with the admin
+          # kubeconfig that execs and reads Secrets many times notifies once
+          - receiver: ntfy
+            matchers:
+              - source="audit"
+            group_by:
+              - alertname
+              - user
       receivers:
         - name: ntfy
           webhook_configs:

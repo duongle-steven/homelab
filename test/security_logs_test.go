@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terratest/modules/k8s"
+	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -216,5 +218,160 @@ func TestSecurityLogsRetention(t *testing.T) {
 			assert.Equal(t, `{job=~"audit/.*"} `+want[1], renderLoki(t, env, lokiConfig+
 				` | .limits_config.retention_stream | map(.selector + " " + .period) | join(",")`))
 		})
+	}
+}
+
+// The alerts from logs (the spec's table) and their severities
+var auditAlerts = map[string]string{
+	"AuditExecByPerson":           "warning",
+	"AuditSecretReadByPerson":     "warning",
+	"AuditClusterAdminBinding":    "critical",
+	"AuditAnonymousAllowed":       "critical",
+	"AuditManyDenied":             "warning",
+	"AuditPolicyExceptionChanged": "warning",
+	"OpenBaoRootToken":            "critical",
+	"OpenBaoManyFailedLogins":     "warning",
+	"OpenBaoConfigChanged":        "critical",
+	"AuditLogsMissing":            "critical",
+}
+
+// Who is not a person: service accounts, nodes and the control plane (system:admin, k3s's admin, is a person)
+const notPerson = `system:serviceaccount:.*|system:node:.*|system:kube-.*|system:apiserver`
+
+// Loki's ruler loads the alert rules (valid LogQL, lokitool) and sends them to Alertmanager, which groups the audit
+// alerts by user
+func TestSecurityLogsRules(t *testing.T) {
+	rules := renderLoki(t, "", `select(.kind == "ConfigMap" and .metadata.name == "loki-audit-rules") | .data["audit-rules.yaml"]`)
+	require.NotEmpty(t, rules, "no ConfigMap loki-audit-rules")
+	file := filepath.Join(t.TempDir(), "audit-rules.yaml")
+	require.NoError(t, os.WriteFile(file, []byte(rules), 0o600))
+	for _, cmd := range [][]string{{"rules", "lint", file}, {"rules", "check", file}} {
+		out, err := exec.Command("lokitool", cmd...).CombinedOutput()
+		require.NoError(t, err, "lokitool %s: %s", cmd[1], out)
+	}
+
+	var parsed struct {
+		Groups []struct {
+			Rules []struct {
+				Alert       string            `yaml:"alert"`
+				Expr        string            `yaml:"expr"`
+				Labels      map[string]string `yaml:"labels"`
+				Annotations map[string]string `yaml:"annotations"`
+			} `yaml:"rules"`
+		} `yaml:"groups"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(rules), &parsed))
+	seen := map[string]bool{}
+	for _, g := range parsed.Groups {
+		for _, r := range g.Rules {
+			seen[r.Alert] = true
+			assert.Equal(t, auditAlerts[r.Alert], r.Labels["severity"], "%s's severity", r.Alert)
+			assert.Equal(t, "audit", r.Labels["source"], r.Alert)
+			assert.NotEmpty(t, r.Annotations["summary"], r.Alert)
+			switch r.Alert {
+			case "AuditExecByPerson", "AuditSecretReadByPerson":
+				assert.Contains(t, r.Expr, notPerson, "%s leaves out who is not a person", r.Alert)
+			case "AuditClusterAdminBinding", "AuditPolicyExceptionChanged":
+				assert.Contains(t, r.Expr, "system:serviceaccount:argocd:", "%s leaves out Argo CD", r.Alert)
+			}
+		}
+	}
+	for name := range auditAlerts {
+		assert.True(t, seen[name], "no rule %s", name)
+	}
+	assert.Equal(t, "local /etc/loki/rules http://monitoring-system-kube-pro-alertmanager.monitoring-system:9093 true",
+		renderLoki(t, "", lokiConfig+` | .ruler | .storage.type + " " + .storage.local.directory + " " + .alertmanager_url + " " + (.enable_api | tostring)`))
+	assert.Equal(t, "/etc/loki/rules/fake", renderLoki(t, "",
+		`select(.kind == "StatefulSet" and .metadata.name == "loki") | .spec.template.spec.containers[0].volumeMounts[] | select(.name == "audit-rules") | .mountPath`))
+
+	const amConfig = `select(.kind == "Secret" and .metadata.name == "alertmanager-monitoring-system-kube-pro-alertmanager") | .data."alertmanager.yaml" | @base64d | from_yaml`
+	assert.Equal(t, `ntfy alertname,user source="audit"`, renderVelero(t, "system/monitoring-system", "", amConfig+
+		` | .route.routes[] | select(.matchers[] == "source=\"audit\"") | .receiver + " " + (.group_by | join(",")) + " " + (.matchers | join(","))`))
+	assert.Equal(t, "9093", renderVelero(t, "system/monitoring-system", "",
+		`select(.kind == "AuthorizationPolicy" and .metadata.name == "allow") | .spec.rules[] | select(.from[].source.principals[]? == "cluster.local/ns/loki/sa/loki") | .to[].operation.ports | join(",")`), "Loki's ruler may call Alertmanager")
+}
+
+// activeAlerts reads Alertmanager's active alerts from inside its pod
+func activeAlerts(t *testing.T) []map[string]string {
+	t.Helper()
+	out, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", "monitoring-system"), "exec",
+		"alertmanager-monitoring-system-kube-pro-alertmanager-0", "-c", "alertmanager", "--",
+		"wget", "-qO-", "http://localhost:9093/api/v2/alerts?active=true")
+	require.NoError(t, err)
+	var alerts []struct {
+		Labels map[string]string `json:"labels"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &alerts))
+	labels := make([]map[string]string, 0, len(alerts))
+	for _, a := range alerts {
+		labels = append(labels, a.Labels)
+	}
+	return labels
+}
+
+// Loki's ruler loaded every alert rule, and each evaluates
+func TestSecurityLogsRulesLoaded(t *testing.T) {
+	logsSandboxOnly(t)
+	options := k8s.NewKubectlOptions("", "", "loki")
+	options.Logger = logger.Discard
+	require.Eventually(t, func() bool {
+		out, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "--raw",
+			"/api/v1/namespaces/loki/services/loki:3100/proxy/prometheus/api/v1/rules")
+		if err != nil {
+			return false
+		}
+		var res struct {
+			Data struct {
+				Groups []struct {
+					Rules []struct {
+						Name   string `json:"name"`
+						Health string `json:"health"`
+					} `json:"rules"`
+				} `json:"groups"`
+			} `json:"data"`
+		}
+		if json.Unmarshal([]byte(out), &res) != nil {
+			return false
+		}
+		healthy := map[string]bool{}
+		for _, g := range res.Data.Groups {
+			for _, r := range g.Rules {
+				healthy[r.Name] = r.Health == "ok"
+			}
+		}
+		for name := range auditAlerts {
+			if !healthy[name] {
+				t.Logf("%s: not loaded or not ok yet", name)
+				return false
+			}
+		}
+		return true
+	}, 10*time.Minute, 30*time.Second, "Loki's ruler does not evaluate every audit rule")
+}
+
+// An exec by a person raises AuditExecByPerson in Alertmanager, naming the user
+func TestSecurityLogsExecAlert(t *testing.T) {
+	logsSandboxOnly(t)
+	options := logPod(t, "audit-alert")
+	printTo(t, options, "audit-alert", "audit-alert")
+	require.Eventually(t, func() bool {
+		for _, a := range activeAlerts(t) {
+			if a["alertname"] == "AuditExecByPerson" && a["user"] == "system:admin" && a["object"] == "audit-alert" {
+				return true
+			}
+		}
+		return false
+	}, 6*time.Minute, 20*time.Second, "no AuditExecByPerson alert for the exec")
+}
+
+// Service accounts never raise the person alerts, and both audit trails are flowing
+func TestSecurityLogsQuietWhenIdle(t *testing.T) {
+	logsSandboxOnly(t)
+	for _, a := range activeAlerts(t) {
+		if a["source"] != "audit" {
+			continue
+		}
+		assert.False(t, strings.HasPrefix(a["user"], "system:serviceaccount:"), "%s for %s", a["alertname"], a["user"])
+		assert.NotEqual(t, "AuditLogsMissing", a["alertname"], "an audit trail stopped: %v", a)
 	}
 }

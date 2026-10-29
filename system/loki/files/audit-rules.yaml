@@ -1,0 +1,113 @@
+# Alerts from the audit logs (step 15c, docs/how-to-guides/security-logs.md): dangerous events no metric shows.
+# Loki's ruler evaluates them every minute and sends them to Alertmanager (ntfy, Telegram), which groups them by alert
+# and user. "A person" is any user but service accounts, nodes and the control plane (system:admin, k3s's admin
+# kubeconfig, is a person: tools using it alert too, accepted). Thresholds: AuditManyDenied and
+# OpenBaoManyFailedLogins from the sandbox's normal traffic.
+groups:
+  - name: audit-k3s
+    rules:
+      - alert: AuditExecByPerson
+        expr: |
+          sum by (user, ns, object, subresource) (count_over_time({job="audit/k3s"} | json user="user.username", subresource="objectRef.subresource", ns="objectRef.namespace", object="objectRef.name" | __error__="" | subresource=~"exec|attach|portforward" | user!~"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:apiserver" [5m])) > 0
+        labels:
+          severity: warning
+          source: audit
+        annotations:
+          summary: '{{ $labels.user }} ran {{ $labels.subresource }} in pod {{ $labels.ns }}/{{ $labels.object }}'
+          description: 'Explore (Loki): {job="audit/k3s"} | json | user_username="{{ $labels.user }}" | objectRef_subresource="{{ $labels.subresource }}"'
+      - alert: AuditSecretReadByPerson
+        expr: |
+          sum by (user, ns, object) (count_over_time({job="audit/k3s"} | json user="user.username", verb="verb", resource="objectRef.resource", ns="objectRef.namespace", object="objectRef.name" | __error__="" | resource="secrets" | verb=~"get|list|watch" | user!~"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:apiserver" [5m])) > 0
+        labels:
+          severity: warning
+          source: audit
+        annotations:
+          summary: '{{ $labels.user }} read Secret {{ $labels.ns }}/{{ $labels.object }}'
+          description: 'Explore (Loki): {job="audit/k3s"} | json | user_username="{{ $labels.user }}" | objectRef_resource="secrets"'
+      - alert: AuditClusterAdminBinding
+        expr: |
+          sum by (user, resource, object) (count_over_time({job="audit/k3s"} |= "cluster-admin" | json user="user.username", verb="verb", resource="objectRef.resource", object="objectRef.name", role="requestObject.roleRef.name", code="responseStatus.code" | __error__="" | resource=~"clusterrolebindings|rolebindings" | verb=~"create|update|patch" | role="cluster-admin" | code=~"2.." | user!~"system:serviceaccount:argocd:.*|system:apiserver" [5m])) > 0
+        labels:
+          severity: critical
+          source: audit
+        annotations:
+          summary: '{{ $labels.user }} bound cluster-admin ({{ $labels.resource }} {{ $labels.object }})'
+          description: 'Explore (Loki): {job="audit/k3s"} |= "cluster-admin" | json | objectRef_resource=~"clusterrolebindings|rolebindings"'
+      - alert: AuditAnonymousAllowed
+        expr: |
+          sum by (uri) (count_over_time({job="audit/k3s"} |= "system:anonymous" | json user="user.username", uri="requestURI", code="responseStatus.code" | __error__="" | user="system:anonymous" | code=~"[23].." | uri!~"/(\\.well-known/openid-configuration|openid/v1/jwks)" [5m])) > 0
+        labels:
+          severity: critical
+          source: audit
+        annotations:
+          summary: 'An anonymous request to {{ $labels.uri }} succeeded'
+          description: 'Explore (Loki): {job="audit/k3s"} | json | user_username="system:anonymous"'
+      - alert: AuditManyDenied
+        expr: |
+          sum by (source_ip) (count_over_time({job="audit/k3s"} | json source_ip="sourceIPs[0]", code="responseStatus.code" | __error__="" | code=~"401|403" [5m])) > 20
+        labels:
+          severity: warning
+          source: audit
+        annotations:
+          summary: '{{ $value }} requests from {{ $labels.source_ip }} refused (401/403) in 5 minutes'
+          description: 'Explore (Loki): {job="audit/k3s"} | json | responseStatus_code=~"401|403"'
+      - alert: AuditPolicyExceptionChanged
+        expr: |
+          sum by (user, ns, object, verb) (count_over_time({job="audit/k3s"} | json user="user.username", verb="verb", resource="objectRef.resource", ns="objectRef.namespace", object="objectRef.name", code="responseStatus.code" | __error__="" | resource="policyexceptions" | verb=~"create|update|patch|delete" | code=~"2.." | user!~"system:serviceaccount:argocd:.*" [5m])) > 0
+        labels:
+          severity: warning
+          source: audit
+        annotations:
+          summary: '{{ $labels.user }} did {{ $labels.verb }} on PolicyException {{ $labels.ns }}/{{ $labels.object }} outside Argo CD'
+          description: 'Explore (Loki): {job="audit/k3s"} | json | objectRef_resource="policyexceptions"'
+  - name: audit-openbao
+    rules:
+      - alert: OpenBaoRootToken
+        expr: |
+          sum by (path) (count_over_time({job="audit/openbao"} |~ `"policies":\["root"\]|"path":"sys/generate-root` | json type="type", path="request.path" | __error__="" | type="request" [5m])) > 0
+        labels:
+          severity: critical
+          source: audit
+        annotations:
+          summary: 'OpenBao: a root token was used, or root token generation started ({{ $labels.path }})'
+          description: 'Explore (Loki): {job="audit/openbao"} |~ `"policies":\["root"\]|sys/generate-root`'
+      - alert: OpenBaoManyFailedLogins
+        expr: |
+          sum by (path) (count_over_time({job="audit/openbao"} | json type="type", path="request.path", error="error" | __error__="" | type="response" | path=~"auth/.+/login" | error!="" [5m])) > 10
+        labels:
+          severity: warning
+          source: audit
+        annotations:
+          summary: 'OpenBao: {{ $value }} failed logins at {{ $labels.path }} in 5 minutes'
+          description: 'Explore (Loki): {job="audit/openbao"} | json | type="response" | request_path=~"auth/.+/login" | error!=""'
+      - alert: OpenBaoConfigChanged
+        expr: |
+          sum by (user, path, operation) (count_over_time({job="audit/openbao"} | json type="type", path="request.path", operation="request.operation", user="auth.display_name", error="error" | __error__="" | type="response" | operation=~"create|update|delete" | path=~"sys/(policy|policies/acl|auth|audit)(/.*)?|auth/[^/]+/(role/.*|config)" | error="" [5m])) > 0
+        labels:
+          severity: critical
+          source: audit
+        annotations:
+          summary: 'OpenBao: {{ $labels.user }} did {{ $labels.operation }} on {{ $labels.path }} (a policy, an auth method or an audit device)'
+          description: 'Explore (Loki): {job="audit/openbao"} | json | request_path=~"sys/(policy|policies|auth|audit).*|auth/.+/(role|config).*"'
+  - name: audit-missing
+    rules:
+      # An audit trail that stops silently is worse than none
+      - alert: AuditLogsMissing
+        expr: absent_over_time({job="audit/k3s"}[15m])
+        for: 5m
+        labels:
+          severity: critical
+          source: audit
+        annotations:
+          summary: 'No line from the API server''s audit log for 15 minutes'
+          description: 'Check Alloy on the server nodes and the audit flags (metal/roles/k3s/defaults/main.yml)'
+      # OpenBao is quieter (ESO and its stores' checks, the hourly snapshot): two hours
+      - alert: AuditLogsMissing
+        expr: absent_over_time({job="audit/openbao"}[2h])
+        for: 10m
+        labels:
+          severity: critical
+          source: audit
+        annotations:
+          summary: 'No line from OpenBao''s audit device for 2 hours'
+          description: 'Check bao audit list (admin role) and Alloy''s audit/openbao relabelling (system/loki)'
