@@ -44,12 +44,18 @@ func TestTrivyOperatorRender(t *testing.T) {
 			assert.Equal(t, "HIGH,CRITICAL", renderTrivyOperator(t, e, trivy+` | .["trivy.severity"]`))
 			assert.Empty(t, renderTrivyOperator(t, e, `select(.kind == "PersistentVolumeClaim" or .kind == "StatefulSet") | .spec.volumeClaimTemplates[]?.metadata.name`))
 
+			// Both databases from ghcr.io, like Trivy's image (the chart's Java DB default is mirror.gcr.io)
+			assert.Equal(t, "ghcr.io/aquasecurity/trivy-db", renderTrivyOperator(t, e, trivy+` | .["trivy.dbRepository"]`))
+			assert.Equal(t, "ghcr.io/aquasecurity/trivy-java-db", renderTrivyOperator(t, e, trivy+` | .["trivy.javaDbRepository"]`))
+
 			// Every acceptance (Trivy's .trivyignore.yaml, as 15a's): a statement and an expiry still to come
 			assert.Equal(t, ".trivyignore.yaml", renderTrivyOperator(t, e, trivy+` | .["trivy.ignoreFileName"]`))
 			ignore := trivy + ` | .["trivy.ignoreFile"] | from_yaml | .vulnerabilities // [] | .[]`
 			for _, entry := range strings.Fields(renderTrivyOperator(t, e, ignore+` | .id + "|" + (.expired_at // "") + "|" + ((.statement // "") | length | tostring)`)) {
 				parts := strings.Split(entry, "|")
-				at, err := time.Parse("2006-01-02", parts[1])
+				// Helm renders the file with toYaml, so the date is a string, which Trivy reads only as RFC 3339 (a bare date
+				// stops every scan Job)
+				at, err := time.Parse(time.RFC3339, parts[1])
 				if assert.NoError(t, err, "%s has no expired_at", parts[0]) {
 					assert.True(t, at.After(time.Now()), "%s expired", parts[0])
 				}

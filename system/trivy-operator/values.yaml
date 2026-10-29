@@ -27,6 +27,8 @@ trivy-operator:
       repository: aquasecurity/trivy
     dbRegistry: ghcr.io
     dbRepository: aquasecurity/trivy-db
+    javaDbRegistry: ghcr.io
+    javaDbRepository: aquasecurity/trivy-java-db
     # Every finding, fixed or not: an unfixed CVE cannot be bumped away and stays exploitable (step 15e, user)
     ignoreUnfixed: false
     severity: HIGH,CRITICAL
@@ -55,7 +57,8 @@ trivy-operator:
           statement: >-
             brotli-libs in ghcr.io/aquasecurity/trivy 0.76.1 (this chart's scans): there only for Alpine's libcurl; the
             trivy binary is static Go and never loads it. Bump when Aqua rebuilds the image (.trivyignore.yaml too)
-          expired_at: 2026-11-28
+          # RFC 3339: toYaml makes the date a string, and Trivy reads a string only in that form
+          expired_at: "2026-11-28T00:00:00Z"
   serviceMonitor:
     enabled: true
   # Pod Security restricted (system/kyverno): the operator's image runs as 10000, Trivy's as any user (its cache under
