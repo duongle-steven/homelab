@@ -119,7 +119,7 @@ func restoreFixture(t *testing.T, objects ...runtime.Object) (*Client, *recorder
 	quantity := resource.MustParse("1Gi")
 	kube := fake.NewClientset(
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "kube-system", CreationTimestamp: metav1.NewTime(t0)}},
-		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: "ntfy"}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)}, Status: appsv1.DeploymentStatus{ReadyReplicas: 1}},
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: "ntfy"}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)}, Status: appsv1.DeploymentStatus{Replicas: 1, UpdatedReplicas: 1, ReadyReplicas: 1, AvailableReplicas: 1}},
 		// Rook reads nothing from OpenBao: a restore must not restart Ceph
 		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "rook-ceph", Name: "rook-ceph-mon-a"}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)}, Status: appsv1.DeploymentStatus{ReadyReplicas: 1}},
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ntfy"}},
@@ -428,6 +428,52 @@ func TestRestoreClusterWaitsForArgoCDAtTheEnd(t *testing.T) {
 	rec.indexAll(t, "patch externalsecrets ntfy ntfy-users", "force-sync")
 }
 
+// Argo CD's health lags a restart: right after the readers' restart it still says Healthy, and Forgejo (Recreate)
+// answered 503 while lab had already returned (dev after #62). The restore waits for the restarted rollouts themselves.
+func TestRestoreClusterWaitsForRestartedReaders(t *testing.T) {
+	c, _, _ := restoreFixture(t, externalSecret("ntfy", "ntfy-users"))
+	ctx := context.Background()
+	c.Kube.(*fake.Clientset).PrependReactor("patch", "deployments", func(a k8stesting.Action) (bool, runtime.Object, error) {
+		if !strings.Contains(string(a.(k8stesting.PatchAction).GetPatch()), "restartedAt") {
+			return false, nil, nil
+		}
+		// The new pod is not up yet: the old one is gone (Recreate). The tracker, not the client: the fake client holds
+		// its lock while reactors run
+		tracker := c.Kube.(*fake.Clientset).Tracker()
+		obj, err := tracker.Get(appsv1.SchemeGroupVersion.WithResource("deployments"), "ntfy", "ntfy")
+		if err != nil {
+			return true, nil, err
+		}
+		d := obj.(*appsv1.Deployment).DeepCopy()
+		d.Status = appsv1.DeploymentStatus{Replicas: 1}
+		return true, d, tracker.Update(appsv1.SchemeGroupVersion.WithResource("deployments"), d, "ntfy")
+	})
+	c.Wait = 100 * time.Millisecond
+	err := c.RestoreCluster(ctx, Plan{Run: daily, Apps: []string{"ntfy"}})
+	if err == nil || !strings.Contains(err.Error(), "ntfy/ntfy") {
+		t.Fatalf("err = %v, want a wait for Deployment ntfy/ntfy's rollout", err)
+	}
+}
+
+// The same lag after one app's restore: its Application still says Healthy while the app's pod is not ready
+// (Forgejo's 503 right after lab backup restore forgejo)
+func TestRestoreAppWaitsForItsPods(t *testing.T) {
+	c, _, _ := restoreFixture(t)
+	ctx := context.Background()
+	d, err := c.Kube.AppsV1().Deployments("ntfy").Get(ctx, "ntfy", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Status = appsv1.DeploymentStatus{Replicas: 1}
+	if _, err := c.Kube.AppsV1().Deployments("ntfy").UpdateStatus(ctx, d, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	c.Wait = 100 * time.Millisecond
+	if err := c.RestoreApp(ctx, "ntfy", Offsite, time.Time{}, daily); err == nil {
+		t.Fatal("the restore returned while ntfy's pod was not ready")
+	}
+}
+
 // A finished Job's pod still holds its claim (pvc-protection): openbao-snapshot keeps its last pod an hour, and the
 // whole-cluster restore waited 30 minutes for openbao-snapshots to go. The finished pods on the claims go first; the
 // Job keeps its record.
@@ -523,6 +569,7 @@ func TestRestoreResetsWoodpeckersAgentIDs(t *testing.T) {
 	agents := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "ntfy", Name: "woodpecker-agent"},
 		Spec:       appsv1.StatefulSetSpec{Replicas: ptr.To[int32](1), VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{ObjectMeta: metav1.ObjectMeta{Name: "agent-config"}}}},
+		Status:     appsv1.StatefulSetStatus{Replicas: 1, ReadyReplicas: 1},
 	}
 	if _, err := c.Kube.AppsV1().StatefulSets("ntfy").Create(ctx, agents, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
