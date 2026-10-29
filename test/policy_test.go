@@ -164,6 +164,21 @@ func TestPolicy(t *testing.T) {
 		assert.Contains(t, string(out), "violates PodSecurity")
 	})
 
+	// The reports controller keeps its leader Lease: at its memory limit it stalled, missed the Lease renewal and
+	// exited, again and again, and reports came late or never (system/kyverno/values.yaml)
+	t.Run("reports controller stays up", func(t *testing.T) {
+		pod := `jsonpath={.items[0].status.containerStatuses[0].restartCount} {.items[0].status.containerStatuses[0].ready}`
+		state := func() string {
+			out, err := k8s.RunKubectlAndGetOutputE(t, kyverno, "get", "pod", "-l", "app.kubernetes.io/component=reports-controller", "-o", pod)
+			require.NoError(t, err)
+			return out
+		}
+		before := state()
+		assert.True(t, strings.HasSuffix(before, " true"), "the reports controller is not ready: %s", before)
+		time.Sleep(2 * time.Minute)
+		assert.Equal(t, before, state(), "the reports controller restarted (restart count, ready)")
+	})
+
 	t.Run("reports", func(t *testing.T) {
 		// A pod breaking restricted is admitted (Audit) and reported
 		namespace := fmt.Sprint("policy-test-", time.Now().Unix())

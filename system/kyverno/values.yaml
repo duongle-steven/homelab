@@ -38,6 +38,14 @@ kyverno:
       allowedResults: fail,error,warn
       clientRateLimitQPS: 50
       clientRateLimitBurst: 100
+    # Its working set reaches about 125Mi (the sandbox, 2026-10-29). At the chart's 128Mi limit the kernel kept
+    # reclaiming its memory, the process stalled, its Lease renewal missed the deadline and it exited: 64 restarts in
+    # 8 hours, reports late or missing
+    resources:
+      requests:
+        memory: 128Mi
+      limits:
+        memory: 512Mi
 kyverno-policies:
   podSecurityStandard: restricted
   validationFailureAction: Audit
