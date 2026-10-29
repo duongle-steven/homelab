@@ -74,3 +74,11 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15b | `scripts/check-policy` takes about four minutes (every chart, both environments) on every pull request: limit it to the touched charts once policies are stable | any |
 | 15b | `TestPolicy` judges only pods created a minute after the newest PolicyException (older reports keep the startup race's stale `fail`): on a fresh sandbox that is few pods; judge controller reports after a fresh scan before Enforce | 15b-2 |
 | 15b | The Gateways (`gateway-istio`, `public-istio`) run without a seccomp profile (Istio generates their Deployments; excused): set it through the Gateways' `parametersRef` | 15b-2 |
+| 15c | `AuditLogsMissing` fires only when every audit stream is silent: one server node whose Alloy or audit file stopped goes unseen (alert per `node`) | 12a |
+| 15c | `OpenBaoConfigChanged` misses identity groups and entities, `sys/mounts` and a raft snapshot restore | any |
+| 15c | kube-vip runs with the admin kubeconfig, so its requests count as a person's (`system:admin`): give it its own credentials | 12a |
+| 15c | `TestSecurityLogsQuietWhenIdle` runs only the critical rules on an idle sandbox: run the warnings too | any |
+| 15c | `TestAuditPolicyRender` does not assert the level of a person's Secret or ConfigMap writes | any |
+| 15c | `system/loki/values.yaml`'s sidecar comment says "no ruler here", stale since the ruler loads rules | any |
+| 15c | Ansible changes the audit policy file on the nodes without restarting k3s (the API server reads it only at start) | 12a |
+| 15c | Alloy reads only the current `audit.log`, not its rotated files: Alloy down while the log rotates loses the tail | any |
