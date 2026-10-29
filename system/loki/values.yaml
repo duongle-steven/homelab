@@ -19,6 +19,13 @@ loki:
             period: 24h
     limits_config:
       retention_period: 720h
+      # The audit logs (job audit/k3s and audit/openbao: docs/how-to-guides/security-logs.md) are kept 90 days. If
+      # they outgrow the 10Gi volume, shorten this (60, then 45 or 30 days), never the volume
+      # (docs/superpowers/specs/2026-10-28-security-logs-design.md)
+      retention_stream:
+        - selector: '{job=~"audit/.*"}'
+          priority: 1
+          period: 2160h
     compactor:
       retention_enabled: true
       delete_request_store: filesystem

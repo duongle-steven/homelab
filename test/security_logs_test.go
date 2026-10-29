@@ -192,3 +192,29 @@ func TestSecurityLogsOpenBao(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, server, "audit lines left under job=pods")
 }
+
+// renderLoki renders system/loki for env ("" or dev) and runs a yq expression on it
+func renderLoki(t *testing.T, env, expr string) string {
+	t.Helper()
+	cmd := exec.Command("sh", "-c", `scripts/render-chart system/loki $1 | yq -N "$0"`, expr, env)
+	cmd.Dir = ".."
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	require.NoError(t, err, stderr.String())
+	return strings.TrimSpace(string(out))
+}
+
+// lokiConfig selects Loki's own config in the render
+const lokiConfig = `select(.kind == "ConfigMap" and .metadata.name == "loki") | .data["config.yaml"] | from_yaml`
+
+// Audit streams are kept longer than other logs in production; the sandbox keeps 7 days for everything
+func TestSecurityLogsRetention(t *testing.T) {
+	for env, want := range map[string][2]string{"": {"720h", "2160h"}, "dev": {"168h", "168h"}} {
+		t.Run("env="+env, func(t *testing.T) {
+			assert.Equal(t, want[0], renderLoki(t, env, lokiConfig+` | .limits_config.retention_period`))
+			assert.Equal(t, `{job=~"audit/.*"} `+want[1], renderLoki(t, env, lokiConfig+
+				` | .limits_config.retention_stream | map(.selector + " " + .period) | join(",")`))
+		})
+	}
+}
