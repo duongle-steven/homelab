@@ -1,0 +1,9 @@
+# Loki's alert rules (files/audit-rules.yaml), mounted for tenant fake (auth_enabled false) at /etc/loki/rules/fake
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-audit-rules
+  namespace: {{ .Release.Namespace }}
+data:
+  audit-rules.yaml: |
+{{ .Files.Get "files/audit-rules.yaml" | indent 4 }}

@@ -19,11 +19,42 @@ loki:
             period: 24h
     limits_config:
       retention_period: 720h
+      # The audit logs (job audit/k3s and audit/openbao: docs/how-to-guides/security-logs.md) are kept 60 days: 90 would
+      # not fit the 10Gi volume. The sandbox idling (2026-10-29): about 520MiB a day of audit lines, 370MiB of the rest,
+      # compressed at least 5.7 times (measured), so about 5.4GiB for 60 days of audit and 1.9GiB for 30 days of the
+      # rest on one node: 7.3GiB of 10Gi.
+      # If they outgrow the volume, shorten this (45, then 30 days), never the volume
+      # (docs/superpowers/specs/2026-10-28-security-logs-design.md)
+      retention_stream:
+        - selector: '{job=~"audit/.*"}'
+          priority: 1
+          period: 1440h
+      # A query may span everything kept: the default 721h would refuse a search of the audit logs' 60 days
+      max_query_length: 1441h
+    # Alerts from the audit logs (templates/audit-rules.yaml), sent to Alertmanager
+    rulerConfig:
+      storage:
+        type: local
+        local:
+          directory: /etc/loki/rules
+      rule_path: /var/loki/rules-temp
+      alertmanager_url: http://monitoring-system-kube-pro-alertmanager.monitoring-system:9093
+      enable_api: true
+      wal:
+        dir: /var/loki/ruler-wal
     compactor:
       retention_enabled: true
       delete_request_store: filesystem
   singleBinary:
     replicas: 1
+    extraVolumes:
+      - name: audit-rules
+        configMap:
+          name: loki-audit-rules
+    extraVolumeMounts:
+      - name: audit-rules
+        mountPath: /etc/loki/rules/fake
+        readOnly: true
     persistence:
       size: 10Gi
       # Not backed up: logs are not worth their space off-site (docs/how-to-guides/backup-and-restore.md)
@@ -68,6 +99,11 @@ alloy:
         - name: pod-logs
           hostPath:
             path: /var/log/pods
+        # The API server's audit log on server nodes (metal/roles/k3s/files/audit-policy.yaml); agents have none
+        - name: audit-logs
+          hostPath:
+            path: /var/log/kubernetes/audit
+            type: DirectoryOrCreate
         # Positions and the write-ahead log (loki.write's wal) survive a restart of the pod
         - name: storage
           hostPath:
@@ -88,6 +124,9 @@ alloy:
       extra:
         - name: pod-logs
           mountPath: /var/log/pods
+          readOnly: true
+        - name: audit-logs
+          mountPath: /var/log/kubernetes/audit
           readOnly: true
         - name: storage
           mountPath: /var/lib/alloy
@@ -152,6 +191,27 @@ alloy:
         // containerd's CRI format: time, stream, flags, line
         loki.process "pods" {
           stage.cri {}
+          // OpenBao's audit device (platform/openbao) writes JSON requests and responses to its stdout
+          stage.match {
+            selector = "{namespace=\"openbao\", container=\"openbao\"} |~ \"^\\\\{.*\\\"type\\\":\\\"(request|response)\\\"\""
+            stage.static_labels {
+              values = {job = "audit/openbao"}
+            }
+          }
+          forward_to = [loki.write.loki.receiver]
+        }
+
+        // The API server's audit log (JSON lines, one event each), rotated by the server: followed by name
+        local.file_match "audit" {
+          path_targets = [{
+            "__path__" = "/var/log/kubernetes/audit/audit.log",
+            "job"      = "audit/k3s",
+            "node"     = sys.env("K8S_NODE_NAME"),
+          }]
+        }
+
+        loki.source.file "audit" {
+          targets    = local.file_match.audit.targets
           forward_to = [loki.write.loki.receiver]
         }
 

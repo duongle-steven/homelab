@@ -53,6 +53,13 @@
     dest: "{{ k3s_token_file }}"
     mode: 0600
 
+- name: Copy the API server's audit policy
+  when: "'masters' in group_names"
+  ansible.builtin.copy:
+    src: audit-policy.yaml
+    dest: /etc/rancher/k3s/audit-policy.yaml
+    mode: 0600
+
 - name: Copy k3s config files
   ansible.builtin.template:
     src: "{{ item.src }}"

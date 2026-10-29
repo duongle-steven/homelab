@@ -44,6 +44,16 @@ openbao:
           node_id = "HOSTNAME"
         }
 
+        # Every request and response, to stdout: Alloy sends these lines to Loki as job audit/openbao (system/loki;
+        # docs/how-to-guides/security-logs.md). Secret values are HMACed (no log_raw). Declared here, so OpenBao
+        # creates it at every start, and API administrators cannot point an audit device at a file or a socket. If
+        # every audit device fails OpenBao refuses requests; stdout does not fill up.
+        audit "file" "stdout" {
+          options {
+            file_path = "stdout"
+          }
+        }
+
         seal "static" {
           current_key_id = "homelab-1"
           current_key    = "file:///openbao/unseal/key"

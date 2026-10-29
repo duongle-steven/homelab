@@ -28,6 +28,11 @@ variable "gateway_api_version" {
   default = "v1.6.3"
 }
 
+variable "audit_policy" {
+  type        = string
+  description = "The API server's audit policy (metal/roles/k3s/files/audit-policy.yaml, shared with the nodes), outside Terragrunt's cache: k3d mounts it into the node"
+}
+
 variable "manifest_dir" {
   type        = string
   description = "Where the Gateway API manifest is kept: k3d mounts it into the node, so it must outlive Terragrunt's cache"
@@ -77,7 +82,7 @@ locals {
 }
 
 resource "terraform_data" "cluster" {
-  triggers_replace = [filesha1(local.config), local.manifest, var.name, local.registries]
+  triggers_replace = [filesha1(local.config), filesha1(var.audit_policy), local.manifest, var.name, local.registries]
   input            = { name = var.name, kubeconfig = var.kubeconfig }
 
   provisioner "local-exec" {
@@ -96,6 +101,7 @@ resource "terraform_data" "cluster" {
         --registry-use k3d-${name}:${var.caches[host].port} \
 %{endfor~}
         --volume "${local.manifest}:/var/lib/rancher/k3s/server/manifests/gateway-api.yaml@server:*" \
+        --volume "${var.audit_policy}:/etc/rancher/k3s/audit-policy.yaml@server:*" \
         --registry-config "${local.registries_file}"
       k3d kubeconfig get ${var.name} > "${var.kubeconfig}"
     EOT

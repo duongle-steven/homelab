@@ -35,6 +35,21 @@ options:
         nodeFilters: [server:*]
       - arg: --kube-proxy-arg=metrics-bind-address=0.0.0.0
         nodeFilters: [server:*]
+      # The API server's audit log (metal/roles/k3s/files/audit-policy.yaml, mounted by main.tf), which Alloy sends to
+      # Loki (system/loki); the server rotates it, Loki keeps it
+      - arg: --kube-apiserver-arg=audit-policy-file=/etc/rancher/k3s/audit-policy.yaml
+        nodeFilters: [server:*]
+      - arg: --kube-apiserver-arg=audit-log-path=/var/log/kubernetes/audit/audit.log
+        nodeFilters: [server:*]
+      - arg: --kube-apiserver-arg=audit-log-maxsize=100
+        nodeFilters: [server:*]
+      - arg: --kube-apiserver-arg=audit-log-maxbackup=3
+        nodeFilters: [server:*]
+      # An event over 100KiB (a large CRD's body) keeps who and what without its bodies: Loki refuses a line over 256KB
+      - arg: --kube-apiserver-arg=audit-log-truncate-enabled=true
+        nodeFilters: [server:*]
+      - arg: --kube-apiserver-arg=audit-log-truncate-max-event-size=102400
+        nodeFilters: [server:*]
   kubeconfig:
     updateDefaultKubeconfig: false
     switchCurrentContext: false
