@@ -1,6 +1,7 @@
 package test
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -43,6 +44,13 @@ func TestTrivyOperatorRender(t *testing.T) {
 			assert.NotEqual(t, "true", renderTrivyOperator(t, e, trivy+` | .["trivy.ignoreUnfixed"]`), "unfixed findings are reported too")
 			assert.Equal(t, "HIGH,CRITICAL", renderTrivyOperator(t, e, trivy+` | .["trivy.severity"]`))
 			assert.Empty(t, renderTrivyOperator(t, e, `select(.kind == "PersistentVolumeClaim" or .kind == "StatefulSet") | .spec.volumeClaimTemplates[]?.metadata.name`))
+
+			// The operator reads Trivy's settings (the ignore file among them) only at start, and the chart's checksum
+			// covers only its own ConfigMap: the pod carries this one's hash, so a change restarts it
+			data := renderTrivyOperator(t, e, trivy+` | sort_keys(.) | to_json(0)`)
+			want := fmt.Sprintf("%x", sha256.Sum256([]byte(data)))[:16]
+			assert.Equal(t, want, renderTrivyOperator(t, e, `select(.kind == "Deployment") | .spec.template.metadata.annotations["homelab/trivy-config"]`),
+				"podAnnotations homelab/trivy-config in values%s.yaml", map[string]string{"": "", "dev": "-dev"}[e])
 
 			// Both databases from ghcr.io, like Trivy's image (the chart's Java DB default is mirror.gcr.io)
 			assert.Equal(t, "ghcr.io/aquasecurity/trivy-db", renderTrivyOperator(t, e, trivy+` | .["trivy.dbRepository"]`))

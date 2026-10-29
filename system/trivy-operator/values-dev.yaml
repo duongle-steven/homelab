@@ -1,5 +1,8 @@
 # The 12GB sandbox runs the suite beside the scans: one scan Job at a time, with limits
 trivy-operator:
+  # The limits below change Trivy's ConfigMap, so its hash too (values.yaml)
+  podAnnotations:
+    homelab/trivy-config: 550221971d12a123
   operator:
     scanJobsConcurrentLimit: 1
   trivy:

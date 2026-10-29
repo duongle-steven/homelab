@@ -76,9 +76,10 @@ func TestSupplyChain(t *testing.T) {
 	cosign(t, env, password, "login", registryHost, "-u", "ci", "--password-stdin")
 	repo := registryHost + "/supply-chain-test"
 	signed, unsigned := repo+":signed", repo+":unsigned"
-	// From ghcr.io and one platform: a whole Docker Hub index costs a pull per manifest against its anonymous limit
-	cosign(t, env, "", "copy", "--force", "--allow-insecure-registry", "--platform", "linux/amd64", "ghcr.io/containerd/busybox:1.36", signed)
-	cosign(t, env, "", "copy", "--force", "--allow-insecure-registry", "--platform", "linux/amd64", "ghcr.io/containerd/busybox:1.32", unsigned)
+	// One platform: the whole index costs a Docker Hub pull per manifest against its anonymous limit; OCI images, the
+	// only kind zot takes by default (ghcr.io's containerd/busybox is Docker's format)
+	cosign(t, env, "", "copy", "--force", "--allow-insecure-registry", "--platform", "linux/amd64", "docker.io/library/busybox:1.37.0", signed)
+	cosign(t, env, "", "copy", "--force", "--allow-insecure-registry", "--platform", "linux/amd64", "docker.io/library/busybox:1.36.1", unsigned)
 	cosign(t, env, "", "generate-key-pair", "--output-key-prefix", filepath.Join(dir, "cosign"))
 	cosign(t, env, "", "sign", "--yes", "--allow-insecure-registry", "--use-signing-config=false", "--key", filepath.Join(dir, "cosign.key"), signed)
 	public, err := os.ReadFile(filepath.Join(dir, "cosign.pub"))

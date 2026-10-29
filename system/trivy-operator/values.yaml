@@ -2,6 +2,10 @@
 # vulnerabilities, fixed or not, and secrets baked into them. Only what nothing else covers: Kyverno judges the
 # manifests (system/kyverno, step 15b), kube-bench and kubescape the cluster (step 15d)
 trivy-operator:
+  # The hash of Trivy's ConfigMap (trivy-operator-trivy-config): the operator reads it only at start, the chart's own
+  # checksum covers only trivy-operator-config. TestTrivyOperatorRender prints the new value when the settings change
+  podAnnotations:
+    homelab/trivy-config: 9e9b53320cdcf735
   # Aqua's own images on registries system/kyverno allows, not the chart's mirror.gcr.io: the operator's on Docker Hub
   # (ghcr.io had no 0.36.1 on its release day), Trivy and its database on ghcr.io
   image:
