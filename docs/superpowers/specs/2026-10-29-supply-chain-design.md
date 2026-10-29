@@ -38,7 +38,7 @@ What runs in the cluster is known and watched:
 
 **Version and setup**
 - The `trivy-operator` chart at its latest release, from Aqua's repository.
-- One namespace `trivy-system`, inside the mesh. Its scan Jobs are short pods; they get the mesh's defaults.
+- One namespace `trivy-operator` (the directory name, as every component), inside the mesh. Its scan Jobs are short pods; they get the mesh's defaults.
 - `ClientServer` mode with the built-in Trivy server: the vulnerability DB is downloaded once and kept on the server.
 
 **Scanners**
@@ -81,7 +81,7 @@ What runs in the cluster is known and watched:
   made in the plan's sandbox task, ledgered.
 
 **Network**
-- Egress 443 for `trivy-system` (the DB and registries) in `system/egress/values.yaml`.
+- Egress 443 for `trivy-operator` (the DB and registries) in `system/egress/values.yaml`.
 - An `allow` AuthorizationPolicy for its namespace.
 - `homelab/backup: none` on any claim.
 - Pod Security restricted, or a PolicyException with its reason.

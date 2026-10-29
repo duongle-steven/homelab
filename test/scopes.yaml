@@ -94,6 +94,8 @@ groups:
     tests: SSOKiali|KialiRender
   - paths: [system/kyverno/**]
     tests: Policy
+  - paths: [system/trivy-operator/**]
+    tests: TrivyOperator
   - paths: [system/monitoring-system/**]
     tests: Monitoring|Mesh|Ntfy|Logs
   - paths:

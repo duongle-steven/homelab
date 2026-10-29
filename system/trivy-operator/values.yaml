@@ -1,0 +1,73 @@
+# The Trivy Operator watches the images running in the cluster (docs/how-to-guides/supply-chain.md): their
+# vulnerabilities, fixed or not, and secrets baked into them. Only what nothing else covers: Kyverno judges the
+# manifests (system/kyverno, step 15b), kube-bench and kubescape the cluster (step 15d)
+trivy-operator:
+  # Aqua's own images on registries system/kyverno allows, not the chart's mirror.gcr.io: the operator's on Docker Hub
+  # (ghcr.io had no 0.36.1 on its release day), Trivy and its database on ghcr.io
+  image:
+    registry: docker.io
+    repository: aquasec/trivy-operator
+  operator:
+    vulnerabilityScannerEnabled: true
+    exposedSecretScannerEnabled: true
+    configAuditScannerEnabled: false
+    rbacAssessmentScannerEnabled: false
+    infraAssessmentScannerEnabled: false
+    clusterComplianceEnabled: false
+    # A report object per image in etcd: our own image's SBOM is attested where it is built (lab-image.yaml)
+    sbomGenerationEnabled: false
+    # Per-CVE series with fixed_version: the alerts tell fixable from unfixed (templates/prometheus-rule.yaml)
+    metricsVulnIdEnabled: true
+    # One Trivy server keeps the vulnerability database; scan Jobs ask it
+    builtInTrivyServer: true
+    scanJobsConcurrentLimit: 3
+  trivy:
+    image:
+      registry: ghcr.io
+      repository: aquasecurity/trivy
+    dbRegistry: ghcr.io
+    dbRepository: aquasecurity/trivy-db
+    # Every finding, fixed or not: an unfixed CVE cannot be bumped away and stays exploitable (step 15e, user)
+    ignoreUnfixed: false
+    severity: HIGH,CRITICAL
+    # The database on an emptyDir: downloaded again (about 80MB) when the server restarts, no volume to back up
+    storageClassEnabled: false
+    server:
+      podSecurityContext:
+        runAsUser: 65534
+        runAsNonRoot: true
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      securityContext:
+        privileged: false
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+    # Accepted findings, Trivy's .trivyignore.yaml as 15a's: an id, the image, why (statement) and an expiry at most
+    # 90 days away (expired_at), after which it is reported and alerts again. Add one only once the risk is
+    # understood: what limits exploitation here (default-deny egress, mTLS, Pod Security), or the app is replaced
+    ignoreFileName: .trivyignore.yaml
+    ignoreFile:
+      vulnerabilities:
+        - id: CVE-2026-111497
+          statement: >-
+            brotli-libs in ghcr.io/aquasecurity/trivy 0.76.1 (this chart's scans): there only for Alpine's libcurl; the
+            trivy binary is static Go and never loads it. Bump when Aqua rebuilds the image (.trivyignore.yaml too)
+          expired_at: 2026-11-28
+  serviceMonitor:
+    enabled: true
+  # Pod Security restricted (system/kyverno): the operator's image runs as 10000, Trivy's as any user (its cache under
+  # /tmp); the scan Jobs the operator creates get the same
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10000
+    seccompProfile:
+      type: RuntimeDefault
+  trivyOperator:
+    scanJobPodTemplatePodSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      seccompProfile:
+        type: RuntimeDefault

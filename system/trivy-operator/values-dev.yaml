@@ -1,0 +1,20 @@
+# The 12GB sandbox runs the suite beside the scans: one scan Job at a time, with limits
+trivy-operator:
+  operator:
+    scanJobsConcurrentLimit: 1
+  trivy:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 200M
+      limits:
+        cpu: 500m
+        memory: 750M
+    server:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi

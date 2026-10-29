@@ -7,4 +7,9 @@ misconfigurations:
   - id: DS-0002
     paths: [metal/roles/pxe_server/files/dnsmasq/Dockerfile, metal/roles/pxe_server/files/http/Dockerfile]
     statement: metal's PXE images on the workstation during an install; dnsmasq binds ports 67 and 69 as root
-vulnerabilities: []
+vulnerabilities:
+  - id: CVE-2026-111497
+    statement: >-
+      ghcr.io/aquasecurity/trivy 0.76.1 (system/trivy-operator, the latest): brotli-libs is there only for Alpine's
+      libcurl; the trivy binary is static Go and never loads it. Bump when Aqua rebuilds the image
+    expired_at: 2026-11-28

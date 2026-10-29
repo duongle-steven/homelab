@@ -23,6 +23,7 @@ internet:
   wireguard: [{port: 51820, protocol: UDP}]  # handshakes and keepalives to server peers (apps/wireguard.yaml)
   velero: [{port: 443}]  # R2: off-site backups (production; the sandbox's S3 is in the cluster)
   kyverno: [{port: 443}]  # ghcr.io and Sigstore (TUF, Rekor): lab's signature (production)
+  trivy-operator: [{port: 443}]  # the vulnerability database and the registries the scans read
   monitoring-system: [{port: 443}]  # Telegram: Alertmanager's second path (production; the sandbox has no bot)
 
 # Not granted (add a line when you use them): Actual Budget's bank sync (GoCardless/SimpleFIN, 443), paperless's mail

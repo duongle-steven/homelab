@@ -147,7 +147,7 @@ Kyverno, and the workflows are checked by zizmor.
     `trivy.ignoreFile` from `files/trivyignore` (wrapper template or `--set-file`, as the chart allows).
 - Modify:
   - `system/argocd/values.yaml` and `values-dev.yaml`: `system/trivy-operator` in the `root` generators;
-  - `system/egress/values.yaml`: `trivy-system: [{port: 443}]  # the vulnerability DB and registries`;
+  - `system/egress/values.yaml`: `trivy-operator: [{port: 443}]  # the vulnerability DB and registries`;
   - `test/scopes.yaml`: `system/trivy-operator/** → TrivyOperator`;
   - `system/monitoring-system/files/security-dashboard.json`: a row "Images" with findings by severity, fixed or not;
   - `scripts/check-backup-groups`, if the chart renders a claim.
@@ -155,7 +155,7 @@ Kyverno, and the workflows are checked by zizmor.
 
 **Interfaces:**
 - Produces:
-  - namespace `trivy-system`;
+  - namespace `trivy-operator`;
   - alerts named as the Global Constraints say, labelled `source=trivy`;
   - `renderTrivyOperator(t, env, expr string) string` for Task 4.
 
