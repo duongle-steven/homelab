@@ -1,6 +1,6 @@
 # Alerts from the audit logs (step 15c, docs/how-to-guides/security-logs.md): dangerous events no metric shows.
 # Loki's ruler evaluates them every minute and sends them to Alertmanager (ntfy, Telegram), which groups them by alert
-# and user. "A person" is any user but service accounts, nodes and the control plane (system:admin, k3s's admin
+# and user. "A person" is any user but service accounts, nodes and the control plane, k3s's own controllers included (system:admin, k3s's admin
 # kubeconfig, is a person: tools using it alert too, accepted). Thresholds: AuditManyDenied and
 # OpenBaoManyFailedLogins from the sandbox's normal traffic.
 groups:
@@ -8,7 +8,7 @@ groups:
     rules:
       - alert: AuditExecByPerson
         expr: |
-          sum by (user, ns, object, subresource) (count_over_time({job="audit/k3s"} | json user="user.username", subresource="objectRef.subresource", ns="objectRef.namespace", object="objectRef.name" | __error__="" | subresource=~"exec|attach|portforward" | user!~"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:apiserver" [5m])) > 0
+          sum by (user, ns, object, subresource) (count_over_time({job="audit/k3s"} | json user="user.username", subresource="objectRef.subresource", ns="objectRef.namespace", object="objectRef.name" | __error__="" | subresource=~"exec|attach|portforward" | user!~"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:k3s-.*|k3s-cloud-controller-manager|system:apiserver" [5m])) > 0
         labels:
           severity: warning
           source: audit
@@ -17,7 +17,7 @@ groups:
           description: 'Explore (Loki): {job="audit/k3s"} | json | user_username="{{ $labels.user }}" | objectRef_subresource="{{ $labels.subresource }}"'
       - alert: AuditSecretReadByPerson
         expr: |
-          sum by (user, ns, object) (count_over_time({job="audit/k3s"} | json user="user.username", verb="verb", resource="objectRef.resource", ns="objectRef.namespace", object="objectRef.name" | __error__="" | resource="secrets" | verb=~"get|list|watch" | user!~"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:apiserver" [5m])) > 0
+          sum by (user, ns, object) (count_over_time({job="audit/k3s"} | json user="user.username", verb="verb", resource="objectRef.resource", ns="objectRef.namespace", object="objectRef.name" | __error__="" | resource="secrets" | verb=~"get|list|watch" | user!~"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:k3s-.*|k3s-cloud-controller-manager|system:apiserver" [5m])) > 0
         labels:
           severity: warning
           source: audit
@@ -45,6 +45,9 @@ groups:
       - alert: AuditManyDenied
         expr: |
           sum by (source_ip) (count_over_time({job="audit/k3s"} | json source_ip="sourceIPs[0]", code="responseStatus.code" | __error__="" | code=~"401|403" [5m])) > 20
+        # After a power cut a node's pods retry with their old tokens for about 5 minutes (istio-cni: 238 in 5m, the
+        # sandbox, 2026-10-29); a guess at passwords or tokens lasts longer
+        for: 10m
         labels:
           severity: warning
           source: audit

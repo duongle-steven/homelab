@@ -78,7 +78,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (user) (count_over_time({job=\"audit/k3s\"} | json user=\"user.username\", verb=\"verb\", resource=\"objectRef.resource\" | resource=\"secrets\" | verb=~\"get|list|watch\" | user!~\"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:apiserver\" [$__auto]))",
+          "expr": "sum by (user) (count_over_time({job=\"audit/k3s\"} | json user=\"user.username\", verb=\"verb\", resource=\"objectRef.resource\" | resource=\"secrets\" | verb=~\"get|list|watch\" | user!~\"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:k3s-.*|k3s-cloud-controller-manager|system:apiserver\" [$__auto]))",
           "legendFormat": "{{user}}",
           "queryType": "range"
         }

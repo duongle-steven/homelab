@@ -1,7 +1,7 @@
 # The API server's audit policy (step 15c, docs/how-to-guides/security-logs.md), on production's servers
 # (roles/k3s) and the k3d sandbox (infra/_modules/k3d): who did what, never a secret's value. The first matching rule
-# wins: read-only noise first, then the sensitive resources at Metadata (never a body), then changes worth their body,
-# then Metadata for everything else. After GKE's policy and the Kubernetes documentation's example.
+# wins: read-only noise first, then the sensitive resources at Metadata (never a body), then service accounts' other
+# reads (dropped), then changes worth their body, then Metadata for everything else. After GKE's policy and the Kubernetes documentation's example.
 apiVersion: audit.k8s.io/v1
 kind: Policy
 omitStages:
@@ -35,6 +35,18 @@ rules:
         resources: ["tokenreviews"]
       - group: authorization.k8s.io
         resources: ["subjectaccessreviews", "selfsubjectaccessreviews", "localsubjectaccessreviews"]
+  # Service accounts reading what they manage: controllers' gets and watches were 41% of the volume (the sandbox,
+  # 2026-10-29). Their reads of the sensitive kinds stay above, what they change below
+  - level: None
+    userGroups: ["system:serviceaccounts"]
+    verbs: ["get", "list", "watch"]
+  # Kyverno rewrites its own webhooks again and again (7% of the volume as bodies): who and when only
+  - level: Metadata
+    users: ["system:serviceaccount:kyverno:kyverno-admission-controller"]
+    verbs: ["update", "patch"]
+    resources:
+      - group: admissionregistration.k8s.io
+        resources: ["validatingwebhookconfigurations", "mutatingwebhookconfigurations"]
   # Changes that grant or weaken access: the body sent
   - level: Request
     verbs: ["create", "update", "patch", "delete"]

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -48,7 +49,9 @@ var auditFlags = []string{
 }
 
 type auditRule struct {
-	Level     string   `yaml:"level"`
+	Level      string   `yaml:"level"`
+	Users      []string `yaml:"users"`
+	UserGroups []string `yaml:"userGroups"`
 	Verbs     []string `yaml:"verbs"`
 	Resources []struct {
 		Group     string   `yaml:"group"`
@@ -69,6 +72,27 @@ func (r auditRule) names(resource string) bool {
 		}
 	}
 	return false
+}
+
+// level is the level the first matching rule gives a resource request, as the API server picks it
+func level(rules []auditRule, user string, groups []string, verb, group, resource string) string {
+	for _, r := range rules {
+		if len(r.NonResourceURLs) > 0 ||
+			len(r.Users) > 0 && !slices.Contains(r.Users, user) ||
+			len(r.UserGroups) > 0 && !slices.ContainsFunc(r.UserGroups, func(g string) bool { return slices.Contains(groups, g) }) ||
+			len(r.Verbs) > 0 && !slices.Contains(r.Verbs, verb) {
+			continue
+		}
+		if len(r.Resources) == 0 || slices.ContainsFunc(r.Resources, func(g struct {
+			Group     string   `yaml:"group"`
+			Resources []string `yaml:"resources"`
+		}) bool {
+			return g.Group == group && (len(g.Resources) == 0 || slices.Contains(g.Resources, resource))
+		}) {
+			return r.Level
+		}
+	}
+	return "None"
 }
 
 // No secret value ever reaches the log: sensitive resources are logged at Metadata before any rule could log their body
@@ -134,6 +158,33 @@ func TestAuditPolicyRender(t *testing.T) {
 	last := policy.Rules[len(policy.Rules)-1]
 	assert.Equal(t, "Metadata", last.Level)
 	assert.True(t, last.matchesEveryResource() && len(last.Verbs) == 0, "the last rule matches everything")
+
+	// The volume (the sandbox, 2026-10-29): service accounts' reads were 41% of it and Kyverno rewriting its own
+	// webhooks 7%; what they change, their reads of the sensitive kinds and everyone else's reads stay
+	sa, sas := "system:serviceaccount:argocd:argocd-application-controller", []string{"system:serviceaccounts", "system:authenticated"}
+	kyverno := "system:serviceaccount:kyverno:kyverno-admission-controller"
+	admin := []string{"system:masters", "system:authenticated"}
+	for _, c := range []struct {
+		user           string
+		groups         []string
+		verb, group, r string
+		want           string
+	}{
+		{sa, sas, "get", "", "pods", "None"},
+		{sa, sas, "watch", "apps", "deployments", "None"},
+		{sa, sas, "get", "", "secrets", "Metadata"},
+		{sa, sas, "list", "", "configmaps", "Metadata"},
+		{sa, sas, "patch", "", "pods", "Metadata"},
+		{sa, sas, "create", "rbac.authorization.k8s.io", "rolebindings", "Request"},
+		{sa, sas, "update", "admissionregistration.k8s.io", "validatingwebhookconfigurations", "Request"},
+		{kyverno, sas, "update", "admissionregistration.k8s.io", "validatingwebhookconfigurations", "Metadata"},
+		{kyverno, sas, "patch", "admissionregistration.k8s.io", "mutatingwebhookconfigurations", "Metadata"},
+		{kyverno, sas, "update", "policies.kyverno.io", "policyexceptions", "Request"},
+		{"system:admin", admin, "get", "", "pods", "Metadata"},
+		{"system:admin", admin, "delete", "", "namespaces", "Request"},
+	} {
+		assert.Equal(t, c.want, level(policy.Rules, c.user, c.groups, c.verb, c.group, c.r), "%s %s %s/%s", c.user, c.verb, c.group, c.r)
+	}
 
 	k3d := yqFile(t, "infra/_modules/k3d/k3d.yaml", `[.options.k3s.extraArgs[].arg] | join(" ")`)
 	metal := yqFile(t, "metal/roles/k3s/defaults/main.yml", `.k3s_server_config.kube-apiserver-arg | join(" ")`)
@@ -259,8 +310,16 @@ var auditAlerts = map[string]string{
 	"AuditLogsMissing":            "critical",
 }
 
-// Who is not a person: service accounts, nodes and the control plane (system:admin, k3s's admin, is a person)
-const notPerson = `system:serviceaccount:.*|system:node:.*|system:kube-.*|system:apiserver`
+// Who is not a person: service accounts, nodes and the control plane, k3s's own controllers among them (the sandbox's
+// audit log, 2026-10-29); system:admin, k3s's admin, and anyone signing in are
+var (
+	notPersons = []string{"system:serviceaccount:argocd:argocd-server", "system:node:k3d-homelab-dev-server-0", "system:kube-scheduler",
+		"system:apiserver", "system:k3s-supervisor", "system:k3s-controller", "k3s-cloud-controller-manager"}
+	persons = []string{"system:admin", "someone@idm.example"}
+)
+
+// personFilter is the user!~ regexp of a rule's LogQL
+var personFilter = regexp.MustCompile(`user!~"([^"]*)"`)
 
 // Loki's ruler loads the alert rules (valid LogQL, lokitool) and sends them to Alertmanager, which groups the audit
 // alerts by user
@@ -279,6 +338,7 @@ func TestSecurityLogsRules(t *testing.T) {
 			Rules []struct {
 				Alert       string            `yaml:"alert"`
 				Expr        string            `yaml:"expr"`
+				For         string            `yaml:"for"`
 				Labels      map[string]string `yaml:"labels"`
 				Annotations map[string]string `yaml:"annotations"`
 			} `yaml:"rules"`
@@ -294,7 +354,18 @@ func TestSecurityLogsRules(t *testing.T) {
 			assert.NotEmpty(t, r.Annotations["summary"], r.Alert)
 			switch r.Alert {
 			case "AuditExecByPerson", "AuditSecretReadByPerson":
-				assert.Contains(t, r.Expr, notPerson, "%s leaves out who is not a person", r.Alert)
+				m := personFilter.FindStringSubmatch(r.Expr)
+				require.NotNil(t, m, "%s has no user!~ filter", r.Alert)
+				filter := regexp.MustCompile("^(?:" + m[1] + ")$")
+				for _, u := range notPersons {
+					assert.True(t, filter.MatchString(u), "%s takes %s for a person", r.Alert, u)
+				}
+				for _, u := range persons {
+					assert.False(t, filter.MatchString(u), "%s leaves out %s", r.Alert, u)
+				}
+			case "AuditManyDenied":
+				// A node's pods retry with their old tokens for about 5 minutes after a power cut (istio-cni: 238 in 5m)
+				assert.Equal(t, "10m", r.For, "%s fires on a power cut's stale tokens", r.Alert)
 			case "AuditClusterAdminBinding", "AuditPolicyExceptionChanged":
 				assert.Contains(t, r.Expr, "system:serviceaccount:argocd:", "%s leaves out Argo CD", r.Alert)
 			}
