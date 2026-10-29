@@ -67,6 +67,8 @@ groups:
       - infra/_modules/argocd/**
       - infra/sandbox/argocd/**
       - infra/_modules/k3d/**
+      # The API server's audit policy: a change rebuilds the sandbox's cluster
+      - metal/roles/k3s/files/audit-policy.yaml
       # Fills the k3d module's image caches before a build
       - scripts/warm-image-cache
       - infra/sandbox/cluster/**
@@ -152,7 +154,18 @@ groups:
       - infra/production/**
       - infra/_modules/cloudflare/**
       - infra/_modules/backup/**
-      - metal/**
+      # Production's nodes, but for the API server's audit policy, which the sandbox's k3d node uses too (a group below)
+      - metal/*
+      - metal/group_vars/**
+      - metal/inventories/**
+      - metal/roles/automatic_upgrade/**
+      - metal/roles/prerequisites/**
+      - metal/roles/pxe_server/**
+      - metal/roles/wake/**
+      - metal/roles/k3s/defaults/**
+      - metal/roles/k3s/tasks/**
+      - metal/roles/k3s/templates/**
+      - metal/roles/k3s/files/bin/**
       - test/benchmark/**
       - scripts/argocd-admin-password
       - scripts/get-dns-config

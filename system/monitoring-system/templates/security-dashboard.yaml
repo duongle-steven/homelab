@@ -1,0 +1,12 @@
+# Grafana's dashboard "Security" (files/security-dashboard.json): the audit logs' common questions, from Loki
+# (docs/how-to-guides/security-logs.md); Grafana's sidecar loads ConfigMaps labelled grafana_dashboard here
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+data:
+  security.json: |
+{{ .Files.Get "files/security-dashboard.json" | indent 4 }}

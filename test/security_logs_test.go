@@ -3,10 +3,12 @@ package test
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -373,5 +375,72 @@ func TestSecurityLogsQuietWhenIdle(t *testing.T) {
 		}
 		assert.False(t, strings.HasPrefix(a["user"], "system:serviceaccount:"), "%s for %s", a["alertname"], a["user"])
 		assert.NotEqual(t, "AuditLogsMissing", a["alertname"], "an audit trail stopped: %v", a)
+	}
+}
+
+// lokiLines returns every line a LogQL query matches over the last `since`, oldest first, paging past Loki's limit
+// per query (the query never holds a value the caller looks for: the API server's audit log records its URL)
+func lokiLines(t *testing.T, query string, since time.Duration) []string {
+	t.Helper()
+	options := k8s.NewKubectlOptions("", "", "loki")
+	options.Logger = logger.Discard
+	var lines []string
+	start, end := time.Now().Add(-since).UnixNano(), time.Now().UnixNano()
+	for len(lines) < 500000 {
+		params := url.Values{}
+		params.Set("query", query)
+		params.Set("start", fmt.Sprint(start))
+		params.Set("end", fmt.Sprint(end))
+		params.Set("limit", "5000")
+		params.Set("direction", "forward")
+		out, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "--raw",
+			"/api/v1/namespaces/loki/services/loki:3100/proxy/loki/api/v1/query_range?"+params.Encode())
+		require.NoError(t, err)
+		var res struct {
+			Data struct {
+				Result []struct {
+					Values [][2]string `json:"values"`
+				} `json:"result"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out), &res))
+		n, last := 0, start
+		for _, r := range res.Data.Result {
+			for _, v := range r.Values {
+				lines = append(lines, v[1])
+				n++
+				if ts, err := strconv.ParseInt(v[0], 10, 64); err == nil && ts > last {
+					last = ts
+				}
+			}
+		}
+		if n < 5000 {
+			return lines
+		}
+		start = last + 1
+	}
+	t.Fatalf("more than 500000 lines for %s", query)
+	return nil
+}
+
+// No generated secret's value is in either audit log (a Secret's body is never logged, OpenBao HMACs values)
+func TestSecurityLogsNoSecretValues(t *testing.T) {
+	logsSandboxOnly(t)
+	values := map[string]string{
+		"grafana/grafana-admin": secretValue(t, "grafana", "grafana-admin", "admin-password"),
+		"forgejo/forgejo-admin": secretValue(t, "forgejo", "forgejo-admin", "password"),
+		"ntfy alerts token":     ntfyToken(t, "alerts"),
+	}
+	lines := lokiLines(t, `{job=~"audit/.*"}`, 2*time.Hour)
+	require.NotEmpty(t, lines, "no audit line in the last 2 hours")
+	t.Logf("searched %d audit lines", len(lines))
+	for name, value := range values {
+		require.NotEmpty(t, value, name)
+		for _, l := range lines {
+			if strings.Contains(l, value) {
+				t.Errorf("%s's value is in an audit line", name) // never print the line: it holds the value
+				break
+			}
+		}
 	}
 }

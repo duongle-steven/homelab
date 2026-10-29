@@ -1,0 +1,251 @@
+{
+  "title": "Security",
+  "uid": "security",
+  "tags": [
+    "security",
+    "audit"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "editable": true,
+  "description": "The API server's and OpenBao's audit logs (docs/how-to-guides/security-logs.md)",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "exec, attach and port-forward by user",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (user) (count_over_time({job=\"audit/k3s\"} | json user=\"user.username\", sub=\"objectRef.subresource\" | sub=~\"exec|attach|portforward\" [$__auto]))",
+          "legendFormat": "{{user}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Secret reads by people",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (user) (count_over_time({job=\"audit/k3s\"} | json user=\"user.username\", verb=\"verb\", resource=\"objectRef.resource\" | resource=\"secrets\" | verb=~\"get|list|watch\" | user!~\"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:apiserver\" [$__auto]))",
+          "legendFormat": "{{user}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "401 and 403 by source address",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (source_ip) (count_over_time({job=\"audit/k3s\"} | json source_ip=\"sourceIPs[0]\", code=\"responseStatus.code\" | code=~\"401|403\" [$__auto]))",
+          "legendFormat": "{{source_ip}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "OpenBao logins by role (failed in the legend's error)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (role, failed) (count_over_time({job=\"audit/openbao\"} | json type=\"type\", path=\"request.path\", role=\"auth.metadata.role\", error=\"error\" | type=\"response\" | path=~\"auth/.+/login\" | label_format failed=`{{ if .error }}failed{{ else }}ok{{ end }}` [$__auto]))",
+          "legendFormat": "{{role}} {{failed}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "logs",
+      "title": "RBAC, webhook, namespace, CRD and PolicyException changes",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{job=\"audit/k3s\"} | json verb=\"verb\", resource=\"objectRef.resource\" | verb=~\"create|update|patch|delete\" | resource=~\"roles|clusterroles|rolebindings|clusterrolebindings|policyexceptions|validatingwebhookconfigurations|mutatingwebhookconfigurations|namespaces|customresourcedefinitions\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    },
+    {
+      "id": 6,
+      "type": "logs",
+      "title": "OpenBao: requests by people and the admin role (not the stores)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{job=\"audit/openbao\"} | json type=\"type\", policies=\"auth.policies\" | type=\"request\" | policies!~\".*\\\"(apps|writer|infra|snapshot|rotator)\\\".*\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    }
+  ]
+}
