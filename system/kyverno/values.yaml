@@ -54,3 +54,8 @@ kyverno-policies:
   podSecurityUserNamespaces: true
 # Registries images may come from (templates/images.yaml); zot (registry.<domain>) is added there
 registries: [docker.io, ghcr.io, quay.io, registry.k8s.io, gcr.io, code.forgejo.org, public.ecr.aws, lscr.io]
+
+# lab's signature and SBOM (templates/lab-image-policy.yaml): production only
+labImagePolicy:
+  enabled: true
+  image: ghcr.io/duongle-steven/homelab-lab*

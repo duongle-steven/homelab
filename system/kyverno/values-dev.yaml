@@ -19,3 +19,8 @@ kyverno:
       mutateExisting: false
       imageVerify: false
       generate: false
+
+# The sandbox runs lab's image built from the checkout (scripts/build-lab-image), unsigned: TestSupplyChain proves
+# Kyverno's verification with its own signed image instead
+labImagePolicy:
+  enabled: false
