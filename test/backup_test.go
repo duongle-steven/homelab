@@ -197,7 +197,17 @@ func TestBackupRestore(t *testing.T) {
 		require.Equal(t, 204, forgejoAs(t, "", "DELETE", "/repos/"+owner+"/"+repo, nil, nil))
 		lab(t, append([]string{"backup", "restore", "forgejo", "--yes"}, env...)...)
 		var back struct{ Title string }
-		require.Equal(t, 200, forgejoAs(t, "", "GET", fmt.Sprintf("/repos/%s/%s/issues/%d", owner, repo, issue.Number), nil, &back))
+		// lab returns once the new pod is ready; the Gateway learns its endpoint a moment later and answers 503 until
+		// then (an absent repository is 404, never retried)
+		admin, password := secretValue(t, "forgejo", "forgejo-admin", "username"), secretValue(t, "forgejo", "forgejo-admin", "password")
+		target := fmt.Sprintf("https://%s/api/v1/repos/%s/%s/issues/%d", forgejoHost, owner, repo, issue.Number)
+		code := 0
+		require.Eventually(t, func() bool {
+			status, err := getJSONE("GET", target, nil, admin, password, nil, &back)
+			code = status
+			return err == nil && status != 503
+		}, time.Minute, 2*time.Second, "Forgejo still unavailable through the Gateway")
+		require.Equal(t, 200, code)
 		assert.Equal(t, "kept by the backup", back.Title)
 	})
 
