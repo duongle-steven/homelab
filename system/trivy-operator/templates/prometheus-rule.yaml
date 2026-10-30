@@ -53,3 +53,23 @@ spec:
               Trivy found {{`{{ $value }}`}} secrets inside {{`{{ $labels.image_repository }}`}}
               ({{`{{ $labels.resource_kind }}`}} {{`{{ $labels.namespace }}`}}/{{`{{ $labels.resource_name }}`}}):
               kubectl get exposedsecretreports -n {{`{{ $labels.namespace }}`}}.
+        # A scan that fails (OOM-killed, timed out, an image it cannot pull) leaves no report: the workload would show
+        # no finding at all. Running ReplicaSets, StatefulSets and DaemonSets need one (a new one is scanned within
+        # minutes; a report is replaced daily)
+        - alert: ImageScanMissing
+          expr: |
+            (
+              label_replace(kube_replicaset_spec_replicas > 0, "resource_name", "$1", "replicaset", "(.+)")
+              or label_replace(kube_statefulset_replicas > 0, "resource_name", "$1", "statefulset", "(.+)")
+              or label_replace(kube_daemonset_status_desired_number_scheduled > 0, "resource_name", "$1", "daemonset", "(.+)")
+            )
+            unless on (namespace, resource_name) trivy_image_vulnerabilities
+          for: 6h
+          labels:
+            severity: warning
+            source: trivy
+          annotations:
+            summary: "{{`{{ $labels.namespace }}/{{ $labels.resource_name }}`}} has no vulnerability report"
+            description: >-
+              The Trivy Operator has not scanned {{`{{ $labels.namespace }}/{{ $labels.resource_name }}`}} for 6 hours:
+              its scan Jobs fail (kubectl logs -n trivy-operator deploy/trivy-operator | grep {{`{{ $labels.resource_name }}`}}).

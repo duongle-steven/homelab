@@ -20,7 +20,8 @@ The operator scans each image a workload runs, once, and again when the image ch
 Trivy server in namespace `trivy-operator` keeps the vulnerability database (about 80 MB, from
 `ghcr.io/aquasecurity/trivy-db`, on an emptyDir: downloaded again when it restarts); the scan Jobs ask it. The scans
 pull the images from their registries (egress 443). In the sandbox one Job runs at a time, with memory limits
-(`values-dev.yaml`).
+(`values-dev.yaml`). Measured there: a scan Job peaks under 80Mi (the server does the work), the server at about
+100Mi, the operator at about 160Mi.
 
 ```sh
 kubectl get vulnerabilityreports -A                 # one per container image, with its counts
@@ -39,6 +40,7 @@ They reach ntfy and Telegram like every alert ([Alerts](alerts.md)), after an ho
 | `ImageCriticalVulnerability` | a running image has a CRITICAL CVE with a fixed release | bump the image |
 | `ImageCriticalVulnerabilityUnfixed` | a running image has a CRITICAL CVE with no fix | decide: accept it (below) or replace the app |
 | `ImageExposedSecret` | a secret was found inside a running image | `kubectl get exposedsecretreports -n <ns>`; rotate it if it is ours |
+| `ImageScanMissing` | a running ReplicaSet, StatefulSet or DaemonSet has had no report for 6 hours: its scans fail (out of memory, timed out, an image it cannot pull), so it would show no finding | read the operator's log for the workload (`kubectl logs -n trivy-operator deploy/trivy-operator`) |
 
 HIGH findings alert on nothing: base images carry many, and they would bury these.
 A rollout leaves the old ReplicaSet at 0 replicas, with its report, as the Deployment's history: the alerts and the

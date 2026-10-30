@@ -86,6 +86,14 @@ func TestTrivyOperatorRender(t *testing.T) {
 			assert.Contains(t, unfixed, `trivy_vulnerability_id{severity="Critical", fixed_version=""}`)
 			assert.Equal(t, strings.Replace(fixed, `fixed_version!=""`, `fixed_version=""`, 1), unfixed, "the two differ only in the fix")
 			assert.Contains(t, rule("ImageExposedSecret", ".expr"), "trivy_image_exposedsecrets")
+			// A scan that fails (OOM, timeout, an image it cannot pull) leaves no report, so no finding: that alerts too
+			missing := rule("ImageScanMissing", ".expr")
+			assert.Equal(t, "6h", rule("ImageScanMissing", ".for"))
+			assert.Equal(t, "warning", rule("ImageScanMissing", ".labels.severity"))
+			for _, kind := range []string{"kube_replicaset_spec_replicas", "kube_statefulset_replicas", "kube_daemonset_status_desired_number_scheduled"} {
+				assert.Contains(t, missing, kind+" > 0")
+			}
+			assert.Contains(t, missing, "unless on (namespace, resource_name) trivy_image_vulnerabilities")
 		})
 	}
 	// The sandbox: one scan at a time, with limits
@@ -138,6 +146,22 @@ func TestTrivyOperator(t *testing.T) {
 		}
 		return false
 	}, 30*time.Minute, 30*time.Second, "ImageCriticalVulnerability's expression does not see alpine 3.14.0 in %s", namespace)
+
+	// Every running workload scanned first: a clean baseline over half the workloads proves nothing
+	missing := alert("ImageScanMissing")
+	var unscanned []string
+	assert.Eventually(t, func() bool {
+		found, err := prometheusQuery(t, missing)
+		if err != nil {
+			return false
+		}
+		unscanned = nil
+		for _, m := range found {
+			unscanned = append(unscanned, m["namespace"]+"/"+m["resource_name"])
+		}
+		return len(unscanned) == 0
+	}, 45*time.Minute, 30*time.Second, "running workloads with no vulnerability report")
+	require.Empty(t, unscanned, "running workloads with no vulnerability report (ImageScanMissing's expression)")
 
 	// The baseline: every other CRITICAL finding is fixed by a bump or accepted (system/trivy-operator/values.yaml).
 	// The operator applies its ignore file only to new scans, and rescans a report only when it is a day old
