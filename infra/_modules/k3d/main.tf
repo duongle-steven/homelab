@@ -108,12 +108,13 @@ resource "terraform_data" "cluster" {
       # now, made static while it is stopped
       net=k3d-${var.name}
       for c in $(docker ps -a --filter network=$net --format '{{.Names}}'); do
-        [ "$(docker inspect -f "{{(index .NetworkSettings.Networks \"$net\").IPAMConfig}}" $c)" = "<nil>" ] || continue
-        ip=$(docker inspect -f "{{(index .NetworkSettings.Networks \"$net\").IPAddress}}" $c)
-        docker stop $c >/dev/null
-        docker network disconnect $net $c
-        docker network connect --ip $ip $net $c
-        docker start $c >/dev/null
+        [ "$(docker inspect -f "{{(index .NetworkSettings.Networks \"$net\").IPAMConfig}}" "$c")" = "<nil>" ] || continue
+        ip=$(docker inspect -f "{{(index .NetworkSettings.Networks \"$net\").IPAddress}}" "$c")
+        case $ip in *.*.*.*) ;; *) continue ;; esac # a stopped container has none ("invalid IP")
+        docker stop "$c" >/dev/null
+        docker network disconnect "$net" "$c"
+        docker network connect --ip "$ip" "$net" "$c"
+        docker start "$c" >/dev/null
       done
       k3d kubeconfig get ${var.name} > "${var.kubeconfig}"
       timeout 300 sh -c 'until kubectl --kubeconfig "$1" get --raw /readyz >/dev/null 2>&1; do sleep 5; done' sh "${var.kubeconfig}"
