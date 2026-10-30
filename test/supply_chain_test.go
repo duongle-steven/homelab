@@ -137,10 +137,13 @@ func TestSupplyChain(t *testing.T) {
 		}
 		return out
 	}
-	require.Eventually(t, func() bool { return result("signed") != "" && result("unsigned") != "" }, 5*time.Minute, 10*time.Second,
-		"no report of the test policy for both pods")
-	// The result, then Kyverno's message (shown when it differs)
-	signedResult, unsignedResult := result("signed"), result("unsigned")
-	assert.True(t, strings.HasPrefix(signedResult, "pass"), signedResult)
+	// Kyverno keeps only fail, error and warn (the chart's reporting.allowedResults): the unsigned pod's fail shows the
+	// policy ran on both pods, created together, and the signed pod passes by having none. The result comes first,
+	// then Kyverno's message
+	require.Eventually(t, func() bool { return result("unsigned") != "" }, 5*time.Minute, 10*time.Second,
+		"no report of the test policy for the unsigned pod")
+	unsignedResult := result("unsigned")
 	assert.True(t, strings.HasPrefix(unsignedResult, "fail"), unsignedResult)
+	assert.Never(t, func() bool { return result("signed") != "" }, 30*time.Second, 5*time.Second,
+		"the signed pod has a result: %s", result("signed"))
 }
