@@ -103,7 +103,20 @@ resource "terraform_data" "cluster" {
         --volume "${local.manifest}:/var/lib/rancher/k3s/server/manifests/gateway-api.yaml@server:*" \
         --volume "${var.audit_policy}:/etc/rancher/k3s/audit-policy.yaml@server:*" \
         --registry-config "${local.registries_file}"
+      # Docker gives a restarted container any free address (a WSL restart restarts them all), and k3s's etcd then
+      # refuses to start: its member address is the old one. Each container on the network keeps the address it has
+      # now, made static while it is stopped
+      net=k3d-${var.name}
+      for c in $(docker ps -a --filter network=$net --format '{{.Names}}'); do
+        [ "$(docker inspect -f "{{(index .NetworkSettings.Networks \"$net\").IPAMConfig}}" $c)" = "<nil>" ] || continue
+        ip=$(docker inspect -f "{{(index .NetworkSettings.Networks \"$net\").IPAddress}}" $c)
+        docker stop $c >/dev/null
+        docker network disconnect $net $c
+        docker network connect --ip $ip $net $c
+        docker start $c >/dev/null
+      done
       k3d kubeconfig get ${var.name} > "${var.kubeconfig}"
+      timeout 300 sh -c 'until kubectl --kubeconfig "$1" get --raw /readyz >/dev/null 2>&1; do sleep 5; done' sh "${var.kubeconfig}"
     EOT
   }
 
