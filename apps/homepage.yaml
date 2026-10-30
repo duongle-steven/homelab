@@ -13,7 +13,7 @@ controllers:
       main:
         image:
           repository: ghcr.io/gethomepage/homepage
-          tag: v2.5.0
+          tag: v2.7.0
         env:
           # Required since v1: requests for other hosts are refused
           HOMEPAGE_ALLOWED_HOSTS: home.{{ .Values.global.baseDomain }}

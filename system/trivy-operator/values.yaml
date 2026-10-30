@@ -5,7 +5,7 @@ trivy-operator:
   # The hash of Trivy's ConfigMap (trivy-operator-trivy-config): the operator reads it only at start, the chart's own
   # checksum covers only trivy-operator-config. TestTrivyOperatorRender prints the new value when the settings change
   podAnnotations:
-    homelab/trivy-config: 9e9b53320cdcf735
+    homelab/trivy-config: 324d9677c4bc2fb5
   # Aqua's own images on registries system/kyverno allows, not the chart's mirror.gcr.io: the operator's on Docker Hub
   # (ghcr.io had no 0.36.1 on its release day), Trivy and its database on ghcr.io
   image:
@@ -59,9 +59,44 @@ trivy-operator:
       vulnerabilities:
         - id: CVE-2026-111497
           statement: >-
-            brotli-libs in ghcr.io/aquasecurity/trivy 0.76.1 (this chart's scans): there only for Alpine's libcurl; the
-            trivy binary is static Go and never loads it. Bump when Aqua rebuilds the image (.trivyignore.yaml too)
+            brotli-libs 1.2.0 (fixed in 1.2.1, no image rebuilt yet; one id covers every image): in
+            ghcr.io/aquasecurity/trivy 0.76.1 (system/trivy-operator) only for libcurl, which the static Go binary never
+            loads; openspeedtest v2.0.8 and excalidraw only for freetype and libcurl, which their nginx serving static
+            files never loads; actual-server 26.10.0-alpine for Node.js's zlib and fetch, a real path, limited to
+            signed-in homelab-budget members on the LAN. Bump each when its image is rebuilt
           # RFC 3339: toYaml makes the date a string, and Trivy reads a string only in that form
+          expired_at: "2026-11-28T00:00:00Z"
+        - id: CVE-2026-115557
+          statement: >-
+            python3 3.14.8 in openspeedtest v2.0.8 (the latest; certificate denylist, fixed in 3.14.10): Python runs
+            only certbot, which the entrypoint starts only with ENABLE_LETSENCRYPT (apps/speedtest.yaml sets none)
+          expired_at: "2026-11-28T00:00:00Z"
+        - id: CVE-2025-68121
+          statement: >-
+            Go's crypto/tls in argoproj/argocd v3.5.5's git-lfs and kustomize binaries (v3.5.6, the latest, still has
+            them): a client-side TLS session resumption flaw, reached only on the repo server's fetches from GitHub and
+            Forgejo behind default-deny egress. Bump when Argo CD rebuilds them
+          expired_at: "2026-11-28T00:00:00Z"
+        - id: CVE-2026-90711
+          statement: >-
+            proxy-addr 2.0.7 in actual-server 26.10.0-alpine and linuxserver/pairdrop 1.11.2 (both the latest): spoofed
+            client addresses only with a trust subnet written as an IPv4-mapped IPv6 prefix, and neither app file sets a
+            trusted proxy
+          expired_at: "2026-11-28T00:00:00Z"
+        - id: CVE-2026-31789
+          statement: >-
+            OpenSSL 3.3.3 in excalidraw/excalidraw (the latest digest): the overflow needs a 32-bit platform; the nodes
+            are amd64
+          expired_at: "2026-11-28T00:00:00Z"
+        - id: GHSA-6q48-6c7w-9gw2
+          statement: >-
+            certifi in kiwigrid/k8s-sidecar 2.14.1 (Grafana's, the latest): bundles the emSign root whose intermediates
+            leaked; the sidecar calls only the API server, trusting its service-account CA
+          expired_at: "2026-11-28T00:00:00Z"
+        - id: CVE-2026-6653
+          statement: >-
+            libxml2 in ghcr.io/cloudnative-pg/postgresql 18.6 (Debian has no fix yet): a denial of service through
+            crafted XML; Forgejo never sends XML to PostgreSQL's xml functions, and only Forgejo reaches it
           expired_at: "2026-11-28T00:00:00Z"
   serviceMonitor:
     enabled: true

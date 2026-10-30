@@ -65,6 +65,7 @@ nav:
     - how-to-guides/security-logs.md
     - how-to-guides/kiali.md
     - how-to-guides/policy.md
+    - how-to-guides/supply-chain.md
     - how-to-guides/sandbox-tests.md
     - how-to-guides/ci.md
     - how-to-guides/deploy-to-forgejo.md
