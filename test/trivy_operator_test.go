@@ -118,6 +118,15 @@ func TestTrivyOperator(t *testing.T) {
 	}
 	require.Eventually(t, func() bool { return reported("excalidraw") }, 45*time.Minute, 30*time.Second, "no vulnerability report for excalidraw")
 
+	// A run cut by go test's timeout skips its deferred cleanup: its old alpine would fail this test and TestPolicy
+	leftovers, err := k8s.RunKubectlAndGetOutputE(t, operator, "get", "namespaces", "-o", "name")
+	require.NoError(t, err)
+	for _, ns := range strings.Fields(leftovers) {
+		if strings.HasPrefix(ns, "namespace/trivy-test-") {
+			_, _ = k8s.RunKubectlAndGetOutputE(t, operator, "delete", ns, "--wait=false")
+		}
+	}
+
 	// alpine 3.14.0: four CRITICAL CVEs with a fix (CVE-2021-36159, CVE-2021-3711)
 	namespace := fmt.Sprint("trivy-test-", time.Now().Unix())
 	opts := k8s.NewKubectlOptions("", "", namespace)
