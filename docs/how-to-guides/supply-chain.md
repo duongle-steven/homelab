@@ -40,7 +40,7 @@ They reach ntfy and Telegram like every alert ([Alerts](alerts.md)), after an ho
 | `ImageCriticalVulnerability` | a running image has a CRITICAL CVE with a fixed release | bump the image |
 | `ImageCriticalVulnerabilityUnfixed` | a running image has a CRITICAL CVE with no fix | decide: accept it (below) or replace the app |
 | `ImageExposedSecret` | a secret was found inside a running image | `kubectl get exposedsecretreports -n <ns>`; rotate it if it is ours |
-| `ImageScanMissing` | a running ReplicaSet, StatefulSet or DaemonSet has had no report for 6 hours: its scans fail (out of memory, timed out, an image it cannot pull), so it would show no finding | read the operator's log for the workload (`kubectl logs -n trivy-operator deploy/trivy-operator`) |
+| `ImageScanMissing` | a running ReplicaSet, StatefulSet or DaemonSet has had no report for 6 hours: its scans fail (out of memory, timed out, an image it cannot pull), so it would show no finding | read the operator's log for the workload (`kubectl logs -n trivy-operator deploy/trivy-operator`); a log that never names it means the operator dropped it at start (seen in the sandbox): `kubectl annotate -n <ns> <kind> <name> homelab/trivy-rescan=$(date +%s) --overwrite` queues its scan |
 
 HIGH findings alert on nothing: base images carry many, and they would bury these.
 A rollout leaves the old ReplicaSet at 0 replicas, with its report, as the Deployment's history: the alerts and the

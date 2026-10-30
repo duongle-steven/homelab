@@ -147,9 +147,13 @@ func TestTrivyOperator(t *testing.T) {
 		return false
 	}, 30*time.Minute, 30*time.Second, "ImageCriticalVulnerability's expression does not see alpine 3.14.0 in %s", namespace)
 
-	// Every running workload scanned first: a clean baseline over half the workloads proves nothing
+	// Every running workload scanned first: a clean baseline over half the workloads proves nothing.
+	// The operator sometimes drops a workload it lists at start, silently (ImageScanMissing fires for it in 6 hours):
+	// one still unscanned after 10 minutes is touched once, and its update event queues its scan
 	missing := alert("ImageScanMissing")
 	var unscanned []string
+	since := map[string]time.Time{}
+	touched := map[string]bool{}
 	assert.Eventually(t, func() bool {
 		found, err := prometheusQuery(t, missing)
 		if err != nil {
@@ -157,10 +161,25 @@ func TestTrivyOperator(t *testing.T) {
 		}
 		unscanned = nil
 		for _, m := range found {
-			unscanned = append(unscanned, m["namespace"]+"/"+m["resource_name"])
+			workload := m["namespace"] + "/" + m["resource_name"]
+			unscanned = append(unscanned, workload)
+			if since[workload].IsZero() {
+				since[workload] = time.Now()
+			}
+			if touched[workload] || time.Since(since[workload]) < 10*time.Minute {
+				continue
+			}
+			touched[workload] = true
+			for _, kind := range []string{"replicaset", "statefulset", "daemonset"} {
+				if m[kind] != "" {
+					t.Logf("%s has had no report for 10 minutes: touching its %s", workload, kind)
+					_, _ = k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", m["namespace"]), "annotate", kind, m[kind],
+						fmt.Sprint("homelab/trivy-rescan=", time.Now().Unix()), "--overwrite")
+				}
+			}
 		}
 		return len(unscanned) == 0
-	}, 45*time.Minute, 30*time.Second, "running workloads with no vulnerability report")
+	}, 20*time.Minute, 30*time.Second, "running workloads with no vulnerability report")
 	require.Empty(t, unscanned, "running workloads with no vulnerability report (ImageScanMissing's expression)")
 
 	// The baseline: every other CRITICAL finding is fixed by a bump or accepted (system/trivy-operator/values.yaml).
@@ -168,7 +187,7 @@ func TestTrivyOperator(t *testing.T) {
 	// (OPERATOR_SCANNER_REPORT_TTL): a report scanned before the operator's start is deleted, so it is scanned again
 	// under the current settings
 	started := get("get", "pods", "-l", "app.kubernetes.io/name=trivy-operator", "-o", "jsonpath={.items[0].status.startTime}")
-	since, err := time.Parse(time.RFC3339, started)
+	operatorStart, err := time.Parse(time.RFC3339, started)
 	require.NoError(t, err)
 	rescanned := map[string]bool{}
 	deleted := map[string][2]string{} // workload: its namespace and report selector, until scanned again
@@ -199,7 +218,7 @@ func TestTrivyOperator(t *testing.T) {
 					continue
 				}
 				for _, c := range strings.Fields(created) {
-					if at, err := time.Parse(time.RFC3339, c); err == nil && at.Before(since) {
+					if at, err := time.Parse(time.RFC3339, c); err == nil && at.Before(operatorStart) {
 						t.Logf("%s was scanned before the operator's start: scanning it again", workload)
 						_, _ = k8s.RunKubectlAndGetOutputE(t, reports, "delete", "vulnerabilityreports.aquasecurity.github.io", "-l", selector)
 						deleted[workload] = [2]string{m["namespace"], selector}
