@@ -41,6 +41,8 @@ They reach ntfy and Telegram like every alert ([Alerts](alerts.md)), after an ho
 | `ImageExposedSecret` | a secret was found inside a running image | `kubectl get exposedsecretreports -n <ns>`; rotate it if it is ours |
 
 HIGH findings alert on nothing: base images carry many, and they would bury these.
+A rollout leaves the old ReplicaSet at 0 replicas, with its report, as the Deployment's history: the alerts and the
+dashboard leave those out.
 
 ### Accepting a finding
 
@@ -62,6 +64,9 @@ under `trivy.ignoreFile.vulnerabilities`, and the same entry in `.trivyignore.ya
 - The operator reads Trivy's settings only at start: `TestTrivyOperatorRender` prints the new value of the pod
   annotation `homelab/trivy-config` (in `values.yaml` and `values-dev.yaml`), which restarts it when Argo CD syncs.
 - An expired entry no longer applies: the finding is reported and alerts again.
+- The operator applies the ignore file only to new scans, and rescans a report once it is a day old
+  (`OPERATOR_SCANNER_REPORT_TTL`): to clear an alert now, delete the workload's reports and it is scanned again
+  (`kubectl delete vulnerabilityreports -n <ns> -l trivy-operator.resource.name=<workload>`).
 
 `TestTrivyOperator` fails while any running image in the sandbox has a CRITICAL finding that is neither fixed nor
 accepted.

@@ -281,7 +281,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count by (namespace, image_repository, image_tag, severity) (trivy_vulnerability_id{fixed_version!=\"\"})",
+          "expr": "count by (namespace, image_repository, image_tag, severity) (trivy_vulnerability_id{fixed_version!=\"\"} unless on (namespace, resource_name) label_replace(kube_replicaset_spec_replicas == 0, \"resource_name\", \"$1\", \"replicaset\", \"(.+)\"))",
           "instant": true,
           "format": "table",
           "legendFormat": "with a fix"
@@ -292,7 +292,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count by (namespace, image_repository, image_tag, severity) (trivy_vulnerability_id{fixed_version=\"\"})",
+          "expr": "count by (namespace, image_repository, image_tag, severity) (trivy_vulnerability_id{fixed_version=\"\"} unless on (namespace, resource_name) label_replace(kube_replicaset_spec_replicas == 0, \"resource_name\", \"$1\", \"replicaset\", \"(.+)\"))",
           "instant": true,
           "format": "table",
           "legendFormat": "no fix"
@@ -338,7 +338,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (namespace, image_repository, image_tag) (trivy_image_exposedsecrets) > 0",
+          "expr": "sum by (namespace, image_repository, image_tag) (trivy_image_exposedsecrets unless on (namespace, resource_name) label_replace(kube_replicaset_spec_replicas == 0, \"resource_name\", \"$1\", \"replicaset\", \"(.+)\")) > 0",
           "instant": true,
           "format": "table",
           "legendFormat": "secrets"
