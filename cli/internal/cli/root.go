@@ -15,7 +15,7 @@ func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "lab",
 		Short:         "Homelab tools",
-		Example:       "  lab test scope --base origin/dev\n  lab infra state ensure --bucket homelab-production-tfstate\n  lab infra forgejo push\n  lab backup list\n  lab secrets rotate grafana.admin",
+		Example:       "  lab test scope --base origin/dev\n  lab infra state ensure --bucket homelab-production-tfstate\n  lab infra forgejo push\n  lab backup list\n  lab secrets rotate grafana.admin\n  lab cluster enroll --environment staging",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -26,7 +26,18 @@ func newRootCmd() *cobra.Command {
 	infra.AddCommand(newInfraStateCmd())
 	infra.AddCommand(newInfraForgejoCmd())
 	root.AddCommand(infra)
+	cluster := &cobra.Command{Use: "cluster", Short: "Manage the nodes' k3s cluster: enrollment and access"}
+	cluster.AddCommand(newClusterEnrollCmd(), newClusterKubeconfigCmd())
+	root.AddCommand(cluster)
 	return root
+}
+
+func requireFlags(cmd *cobra.Command, flags ...string) {
+	for _, flag := range flags {
+		if err := cmd.MarkFlagRequired(flag); err != nil {
+			panic(err)
+		}
+	}
 }
 
 // Execute runs the lab CLI and exits on failure.
