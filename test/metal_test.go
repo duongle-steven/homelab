@@ -59,7 +59,7 @@ func metalEval(t *testing.T) map[string]metalNode {
 			"node-c": {"mac_address": "02:00:00:00:00:03", "ip": "10.0.0.13", "disk": "/dev/vda"}}`
 		cluster := `{"init_host": "node-a", "vip": "` + metalFixtureVIP + `", "network": {"prefix_length": 24, "gateway": "10.0.0.1"},
 			"service_vips": {"gateway": "10.0.0.2", "wireguard": "10.0.0.3"}, "domain": "example.test", "timezone": "Asia/Ho_Chi_Minh"}`
-		for name, body := range map[string]string{"hosts.json": hosts, "cluster.json": cluster} {
+		for name, body := range map[string]string{"hosts.json": hosts, "cluster.json": cluster, "authorized_keys": "ssh-ed25519 AAAAfixture fixture\n"} {
 			if metalErr = os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); metalErr != nil {
 				return
 			}
@@ -150,5 +150,29 @@ func TestMetalDisk(t *testing.T) {
 func TestMetalTimeZone(t *testing.T) {
 	for name, node := range metalEval(t) {
 		assert.Equal(t, "Asia/Ho_Chi_Minh", node.TimeZone, name)
+	}
+}
+
+// Each environment's nodes accept only its own keys (infra/<env>/metal/authorized_keys, written into the flake by
+// the metal unit): a key that leaks from staging, which runs often on the workstation, is not root on production
+func TestMetalKeysPerEnvironment(t *testing.T) {
+	ignored := exec.Command("git", "check-ignore", "-q", metalFlake+"/authorized_keys")
+	ignored.Dir = ".."
+	assert.NoError(t, ignored.Run(), "the flake's authorized_keys is generated, not committed")
+	keys := map[string][]string{}
+	for _, env := range []string{"staging", "production"} {
+		raw, err := os.ReadFile(filepath.Join("..", "infra", env, "metal", "authorized_keys"))
+		require.NoError(t, err, env)
+		for _, line := range strings.Split(string(raw), "\n") {
+			if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") {
+				fields := strings.Fields(line)
+				require.GreaterOrEqual(t, len(fields), 2, "%s: %q", env, line)
+				keys[env] = append(keys[env], fields[1])
+			}
+		}
+	}
+	assert.NotEmpty(t, keys["staging"], "staging needs a key")
+	for _, k := range keys["staging"] {
+		assert.NotContains(t, keys["production"], k, "a key in both environments")
 	}
 }

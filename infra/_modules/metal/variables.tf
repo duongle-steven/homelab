@@ -7,3 +7,8 @@ variable "cluster" {
   type        = any
   description = "The environment's infra/<env>/cluster/config.json: the nodes read init_host, vip and network"
 }
+
+variable "authorized_keys" {
+  type        = string
+  description = "infra/<env>/metal/authorized_keys: the public keys root and admin accept on this environment's nodes"
+}

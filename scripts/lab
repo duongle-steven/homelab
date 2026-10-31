@@ -1,0 +1,8 @@
+#!/bin/sh
+# Runs lab (cli/) from the current directory: lab cluster reads infra/<env>/ relative to it, and go run would run it
+# in cli/
+set -eu
+bin=$(mktemp -d)/lab
+trap 'rm -rf "$(dirname "$bin")"' EXIT
+go -C "$(git rev-parse --show-toplevel)/cli" build -o "$bin" ./cmd/lab
+"$bin" "$@"
