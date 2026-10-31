@@ -36,6 +36,7 @@ sandbox-checkout:
 # without them (scripts/warm-image-cache); lab's image for the scheduled rotation is built from the checkout
 # (scripts/build-lab-image)
 dev: sandbox-checkout sandbox-clean
+	@scripts/staging-guard dev
 	@if [ -n "$(tests)" ]; then sel="--tests '$(tests)'"; \
 	elif [ "$(scope)" = full ]; then sel=--full; \
 	else git fetch -q origin dev || echo "make dev: git fetch failed, comparing with the local $(base)" >&2; sel="--base $(base)"; fi; \
@@ -56,6 +57,37 @@ dev: sandbox-checkout sandbox-clean
 	{ if { [ -z "$$main" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$main" sandbox-refresh smoke-test; } && \
 	{ [ -z "$$alone" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; }; \
 	then status=0; else status=$$?; fi; scripts/warm-image-cache --node || true; exit $$status; }
+
+# Staging: three NixOS VMs in WSL (infra/staging, docs/installation/staging.md), never beside the sandbox. Installs
+# the VMs nixie has not (PXE), enrolls them, upgrades the others in place, applies rook-ceph (Argo CD comes in 12a-2;
+# its PolicyException waits for Kyverno; CRDs first, as Argo CD does), then runs the staging tests. Main checkout only: its state is .state/staging
+staging_kubeconfig = $(CURDIR)/infra/staging/kubeconfig.yaml
+staging: sandbox-checkout
+	@scripts/staging-guard staging
+	cd infra/staging && $(terragrunt_apply)
+	kubectl --kubeconfig $(staging_kubeconfig) create namespace rook-ceph --dry-run=client -o yaml | \
+		kubectl --kubeconfig $(staging_kubeconfig) apply -f -
+	scripts/render-chart system/rook-ceph staging --include-crds > .state/staging/rook-ceph.yaml
+	yq 'select(.kind == "CustomResourceDefinition")' .state/staging/rook-ceph.yaml | \
+		kubectl --kubeconfig $(staging_kubeconfig) apply --server-side --force-conflicts -f -
+	yq 'select(.kind != "CustomResourceDefinition" and .kind != "PolicyException")' .state/staging/rook-ceph.yaml | \
+		kubectl --kubeconfig $(staging_kubeconfig) apply --server-side --force-conflicts -f -
+	$(MAKE) env=staging ENV=staging smoke_filter=Staging smoke-test
+
+# Reinstalls the VMs from empty disks (nixie), then the tests
+staging-fresh:
+	$(MAKE) staging-clean
+	$(MAKE) staging
+
+# Removes the VMs, their disks and network, nixie's install record and their host keys
+staging-clean: sandbox-checkout
+	cd infra/staging && $(terragrunt) run --all destroy --non-interactive -- -auto-approve
+	rm -f .state/staging/metal/nixie-hosts.json
+	for ip in $$(jq -r '.[].ip' infra/staging/metal/hosts.json); do ssh-keygen -R "$$ip" >/dev/null 2>&1 || true; done
+
+# Shuts the VMs down (they keep their disks: make staging starts them again), to run the sandbox
+staging-stop:
+	for name in $$(jq -r 'keys[]' infra/staging/metal/hosts.json); do virsh -c qemu:///system shutdown "$$name" || true; done
 
 # From scratch, the whole suite: before a dev → master PR and a release
 dev-fresh:

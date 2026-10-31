@@ -166,6 +166,7 @@ groups:
       - infra/_modules/staging-vms/**
       - infra/staging/**
       - scripts/lab
+      - scripts/staging-guard
       - scripts/staging-nixie
       - scripts/staging-wake
       - test/benchmark/**

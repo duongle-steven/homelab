@@ -1,4 +1,4 @@
-{ modulesPath, timezone, ... }:
+{ modulesPath, pkgs, timezone, ... }:
 
 {
   imports = [
@@ -25,6 +25,9 @@
 
   # The environment's time zone (infra/<env>/cluster/config.json), like every chart's
   time.timeZone = timezone;
+
+  # Debugging on the node (the control plane's metrics endpoints, the staging tests)
+  environment.systemPackages = [ pkgs.curl ];
 
   services.openssh.enable = true;
   security.sudo.wheelNeedsPassword = false;

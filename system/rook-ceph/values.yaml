@@ -1,6 +1,31 @@
 rook-ceph:
   monitoring:
     enabled: true
+# Rook's recommended values for the drivers chart (deploy/charts/ceph-csi-drivers/values.yaml in Rook v1.21.1): the
+# drivers named after the operator's namespace, the image set Rook writes
+ceph-csi-drivers:
+  operatorConfig:
+    namespace: rook-ceph
+    driverSpecDefaults:
+      imageSet:
+        name: rook-csi-operator-image-set-configmap
+      nodePlugin:
+        priorityClassName: system-node-critical
+      controllerPlugin:
+        priorityClassName: system-cluster-critical
+  drivers:
+    rbd:
+      enabled: true
+      name: rook-ceph.rbd.csi.ceph.com
+    cephfs:
+      enabled: true
+      name: rook-ceph.cephfs.csi.ceph.com
+    nfs:
+      enabled: false
+      name: rook-ceph.nfs.csi.ceph.com
+    nvmeof:
+      enabled: false
+      name: rook-ceph.nvmeof.csi.ceph.com
 rook-ceph-cluster:
   monitoring:
     enabled: true
@@ -50,8 +75,15 @@ rook-ceph-cluster:
           csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
           csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
           csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/controller-publish-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/controller-publish-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/controller-modify-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/controller-modify-secret-namespace: "{{ .Release.Namespace }}"
           csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
           csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/node-publish-secret-name: rook-csi-rbd-node
+          csi.storage.k8s.io/node-publish-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/fstype: ext4
   cephBlockPoolsVolumeSnapshotClass:
     enabled: true
     isDefault: true
@@ -89,8 +121,11 @@ rook-ceph-cluster:
           csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
           csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
           csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/controller-publish-secret-name: rook-csi-cephfs-provisioner
+          csi.storage.k8s.io/controller-publish-secret-namespace: "{{ .Release.Namespace }}"
           csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
           csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/fstype: ext4
   cephFileSystemVolumeSnapshotClass:
     enabled: true
     isDefault: false
