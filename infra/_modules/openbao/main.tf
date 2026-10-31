@@ -57,7 +57,7 @@ resource "terraform_data" "namespace" {
 }
 
 # Applied on every run (an idempotent server-side apply): a rebuilt cluster, whose identity OpenTofu cannot see in
-# production (nodes from make -C metal), or a deleted Secret gets the same key again
+# production (nodes from infra/production/metal), or a deleted Secret gets the same key again
 resource "terraform_data" "secret" {
   triggers_replace = [plantimestamp()]
   depends_on       = [terraform_data.namespace]

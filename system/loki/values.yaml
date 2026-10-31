@@ -99,7 +99,7 @@ alloy:
         - name: pod-logs
           hostPath:
             path: /var/log/pods
-        # The API server's audit log on server nodes (metal/roles/k3s/files/audit-policy.yaml); agents have none
+        # The API server's audit log on server nodes (infra/_modules/metal/flake/audit-policy.yaml); agents have none
         - name: audit-logs
           hostPath:
             path: /var/log/kubernetes/audit

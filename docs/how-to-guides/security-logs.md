@@ -12,7 +12,7 @@ every other alert ([Alerts](alerts.md)).
 ## Where they come from
 
 - **k3s**: the API server writes `/var/log/kubernetes/audit/audit.log` on each server node (100 MB, 3 rotated files)
-  under one policy, `metal/roles/k3s/files/audit-policy.yaml`, used by production's nodes and by the sandbox's k3d
+  under one policy, `infra/_modules/metal/flake/audit-policy.yaml`, used by production's nodes and by the sandbox's k3d
   node. Read-only noise from the control plane, leases, events and health checks is not logged. Secrets, ConfigMaps,
   token and access reviews, exec, attach and port-forward are logged at `Metadata` (never a body). Service accounts'
   other reads (get, list, watch) are not logged: controllers watching what they manage were 41% of the volume.

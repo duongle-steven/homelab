@@ -34,7 +34,8 @@ type metalNode struct {
 		Label   string          `json:"label"`
 		Content json.RawMessage `json:"content"`
 	} `json:"data"`
-	Disk string `json:"disk"`
+	Disk     string `json:"disk"`
+	TimeZone string `json:"timeZone"`
 }
 
 var (
@@ -57,7 +58,7 @@ func metalEval(t *testing.T) map[string]metalNode {
 			"node-b": {"mac_address": "02:00:00:00:00:02", "ip": "10.0.0.12", "disk": "/dev/vda"},
 			"node-c": {"mac_address": "02:00:00:00:00:03", "ip": "10.0.0.13", "disk": "/dev/vda"}}`
 		cluster := `{"init_host": "node-a", "vip": "` + metalFixtureVIP + `", "network": {"prefix_length": 24, "gateway": "10.0.0.1"},
-			"service_vips": {"gateway": "10.0.0.2", "wireguard": "10.0.0.3"}, "domain": "example.test"}`
+			"service_vips": {"gateway": "10.0.0.2", "wireguard": "10.0.0.3"}, "domain": "example.test", "timezone": "Asia/Ho_Chi_Minh"}`
 		for name, body := range map[string]string{"hosts.json": hosts, "cluster.json": cluster} {
 			if metalErr = os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); metalErr != nil {
 				return
@@ -70,6 +71,7 @@ func metalEval(t *testing.T) map[string]metalNode {
 			zram = c.config.zramSwap.enable;
 			data = { inherit (c.config.disko.devices.disk.main.content.partitions.data) label content; };
 			disk = c.config.disko.devices.disk.main.device;
+			timeZone = c.config.time.timeZone;
 		}) (removeAttrs cs [ "installer" ])`
 		cmd := exec.Command("nix", "eval", "--json", "--no-write-lock-file", "path:"+dir+"#nixosConfigurations", "--apply", apply)
 		var stderr strings.Builder
@@ -141,5 +143,12 @@ func TestMetalDisk(t *testing.T) {
 		assert.Equal(t, "/dev/vda", node.Disk, name)
 		assert.Equal(t, "rook-data", node.Data.Label, name)
 		assert.Equal(t, "null", string(node.Data.Content), name)
+	}
+}
+
+// The nodes' time zone is the environment's (config.json), like every chart's
+func TestMetalTimeZone(t *testing.T) {
+	for name, node := range metalEval(t) {
+		assert.Equal(t, "Asia/Ho_Chi_Minh", node.TimeZone, name)
 	}
 }

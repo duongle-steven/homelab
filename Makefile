@@ -20,7 +20,7 @@ revision ?=
 lab_cli = cd cli && go run ./cmd/lab
 lab = $(lab_cli) test scope
 
-default: metal infra smoke-test clean
+default: infra smoke-test
 
 # The sandbox's OpenTofu state is .state/ in this checkout (git-ignored): a git worktree has none, and running the
 # sandbox from it would put a new OpenBao key over the running cluster's
@@ -84,9 +84,6 @@ sandbox-refresh:
 dev-clean: sandbox-checkout
 	cd infra/sandbox && terragrunt run --all destroy --non-interactive -- -auto-approve
 
-metal:
-	make -C metal
-
 # Every unit of infra/<env>: Argo CD's bootstrap, OpenBao's key, OpenTofu's secrets (the sandbox's run in make dev).
 # Production deploys in the same command: the guards (origin/master, checks, the merged pull request's sandbox), the
 # infrastructure, Forgejo's org ops, the push of this commit to ops/homelab, then the bootstrap again (the switch to
@@ -127,8 +124,6 @@ smoke-test:
 test:
 	make -C test
 
-clean:
-	docker compose --project-directory ./metal/roles/pxe_server/files down
 
 docs:
 	mkdocs serve

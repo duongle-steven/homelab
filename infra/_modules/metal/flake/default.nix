@@ -26,6 +26,7 @@
       inherit hostConfig;
       pkgsUnstable = nixpkgs-unstable.legacyPackages.x86_64-linux;
       network = cluster.network;
+      timezone = cluster.timezone;
       k3s = {
         clusterInit = name == cluster.init_host;
         vip = cluster.vip;

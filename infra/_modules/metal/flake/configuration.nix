@@ -1,4 +1,4 @@
-{ modulesPath, ... }:
+{ modulesPath, timezone, ... }:
 
 {
   imports = [
@@ -22,6 +22,9 @@
     dates = "weekly";
     options = "--delete-older-than 30d";
   };
+
+  # The environment's time zone (infra/<env>/cluster/config.json), like every chart's
+  time.timeZone = timezone;
 
   services.openssh.enable = true;
   security.sudo.wheelNeedsPassword = false;

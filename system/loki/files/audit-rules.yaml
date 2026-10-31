@@ -109,7 +109,7 @@ groups:
           source: audit
         annotations:
           summary: 'No line from the API server''s audit log for 15 minutes'
-          description: 'Check Alloy on the server nodes and the audit flags (metal/roles/k3s/defaults/main.yml)'
+          description: 'Check Alloy on the server nodes and the audit flags (infra/_modules/metal/flake/profiles/k3s-server.nix)'
       # OpenBao is quieter (ESO and its stores' checks, the hourly snapshot): two hours
       - alert: AuditLogsMissing
         expr: absent_over_time({job="audit/openbao"}[2h])

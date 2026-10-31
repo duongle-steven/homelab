@@ -1,17 +1,21 @@
 # Deployment
 
-Open the development shell if you haven't already; `metal/` (Ansible, the PXE server) needs its own, which adds
-Ansible to the default one:
+Open the development shell if you haven't already:
 
 ```sh
-nix develop .#metal
+nix develop
 ```
 
 Build the lab:
 
 ```sh
-make
+make infra env=production
 ```
+
+It installs NixOS on the machines of `infra/production/metal/hosts.json` (`nixie` boots them from the network and
+installs each with `nixos-anywhere`; [PXE boot](../../concepts/pxe-boot.md)), joins them into one k3s cluster (`lab
+cluster enroll`), writes `infra/production/kubeconfig.yaml`, then upgrades nodes already installed in place, one at a
+time (`lab cluster upgrade`), before the rest of the deploy below.
 
 Yes it's that simple!
 

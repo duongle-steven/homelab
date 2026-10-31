@@ -15,7 +15,7 @@ Everything that depends on where your homelab runs lives in `infra/production/cl
 - `vip`: the Kubernetes API address; `network.gateway`, `network.prefix_length`: your router and LAN prefix
 - `service_vips`: the LAN addresses of the Gateway and wireguard, outside your router's DHCP range
 
-Charts read these from there (`scripts/check-env-config` checks that none is written into a chart or app file). Three settings still need a hand edit, because their charts cannot take them from `config.json`: the domain in `apps/matrix/values.yaml` (Matrix), and the time zone in `system/kured/values.yaml` (automatic reboots) and `metal/roles/pxe_server/defaults/main.yml` (node installation).
+Charts read these from there (`scripts/check-env-config` checks that none is written into a chart or app file). Two settings still need a hand edit, because their charts cannot take them from `config.json`: the domain in `apps/matrix/values.yaml` (Matrix) and the time zone in `system/kured/values.yaml` (automatic reboots). The nodes read the time zone from `config.json`.
 
 !!! example
 
@@ -25,19 +25,19 @@ Charts read these from there (`scripts/check-env-config` checks that none is wri
     --8<--
     ```
 
-Then edit the inventory:
-
-- IP address: the desired one, not the current one, since your servers have no operating system installed yet
-- Disk: based on `/dev/$DISK`, in my case it's `sda`, but yours can be `sdb`, `nvme0n1`...
-- Network interface: usually it's `eth0`, mine is `eno1`
-- MAC address: the **lowercase, colon separated** MAC address of the above network interface
+Then list the machines in `infra/production/metal/hosts.json`: the address each node will have (not its current
+one: the machines have no operating system yet), the **lowercase, colon separated** MAC address of the interface it
+boots from, and its disk (installation erases it; the rest of the disk after the system becomes Ceph's OSD). Set
+`init_host` in `infra/production/cluster/config.json` to the node that starts the cluster.
 
 !!! example
 
-    ```yaml title="metal/inventories/prod.yml"
-    --8<--
-    metal/inventories/prod.yml
-    --8<--
+    ```json title="infra/production/metal/hosts.json"
+    {
+      "homelab-1": {"ip": "192.168.0.11", "mac_address": "02:00:00:00:00:01", "disk": "/dev/sda"},
+      "homelab-2": {"ip": "192.168.0.12", "mac_address": "02:00:00:00:00:02", "disk": "/dev/sda"},
+      "homelab-3": {"ip": "192.168.0.13", "mac_address": "02:00:00:00:00:03", "disk": "/dev/sda"}
+    }
     ```
 
 Then review the diff (`git diff`), commit and push the changes.

@@ -1,6 +1,6 @@
 # Add or remove nodes
 
-Or how to scale vertically. To replace the same node with a clean OS, remove it and add it again.
+Or how to scale horizontally. To replace the same node with a clean OS, remove it and add it again.
 
 ## Add new nodes
 
@@ -8,49 +8,42 @@ Or how to scale vertically. To replace the same node with a clean OS, remove it 
 
     You can add multiple nodes at the same time
 
-Add its details to the inventory **at the end of the group** (masters or workers):
+Add its details to the inventory:
 
-```diff title="metal/inventories/prod.yml"
-diff --git a/metal/inventories/prod.yml b/metal/inventories/prod.yml
-index 7f6474a..1bb2cbc 100644
---- a/metal/inventories/prod.yml
-+++ b/metal/inventories/prod.yml
-@@ -8,3 +8,4 @@ metal:
-     workers:
-       hosts:
-         metal3: {ansible_host: 192.168.0.14, mac: '00:23:24:d1:f5:69', disk: sda, network_interface: eno1}
-+        metal4: {ansible_host: 192.168.0.15, mac: '00:11:22:33:44:55', disk: sda, network_interface: eno1}
+```diff title="infra/production/metal/hosts.json"
+ {
+   "homelab-1": {"ip": "192.168.1.110", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:01"},
+   "homelab-2": {"ip": "192.168.1.111", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:02"},
+   "homelab-3": {"ip": "192.168.1.112", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:03"},
++  "homelab-4": {"ip": "192.168.1.113", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:04"},
+ }
 ```
 
-Install the OS and join the cluster (in `nix develop .#metal`, which has Ansible):
+Install the OS (`nixie`) and join the cluster (`lab cluster enroll`):
 
 ```
-make metal
+make infra env=production
+```
+
+Then verify the new node:
+
+```sh
+export KUBECONFIG="$PWD/infra/production/kubeconfig.yaml"
+kubectl get nodes
 ```
 
 That's it!
 
 ## Remove a node
 
-!!! danger
+!!! warning
 
     It is recommended to remove nodes one at a time
 
-Remove it from the inventory:
+Use the environment's kubeconfig:
 
-```diff title="metal/inventories/prod.yml"
-diff --git a/metal/inventories/prod.yml b/metal/inventories/prod.yml
-index 7f6474a..d12b50a 100644
---- a/metal/inventories/prod.yml
-+++ b/metal/inventories/prod.yml
-@@ -4,7 +4,6 @@ metal:
-       hosts:
-         metal0: {ansible_host: 192.168.0.11, mac: '00:23:24:d1:f3:f0', disk: sda, network_interface: eno1}
-         metal1: {ansible_host: 192.168.0.12, mac: '00:23:24:d1:f4:d6', disk: sda, network_interface: eno1}
--        metal2: {ansible_host: 192.168.0.13, mac: '00:23:24:e7:04:60', disk: sda, network_interface: eno1}
-     workers:
-       hosts:
-         metal3: {ansible_host: 192.168.0.14, mac: '00:23:24:d1:f5:69', disk: sda, network_interface: eno1}
+```sh
+export KUBECONFIG="$PWD/infra/production/kubeconfig.yaml"
 ```
 
 Drain the node:
@@ -70,3 +63,21 @@ Shutdown the node:
 ```
 ssh root@${NODE_IP} poweroff
 ```
+
+Remove it from the inventory:
+
+```diff title="infra/production/metal/hosts.json"
+ {
+   "homelab-1": {"ip": "192.168.1.110", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:01"},
+   "homelab-2": {"ip": "192.168.1.111", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:02"},
+   "homelab-3": {"ip": "192.168.1.112", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:03"},
+-  "homelab-4": {"ip": "192.168.1.113", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:04"},
+ }
+```
+
+Reapply the environment with `make infra env=production`.
+Don't replace the initializer with a fresh server in an existing cluster.
+
+Optionally, after Ceph finishes recovering, clean up the removed node's OSD records using the [Rook guide](https://rook.io/docs/rook/latest/Storage-Configuration/Advanced/ceph-osd-mgmt/#remove-an-osd).
+
+Staging is the same with `infra/staging/metal/hosts.json` and `make staging`, which also creates the VM.
