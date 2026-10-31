@@ -16,6 +16,20 @@ func egressCurl(t *testing.T, namespace, target string) string {
 	return curlFrom(t, namespace, "egress-probe", target, "", 20)
 }
 
+// egressBlocked probes a target that the policies must block, up to three times: right after the cluster starts (a
+// restarted sandbox), while every pod restarts, the controller can take longer than the probe's wait to restrict a
+// new pod. A real hole never answers 000
+func egressBlocked(t *testing.T, namespace, target string) string {
+	var status string
+	for range 3 {
+		if status = egressCurl(t, namespace, target); status == "000" {
+			break
+		}
+		t.Logf("%s reached %s (%s): probing again in case its policies were not applied yet", namespace, target, status)
+	}
+	return status
+}
+
 // waitForEgressPolicies waits until Argo CD has synced system/egress into a namespace: these tests run before the
 // slower ones, while a fresh sandbox is still syncing
 func waitForEgressPolicies(t *testing.T, namespace string) {
@@ -32,14 +46,14 @@ func waitForEgressPolicies(t *testing.T, namespace string) {
 func TestEgressBlocksInternet(t *testing.T) {
 	meshSandboxOnly(t)
 	waitForEgressPolicies(t, "excalidraw")
-	assert.Equal(t, "000", egressCurl(t, "excalidraw", "https://1.1.1.1"), "excalidraw reached the internet")
+	assert.Equal(t, "000", egressBlocked(t, "excalidraw", "https://1.1.1.1"), "excalidraw reached the internet")
 }
 
 func TestEgressBlocksNodePorts(t *testing.T) {
 	meshSandboxOnly(t)
 	waitForEgressPolicies(t, "excalidraw")
 	node := sandboxAddress(t)
-	assert.Equal(t, "000", egressCurl(t, "excalidraw", "https://"+node+":10250/"), "excalidraw reached the kubelet")
+	assert.Equal(t, "000", egressBlocked(t, "excalidraw", "https://"+node+":10250/"), "excalidraw reached the kubelet")
 	assert.NotEqual(t, "000", egressCurl(t, "excalidraw", "https://kubernetes.default.svc/version"), "excalidraw lost the API server")
 }
 

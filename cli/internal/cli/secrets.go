@@ -449,7 +449,6 @@ func replicas(ctx context.Context, kube kubernetes.Interface, namespace string, 
 	return *n, nil
 }
 
-// who is the person or job a rotation records: user@host, or the pod's name in the cluster
 // rotationTarget reaches the cluster and OpenBao: from the workstation with the environment's kubeconfig as OpenBao's
 // admin, or in the CronJob's pod (--in-cluster) with its own service account and role rotator (HOMELAB_ENV and
 // HOMELAB_DOMAIN from the chart, the OpenBao token projected at HOMELAB_OPENBAO_TOKEN_FILE)
@@ -460,11 +459,17 @@ func rotationTarget(cmd *cobra.Command) (env.Env, *rest.Config, *secrets.Store, 
 			return env.Env{}, nil, nil, err
 		}
 		file := cmp.Or(os.Getenv("HOMELAB_OPENBAO_TOKEN_FILE"), "/var/run/secrets/openbao/token")
-		jwt, err := os.ReadFile(file)
-		if err != nil {
-			return env.Env{}, nil, nil, fmt.Errorf("the OpenBao token at %s: %w", file, err)
-		}
-		store, err := secrets.OpenAs(cmd.Context(), config, "rotator", strings.TrimSpace(string(jwt)))
+		// A run the CronJob missed starts as soon as the cluster is back (after a power cut, or a stopped sandbox),
+		// often before OpenBao is: it waits for OpenBao rather than fail the day's run
+		var store *secrets.Store
+		err = retryFor(cmd.Context(), openBaoWait, 15*time.Second, cmd.ErrOrStderr(), func() error {
+			jwt, err := os.ReadFile(file)
+			if err != nil {
+				return fmt.Errorf("the OpenBao token at %s: %w", file, err)
+			}
+			store, err = secrets.OpenAs(cmd.Context(), config, "rotator", strings.TrimSpace(string(jwt)))
+			return err
+		})
 		if err != nil {
 			return env.Env{}, nil, nil, err
 		}
@@ -485,6 +490,26 @@ func rotationTarget(cmd *cobra.Command) (env.Env, *rest.Config, *secrets.Store, 
 	return e, config, store, nil
 }
 
+// openBaoWait is how long the CronJob's run waits for OpenBao
+var openBaoWait = 15 * time.Minute
+
+// retryFor calls fn until it succeeds or wait has passed, every poll, logging each failure to log
+func retryFor(ctx context.Context, wait, poll time.Duration, log io.Writer, fn func() error) error {
+	deadline := time.Now().Add(wait)
+	for {
+		err := fn()
+		if err == nil || !time.Now().Add(poll).Before(deadline) {
+			return err
+		}
+		fmt.Fprintf(log, "%v: trying again in %s\n", err, poll)
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(poll):
+		}
+	}
+}
+
 // rotationEnv is the environment a run rotates: --env, or the CronJob's HOMELAB_ENV
 func rotationEnv(cmd *cobra.Command) string {
 	if inCluster, _ := cmd.Flags().GetBool("in-cluster"); inCluster {
@@ -494,6 +519,7 @@ func rotationEnv(cmd *cobra.Command) string {
 	return name
 }
 
+// who is the person or job a rotation records: user@host, or the pod's name in the cluster
 func who() string {
 	if os.Getenv("HOMELAB_ROTATION_JOB") != "" {
 		return "rotation-job"
