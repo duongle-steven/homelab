@@ -71,6 +71,8 @@ it reaches the scheduled entries' secrets (ntfy's, zot's `ci` password, Woodpeck
 - A failed run alerts (`SecretRotationFailed`, through ntfy and Telegram): `kubectl -n secrets-rotation logs
   job/<job>` names the secret; fix the cause, then `lab secrets rotate <name>` finishes it.
 - No successful run for three days alerts (`SecretRotationOverdue`).
+- A run the cluster missed (it was off at 03:00) starts as soon as it is back, often before OpenBao: it waits up to
+  15 minutes for OpenBao before it fails.
 - Production's image comes from GitHub Actions (`lab-image`, on `master` when `cli/` changes): set its digest in
   `platform/secrets-rotation/values.yaml` after the release; the CronJob stays suspended until then.
 

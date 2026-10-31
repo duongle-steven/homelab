@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"io"
 	"slices"
 	"strings"
@@ -302,5 +303,27 @@ func TestDeployedNamespaces(t *testing.T) {
 	deployed := deployedNamespaces(context.Background(), fake.NewClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ntfy"}}))
 	if !deployed("ntfy") || deployed("paperless") {
 		t.Fatal("deployedNamespaces does not follow the cluster's namespaces")
+	}
+}
+
+// The CronJob's run waits for OpenBao: a failed login is retried until it succeeds, or returned once the wait is over
+func TestRetryFor(t *testing.T) {
+	calls := 0
+	var log strings.Builder
+	err := retryFor(context.Background(), time.Second, time.Millisecond, &log, func() error {
+		if calls++; calls < 3 {
+			return errors.New("log in to OpenBao with the role rotator failed")
+		}
+		return nil
+	})
+	if err != nil || calls != 3 || strings.Count(log.String(), "trying again") != 2 {
+		t.Fatalf("retryFor = %v after %d calls, log %q", err, calls, log.String())
+	}
+
+	err = retryFor(context.Background(), 20*time.Millisecond, 5*time.Millisecond, io.Discard, func() error {
+		return errors.New("down")
+	})
+	if err == nil || err.Error() != "down" {
+		t.Fatalf("retryFor past its wait = %v, want the last error", err)
 	}
 }
