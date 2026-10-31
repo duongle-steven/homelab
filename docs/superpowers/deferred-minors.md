@@ -82,3 +82,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15c | `system/loki/values.yaml`'s sidecar comment says "no ruler here", stale since the ruler loads rules | any |
 | 15c | Ansible changes the audit policy file on the nodes without restarting k3s (the API server reads it only at start) | 12a |
 | 15c | Alloy reads only the current `audit.log`, not its rotated files: Alloy down while the log rotates loses the tail | any |
+| sandbox-memory | `infra/_modules/k3d/main.tf`'s address pinning: a failure between disconnect and connect leaves that container off the k3d network (the cluster is recreated on the next run; a cache waits for k3d to connect it again) | any |
+| sandbox-memory | `infra/_modules/k3d/main.tf` detects a dynamic address by Docker printing `<nil>` for `IPAMConfig`; another output would skip every container silently (test `.IPAMConfig.IPv4Address` instead) | any |
+| sandbox-memory | `infra/_modules/k3d/main.tf` restarts the k3d containers to pin their addresses in GitHub Actions too, where nothing restarts them (tens of seconds) | any |

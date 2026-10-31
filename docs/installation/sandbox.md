@@ -157,6 +157,12 @@ Measured on a fresh k3d sandbox with all components running and every namespace 
 | k3s itself (API server, etcd, controllers, kubelet, containerd; outside any container: node total minus the rows above) | about 3.1 GiB |
 | **Node total** | **7.89 GiB** |
 
+## After a restart
+
+The sandbox survives a WSL or Docker restart: its containers start again (`k3d cluster start homelab-dev` if they do not) and keep their addresses. `make dev` makes each container's address on the k3d network static when it builds the cluster, because Docker otherwise gives a restarted container any free address, and k3s's etcd then refuses to start ("not a member of the etcd cluster": its member address is the old one). A sandbox built before that needs `make dev-fresh` once after such a restart; check with `docker inspect -f '{{json .NetworkSettings.Networks}}' k3d-homelab-dev-server-0` (a static address shows in `IPAMConfig`).
+
+On WSL, a full `C:` drive crashes the whole VM (kernel panics with SIGBUS, reports in `%LOCALAPPDATA%\Temp\wsl-crashes`): the sandbox's disk grows inside WSL's virtual disk on `C:`, so keep about 30 GB free there during the suite.
+
 ## Clean up
 
 ```sh
