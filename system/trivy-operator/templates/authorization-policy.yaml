@@ -1,0 +1,19 @@
+# Under the mesh-wide deny-all (system/istio-system): the scan Jobs ask the Trivy server, Prometheus scrapes the
+# operator's metrics
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow
+  namespace: {{ .Release.Namespace }}
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["{{ .Release.Namespace }}"]
+    - from:
+        - source:
+            namespaces: ["monitoring-system"]
+      to:
+        - operation:
+            ports: ["8080"]

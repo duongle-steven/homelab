@@ -5,7 +5,7 @@ Every pull request into `dev` or `master`, and every push to them, runs the basi
 
 | Job | Command |
 |---|---|
-| `render`, `go`, `cli`, `infra`, `docs`, `mesh`, `backup-groups`, `rotation-catalog`, `env-config`, `secret-stores`, `lint`, `leaks`, `iac`, `images` | `scripts/ci-check <job>` |
+| `render`, `go`, `cli`, `infra`, `docs`, `mesh`, `backup-groups`, `rotation-catalog`, `env-config`, `secret-stores`, `lint`, `leaks`, `iac`, `images`, `workflows` | `scripts/ci-check <job>` |
 | `checks` | succeeds only when every job above did: the one status the ruleset requires |
 
 Run them all locally before a commit (the basic checks), in the dev shell:
@@ -18,7 +18,7 @@ scripts/ci-check all
 
 ## Detection (step 15a)
 
-Three jobs look for what a change brings that should not reach `dev`. Kubernetes manifests (privileged, root, RBAC)
+Four jobs look for what a change brings that should not reach `dev`. Kubernetes manifests (privileged, root, RBAC)
 are Kyverno's (step 15b), not these jobs'.
 
 | Job | Fails on | Scans |
@@ -26,6 +26,7 @@ are Kyverno's (step 15b), not these jobs'.
 | `leaks` | a secret gitleaks recognises (`.gitleaks.toml`: its default rules), printed redacted | the commits from the base (the pull request's, `origin/dev` locally) to HEAD |
 | `iac` | a HIGH or CRITICAL Trivy finding | every Dockerfile and OpenTofu (`infra/`), from the root |
 | `images` | a CRITICAL vulnerability that has a fix | the images new in the renders of the charts and app files the change touches |
+| `workflows` | any weakness zizmor finds offline (template injection, dangerous triggers, unpinned actions, credentials left in the checkout) | `.github/` |
 
 GitHub's secret scanning and push protection are on as well (the repository is public): a push holding a known
 provider's token is refused before any job runs.
@@ -37,6 +38,8 @@ What to do about a finding:
 - **An image:** bump it to a release that fixes the CVE (Renovate usually has one). If none exists and the risk is
   understood, add the CVE to `.trivyignore.yaml` under `vulnerabilities` with a `statement` naming the image and an
   `expired_at` at most 90 days away (an entry ignores the CVE in every image).
+- **A workflow finding:** fix it (zizmor's `--fix` applies the safe ones), or add it to `.github/zizmor.yml` under
+  its rule's `ignore` as `<file>:<line>` with the reason on the same line.
 - **A Dockerfile or OpenTofu finding:** fix it, or add it to `.trivyignore.yaml` under `misconfigurations` with the
   file's path from the root and a `statement`.
 

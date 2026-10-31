@@ -4,8 +4,8 @@
 # changed since $BASE (default origin/dev; lab test charts).
 set -eu
 cd "$(git rev-parse --show-toplevel)"
-offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestNodePowerCutBlockers|TestIstioCNIWatchdog|TestState|TestArgoCD(Revision|RootPreservesResources|BackupEndpoint)|TestArgoCDServiceMonitors|TestArgoCDChooseValues|TestMakeDevRevision|TestMakeInfraProduction|TestGeneratedSecrets|TestKeptValue|TestRenovate|TestWoodpeckerRender|TestKialiRender|TestSetSandboxApps|TestSandboxWorkflowsAllApps|TestOptionalAppState|TestCheckLeaks|TestCheckIaC|TestCheckImages|TestCheckPolicy|TestWoodpeckerForgejoTeams|TestForgejoDatabaseBeforeForgejo|TestCheckBackupGroups|TestVeleroRender|TestVeleroLocationEndpoint|TestOpenBaoSnapshotJob|TestVeleroPrune|TestVeleroSnapshots|TestArgoCDBackupSync|TestExternalSecretsWebhookIgnoredWhileDown|TestCSIHostPathDataOnNodeDisk|TestNtfyAcceptsPreviousToken|TestSecretsCronJobRender|TestAlertmanagerTelegramProductionOnly|TestAlertmanagerDevReceiversFollowProduction|TestAuditPolicyRender|TestSecurityLogsRetention|TestSecurityLogsRules'
-checks='render go cli infra docs mesh backup-groups rotation-catalog env-config secret-stores lint leaks iac images policy'
+offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestNodePowerCutBlockers|TestIstioCNIWatchdog|TestState|TestArgoCD(Revision|RootPreservesResources|BackupEndpoint)|TestArgoCDServiceMonitors|TestArgoCDChooseValues|TestMakeDevRevision|TestMakeInfraProduction|TestGeneratedSecrets|TestKeptValue|TestRenovate|TestWoodpeckerRender|TestKialiRender|TestSetSandboxApps|TestSandboxWorkflowsAllApps|TestOptionalAppState|TestCheckLeaks|TestCheckIaC|TestCheckImages|TestCheckPolicy|TestWoodpeckerForgejoTeams|TestForgejoDatabaseBeforeForgejo|TestCheckBackupGroups|TestVeleroRender|TestVeleroLocationEndpoint|TestOpenBaoSnapshotJob|TestVeleroPrune|TestVeleroSnapshots|TestArgoCDBackupSync|TestExternalSecretsWebhookIgnoredWhileDown|TestCSIHostPathDataOnNodeDisk|TestNtfyAcceptsPreviousToken|TestSecretsCronJobRender|TestAlertmanagerTelegramProductionOnly|TestAlertmanagerDevReceiversFollowProduction|TestAuditPolicyRender|TestSecurityLogsRetention|TestSecurityLogsRules|TestCheckWorkflows|TestZizmorIgnoresHaveReasons|TestLabImagePolicy|TestTrivyOperatorRender'
+checks='render go cli infra docs mesh backup-groups rotation-catalog env-config secret-stores lint leaks iac images policy workflows'
 
 check() {
 	case "$1" in
@@ -32,6 +32,7 @@ check() {
 		iac) scripts/check-iac ;;
 		images) BASE="${BASE:-origin/dev}" scripts/check-images ;;
 		policy) scripts/check-policy ;;
+		workflows) scripts/check-workflows ;;
 		*) echo "ci-check: unknown check $1 (one of: $checks, all)" >&2; exit 2 ;;
 	esac
 }

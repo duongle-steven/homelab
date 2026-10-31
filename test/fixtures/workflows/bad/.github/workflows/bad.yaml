@@ -1,0 +1,13 @@
+# A known weakness for TestCheckWorkflows: pull_request_target runs with the base's secrets and checks out the head
+name: bad
+on: pull_request_target
+permissions:
+  contents: read
+jobs:
+  bad:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false

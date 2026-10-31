@@ -35,6 +35,7 @@ argocd-apps:
                     - path: system/loki
                     - path: system/kiali
                     - path: system/kyverno
+                    - path: system/trivy-operator
                     - path: platform/external-secrets
                     - path: platform/openbao
                     - path: platform/generated-secrets

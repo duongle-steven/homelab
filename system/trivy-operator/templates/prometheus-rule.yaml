@@ -1,0 +1,75 @@
+# Alerts on the Trivy Operator's reports (docs/how-to-guides/supply-chain.md). Accepted findings (values.yaml's
+# ignoreFile) are not reported, so they do not alert until they expire. HIGH findings only show on the "Security"
+# dashboard: base images carry many, and alerting on them would bury these. A rollout leaves
+# the old ReplicaSet at 0 replicas with its report (the Deployment's history): `unless` drops those
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: trivy-operator
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: trivy-operator
+      rules:
+        - alert: ImageCriticalVulnerability
+          expr: |
+            count by (namespace, resource_kind, resource_name, image_repository) (trivy_vulnerability_id{severity="Critical", fixed_version!=""}) > 0
+            unless on (namespace, resource_name) label_replace(kube_replicaset_spec_replicas == 0, "resource_name", "$1", "replicaset", "(.+)")
+          for: 1h
+          labels:
+            severity: warning
+            source: trivy
+          annotations:
+            summary: "{{`{{ $labels.image_repository }}`}} has a critical CVE with a fix"
+            description: >-
+              {{`{{ $value }}`}} critical vulnerabilities with a fixed release in {{`{{ $labels.image_repository }}`}}
+              ({{`{{ $labels.resource_kind }}`}} {{`{{ $labels.namespace }}`}}/{{`{{ $labels.resource_name }}`}}): bump
+              the image (kubectl get vulnerabilityreports -n {{`{{ $labels.namespace }}`}}).
+        - alert: ImageCriticalVulnerabilityUnfixed
+          expr: |
+            count by (namespace, resource_kind, resource_name, image_repository) (trivy_vulnerability_id{severity="Critical", fixed_version=""}) > 0
+            unless on (namespace, resource_name) label_replace(kube_replicaset_spec_replicas == 0, "resource_name", "$1", "replicaset", "(.+)")
+          for: 1h
+          labels:
+            severity: warning
+            source: trivy
+          annotations:
+            summary: "{{`{{ $labels.image_repository }}`}} has a critical CVE with no fix"
+            description: >-
+              {{`{{ $value }}`}} critical vulnerabilities with no fixed release in {{`{{ $labels.image_repository }}`}}
+              ({{`{{ $labels.resource_kind }}`}} {{`{{ $labels.namespace }}`}}/{{`{{ $labels.resource_name }}`}}): decide,
+              accept each with a statement and an expiry (system/trivy-operator/values.yaml) or replace the app.
+        - alert: ImageExposedSecret
+          expr: |
+            sum by (namespace, resource_kind, resource_name, image_repository) (trivy_image_exposedsecrets) > 0
+            unless on (namespace, resource_name) label_replace(kube_replicaset_spec_replicas == 0, "resource_name", "$1", "replicaset", "(.+)")
+          for: 1h
+          labels:
+            severity: warning
+            source: trivy
+          annotations:
+            summary: "{{`{{ $labels.image_repository }}`}} holds a secret"
+            description: >-
+              Trivy found {{`{{ $value }}`}} secrets inside {{`{{ $labels.image_repository }}`}}
+              ({{`{{ $labels.resource_kind }}`}} {{`{{ $labels.namespace }}`}}/{{`{{ $labels.resource_name }}`}}):
+              kubectl get exposedsecretreports -n {{`{{ $labels.namespace }}`}}.
+        # A scan that fails (OOM-killed, timed out, an image it cannot pull) leaves no report: the workload would show
+        # no finding at all. Running ReplicaSets, StatefulSets and DaemonSets need one (a new one is scanned within
+        # minutes; a report is replaced daily)
+        - alert: ImageScanMissing
+          expr: |
+            (
+              label_replace(kube_replicaset_spec_replicas > 0, "resource_name", "$1", "replicaset", "(.+)")
+              or label_replace(kube_statefulset_replicas > 0, "resource_name", "$1", "statefulset", "(.+)")
+              or label_replace(kube_daemonset_status_desired_number_scheduled > 0, "resource_name", "$1", "daemonset", "(.+)")
+            )
+            unless on (namespace, resource_name) trivy_image_vulnerabilities
+          for: 6h
+          labels:
+            severity: warning
+            source: trivy
+          annotations:
+            summary: "{{`{{ $labels.namespace }}/{{ $labels.resource_name }}`}} has no vulnerability report"
+            description: >-
+              The Trivy Operator has not scanned {{`{{ $labels.namespace }}/{{ $labels.resource_name }}`}} for 6 hours:
+              its scan Jobs fail (kubectl logs -n trivy-operator deploy/trivy-operator | grep {{`{{ $labels.resource_name }}`}}).

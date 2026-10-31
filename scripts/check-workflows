@@ -1,0 +1,11 @@
+#!/bin/sh
+# Fails on any weakness zizmor finds in the GitHub Actions workflows and actions (.github/; WORKFLOWS_DIR picks another
+# tree, for the tests). Offline audits only: the online ones call GitHub's API, and a token in the basic checks is not
+# worth what they find here. A finding accepted goes in .github/zizmor.yml with its reason (docs/how-to-guides/ci.md).
+set -eu
+dir=${WORKFLOWS_DIR:-.}
+config=$(git rev-parse --show-toplevel)/.github/zizmor.yml
+if [ -f "$config" ]; then
+	exec zizmor --offline --no-progress --config "$config" "$dir/.github"
+fi
+exec zizmor --offline --no-progress "$dir/.github"

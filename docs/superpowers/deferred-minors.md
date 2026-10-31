@@ -86,3 +86,11 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | sandbox-memory | `infra/_modules/k3d/main.tf` detects a dynamic address by Docker printing `<nil>` for `IPAMConfig`; another output would skip every container silently (test `.IPAMConfig.IPv4Address` instead) | any |
 | sandbox-memory | `infra/_modules/k3d/main.tf` restarts the k3d containers to pin their addresses in GitHub Actions too, where nothing restarts them (tens of seconds) | any |
 | restart fixes | A run cut by go test's 60m timeout skips `TestRotation`'s deferred cleanup: its Leases and interrupted entries (ntfy's phase `done`) stay, and the next scheduled run fails until `lab secrets force-unlock` and the entries are finished by hand | any |
+| 15e | `.trivyignore.yaml` and `system/trivy-operator/values.yaml`'s ignore file are kept in step by hand: assert the same ids and dates in `TestTrivyOperatorRender` | any |
+| 15e | `TestWorkflowsCheck`'s reason check accepts an empty `#` and does not look at `rules: <audit>: disable:` | any |
+| 15e | `TestSupplyChain` proves the signed pod by 30 s without a `fail`: wait for its PolicyReport to exist first | any |
+| 15e | The `homelab/trivy-config` hash comes from yq's `to_json(0)`: a yq bump can change it with no config change (the test prints the new value) | any |
+| 15e | `verify-lab-image` sets no `credentials`: if ghcr's `homelab-lab` package is private, verification ends `error`; check it is public at the first signed release | 12b |
+| 15e | The Security dashboard counts findings per workload: two workloads of one image in a namespace double its count | any |
+| 15e | In the sandbox, Trivy cannot scan zot's images (sandbox CA) nor lab's image built locally: their scan Jobs fail and log errors | any |
+| 15e | No check that each group test in `test/scopes.yaml` is also in `full` (SupplyChain and TrivyOperator were missing) | any |
