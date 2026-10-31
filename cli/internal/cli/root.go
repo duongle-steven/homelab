@@ -27,7 +27,7 @@ func newRootCmd() *cobra.Command {
 	infra.AddCommand(newInfraForgejoCmd())
 	root.AddCommand(infra)
 	cluster := &cobra.Command{Use: "cluster", Short: "Manage the nodes' k3s cluster: enrollment and access"}
-	cluster.AddCommand(newClusterEnrollCmd(), newClusterKubeconfigCmd())
+	cluster.AddCommand(newClusterEnrollCmd(), newClusterKubeconfigCmd(), newClusterUpgradeCmd())
 	root.AddCommand(cluster)
 	return root
 }

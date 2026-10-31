@@ -52,6 +52,13 @@ terraform {
     working_dir = get_repo_root()
     execute     = ["scripts/lab", "cluster", "kubeconfig", "--environment", "staging", "--output", "${get_repo_root()}/infra/staging/kubeconfig.yaml"]
   }
+
+  # Nodes already installed take the flake's changes in place, one at a time (drain, nixos-rebuild, wait, uncordon)
+  after_hook "upgrade" {
+    commands    = ["apply"]
+    working_dir = get_repo_root()
+    execute     = ["scripts/lab", "cluster", "upgrade", "--environment", "staging", "--flake", "${get_working_dir()}/flake"]
+  }
 }
 
 dependencies {
