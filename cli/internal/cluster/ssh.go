@@ -2,6 +2,8 @@ package cluster
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -86,7 +88,9 @@ func (remote sshServers) connect(ctx context.Context, node host) (*connection, e
 		closeTransport(socket)
 		return nil, fmt.Errorf("set SSH handshake deadline on %s: %w", node.name, err)
 	}
-	clientConn, channels, requests, err := ssh.NewClientConn(socket, address, remote.config)
+	config := *remote.config
+	config.HostKeyAlgorithms = knownHostKeyAlgorithms(remote.config.HostKeyCallback, address, socket.RemoteAddr())
+	clientConn, channels, requests, err := ssh.NewClientConn(socket, address, &config)
 	if err != nil {
 		stop()
 		closeTransport(socket)
@@ -165,4 +169,32 @@ func (conn *connection) lock() (func() error, error) {
 		}
 		return errors.Join(err, session.Wait())
 	}, nil
+}
+
+// knownHostKeyAlgorithms lists the host key algorithms known_hosts trusts for address, so the server offers one of
+// them: a node has several host keys (NixOS: ed25519 and RSA), and a key of another type fails the check as a
+// mismatch. Asking the callback about a throwaway key returns the known ones; nil leaves the default order.
+func knownHostKeyAlgorithms(verify ssh.HostKeyCallback, address string, remote net.Addr) []string {
+	_, probe, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil
+	}
+	signer, err := ssh.NewSignerFromKey(probe)
+	if err != nil {
+		return nil
+	}
+	var mismatch *knownhosts.KeyError
+	if !errors.As(verify(address, remote, signer.PublicKey()), &mismatch) {
+		return nil
+	}
+	var algorithms []string
+	for _, known := range mismatch.Want {
+		switch known.Key.Type() {
+		case ssh.KeyAlgoRSA:
+			algorithms = append(algorithms, ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSA)
+		default:
+			algorithms = append(algorithms, known.Key.Type())
+		}
+	}
+	return algorithms
 }
