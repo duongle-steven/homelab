@@ -25,12 +25,12 @@ variable "name" {
 
 variable "gateway_api_version" {
   type    = string
-  default = "v1.6.3"
+  default = "v1.7.0"
 }
 
 variable "audit_policy" {
   type        = string
-  description = "The API server's audit policy (metal/roles/k3s/files/audit-policy.yaml, shared with the nodes), outside Terragrunt's cache: k3d mounts it into the node"
+  description = "The API server's audit policy (infra/_modules/metal/flake/audit-policy.yaml, shared with the nodes), outside Terragrunt's cache: k3d mounts it into the node"
 }
 
 variable "manifest_dir" {

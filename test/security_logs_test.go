@@ -25,8 +25,8 @@ import (
 
 // docs/superpowers/specs/2026-10-28-security-logs-design.md
 
-// The audit policy k3d and metal/roles/k3s pass to the API server
-const auditPolicyPath = "metal/roles/k3s/files/audit-policy.yaml"
+// The audit policy k3d and the nodes (infra/_modules/metal) pass to the API server
+const auditPolicyPath = "infra/_modules/metal/flake/audit-policy.yaml"
 
 // yqFile runs a yq expression on a file of the repository
 func yqFile(t *testing.T, file, expr string) string {
@@ -191,10 +191,9 @@ func TestAuditPolicyRender(t *testing.T) {
 	}
 
 	k3d := yqFile(t, "infra/_modules/k3d/k3d.yaml", `[.options.k3s.extraArgs[].arg] | join(" ")`)
-	metal := yqFile(t, "metal/roles/k3s/defaults/main.yml", `.k3s_server_config.kube-apiserver-arg | join(" ")`)
+	// The nodes' flags: TestMetalK3sFlags
 	for _, f := range auditFlags {
 		assert.Contains(t, k3d, "--kube-apiserver-arg="+f, "k3d.yaml")
-		assert.Contains(t, metal, f, "metal/roles/k3s")
 	}
 }
 
