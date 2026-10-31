@@ -94,4 +94,3 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15e | The Security dashboard counts findings per workload: two workloads of one image in a namespace double its count | any |
 | 15e | In the sandbox, Trivy cannot scan zot's images (sandbox CA) nor lab's image built locally: their scan Jobs fail and log errors | any |
 | 15e | No check that each group test in `test/scopes.yaml` is also in `full` (SupplyChain and TrivyOperator were missing) | any |
-| 15e | The sandbox does not survive a WSL restart: Docker gives the k3d node another address and k3s's etcd refuses to start (its member address is the old one); `make dev-fresh` rebuilds it. A fixed node address in `infra/_modules/k3d/k3d.yaml` would keep it | any |
