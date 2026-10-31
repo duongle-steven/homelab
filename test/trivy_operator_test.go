@@ -158,7 +158,8 @@ func TestTrivyOperator(t *testing.T) {
 
 	// Every running workload scanned first: a clean baseline over half the workloads proves nothing.
 	// The operator sometimes drops a workload it lists at start, silently (ImageScanMissing fires for it in 6 hours):
-	// one still unscanned after 10 minutes is touched once, and its update event queues its scan
+	// one still unscanned after 10 minutes is touched once, and its update event queues its scan. So an operator that
+	// scans a workload only after an update passes here; production's alert still catches it
 	missing := alert("ImageScanMissing")
 	var unscanned []string
 	since := map[string]time.Time{}
@@ -182,8 +183,10 @@ func TestTrivyOperator(t *testing.T) {
 			for _, kind := range []string{"replicaset", "statefulset", "daemonset"} {
 				if m[kind] != "" {
 					t.Logf("%s has had no report for 10 minutes: touching its %s", workload, kind)
-					_, _ = k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", m["namespace"]), "annotate", kind, m[kind],
-						fmt.Sprint("homelab/trivy-rescan=", time.Now().Unix()), "--overwrite")
+					if out, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", m["namespace"]), "annotate", kind, m[kind],
+						fmt.Sprint("homelab/trivy-rescan=", time.Now().Unix()), "--overwrite"); err != nil {
+						t.Logf("touching %s failed: %v %s", workload, err, out)
+					}
 				}
 			}
 		}

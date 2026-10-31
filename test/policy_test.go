@@ -222,10 +222,12 @@ func TestPolicy(t *testing.T) {
 				}
 			}
 		}
-		// k3s's own pods (kube-system) are not the repository's; passes leave no report, so the pods judged are
-		// counted from the pods themselves
+		// k3s's own pods (kube-system) are not the repository's, nor the tests' fixtures (TestTrivyOperator's old
+		// alpine, left by a run cut by go test's timeout, until that test deletes it); passes leave no report, so the
+		// pods judged are counted from the pods themselves
 		outside := func(namespace string) bool {
-			return namespace == "kube-system" || strings.HasPrefix(namespace, "policy-test-")
+			return namespace == "kube-system" || strings.HasPrefix(namespace, "policy-test-") ||
+				strings.HasPrefix(namespace, "trivy-test-")
 		}
 		cutoff := newest.Add(time.Minute) // for Kyverno to cache the newest exception
 		kubectlJSON(t, &pods, "get", "pods", "-A")
