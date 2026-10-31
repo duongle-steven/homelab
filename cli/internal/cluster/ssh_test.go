@@ -161,10 +161,13 @@ func (service *testSSHService) session(request ssh.NewChannel) {
 	}
 }
 
-// testSSHServerConfig is the last test server's config, for a test that adds host keys
-var testSSHServerConfig *ssh.ServerConfig
-
 func testSSHServer(t *testing.T, files testRemoteFiles, forwards map[string]string) (host, sshServers, ssh.PublicKey) {
+	t.Helper()
+	return testSSHServerWithKeys(t, files, forwards)
+}
+
+// testSSHServerWithKeys also offers extra host keys, which known_hosts does not hold
+func testSSHServerWithKeys(t *testing.T, files testRemoteFiles, forwards map[string]string, extra ...ssh.Signer) (host, sshServers, ssh.PublicKey) {
 	t.Helper()
 	serverKey, userKey := testSigner(t), testSigner(t)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -187,7 +190,9 @@ func testSSHServer(t *testing.T, files testRemoteFiles, forwards map[string]stri
 		return nil, nil
 	}}
 	config.AddHostKey(serverKey)
-	testSSHServerConfig = config
+	for _, key := range extra {
+		config.AddHostKey(key)
+	}
 	go func() {
 		defer close(accepted)
 		for {
@@ -324,7 +329,6 @@ func TestNativeSSHCancellationClosesTransport(t *testing.T) {
 // A node offers several host keys (NixOS: ed25519 and RSA) and known_hosts may hold only one: lab asks for the
 // algorithms known_hosts trusts for that address, or the server picks another key and the check reports a mismatch
 func TestNativeSSHAsksForTheKnownHostKeyType(t *testing.T) {
-	node, remote, _ := testSSHServer(t, nil, nil)
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
@@ -333,7 +337,7 @@ func TestNativeSSHAsksForTheKnownHostKeyType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testSSHServerConfig.AddHostKey(rsaSigner)
+	node, remote, _ := testSSHServerWithKeys(t, nil, nil, rsaSigner)
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	conn, err := remote.connect(ctx, node)

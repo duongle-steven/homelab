@@ -163,6 +163,11 @@ groups:
       - infra/_modules/metal/flake/flake.lock
       - infra/_modules/metal/flake/authorized_keys
       - infra/_modules/metal/flake/profiles/**
+      - infra/_modules/staging-vms/**
+      - infra/staging/**
+      - scripts/lab
+      - scripts/staging-nixie
+      - scripts/staging-wake
       - test/benchmark/**
       - scripts/argocd-admin-password
       - scripts/get-dns-config
