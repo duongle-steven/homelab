@@ -449,7 +449,6 @@ func replicas(ctx context.Context, kube kubernetes.Interface, namespace string, 
 	return *n, nil
 }
 
-// who is the person or job a rotation records: user@host, or the pod's name in the cluster
 // rotationTarget reaches the cluster and OpenBao: from the workstation with the environment's kubeconfig as OpenBao's
 // admin, or in the CronJob's pod (--in-cluster) with its own service account and role rotator (HOMELAB_ENV and
 // HOMELAB_DOMAIN from the chart, the OpenBao token projected at HOMELAB_OPENBAO_TOKEN_FILE)
@@ -520,6 +519,7 @@ func rotationEnv(cmd *cobra.Command) string {
 	return name
 }
 
+// who is the person or job a rotation records: user@host, or the pod's name in the cluster
 func who() string {
 	if os.Getenv("HOMELAB_ROTATION_JOB") != "" {
 		return "rotation-job"

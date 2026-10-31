@@ -75,7 +75,7 @@ func openAs(ctx context.Context, address string, httpClient *http.Client, role, 
 	client.ClearToken()
 	login, err := client.Logical().WriteWithContext(ctx, "auth/kubernetes/login", map[string]any{"role": role, "jwt": jwt})
 	if err != nil {
-		return nil, fmt.Errorf("log in to OpenBao with the role %s failed", role)
+		return nil, fmt.Errorf("log in to OpenBao with the role %s failed: %w", role, err)
 	}
 	if login == nil || login.Auth == nil || login.Auth.ClientToken == "" {
 		return nil, fmt.Errorf("OpenBao returned no token for the role %s", role)
