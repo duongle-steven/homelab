@@ -1,5 +1,5 @@
 grafana:
-  # Trust the sandbox CA for calls to Kanidm
+  # Trust the local CA (staging and the sandbox) for calls to Kanidm
   env:
     SSL_CERT_DIR: /etc/ssl/certs:/etc/homelab-dev-ca
   # Not optional: the pod waits until trust-manager has copied the CA here

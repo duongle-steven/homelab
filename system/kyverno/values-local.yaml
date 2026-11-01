@@ -1,0 +1,36 @@
+kyverno:
+  # Trust the local CA (staging and the sandbox) for zot, whose signatures TestSupplyChain verifies
+  # (allowInsecureRegistry only allows plain HTTP)
+  admissionController:
+    container:
+      extraEnvVars:
+        - name: SSL_CERT_DIR
+          value: /etc/ssl/certs:/etc/homelab-dev-ca
+    extraVolumes:
+      - name: dev-ca
+        configMap:
+          name: homelab-dev-ca
+          optional: true
+    extraVolumeMounts:
+      - name: dev-ca
+        mountPath: /etc/homelab-dev-ca
+        readOnly: true
+  # It verifies images too (background scan of new pods), with the local CA as above
+  reportsController:
+    extraEnvVars:
+      - name: SSL_CERT_DIR
+        value: /etc/ssl/certs:/etc/homelab-dev-ca
+    extraVolumes:
+      - name: dev-ca
+        configMap:
+          name: homelab-dev-ca
+          optional: true
+    extraVolumeMounts:
+      - name: dev-ca
+        mountPath: /etc/homelab-dev-ca
+        readOnly: true
+
+# Staging and the sandbox run lab's image built from the checkout (scripts/build-lab-image), unsigned: TestSupplyChain
+# proves Kyverno's verification with its own signed image instead
+labImagePolicy:
+  enabled: false

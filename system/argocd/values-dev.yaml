@@ -70,8 +70,10 @@ argocd-apps:
               path: '{{ .path.path }}'
               targetRevision: *revision
               helm:
+                # values-local.yaml: what staging and the sandbox share (the local CA, the tests' fixtures)
                 valueFiles:
                   - values.yaml
+                  - values-local.yaml
                   - values-dev.yaml
                 ignoreMissingValueFiles: true
                 valuesObject: &values

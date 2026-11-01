@@ -1,12 +1,12 @@
 #!/bin/sh
 # Print the values Argo CD passes from the environment's config file (infra/<env>/cluster/config.json) through the
 # ApplicationSet <appset>'s helm.valuesObject, as name=value lines, so offline renders match the cluster's.
-# Usage: scripts/env-values <prod|dev> <root|apps>
+# Usage: scripts/env-values <prod|dev|staging> <root|apps>
 set -eu
 env="$1"
 appset="$2"
 argocd=system/argocd
-# The sandbox restates generators and the apps source in values-<env>.yaml
+# The sandbox and staging restate generators and the apps source in values-<env>.yaml
 pick() {
   if [ "$env" != prod ] && [ -f "$argocd/values-$env.yaml" ] && [ "$(yq "explode(.) | $1" "$argocd/values-$env.yaml")" != null ]; then
     yq "explode(.) | $1" "$argocd/values-$env.yaml"

@@ -1,0 +1,2 @@
+# Staging's and the sandbox's Gateways serve certificates from the local CA (trust-manager's ConfigMap homelab-dev-ca)
+devCA: true

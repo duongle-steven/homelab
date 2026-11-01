@@ -1,0 +1,15 @@
+#!/bin/sh
+# Render every component and app the way Argo CD does for an environment, one file each, into a directory: comparing
+# two such directories (diff -r) shows what a change does to the renders.
+# Usage: scripts/render-all <prod|dev|staging> <out-dir>
+set -eu
+env="$1"
+out="$2"
+mkdir -p "$out"
+for dir in system/* platform/* apps/matrix; do
+	[ -f "$dir/Chart.yaml" ] || continue
+	scripts/render-chart "$dir" "$env" > "$out/$(echo "$dir" | tr / _).yaml"
+done
+for app in apps/*.yaml; do
+	scripts/render-chart "$app" "$env" > "$out/$(echo "$app" | tr / _)"
+done

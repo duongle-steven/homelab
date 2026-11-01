@@ -1,0 +1,8 @@
+issuer:
+  dev: true
+trust-manager:
+  # Distributes the local CA (templates/bundle.yaml)
+  enabled: true
+  # Staging and the sandbox need no public CA bundle
+  defaultPackage:
+    enabled: false
