@@ -251,10 +251,14 @@ func TestWaitNamespaceRetries(t *testing.T) {
 	}
 }
 
-// A first sync on staging's small nodes renders one chart at a time: every helm at once starved k3s of CPU and memory
+// A first sync on staging's small nodes renders two charts at a time: every helm at once starved k3s of CPU and memory
 // until it lost its leases
 func TestStagingArgoCDLimitsTheFirstSync(t *testing.T) {
 	out, err := exec.Command("yq", `.argo-cd.configs.params["reposerver.parallelism.limit"]`, "../system/argocd/values-staging.yaml").Output()
 	require.NoError(t, err)
-	assert.Equal(t, "1", strings.TrimSpace(string(out)))
+	assert.Equal(t, "2", strings.TrimSpace(string(out)))
+	// Waiting for those renders outlasts the default 60 s: every Application reported DeadlineExceeded and tried again
+	out, err = exec.Command("yq", `.argo-cd.configs.params["controller.repo.server.timeout.seconds"]`, "../system/argocd/values-staging.yaml").Output()
+	require.NoError(t, err)
+	assert.Equal(t, "600", strings.TrimSpace(string(out)))
 }

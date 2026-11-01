@@ -12,7 +12,9 @@ argo-cd:
     # Merged into values.yaml's. A first sync with every chart rendering at once starved the small nodes: k3s lost its
     # leases and exited (docs/installation/staging.md)
     params:
-      reposerver.parallelism.limit: 1
+      reposerver.parallelism.limit: 2
+      # Waiting for those renders (each downloads its chart's dependencies) outlasts the default 60 s
+      controller.repo.server.timeout.seconds: 600
       controller.status.processors: 5
       controller.operation.processors: 3
       controller.kubectl.parallelism.limit: 5
