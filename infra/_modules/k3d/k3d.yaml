@@ -35,7 +35,7 @@ options:
         nodeFilters: [server:*]
       - arg: --kube-proxy-arg=metrics-bind-address=0.0.0.0
         nodeFilters: [server:*]
-      # The API server's audit log (metal/roles/k3s/files/audit-policy.yaml, mounted by main.tf), which Alloy sends to
+      # The API server's audit log (infra/_modules/metal/flake/audit-policy.yaml, mounted by main.tf), which Alloy sends to
       # Loki (system/loki); the server rotates it, Loki keeps it
       - arg: --kube-apiserver-arg=audit-policy-file=/etc/rancher/k3s/audit-policy.yaml
         nodeFilters: [server:*]

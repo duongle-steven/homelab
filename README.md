@@ -105,9 +105,9 @@ They can't capture all the project's features, but they are sufficient to get a 
         <th>Description</th>
     </tr>
     <tr>
-        <td><img width="32" src="https://simpleicons.org/icons/ansible.svg"></td>
-        <td><a href="https://www.ansible.com">Ansible</a></td>
-        <td>Automate bare metal provisioning and configuration</td>
+        <td><img width="32" src="https://simpleicons.org/icons/nixos.svg"></td>
+        <td><a href="https://nixos.org">NixOS</a></td>
+        <td>Declarative operating system for the nodes, installed over the network</td>
     </tr>
     <tr>
         <td><img width="32" src="https://avatars.githubusercontent.com/u/30269780"></td>

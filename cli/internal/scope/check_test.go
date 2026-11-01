@@ -44,7 +44,7 @@ func TestCheckStaleRegex(t *testing.T) {
 
 func TestCheckMainTermPicksAloneTest(t *testing.T) {
 	c := checkConfig()
-	c.Groups = append(c.Groups, Group{Paths: []string{"metal/**"}, Tests: "Restart"})
+	c.Groups = append(c.Groups, Group{Paths: []string{"infra/_modules/metal/**"}, Tests: "Restart"})
 	got := c.Check(nil, checkTests)
 	want := []string{`group 5: "Restart" would run alone test TestNodeRestart with the others`}
 	if !reflect.DeepEqual(got, want) {

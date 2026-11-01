@@ -1,0 +1,40 @@
+# Staging: three 3.5 GB VMs (docs/superpowers/specs/2026-10-31-staging-design.md). Ceph keeps production's layout
+# (three mons, an OSD on each node's rook-data partition, two replicas) with less memory: one mgr, an OSD memory
+# limit of 1.25 GiB (Rook sets osd_memory_target from it, about 1 GiB). No CephFS (its MDS pair needs more than
+# staging has; production keeps it). No monitoring until Prometheus runs on staging (step 12a-2)
+rook-ceph:
+  monitoring:
+    enabled: false
+rook-ceph-cluster:
+  monitoring:
+    enabled: false
+    createPrometheusRules: false
+  cephClusterSpec:
+    # Ceph v20 warns while CephX keys are not AES256K (CVE-2025-30156), which the CSI clients need a 7.0 kernel for
+    # (the nodes run 6.18): Rook's documented mute, staging only. Production decides before step 12b (CLAUDE.md)
+    healthCheck:
+      muteHealthWarning:
+        AUTH_INSECURE_ROTATING_SERVICE_KEY_TYPE:
+          policy: mute
+        AUTH_INSECURE_CLIENT_KEY_TYPE:
+          policy: mute
+        AUTH_INSECURE_KEYS_ALLOWED:
+          policy: mute
+        AUTH_INSECURE_KEYS_CREATABLE:
+          policy: mute
+    mgr:
+      count: 1
+    resources:
+      osd:
+        limits:
+          memory: "1280Mi"
+        requests:
+          cpu: "100m"
+          memory: "512Mi"
+  cephFileSystems: []
+  cephFileSystemVolumeSnapshotClass:
+    enabled: false
+ceph-csi-drivers:
+  drivers:
+    cephfs:
+      enabled: false

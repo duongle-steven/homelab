@@ -31,7 +31,7 @@ if [ -f "$target" ]; then
   # The sandbox restates the ApplicationSet source in values-dev.yaml
   source_of() {
     query=".argocd-apps.applicationsets.apps.template.spec.sources[0]$1"
-    if [ "$env" != prod ] && [ "$(yq "$query" "$argocd/values-$env.yaml" 2>/dev/null)" != null ]; then
+    if [ "$env" != prod ] && [ -f "$argocd/values-$env.yaml" ] && [ "$(yq "$query" "$argocd/values-$env.yaml" 2>/dev/null)" != null ]; then
       yq "$query" "$argocd/values-$env.yaml"
     else
       yq "$query" "$argocd/values.yaml"

@@ -14,3 +14,7 @@ infra/sandbox/cluster/gateway-api-*.yaml
 .terragrunt-cache/
 .terraform/
 __pycache__/
+# The node flake's inputs, written by infra/<env>/metal from hosts.json, config.json and the environment's keys
+infra/_modules/metal/flake/hosts.json
+infra/_modules/metal/flake/cluster.json
+infra/_modules/metal/flake/authorized_keys

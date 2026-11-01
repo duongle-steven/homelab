@@ -8,7 +8,7 @@ appset="$2"
 argocd=system/argocd
 # The sandbox restates generators and the apps source in values-<env>.yaml
 pick() {
-  if [ "$env" != prod ] && [ "$(yq "explode(.) | $1" "$argocd/values-$env.yaml")" != null ]; then
+  if [ "$env" != prod ] && [ -f "$argocd/values-$env.yaml" ] && [ "$(yq "explode(.) | $1" "$argocd/values-$env.yaml")" != null ]; then
     yq "explode(.) | $1" "$argocd/values-$env.yaml"
   else
     yq "explode(.) | $1" "$argocd/values.yaml"

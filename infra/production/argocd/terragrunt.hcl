@@ -2,7 +2,7 @@ include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
-# The cluster comes from Ansible (make -C metal) until step 12. Re-applied when system/argocd changes; the first run
+# The cluster comes from infra/production/metal (nixie, lab cluster enroll). Re-applied when system/argocd changes; the first run
 # after Forgejo runs switches from the seed to ops/homelab
 terraform {
   source = "${find_in_parent_folders("_modules")}//argocd"

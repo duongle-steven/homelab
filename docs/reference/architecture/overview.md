@@ -10,7 +10,7 @@
 |--------------|       +------------+
 |   ./system   |- - - -| ./external |
 |--------------|       +------------+
-|   ./metal    |
+|   ./infra    |
 |--------------|
 |   HARDWARE   |
 +--------------+
@@ -18,7 +18,8 @@
 
 Main components:
 
-- `./metal`: bare metal management, install Linux and Kubernetes
+- `./infra`: OpenTofu and Terragrunt: the nodes (`infra/<env>/metal`: NixOS and k3s), the sandbox's cluster, Argo CD's
+  bootstrap and the cloud resources
 - `./system`: critical system components for the cluster (load balancer, storage, Gateway API gateways, operation tools...)
 - `./platform`: essential components for service hosting platform (git, build runners, dashboards...)
 - `./apps`: user facing applications
@@ -33,10 +34,10 @@ Support components:
 
 Everything is automated, after you edit the configuration files, you just need to run a single `make` command and it will:
 
-- (1) Build the `./metal` layer:
-    - Create an ephemeral, stateless PXE server
-    - Install Linux on all servers in parallel
-    - Build a Kubernetes cluster (based on k3s)
+- (1) Apply the `metal` unit (`infra/<env>/metal`):
+    - Create an ephemeral, stateless PXE server (`nixie`)
+    - Install NixOS on all servers in parallel
+    - Build a Kubernetes cluster (based on k3s) and export its kubeconfig
 - (2) Bootstrap the `./system` layer:
     - Install Argo CD and its ApplicationSets with OpenTofu (`infra/<env>/argocd`, applied again whenever `system/argocd`
       changes); Argo CD syncs every other layer from git
@@ -46,13 +47,13 @@ Everything is automated, after you edit the configuration files, you just need t
 
 ```mermaid
 flowchart TD
-  subgraph metal[./metal]
-    pxe[PXE Server] -.-> linux[Fedora Server] --> k3s
+  subgraph metal[infra/env/metal]
+    pxe[PXE Server] -.-> linux[NixOS Server] --> k3s
   end
 
   subgraph system[./system]
     argocd[ArgoCD and root app]
-    nginx[NGINX]
+    istio[Istio gateways]
     rook-ceph[Rook Ceph]
     cert-manager
     external-dns[External DNS]

@@ -1,0 +1,3 @@
+# The public keys allowed to log in to staging's nodes as admin and root (nixie, lab cluster); staging only:
+# production's nodes accept infra/production/metal/authorized_keys
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHW8jR1ycOHBAdxAPeKSZ4fMkFnGdMc5T+nXmqdzPgyM homelab-staging

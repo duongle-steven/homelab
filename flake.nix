@@ -5,9 +5,11 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    # The nodes' installer (PXE, then nixos-anywhere): make staging, make infra
+    nixie.url = "github:khuedoan/nixie";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, nixie }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -33,6 +35,10 @@
             kanidm_1_11
             kubectl
             kubernetes-helm
+            libvirt # virsh: staging's VMs (infra/staging)
+            nixie.packages.${system}.default
+            nixos-anywhere
+            nixos-rebuild # lab cluster upgrade
             nodejs_24 # platform/renovate's token script (test/renovate_test.go), the major in Renovate's image
             openssh_gssapi
             unstable.opentofu # Drop-in replacement for Terraform (nixos-26.05 ships 1.11)
@@ -55,18 +61,6 @@
               mkdocs-material
               pyyaml # scripts/check-*
             ]))
-          ];
-        };
-
-        # metal/ (Ansible, the PXE server) until step 12 replaces it: nix develop .#metal
-        devShells.metal = mkShell {
-          inputsFrom = [ self.devShells.${system}.default ];
-          packages = [
-            ansible
-            ansible-lint
-            docker-compose
-            libisoburn
-            python3Packages.netaddr # Ansible's ansible.netcommon.ipmath (metal/roles/pxe_server)
           ];
         };
       }

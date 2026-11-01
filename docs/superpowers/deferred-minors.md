@@ -76,11 +76,9 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15b | The Gateways (`gateway-istio`, `public-istio`) run without a seccomp profile (Istio generates their Deployments; excused): set it through the Gateways' `parametersRef` | 15b-2 |
 | 15c | `AuditLogsMissing` fires only when every audit stream is silent: one server node whose Alloy or audit file stopped goes unseen (alert per `node`) | 12a |
 | 15c | `OpenBaoConfigChanged` misses identity groups and entities, `sys/mounts` and a raft snapshot restore | any |
-| 15c | kube-vip runs with the admin kubeconfig, so its requests count as a person's (`system:admin`): give it its own credentials | 12a |
 | 15c | `TestSecurityLogsQuietWhenIdle` runs only the critical rules on an idle sandbox: run the warnings too | any |
 | 15c | `TestAuditPolicyRender` does not assert the level of a person's Secret or ConfigMap writes | any |
 | 15c | `system/loki/values.yaml`'s sidecar comment says "no ruler here", stale since the ruler loads rules | any |
-| 15c | Ansible changes the audit policy file on the nodes without restarting k3s (the API server reads it only at start) | 12a |
 | 15c | Alloy reads only the current `audit.log`, not its rotated files: Alloy down while the log rotates loses the tail | any |
 | sandbox-memory | `infra/_modules/k3d/main.tf`'s address pinning: a failure between disconnect and connect leaves that container off the k3d network (the cluster is recreated on the next run; a cache waits for k3d to connect it again) | any |
 | sandbox-memory | `infra/_modules/k3d/main.tf` detects a dynamic address by Docker printing `<nil>` for `IPAMConfig`; another output would skip every container silently (test `.IPAMConfig.IPv4Address` instead) | any |
@@ -94,3 +92,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15e | The Security dashboard counts findings per workload: two workloads of one image in a namespace double its count | any |
 | 15e | In the sandbox, Trivy cannot scan zot's images (sandbox CA) nor lab's image built locally: their scan Jobs fail and log errors | any |
 | 15e | No check that each group test in `test/scopes.yaml` is also in `full` (SupplyChain and TrivyOperator were missing) | any |
+| 12a-1 | The nodes resolve through `8.8.8.8`/`1.1.1.1` over UDP 53 (`profiles/network.nix`), outside `config.json`, and the home ISP's modem intercepts UDP 53: resolvers in `config.json`, or DoT | 12b |
+| 12a-1 | `nixie` rewrites its hosts file with only the keys it knows when it records an install: a per-host `disk` in production's `hosts.json` is lost, so a disk other than `/dev/sda` needs another place | 12b |
+| 12a-1 | `lab cluster upgrade`'s reboot path (a kernel change: reboot, the new boot id, the kubelet's report since) has not run live | 12a-2 |
+| 12a-1 | On a fresh sandbox `ntfy-auth`'s ExternalSecret ran before `generated-secrets` pushed ntfy's values: ESO deleted the Secret (`SecretDeleted`) and waits for its 1h refresh, so ntfy stays in `CreateContainerConfigError` and `TestNtfy*` time out (a `force-sync` fixed it): a shorter refresh while the Secret is missing, or retry on missing keys | any |
