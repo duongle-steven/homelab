@@ -31,6 +31,20 @@ rook-ceph-cluster:
     enabled: true
     createPrometheusRules: true
   cephClusterSpec:
+    # CephX keys are AES256K only (CVE-2025-30156; Rook's cephx-key-rotation guide): Ceph v20 makes the daemons' keys
+    # AES256K, the CSI clients' keys move to it (rotated once on an existing cluster; their kernel needs 7.0 or later:
+    # infra/_modules/metal's kernel), then nothing else is accepted or created. A later rotation raises a keyGeneration
+    security:
+      cephx:
+        allowedCiphers:
+          - aes256k
+        daemon:
+          keyRotationPolicy: KeyGeneration
+          keyGeneration: 1
+        csi:
+          keyRotationPolicy: KeyGeneration
+          keyGeneration: 1
+          keyType: aes256k
     mon:
       count: 3
     mgr:

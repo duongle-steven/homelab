@@ -6,6 +6,9 @@
     ./disks.nix
   ];
 
+  # The latest stable kernel, not NixOS's LTS (6.18): Ceph's AES256K CephX keys (CVE-2025-30156) need 7.0 or later in
+  # the CSI clients (system/rook-ceph). A hotfix: back to an LTS once one has AES256K (lab cluster upgrade reboots)
+  boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 

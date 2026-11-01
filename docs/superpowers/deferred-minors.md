@@ -94,5 +94,4 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15e | No check that each group test in `test/scopes.yaml` is also in `full` (SupplyChain and TrivyOperator were missing) | any |
 | 12a-1 | The nodes resolve through `8.8.8.8`/`1.1.1.1` over UDP 53 (`profiles/network.nix`), outside `config.json`, and the home ISP's modem intercepts UDP 53: resolvers in `config.json`, or DoT | 12b |
 | 12a-1 | `nixie` rewrites its hosts file with only the keys it knows when it records an install: a per-host `disk` in production's `hosts.json` is lost, so a disk other than `/dev/sda` needs another place | 12b |
-| 12a-1 | `lab cluster upgrade`'s reboot path (a kernel change: reboot, the new boot id, the kubelet's report since) has not run live | 12a-2 |
 | 12a-1 | On a fresh sandbox `ntfy-auth`'s ExternalSecret ran before `generated-secrets` pushed ntfy's values: ESO deleted the Secret (`SecretDeleted`) and waits for its 1h refresh, so ntfy stays in `CreateContainerConfigError` and `TestNtfy*` time out (a `force-sync` fixed it): a shorter refresh while the Secret is missing, or retry on missing keys | any |
