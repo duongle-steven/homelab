@@ -222,3 +222,19 @@ func TestMetalKeysPerEnvironment(t *testing.T) {
 		assert.NotContains(t, keys["production"], k, "a key in both environments")
 	}
 }
+
+// nixie's installer runs from memory and writes the whole system to disk: on a VM it reclaims its page cache too, or
+// three parallel installs grow each QEMU to the VM's size and WSL runs out (12a-2's first staging-fresh)
+func TestMetalInstallerReclaimsMemory(t *testing.T) {
+	metalEval(t)
+	dir := t.TempDir()
+	cp := exec.Command("cp", "-r", filepath.Join("..", metalFlake)+"/.", dir)
+	out, err := cp.CombinedOutput()
+	require.NoError(t, err, string(out))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "authorized_keys"), []byte("ssh-ed25519 AAAAfixture fixture\n"), 0o600))
+	cmd := exec.Command("nix", "eval", "--raw", "--no-write-lock-file",
+		"path:"+dir+"#nixosConfigurations.installer.config.systemd.services.memory-reclaim.unitConfig.ConditionVirtualization")
+	got, err := cmd.Output()
+	require.NoError(t, err)
+	assert.Equal(t, "vm", string(got))
+}
