@@ -61,3 +61,18 @@ func TestGitHubRepositoryRefusesOtherHosts(t *testing.T) {
 		t.Errorf("GitHubRepository() = %q, %v", repo, err)
 	}
 }
+
+// Staging is an environment too (12a-2): its domain, and the address kube-vip gives its Gateway, which lab dials
+// instead of the domain's DNS
+func TestLoadStaging(t *testing.T) {
+	root := t.TempDir()
+	writeConfig(t, root, "staging", `{"domain": "192-168-100-2.nip.io", "service_vips": {"gateway": "192.168.100.2"}}`)
+	e, err := Load(root, "staging")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Domain != "192-168-100-2.nip.io" || e.GatewayVIP != "192.168.100.2" ||
+		e.Kubeconfig != filepath.Join(root, "infra/staging/kubeconfig.yaml") {
+		t.Fatalf("got %+v", e)
+	}
+}

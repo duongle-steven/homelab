@@ -5,6 +5,8 @@ skip:
   - .github/**
   - scripts/ci-check
   - scripts/lint
+  # Compares renders offline (diff -r of two runs)
+  - scripts/render-all
   - docs/**
   - "**/*.md"
   - mkdocs.yml

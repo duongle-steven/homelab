@@ -28,9 +28,9 @@ func newInfraForgejoCmd() *cobra.Command {
 	group := &cobra.Command{
 		Use:   "forgejo",
 		Short: "Deploy to the GitOps repository ops/homelab on Forgejo",
-		Long:  "Production's Argo CD syncs ops/homelab on Forgejo, which changes only through push. --env sandbox targets the sandbox's Forgejo (the tests) and skips the guards.",
+		Long:  "Production's Argo CD syncs ops/homelab on Forgejo, which changes only through push. --env staging or sandbox targets that environment's Forgejo (the tests) and skips the guards.",
 	}
-	group.PersistentFlags().String("env", "production", "production, or sandbox (the tests)")
+	group.PersistentFlags().String("env", "production", "production, or staging or sandbox (the tests)")
 	group.PersistentFlags().String("commit", "", "refuse unless HEAD is this commit (make infra passes the one it applied)")
 	verify := &cobra.Command{
 		Use:   "verify",
@@ -286,8 +286,8 @@ func openSession(ctx context.Context, e env.Env) (*session, error) {
 		return nil, err
 	}
 	ep, cleanup := forgejo.ProductionEndpoint(e.Domain), func() {}
-	if e.Name == "sandbox" {
-		if ep, cleanup, err = sandboxEndpoint(ctx, kube, e.Domain); err != nil {
+	if e.Name != "production" {
+		if ep, cleanup, err = localEndpoint(ctx, kube, e); err != nil {
 			return nil, err
 		}
 	}
@@ -304,17 +304,33 @@ func (s *session) close(ctx context.Context) error {
 	return s.store.Close(ctx)
 }
 
-// sandboxEndpoint dials the k3d node and trusts the CA trust-manager copies into every namespace.
-func sandboxEndpoint(ctx context.Context, kube kubernetes.Interface, domain string) (forgejo.Endpoint, func(), error) {
-	out, err := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", "k3d-homelab-dev-server-0").Output()
+// localEndpoint dials the environment's Gateway (gatewayAddress) and trusts the local CA trust-manager copies into
+// every namespace: staging and the sandbox.
+func localEndpoint(ctx context.Context, kube kubernetes.Interface, e env.Env) (forgejo.Endpoint, func(), error) {
+	addr, err := gatewayAddress(ctx, e)
 	if err != nil {
-		return forgejo.Endpoint{}, nil, fmt.Errorf("docker inspect k3d-homelab-dev-server-0: %w (is the sandbox running?)", err)
+		return forgejo.Endpoint{}, nil, err
 	}
 	ca, err := kube.CoreV1().ConfigMaps("forgejo").Get(ctx, "homelab-dev-ca", metav1.GetOptions{})
 	if err != nil {
-		return forgejo.Endpoint{}, nil, fmt.Errorf("the sandbox CA (forgejo/homelab-dev-ca): %w", err)
+		return forgejo.Endpoint{}, nil, fmt.Errorf("the local CA (forgejo/homelab-dev-ca): %w", err)
 	}
-	return forgejo.SandboxEndpoint(domain, strings.TrimSpace(string(out)), []byte(ca.Data["ca.crt"]))
+	return forgejo.SandboxEndpoint(e.Domain, addr, []byte(ca.Data["ca.crt"]))
+}
+
+// gatewayAddress is where the Gateway listens: staging's VIP (kube-vip), the sandbox's k3d node.
+func gatewayAddress(ctx context.Context, e env.Env) (string, error) {
+	if e.Name == "staging" {
+		if e.GatewayVIP == "" {
+			return "", fmt.Errorf("infra/staging/cluster/config.json has no service_vips.gateway")
+		}
+		return e.GatewayVIP, nil
+	}
+	out, err := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", "k3d-homelab-dev-server-0").Output()
+	if err != nil {
+		return "", fmt.Errorf("docker inspect k3d-homelab-dev-server-0: %w (is the sandbox running?)", err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // refreshArgoCDCredential makes Argo CD's repository Secret hold token: it force-syncs the ExternalSecret and

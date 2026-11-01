@@ -310,7 +310,8 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 			return errors.New("not confirmed: the old value stays; run the same command again once it is done")
 		}
 	}
-	// Forgejo's endpoint is reached only when a rotation needs it (the sandbox's asks docker for the node)
+	// Forgejo's endpoint is reached only when a rotation needs it (the sandbox's asks docker for the node, staging's is
+	// its Gateway VIP)
 	var cleanups []func()
 	var ep *forgejo.Endpoint
 	endpoint := func(ctx context.Context) (forgejo.Endpoint, error) {
@@ -318,10 +319,11 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 			return *ep, nil
 		}
 		found, cleanup := forgejo.ProductionEndpoint(e.Domain), func() {}
-		// In the cluster the Gateway's hosts answer through CoreDNS (the sandbox's CA through SSL_CERT_DIR)
-		if e.Name == "sandbox" && e.Kubeconfig != "" {
+		// In the cluster the Gateway's hosts answer through CoreDNS (the local CA through SSL_CERT_DIR); from the
+		// workstation staging's and the sandbox's are dialled at their Gateway
+		if e.Name != "production" && e.Kubeconfig != "" {
 			var err error
-			if found, cleanup, err = sandboxEndpoint(ctx, kube, e.Domain); err != nil {
+			if found, cleanup, err = localEndpoint(ctx, kube, e); err != nil {
 				return forgejo.Endpoint{}, err
 			}
 		}
@@ -329,7 +331,7 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 		ep = &found
 		return found, nil
 	}
-	// Woodpecker's API on ci.<domain>, reached as Forgejo is (the sandbox's on the node)
+	// Woodpecker's API on ci.<domain>, reached as Forgejo is
 	woodpecker := rotate.WoodpeckerClient{Store: store, URL: func(ctx context.Context) (string, *http.Client, error) {
 		ep, err := endpoint(ctx)
 		if err != nil {
