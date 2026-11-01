@@ -40,6 +40,7 @@ type metalNode struct {
 		Condition string `json:"condition"`
 		Script    string `json:"script"`
 		Timer     string `json:"timer"`
+		Start     string `json:"start"`
 	} `json:"reclaim"`
 }
 
@@ -81,6 +82,7 @@ func metalEval(t *testing.T) map[string]metalNode {
 				condition = s.unitConfig.ConditionVirtualization or "";
 				script = s.script;
 				timer = c.config.systemd.timers.memory-reclaim.timerConfig.OnUnitActiveSec or "";
+				start = c.config.systemd.timers.memory-reclaim.timerConfig.OnActiveSec or "";
 			};
 		}) (removeAttrs cs [ "installer" ])`
 		cmd := exec.Command("nix", "eval", "--json", "--no-write-lock-file", "path:"+dir+"#nixosConfigurations", "--apply", apply)
@@ -153,6 +155,7 @@ func TestMetalVMMemoryReclaim(t *testing.T) {
 	for name, node := range metalEval(t) {
 		assert.Equal(t, "vm", node.Reclaim.Condition, name)
 		assert.Equal(t, "1min", node.Reclaim.Timer, name)
+		assert.Equal(t, "1min", node.Reclaim.Start, "%s: starts after an upgrade too, not only at boot", name)
 		assert.Contains(t, node.Reclaim.Script, "/sys/fs/cgroup/memory.reclaim", name)
 		assert.Contains(t, node.Reclaim.Script, "swappiness=0", "%s: only the page cache, never swap", name)
 	}

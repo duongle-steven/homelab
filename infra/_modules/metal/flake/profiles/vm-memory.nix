@@ -20,8 +20,9 @@
   };
   systemd.timers.memory-reclaim = {
     wantedBy = [ "timers.target" ];
+    # From the timer's start, at boot or at a switch that adds it: OnBootSec has long passed after a switch
     timerConfig = {
-      OnBootSec = "5min";
+      OnActiveSec = "1min";
       OnUnitActiveSec = "1min";
     };
   };
