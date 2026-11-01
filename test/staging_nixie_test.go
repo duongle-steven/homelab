@@ -57,3 +57,32 @@ jq 'map_values(. + {machine_id_hash: "new"})' "$file" > "$file.tmp" && mv "$file
 	assert.Equal(t, "new", recorded["h3"].Hash)
 	assert.False(t, strings.Contains(string(raw), "tmp"))
 }
+
+// scripts/staging-trust waits for each node's SSH (VMs just started are still booting) and fails only after its wait
+func TestStagingTrustWaitsForBoot(t *testing.T) {
+	hosts := filepath.Join(t.TempDir(), "hosts.json")
+	require.NoError(t, os.WriteFile(hosts, []byte(`{"h1": {"ip": "10.0.0.11"}, "h2": {"ip": "10.0.0.12"}}`), 0o644))
+	dir, env := fakeBin(t, map[string]string{
+		// The first two tries are refused, as sshd is not up yet
+		"ssh": `n=$(cat "$FIXTURES/tries" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$FIXTURES/tries"
+[ "$n" -gt 2 ] || exit 255
+echo "$*" >> "$FIXTURES/calls"`,
+	})
+	cmd := exec.Command("sh", "../scripts/staging-trust", hosts)
+	cmd.Env = append(env, "STAGING_TRUST_WAIT=20", "STAGING_TRUST_INTERVAL=0")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	calls, err := os.ReadFile(filepath.Join(dir, "calls"))
+	require.NoError(t, err)
+	assert.Contains(t, string(calls), "StrictHostKeyChecking=accept-new")
+	assert.Contains(t, string(calls), "admin@10.0.0.11")
+	assert.Contains(t, string(calls), "admin@10.0.0.12")
+
+	// A node that never answers fails, naming it
+	_, env = fakeBin(t, map[string]string{"ssh": `exit 255`})
+	cmd = exec.Command("sh", "../scripts/staging-trust", hosts)
+	cmd.Env = append(env, "STAGING_TRUST_WAIT=0", "STAGING_TRUST_INTERVAL=0")
+	out, err = cmd.CombinedOutput()
+	require.Error(t, err)
+	assert.Contains(t, string(out), "10.0.0.11")
+}

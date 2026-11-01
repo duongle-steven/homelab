@@ -1,0 +1,17 @@
+#!/bin/sh
+# Trust staging's host keys on first contact (only on the workstation's own libvirt network), waiting for each node's
+# SSH: VMs just started are still booting.
+# Usage: staging-trust <hosts.json>
+set -eu
+wait_seconds=${STAGING_TRUST_WAIT:-300}
+interval=${STAGING_TRUST_INTERVAL:-5}
+for ip in $(jq -r '.[].ip' "$1"); do
+	deadline=$(($(date +%s) + wait_seconds))
+	until ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10 "admin@$ip" true 2>/dev/null; do
+		if [ "$(date +%s)" -ge "$deadline" ]; then
+			echo "staging-trust: no SSH from $ip after ${wait_seconds}s" >&2
+			exit 1
+		fi
+		sleep "$interval"
+	done
+done

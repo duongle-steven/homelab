@@ -33,12 +33,7 @@ terraform {
   after_hook "trust" {
     commands    = ["apply"]
     working_dir = get_repo_root()
-    execute = ["sh", "-c", <<-EOT
-      for ip in $(jq -r '.[].ip' infra/staging/metal/hosts.json); do
-        ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10 "admin@$ip" true
-      done
-    EOT
-    ]
+    execute     = ["scripts/staging-trust", "infra/staging/metal/hosts.json"]
   }
 
   after_hook "enroll" {
