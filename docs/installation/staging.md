@@ -62,7 +62,7 @@ Measured during `make staging` (rook-ceph, the tests) on a 16 GB workstation wit
 | Page cache kept by the node | 1.3 GB | |
 | Free inside the node (the reclaim timer's floor: a quarter) | 0.8–1.2 GB | |
 | QEMU's memory in WSL | 2.4–3.0 GB | 7.5–8.1 GB for the three |
-| Available in WSL (lowest, during `TestStagingVIPMoves`) | | 2.1 GB |
+| Available in WSL (lowest, two runs) | | 1.5–2.1 GB |
 | WSL's swap in use (highest) | | 1.6 GB |
 
 The VMs hand the pages they free back to WSL (virtio balloon with free page reporting), but not their page cache:
