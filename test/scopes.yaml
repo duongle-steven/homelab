@@ -142,7 +142,6 @@ groups:
       - apps/homepage.yaml
       - apps/jellyfin.yaml
       - apps/matrix/**
-      - apps/ollama.yaml
       - apps/pairdrop.yaml
       - apps/speedtest.yaml
       - apps/tailscale.yaml
