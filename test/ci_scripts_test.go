@@ -24,8 +24,11 @@ func TestArgoCDChooseValues(t *testing.T) {
 	const stagingForgejo = `{"values":"values-dev.yaml","environment":"dev","seeded":"false"}`
 	for _, c := range []struct {
 		name, seed, seedEnvironment, rootRepo, token, master, want string
-		kubectlFails, execFails, fails                             bool
+		kubectlFails, execFails, fails, noArgoCD                   bool
 	}{
+		// A new cluster has no Argo CD yet: no ApplicationSet kind to ask about is a first install, not a failure
+		{name: "first install, no Argo CD CRDs", seed: "values-seed.yaml", noArgoCD: true, want: seedValues},
+		{name: "staging: first install, no Argo CD CRDs", seed: "values-staging.yaml", seedEnvironment: "staging", noArgoCD: true, want: stagingSeed},
 		{name: "staging: first install", seed: "values-staging.yaml", seedEnvironment: "staging", want: stagingSeed},
 		// Review Focus 5: an interrupted make staging that already switched stays on Forgejo
 		{name: "staging: switched stays", seed: "values-staging.yaml", seedEnvironment: "staging", rootRepo: forgejo, execFails: true, want: stagingForgejo},
@@ -41,7 +44,7 @@ func TestArgoCDChooseValues(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			kubectl := `case "$*" in
-  *applicationset*) echo "$ROOT_REPO" ;;
+  *applicationset*) [ -z "$NO_ARGOCD" ] || { echo 'error: the server doesn'"'"'t have a resource type "applicationset"' >&2; exit 1; }; echo "$ROOT_REPO" ;;
   *"get secret argocd-repo-forgejo"*) [ -z "$TOKEN" ] || printf '%s' "$TOKEN" | base64 ;;
   *exec*) echo "$*" >> "$FIXTURES/exec-args"; [ -z "$EXEC_FAILS" ] || exit 1; [ -n "$MASTER" ] && [ "$(cat)" = "Authorization: token $MASTER" ] ;;
   *) echo "unexpected kubectl $*" >&2; exit 2 ;;
@@ -54,6 +57,9 @@ esac`
 			cmd.Env = append(env, "ROOT_REPO="+c.rootRepo, "TOKEN="+c.token, "MASTER="+c.master)
 			if c.execFails {
 				cmd.Env = append(cmd.Env, "EXEC_FAILS=1")
+			}
+			if c.noArgoCD {
+				cmd.Env = append(cmd.Env, "NO_ARGOCD=1")
 			}
 			cmd.Stdin = strings.NewReader(`{"values":"values-dev.yaml","environment":"dev","seed":"` + c.seed + `","seed_environment":"` + c.seedEnvironment + `","forgejo_repository":"` + forgejo + `","kubeconfig":"/dev/null"}`)
 			out, err := cmd.CombinedOutput()
