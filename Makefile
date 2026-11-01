@@ -81,9 +81,13 @@ staging-fresh:
 	$(MAKE) staging-clean
 	$(MAKE) staging
 
-# Removes the VMs, their disks and network, nixie's install record and their host keys
+# Removes the VMs, their disks and network, nixie's install record and their host keys. argocd, openbao and secrets
+# hold only what is in the cluster, which goes with the disks: their state is dropped, since destroying them asks a
+# cluster that may not answer
 staging-clean: sandbox-checkout
-	cd infra/staging && $(terragrunt) run --all destroy --non-interactive -- -auto-approve
+	rm -rf .state/staging/argocd .state/staging/openbao .state/staging/secrets
+	cd infra/staging/metal && $(terragrunt) destroy --non-interactive -- -auto-approve
+	cd infra/staging/vms && $(terragrunt) destroy --non-interactive -- -auto-approve
 	rm -f .state/staging/metal/nixie-hosts.json
 	for ip in $$(jq -r '.[].ip' infra/staging/metal/hosts.json); do ssh-keygen -R "$$ip" >/dev/null 2>&1 || true; done
 
