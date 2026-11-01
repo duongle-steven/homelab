@@ -1,0 +1,24 @@
+# What staging proves beyond the components and apps it deploys (lab infra forgejo verify's gate, which adds those from
+# system/argocd/values-staging.yaml): a release changing any of these needs make staging's mark
+# (docs/superpowers/specs/2026-11-01-staging-platform-design.md). Globs, ** spans directories.
+paths:
+  # The nodes: NixOS, k3s, kube-vip, the audit policy
+  - infra/_modules/metal/**
+  - infra/production/metal/**
+  - infra/staging/**
+  # The deploy path: Argo CD's bootstrap and charts, the units every environment applies
+  - infra/_modules/argocd/**
+  - infra/_modules/openbao/**
+  - infra/_modules/secrets/**
+  - infra/production/argocd/**
+  - infra/production/openbao/**
+  - infra/production/secrets/**
+  - system/argocd/**
+  # Rendered into every namespace by each Application
+  - system/egress/**
+  - system/secret-store/**
+  # lab's commands that build, upgrade and deploy the cluster
+  - cli/internal/cluster/**
+  - cli/internal/forgejo/**
+  - cli/internal/guard/**
+  - Makefile

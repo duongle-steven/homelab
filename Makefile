@@ -74,6 +74,7 @@ staging: sandbox-checkout sandbox-clean
 	cd infra/staging/argocd && $(terragrunt) apply --non-interactive -- -auto-approve
 	-@kubectl --kubeconfig $(staging_kubeconfig) -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1
 	$(MAKE) env=staging ENV=staging INSECURE_SKIP_VERIFY=1 smoke_filter=Staging smoke-test
+	scripts/staging-mark HEAD
 
 # Reinstalls the VMs from empty disks (nixie), then the tests
 staging-fresh:
@@ -122,7 +123,8 @@ dev-clean: sandbox-checkout
 # infrastructure, Forgejo's org ops, the push of this commit to ops/homelab, then the bootstrap again (the switch to
 # Forgejo on a first install). force=1 applies the infrastructure only and deploys nothing (a state migration).
 # break_glass="<reason>" deploys while GitHub is down: verify checks a clean checkout that fast-forwards Forgejo instead
-# (docs/how-to-guides/deploy-to-forgejo.md); never with force=1.
+# (docs/how-to-guides/deploy-to-forgejo.md); never with force=1. skip_staging="<reason>" releases what staging has not
+# proved (verify's staging gate), the reason recorded as the commit's staging status (docs/installation/staging.md).
 # Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
 # The commit make infra started from: verify and push refuse another (a git pull during the apply)
 infra: deploy_commit := $(shell git rev-parse HEAD)
@@ -136,17 +138,20 @@ infra: override HOMELAB_GITHUB_APP_KEY := $(if $(HOMELAB_GITHUB_APP_KEY),$(call 
 # The reason reaches lab through the environment, so no quote in it reaches the shell; $(value) keeps make from
 # expanding a $ in it
 infra: export HOMELAB_BREAK_GLASS := $(value break_glass)
+infra: export HOMELAB_SKIP_STAGING := $(value skip_staging)
 infra:
 	@if [ -n "$$HOMELAB_BREAK_GLASS" ] && { [ "$(force)" = 1 ] || [ "$(env)" != production ]; }; then \
 		echo "break_glass deploys production and cannot be combined with force=1" >&2; exit 1; fi
 	@if [ "$(env)" = sandbox ]; then $(MAKE) -s sandbox-checkout; fi
 	go -C cli build -o /dev/null ./cmd/lab
 	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then \
-		$(lab_cli) infra forgejo verify --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"}; fi
+		$(lab_cli) infra forgejo verify --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"} \
+			$${HOMELAB_SKIP_STAGING:+"--skip-staging=$$HOMELAB_SKIP_STAGING"}; fi
 	cd infra/$(env) && $(terragrunt_apply)
 	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then \
 		$(lab_cli) infra forgejo sync && \
-		$(lab_cli) infra forgejo push --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"} && \
+		$(lab_cli) infra forgejo push --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"} \
+			$${HOMELAB_SKIP_STAGING:+"--skip-staging=$$HOMELAB_SKIP_STAGING"} && \
 		(cd infra/production/argocd && $(terragrunt) apply --non-interactive -- -auto-approve) && \
 		{ $(lab_cli) secrets list --due --workstation || echo "warning: could not check the secrets rotated from here" >&2; }; \
 	fi
