@@ -15,8 +15,9 @@ variable "memory_mib" {
 }
 
 variable "vcpus" {
-  type    = number
-  default = 2
+  type = number
+  # The workstation has 16 threads; two per VM starved k3s and etcd during the first sync (load 31 on a node)
+  default = 4
 }
 
 variable "disk_gib" {

@@ -31,12 +31,14 @@ resource "libvirt_pool" "staging" {
 
 resource "libvirt_volume" "disk" {
   for_each = var.hosts
-  name     = "${each.key}.qcow2"
+  # Raw: with cache unsafe below, a write is in WSL's page cache as soon as the guest makes it, so killing QEMU (virsh
+  # destroy, the power-cut test) loses nothing; qcow2 would keep metadata in QEMU's memory
+  name     = "${each.key}.raw"
   pool     = libvirt_pool.staging.name
   capacity = var.disk_gib * 1024 * 1024 * 1024
   # Sparse: the file grows as the VM writes (it lives in WSL's virtual disk on C:)
   allocation = 0
-  target     = { format = { type = "qcow2" } }
+  target     = { format = { type = "raw" } }
 }
 
 resource "libvirt_domain" "node" {
@@ -64,7 +66,10 @@ resource "libvirt_domain" "node" {
       # SCSI, so the disk is /dev/sda like the hardware's (disks.nix's default): nixie keeps only the keys it knows
       # when it records an install in hosts.json, so a per-host disk would not survive
       target = { dev = "sda", bus = "scsi" }
-      driver = { name = "qemu", type = "qcow2", discard = "unmap" }
+      # Unsafe: flushes stop at WSL's page cache. With every flush reaching WSL's virtual disk, etcd's fsync averaged
+      # 27 ms (up to a second) and k3s lost its leases and exited during the first sync; only WSL crashing loses data,
+      # and staging reinstalls from nothing
+      driver = { name = "qemu", type = "raw", discard = "unmap", cache = "unsafe" }
       boot   = { order = 1 }
     }]
     interfaces = [{

@@ -28,7 +28,7 @@ make staging
 It applies `infra/staging`:
 
 1. `vms`: a libvirt network (`homelab-staging`, `192.168.100.0/24`, NAT, one fixed DHCP lease per MAC address of
-   `infra/staging/metal/hosts.json`) and three VMs (`homelab-1..3`: 3.5 GB, 2 vCPUs, UEFI, a sparse 100 GB disk)
+   `infra/staging/metal/hosts.json`) and three VMs (`homelab-1..3`: 3.5 GB, 4 vCPUs, UEFI, a sparse 100 GB raw disk, `cache=unsafe`)
 2. `metal`: `nixie` boots the VMs it has not installed from the network and installs them with `nixos-anywhere`
    ([PXE boot](../concepts/pxe-boot.md)); `scripts/staging-wake` turns its Wake-on-LAN into a power cycle of the VM, so
    a VM boots only once `nixie` answers. Then `lab cluster enroll` joins them (the first, `init_host`, starts the
