@@ -69,6 +69,22 @@ argocd-apps:
                     # Heavy
                     - path: apps/matrix
                       exclude: true
+                    # Not yet: the spec's order adds them one at a time, measured (the core and the deploy path first:
+                    # everything at once starved three VMs inside WSL's Hyper-V)
+                    - path: system/trivy-operator
+                      exclude: true
+                    - path: system/loki
+                      exclude: true
+                    - path: system/velero
+                      exclude: true
+                    - path: platform/grafana
+                      exclude: true
+                    - path: platform/zot
+                      exclude: true
+                    - path: platform/woodpecker
+                      exclude: true
+                    - path: platform/secrets-rotation
+                      exclude: true
               - git: &config
                   repoURL: *repoURL
                   revision: *revision
@@ -130,9 +146,9 @@ argocd-apps:
                   revision: *revision
                   # Staging's apps: production's apps/*.yaml minus staging's reduction (stateless apps the sandbox
                   # proves the same way: blog, excalidraw, homepage, pairdrop, speedtest; ntfy; heavy: jellyfin,
-                  # paperless, opencloud; tailscale, which waits for Headscale's key, step 13)
+                  # paperless, opencloud; tailscale, which waits for Headscale's key, step 13; not yet: actualbudget).
+                  # wireguard proves kube-vip's Service addresses
                   files:
-                    - path: apps/actualbudget.yaml
                     - path: apps/wireguard.yaml
               - git: *config
       template:

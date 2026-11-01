@@ -27,3 +27,17 @@ func TestReleasePathsExist(t *testing.T) {
 		assert.NotEmpty(t, strings.TrimSpace(string(out)), "%s matches no tracked file", glob)
 	}
 }
+
+// What staging's reduction leaves out, whole or switched off inside a chart, is what the gate does not ask staging to
+// prove; the first step of the spec's order holds the core and the deploy path, which must stay
+func TestStagingKeepsTheCore(t *testing.T) {
+	out, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[] | select(.exclude) | .path`, "../system/argocd/values-staging.yaml").Output()
+	require.NoError(t, err)
+	for _, core := range []string{"system/istio-system", "system/cert-manager", "system/rook-ceph", "system/kyverno", "system/monitoring-system",
+		"platform/external-secrets", "platform/openbao", "platform/generated-secrets", "platform/infra-secrets", "platform/kanidm", "platform/cloudnative-pg", "platform/forgejo", "system/argocd-config"} {
+		assert.NotContains(t, strings.Fields(string(out)), core)
+	}
+	for _, left := range []string{"system/trivy-operator", "system/loki", "system/velero", "platform/grafana", "platform/zot", "platform/woodpecker", "platform/secrets-rotation"} {
+		assert.Contains(t, strings.Fields(string(out)), left)
+	}
+}
