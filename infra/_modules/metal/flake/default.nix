@@ -41,6 +41,7 @@
       ./profiles/kube-vip.nix
       ./profiles/rook-ceph.nix
       ./profiles/zram.nix
+      ./profiles/vm-memory.nix
       {
         networking.hostName = name;
       }

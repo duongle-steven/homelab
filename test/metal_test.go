@@ -36,6 +36,11 @@ type metalNode struct {
 	} `json:"data"`
 	Disk     string `json:"disk"`
 	TimeZone string `json:"timeZone"`
+	Reclaim  struct {
+		Condition string `json:"condition"`
+		Script    string `json:"script"`
+		Timer     string `json:"timer"`
+	} `json:"reclaim"`
 }
 
 var (
@@ -72,6 +77,11 @@ func metalEval(t *testing.T) map[string]metalNode {
 			data = { inherit (c.config.disko.devices.disk.main.content.partitions.data) label content; };
 			disk = c.config.disko.devices.disk.main.device;
 			timeZone = c.config.time.timeZone;
+			reclaim = let s = c.config.systemd.services.memory-reclaim or null; in if s == null then {} else {
+				condition = s.unitConfig.ConditionVirtualization or "";
+				script = s.script;
+				timer = c.config.systemd.timers.memory-reclaim.timerConfig.OnUnitActiveSec or "";
+			};
 		}) (removeAttrs cs [ "installer" ])`
 		cmd := exec.Command("nix", "eval", "--json", "--no-write-lock-file", "path:"+dir+"#nixosConfigurations", "--apply", apply)
 		var stderr strings.Builder
@@ -134,6 +144,17 @@ func TestMetalKubeVip(t *testing.T) {
 func TestMetalZram(t *testing.T) {
 	for name, node := range metalEval(t) {
 		assert.True(t, node.Zram, name)
+	}
+}
+
+// A VM hands back only the pages its kernel frees, never its page cache: on a VM (staging) a timer reclaims cache
+// each minute so the node keeps some memory free, which free page reporting returns to WSL; hardware never runs it
+func TestMetalVMMemoryReclaim(t *testing.T) {
+	for name, node := range metalEval(t) {
+		assert.Equal(t, "vm", node.Reclaim.Condition, name)
+		assert.Equal(t, "1min", node.Reclaim.Timer, name)
+		assert.Contains(t, node.Reclaim.Script, "/sys/fs/cgroup/memory.reclaim", name)
+		assert.Contains(t, node.Reclaim.Script, "swappiness=0", "%s: only the page cache, never swap", name)
 	}
 }
 
