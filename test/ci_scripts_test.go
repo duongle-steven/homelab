@@ -16,12 +16,19 @@ import (
 // reads Forgejo, and never because the cluster could not be asked
 func TestArgoCDChooseValues(t *testing.T) {
 	const forgejo = "http://forgejo-http.forgejo:3000/ops/homelab"
-	const seedValues = `{"values":"values-seed.yaml","environment":"seed"}`
-	const forgejoValues = `{"values":"values-dev.yaml","environment":"dev"}`
+	const seedValues = `{"values":"values-seed.yaml","environment":"seed","seeded":"true"}`
+	const forgejoValues = `{"values":"values-dev.yaml","environment":"dev","seeded":"false"}`
+	// Staging seeds from its own values file (the seed branch replaces Forgejo's repository: set-seed.sh) under its own
+	// environment, so scripts/env-values reads staging's config
+	const stagingSeed = `{"values":"values-staging.yaml","environment":"staging","seeded":"true"}`
+	const stagingForgejo = `{"values":"values-dev.yaml","environment":"dev","seeded":"false"}`
 	for _, c := range []struct {
-		name, seed, rootRepo, token, master, want string
-		kubectlFails, execFails, fails            bool
+		name, seed, seedEnvironment, rootRepo, token, master, want string
+		kubectlFails, execFails, fails                             bool
 	}{
+		{name: "staging: first install", seed: "values-staging.yaml", seedEnvironment: "staging", want: stagingSeed},
+		// Review Focus 5: an interrupted make staging that already switched stays on Forgejo
+		{name: "staging: switched stays", seed: "values-staging.yaml", seedEnvironment: "staging", rootRepo: forgejo, execFails: true, want: stagingForgejo},
 		{name: "sandbox: no seed", want: forgejoValues, kubectlFails: true},
 		{name: "first install, no credential yet", seed: "values-seed.yaml", want: seedValues},
 		{name: "credential, nothing pushed", seed: "values-seed.yaml", token: "t1", want: seedValues},
@@ -48,7 +55,7 @@ esac`
 			if c.execFails {
 				cmd.Env = append(cmd.Env, "EXEC_FAILS=1")
 			}
-			cmd.Stdin = strings.NewReader(`{"values":"values-dev.yaml","environment":"dev","seed":"` + c.seed + `","forgejo_repository":"` + forgejo + `","kubeconfig":"/dev/null"}`)
+			cmd.Stdin = strings.NewReader(`{"values":"values-dev.yaml","environment":"dev","seed":"` + c.seed + `","seed_environment":"` + c.seedEnvironment + `","forgejo_repository":"` + forgejo + `","kubeconfig":"/dev/null"}`)
 			out, err := cmd.CombinedOutput()
 			if c.fails {
 				require.Error(t, err, string(out))
@@ -176,4 +183,37 @@ func TestMakeInfraProduction(t *testing.T) {
 			assert.Equal(t, c.want, strings.Split(strings.TrimSpace(string(calls)), "\n"), string(out))
 		})
 	}
+}
+
+// set-seed.sh points a render's Forgejo repository (ops/homelab) at the seed repository on one branch: staging syncs
+// GitHub branch staging (make staging pushes it) until Forgejo holds ops/homelab; other repositories keep theirs, and
+// no branch leaves the render unchanged
+func TestStagingSeedSyncsBranch(t *testing.T) {
+	const render = `kind: ApplicationSet
+metadata: {name: root}
+spec:
+  generators:
+    - matrix:
+        generators:
+          - git: {repoURL: http://forgejo-http.forgejo:3000/ops/homelab, revision: master}
+  template:
+    spec:
+      sources:
+        - {repoURL: http://forgejo-http.forgejo:3000/ops/homelab, targetRevision: master}
+        - {repoURL: https://bjw-s-labs.github.io/helm-charts, targetRevision: 5.3.0}
+`
+	run := func(args ...string) string {
+		cmd := exec.Command("sh", append([]string{"../infra/_modules/argocd/set-seed.sh"}, args...)...)
+		cmd.Stdin = strings.NewReader(render)
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+		return string(out)
+	}
+	out := run("https://github.com/example/homelab", "staging")
+	assert.NotContains(t, out, "forgejo-http")
+	assert.Equal(t, 2, strings.Count(out, "https://github.com/example/homelab"))
+	assert.Equal(t, 1, strings.Count(out, "revision: staging"))
+	assert.Equal(t, 1, strings.Count(out, "targetRevision: staging"))
+	assert.Contains(t, out, "targetRevision: 5.3.0")
+	assert.Equal(t, render, run("https://github.com/example/homelab", ""))
 }

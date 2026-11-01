@@ -1,0 +1,156 @@
+# Staging: production's ApplicationSets on staging's Forgejo (ops/homelab, as production reads it), seeded from GitHub
+# branch staging until Forgejo holds it (infra/staging/argocd, set-seed.sh), with the local CA and the tests' fixtures
+# (values-local.yaml). Helm replaces lists and anchors do not cross files, so generators and sources are restated.
+#
+# What staging leaves out of production's set (docs/superpowers/specs/2026-11-01-staging-platform-design.md): the
+# `exclude: true` entries under "Staging's reduction" and the apps missing from the apps generator. Sized for a 16 GB
+# workstation with WSL at 12 GB and three 3.5 GB VMs (docs/installation/staging.md); a larger machine empties the
+# reduction (and grows infra/staging/vms) in a pull request. lab infra forgejo verify derives what staging proves from
+# this file: a release changing only what is left out here needs no staging run.
+argo-cd:
+  server:
+    # Trust the local CA for calls to Kanidm (restated: the bootstrap applies this file alone, without values-local.yaml)
+    env:
+      - name: SSL_CERT_DIR
+        value: /etc/ssl/certs:/etc/homelab-dev-ca
+    volumes:
+      - name: dev-ca
+        configMap:
+          name: homelab-dev-ca
+          optional: true
+    volumeMounts:
+      - name: dev-ca
+        mountPath: /etc/homelab-dev-ca
+        readOnly: true
+argocd-apps:
+  applicationsets:
+    root:
+      generators:
+        - matrix:
+            generators:
+              - git:
+                  repoURL: &repoURL http://forgejo-http.forgejo:3000/ops/homelab
+                  revision: &revision master
+                  directories:
+                    - path: system/*
+                    # Applied by infra/_modules/argocd: Argo CD does not manage itself
+                    - path: system/argocd
+                      exclude: true
+                    # Rendered into every namespace by each Application (template below), not on its own
+                    - path: system/egress
+                      exclude: true
+                    - path: system/secret-store
+                      exclude: true
+                    # The sandbox's storage (Ceph here)
+                    - path: system/csi-hostpath
+                      exclude: true
+                    - path: platform/*
+                    - path: apps/*
+                    # Staging's reduction. Cannot run here: no Cloudflare (the Tunnel, its DNS), no GitHub App
+                    - path: system/cloudflared
+                      exclude: true
+                    - path: system/external-dns
+                      exclude: true
+                    - path: platform/renovate
+                      exclude: true
+                    # The sandbox proves it the same way
+                    - path: system/kiali
+                      exclude: true
+                    # Heavy
+                    - path: apps/matrix
+                      exclude: true
+              - git: &config
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: infra/staging/cluster/config.json
+                  pathParamPrefix: config
+      template:
+        spec:
+          # A fresh staging syncs while the CRDs and webhooks its apps wait for appear, as the sandbox does
+          syncPolicy: &retry
+            retry:
+              limit: 18
+              backoff:
+                duration: 30s
+                factor: 2
+                maxDuration: 4m
+          sources:
+            - repoURL: *repoURL
+              path: '{{ .path.path }}'
+              targetRevision: *revision
+              helm:
+                # values-local.yaml: what staging and the sandbox share (the local CA, the tests' fixtures)
+                valueFiles:
+                  - values.yaml
+                  - values-local.yaml
+                  - values-staging.yaml
+                ignoreMissingValueFiles: true
+                valuesObject: &values
+                  global:
+                    baseDomain: '{{ .domain }}'
+                    timezone: '{{ .timezone }}'
+                    seedRepository: '{{ .seed_repository }}'
+                    addresses: &addresses
+                      apiVIP: '{{ .vip }}'
+                      router: '{{ .network.gateway }}'
+                      prefixLength: '{{ .network.prefix_length }}'
+                      gatewayVIP: '{{ .service_vips.gateway }}'
+                      wireguardVIP: '{{ .service_vips.wireguard }}'
+            # Default-deny egress for the Application's namespace
+            - &egress
+              repoURL: *repoURL
+              path: system/egress
+              targetRevision: *revision
+              helm:
+                valuesObject: *values
+            # The namespace's SecretStore openbao (its branch of OpenBao)
+            - &secretStore
+              repoURL: *repoURL
+              path: system/secret-store
+              targetRevision: *revision
+              helm:
+                valuesObject: *values
+    apps:
+      generators:
+        - matrix:
+            generators:
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  # Staging's apps: production's apps/*.yaml minus staging's reduction (stateless apps the sandbox
+                  # proves the same way: blog, excalidraw, homepage, pairdrop, speedtest; ntfy; heavy: jellyfin,
+                  # paperless, opencloud; tailscale, which waits for Headscale's key, step 13)
+                  files:
+                    - path: apps/actualbudget.yaml
+                    - path: apps/wireguard.yaml
+              - git: *config
+      template:
+        spec:
+          syncPolicy: *retry
+          sources:
+            - repoURL: https://bjw-s-labs.github.io/helm-charts
+              chart: app-template
+              targetRevision: 5.3.0
+              helm:
+                releaseName: '{{ .path.filename | trimSuffix ".yaml" }}'
+                valueFiles:
+                  - '$values/apps/{{ .path.filename }}'
+                parameters:
+                  # No Cloudflare Tunnel on staging: public apps use the LAN Gateway
+                  - name: global.publicGateway
+                    value: gateway
+                  # App files trust the local CA ConfigMap homelab-dev-ca when set
+                  - name: global.devCA
+                    value: "true"
+                valuesObject:
+                  global:
+                    baseDomain: '{{ .domain }}'
+                    timezone: '{{ .timezone }}'
+                    seedRepository: '{{ .seed_repository }}'
+                    addresses: *addresses
+            - repoURL: *repoURL
+              targetRevision: *revision
+              ref: values
+            - *egress
+            - *secretStore
