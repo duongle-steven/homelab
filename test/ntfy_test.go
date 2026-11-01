@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const ntfyURL = "https://ntfy.127-0-0-1.nip.io"
+var ntfyURL = "https://ntfy." + suiteDomain
 
 // ntfyRequest sends method to path with a bearer token (none when empty) and returns the status and body
 func ntfyRequest(t *testing.T, method, path, token, body string) (int, string) {

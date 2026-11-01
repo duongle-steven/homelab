@@ -245,7 +245,7 @@ func watchdogJobs(t *testing.T, logged map[string]bool) []watchdogJob {
 // istio-cni watchdog (system/istio-system) must break the deadlock described in
 // docs/superpowers/specs/2026-10-18-mesh-node-restart-design.md. make dev runs it alone, after the other tests.
 func TestNodeRestart(t *testing.T) {
-	meshSandboxOnly(t)
+	sandboxOnly(t, "it restarts or kills the k3d node's container (staging: TestStaging* and 12a-3)")
 	hosts := map[string]string{}
 	for _, app := range deployedSmokeApps(t, "dev") {
 		hosts[app.name] = routeHost(t, app.namespace, app.name)
@@ -388,7 +388,7 @@ func nodeState(t *testing.T) (ready bool, heartbeat time.Time, ok bool) {
 // in Forgejo, a message in ntfy, a secret in OpenBao (docs/superpowers/specs/2026-10-25-power-cut-design.md). make
 // dev runs it alone, after TestNodeRestart.
 func TestNodePowerCut(t *testing.T) {
-	meshSandboxOnly(t)
+	sandboxOnly(t, "it restarts or kills the k3d node's container (staging: TestStaging* and 12a-3)")
 	hosts := map[string]string{}
 	for _, app := range deployedSmokeApps(t, "dev") {
 		hosts[app.name] = routeHost(t, app.namespace, app.name)

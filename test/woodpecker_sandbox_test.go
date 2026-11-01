@@ -181,7 +181,7 @@ func teamMembers(t *testing.T, team string) []string {
 	return nil
 }
 
-const woodpeckerProbePipeline = `when:
+var woodpeckerProbePipeline = `when:
   - event: push
 clone:
   - name: clone
@@ -221,7 +221,7 @@ steps:
 func TestWoodpecker(t *testing.T) {
 	skipUnlessSandbox(t)
 	waitForApp(t, "https://"+forgejoHost+"/api/healthz")
-	lab(t, "infra", "forgejo", "sync", "--env", "sandbox")
+	lab(t, "infra", "forgejo", "sync", "--env", labEnv)
 	waitForApp(t, "https://"+ciHost+"/healthz")
 
 	// Sign-in: only org ci's members (Kanidm homelab-admins → Owners, homelab-editors → developers)

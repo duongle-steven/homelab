@@ -33,7 +33,7 @@ func forgejoGit(t *testing.T, dir, user, secret string, args ...string) (string,
 	askpass := filepath.Join(t.TempDir(), "askpass")
 	require.NoError(t, os.WriteFile(askpass, []byte("#!/bin/sh\ncase \"$1\" in Username*) echo \"$GIT_USER\" ;; *) echo \"$GIT_SECRET\" ;; esac\n"), 0o700))
 	full := append([]string{"-C", dir, "-c", "credential.helper=", "-c", "http.sslCAInfo=" + ca,
-		"-c", "http.curloptResolve=" + forgejoHost + ":443:" + sandboxAddress(t)}, args...)
+		"-c", "http.curloptResolve=" + forgejoHost + ":443:" + gatewayAddress(t)}, args...)
 	cmd := exec.Command("git", full...)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS="+askpass, "GIT_USER="+user, "GIT_SECRET="+secret,
 		"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
@@ -73,11 +73,9 @@ func permanentBaoError(err error) bool {
 // TestForgejoDeploy runs lab infra forgejo sync twice and push, as make infra env=production does, against the
 // sandbox's Forgejo, then checks what production relies on.
 func TestForgejoDeploy(t *testing.T) {
-	if os.Getenv("ENV") != "dev" {
-		t.Skip("Forgejo tests run against the sandbox only")
-	}
+	localOnly(t)
 	waitForApp(t, "https://"+forgejoHost+"/api/healthz")
-	lab(t, "infra", "forgejo", "sync", "--env", "sandbox")
+	lab(t, "infra", "forgejo", "sync", "--env", labEnv)
 	deploy, argocd := baoValue(t, "forgejo/deploy", "token"), baoValue(t, "argocd/forgejo", "token")
 	require.NotEmpty(t, deploy)
 	require.NotEmpty(t, argocd)
@@ -86,14 +84,14 @@ func TestForgejoDeploy(t *testing.T) {
 	require.NotEmpty(t, clientID)
 	require.NotEmpty(t, clientSecret)
 	assert.Equal(t, "https://"+ciHost+"/authorize", baoValue(t, "woodpecker/forgejo", "redirect_uri"))
-	lab(t, "infra", "forgejo", "sync", "--env", "sandbox")
+	lab(t, "infra", "forgejo", "sync", "--env", labEnv)
 	assert.Equal(t, deploy, baoValue(t, "forgejo/deploy", "token"), "a second sync replaced deploy's token")
 	assert.Equal(t, argocd, baoValue(t, "argocd/forgejo", "token"), "a second sync replaced argocd's token")
 	assert.Equal(t, clientID, baoValue(t, "woodpecker/forgejo", "client_id"), "a second sync replaced Woodpecker's client")
 	assert.True(t, clientSecret == baoValue(t, "woodpecker/forgejo", "client_secret"), "a second sync replaced Woodpecker's client secret")
 
-	lab(t, "infra", "forgejo", "push", "--env", "sandbox")
-	assert.Contains(t, lab(t, "infra", "forgejo", "push", "--env", "sandbox"), "nothing to push")
+	lab(t, "infra", "forgejo", "push", "--env", labEnv)
+	assert.Contains(t, lab(t, "infra", "forgejo", "push", "--env", labEnv), "nothing to push")
 
 	// Forgejo's master has the checkout's tree
 	clone := t.TempDir()

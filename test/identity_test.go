@@ -3,7 +3,6 @@ package test
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"os"
 	"testing"
 	"time"
 
@@ -31,9 +30,7 @@ func TestIdentityTOTPWaitsForNextStep(t *testing.T) {
 }
 
 func TestIdentityLogin(t *testing.T) {
-	if os.Getenv("ENV") != "dev" {
-		t.Skip("identity tests run against the sandbox only")
-	}
+	localOnly(t)
 	waitForIdentityStack(t)
 	secret := smokeClientSecret(t)
 
@@ -57,9 +54,7 @@ func TestIdentityLogin(t *testing.T) {
 }
 
 func TestIdentityDenied(t *testing.T) {
-	if os.Getenv("ENV") != "dev" {
-		t.Skip("identity tests run against the sandbox only")
-	}
+	localOnly(t)
 	waitForIdentityStack(t)
 	c := ensureCredentials(t, "dev-outsider")
 
@@ -73,9 +68,7 @@ func TestIdentityDenied(t *testing.T) {
 
 // TestIdentityDeniedNeedsLogin guards TestIdentityDenied: a failed login must not look like a refusal.
 func TestIdentityDeniedNeedsLogin(t *testing.T) {
-	if os.Getenv("ENV") != "dev" {
-		t.Skip("identity tests run against the sandbox only")
-	}
+	localOnly(t)
 	waitForIdentityStack(t)
 	c := ensureCredentials(t, "dev-outsider")
 

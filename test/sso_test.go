@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -17,21 +16,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	grafanaHost   = "grafana.127-0-0-1.nip.io"
-	argocdHost    = "argocd.127-0-0-1.nip.io"
-	registryHost  = "registry.127-0-0-1.nip.io"
-	budgetHost    = "budget.127-0-0-1.nip.io"
-	paperlessHost = "paperless.127-0-0-1.nip.io"
-	forgejoHost   = "git.127-0-0-1.nip.io"
-	opencloudHost = "drive.127-0-0-1.nip.io"
-	ciHost        = "ci.127-0-0-1.nip.io"
+var (
+	grafanaHost   = "grafana." + suiteDomain
+	argocdHost    = "argocd." + suiteDomain
+	registryHost  = "registry." + suiteDomain
+	budgetHost    = "budget." + suiteDomain
+	paperlessHost = "paperless." + suiteDomain
+	forgejoHost   = "git." + suiteDomain
+	opencloudHost = "drive." + suiteDomain
+	ciHost        = "ci." + suiteDomain
 )
 
 func skipUnlessSandbox(t *testing.T) {
-	if os.Getenv("ENV") != "dev" {
-		t.Skip("SSO tests run against the sandbox only")
-	}
+	localOnly(t)
 	waitForIdentityStack(t)
 }
 
