@@ -238,3 +238,49 @@ func TestMetalInstallerReclaimsMemory(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "vm", string(got))
 }
+
+// metalExtraFlags evaluates node-a's k3s flags with extra keys in cluster.json
+func metalExtraFlags(t *testing.T, extra string) []string {
+	t.Helper()
+	dir := t.TempDir()
+	out, err := exec.Command("cp", "-r", filepath.Join("..", metalFlake)+"/.", dir).CombinedOutput()
+	require.NoError(t, err, string(out))
+	files := map[string]string{
+		"hosts.json":      `{"node-a": {"mac_address": "02:00:00:00:00:01", "ip": "10.0.0.11"}}`,
+		"cluster.json":    `{"init_host": "node-a", "vip": "10.0.0.10", "network": {"prefix_length": 24, "gateway": "10.0.0.1"}, "service_vips": {"gateway": "10.0.0.2", "wireguard": "10.0.0.3"}, "domain": "example.test", "timezone": "Asia/Ho_Chi_Minh"` + extra + `}`,
+		"authorized_keys": "ssh-ed25519 AAAAfixture fixture\n",
+	}
+	for name, body := range files {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
+	}
+	got, err := exec.Command("nix", "eval", "--json", "--no-write-lock-file", "path:"+dir+"#nixosConfigurations.node-a.config.services.k3s.extraFlags").Output()
+	require.NoError(t, err)
+	var flags []string
+	require.NoError(t, json.Unmarshal(got, &flags))
+	return flags
+}
+
+// A control plane on slow machines (staging's VMs inside WSL's Hyper-V, config.json's slow_control_plane) tolerates a
+// starved etcd leader: with the defaults k3s lost its leases and exited 18 times in 35 minutes of a first sync, and
+// every restart made it worse. Production keeps the defaults, and so a fast failover
+func TestMetalSlowControlPlane(t *testing.T) {
+	flags := metalExtraFlags(t, `, "slow_control_plane": true`)
+	for _, f := range []string{
+		"--etcd-arg=heartbeat-interval=500", "--etcd-arg=election-timeout=5000",
+		"--kube-controller-manager-arg=leader-elect-lease-duration=60s", "--kube-controller-manager-arg=leader-elect-renew-deadline=40s",
+		"--kube-scheduler-arg=leader-elect-lease-duration=60s", "--kube-scheduler-arg=leader-elect-renew-deadline=40s",
+		"--kube-cloud-controller-manager-arg=leader-elect-lease-duration=60s", "--kube-cloud-controller-manager-arg=leader-elect-renew-deadline=40s",
+	} {
+		assert.Contains(t, flags, f)
+	}
+	assert.NotContains(t, strings.Join(metalExtraFlags(t, ""), " "), "heartbeat-interval")
+	for env, want := range map[string]bool{"staging": true, "production": false} {
+		raw, err := os.ReadFile(filepath.Join("..", "infra", env, "cluster", "config.json"))
+		require.NoError(t, err)
+		var config struct {
+			Slow bool `json:"slow_control_plane"`
+		}
+		require.NoError(t, json.Unmarshal(raw, &config))
+		assert.Equal(t, want, config.Slow, env)
+	}
+}

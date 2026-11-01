@@ -102,6 +102,25 @@ in
       "--tls-san=${k3s.vip}"
       "--cluster-cidr=10.42.0.0/16"
       "--service-cidr=10.43.0.0/16"
-    ];
+    ]
+    # Slow machines (config.json's slow_control_plane: staging's VMs inside WSL's Hyper-V): a starved etcd leader misses
+    # the default 100 ms heartbeat, and k3s exits when a controller loses its 15 s lease, so every client lists again and
+    # etcd starves more. Production keeps the defaults, and so a fast failover
+    ++ lib.optionals k3s.slowControlPlane (
+      [
+        "--etcd-arg=heartbeat-interval=500"
+        "--etcd-arg=election-timeout=5000"
+      ]
+      ++ lib.concatMap
+        (component: [
+          "--${component}-arg=leader-elect-lease-duration=60s"
+          "--${component}-arg=leader-elect-renew-deadline=40s"
+        ])
+        [
+          "kube-controller-manager"
+          "kube-scheduler"
+          "kube-cloud-controller-manager"
+        ]
+    );
   };
 }
