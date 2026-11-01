@@ -75,6 +75,5 @@ zram swap. If staging grows past this, the order is: fewer apps; a smaller core 
 
 - VMs on one workstation: no real power loss, no real Wake-on-LAN (`scripts/staging-wake` plays it), one disk per
   node (SCSI, `/dev/sda`) shared by the system and Ceph's OSD
-- Ceph: one mgr, a 1.25 GiB OSD, no CephFS, and Ceph v20's warnings about CephX keys that are not AES256K muted (their
-  CSI clients need Linux 7.0)
+- Ceph: one mgr, a 1.25 GiB OSD, no CephFS
 - No Argo CD, platform or apps yet (step 12a-2)

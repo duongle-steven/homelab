@@ -2,6 +2,7 @@ package test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,6 +38,7 @@ type metalNode struct {
 	} `json:"data"`
 	Disk     string `json:"disk"`
 	TimeZone string `json:"timeZone"`
+	Kernel   string `json:"kernel"`
 	Reclaim  struct {
 		Condition string `json:"condition"`
 		Script    string `json:"script"`
@@ -80,6 +82,7 @@ func metalEval(t *testing.T) map[string]metalNode {
 			data = { inherit (c.config.disko.devices.disk.main.content.partitions.data) label content; };
 			disk = c.config.disko.devices.disk.main.device;
 			timeZone = c.config.time.timeZone;
+			kernel = c.config.boot.kernelPackages.kernel.version;
 			reclaim = let s = c.config.systemd.services.memory-reclaim or null; in if s == null then {} else {
 				condition = s.unitConfig.ConditionVirtualization or "";
 				script = s.script;
@@ -166,6 +169,17 @@ func TestMetalVMMemoryReclaim(t *testing.T) {
 		assert.Equal(t, "1min", node.Reclaim.Start, "%s: starts after an upgrade too, not only at boot", name)
 		assert.Contains(t, node.Reclaim.Script, "/sys/fs/cgroup/memory.reclaim", name)
 		assert.Contains(t, node.Reclaim.Script, "swappiness=0", "%s: only the page cache, never swap", name)
+	}
+}
+
+// The nodes run the latest stable kernel, 7.0 or later: Ceph's AES256K CephX keys (CVE-2025-30156) need it for the CSI
+// clients (TestRookCephAES256K); NixOS's default LTS (6.18) has no AES256K. Back to an LTS once one has it
+func TestMetalKernel(t *testing.T) {
+	for name, node := range metalEval(t) {
+		var major int
+		_, err := fmt.Sscanf(node.Kernel, "%d.", &major)
+		assert.NoError(t, err, name)
+		assert.GreaterOrEqual(t, major, 7, "%s runs Linux %s", name, node.Kernel)
 	}
 }
 
