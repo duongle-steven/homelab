@@ -18,6 +18,16 @@ argo-cd:
       controller.status.processors: 5
       controller.operation.processors: 3
       controller.kubectl.parallelism.limit: 5
+    cm:
+      # Compare less often than the default three minutes: each comparison asks the small nodes for every render
+      timeout.reconciliation: 600s
+  repoServer:
+    # A starved repo server failed its 1 s probe and restarted, losing the renders in progress
+    livenessProbe:
+      timeoutSeconds: 10
+      failureThreshold: 6
+    readinessProbe:
+      timeoutSeconds: 10
   server:
     # Trust the local CA for calls to Kanidm (restated: the bootstrap applies this file alone, without values-local.yaml)
     env:

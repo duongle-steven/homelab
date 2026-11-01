@@ -261,4 +261,11 @@ func TestStagingArgoCDLimitsTheFirstSync(t *testing.T) {
 	out, err = exec.Command("yq", `.argo-cd.configs.params["controller.repo.server.timeout.seconds"]`, "../system/argocd/values-staging.yaml").Output()
 	require.NoError(t, err)
 	assert.Equal(t, "600", strings.TrimSpace(string(out)))
+	// A starved repo server failed its 1 s liveness probe and restarted, losing the renders in progress
+	out, err = exec.Command("yq", `.argo-cd.repoServer.livenessProbe.timeoutSeconds`, "../system/argocd/values-staging.yaml").Output()
+	require.NoError(t, err)
+	assert.Equal(t, "10", strings.TrimSpace(string(out)))
+	out, err = exec.Command("yq", `.argo-cd.configs.cm["timeout.reconciliation"]`, "../system/argocd/values-staging.yaml").Output()
+	require.NoError(t, err)
+	assert.Equal(t, "600s", strings.TrimSpace(string(out)))
 }
