@@ -36,7 +36,7 @@ func (f *fakeUpgrader) ready(_ context.Context, node host) error {
 }
 func (f *fakeUpgrader) healthy(context.Context) error {
 	f.record("healthy")
-	last := f.calls[len(f.calls)-3]
+	last := f.calls[len(f.calls)-4]
 	if f.unhealthy != "" && last == "rebuild "+f.unhealthy {
 		return errors.New("Ceph HEALTH_WARN")
 	}
@@ -65,25 +65,26 @@ func TestUpgradeSkipsCurrentNodes(t *testing.T) {
 	}
 }
 
-// One node at a time, the cluster's initializer first: each is drained, rebuilt, back Ready, the cluster healthy,
-// then uncordoned, before the next is touched
+// One node at a time, the cluster's initializer first: each is drained, rebuilt, back Ready and uncordoned, and the
+// cluster healthy again before the next is touched (the node's own Ceph mon and OSD come back only once it is
+// uncordoned)
 func TestUpgradeOneAtATime(t *testing.T) {
 	f := &fakeUpgrader{current: map[string]bool{"node-b": true}}
 	if err := upgrade(t.Context(), upgradeFixture(), f, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
-		"current node-a", "drain node-a", "rebuild node-a", "ready node-a", "healthy", "uncordon node-a",
+		"current node-a", "drain node-a", "rebuild node-a", "ready node-a", "uncordon node-a", "healthy",
 		"current node-b",
-		"current node-c", "drain node-c", "rebuild node-c", "ready node-c", "healthy", "uncordon node-c",
+		"current node-c", "drain node-c", "rebuild node-c", "ready node-c", "uncordon node-c", "healthy",
 	}
 	if !slices.Equal(f.calls, want) {
 		t.Fatalf("calls\n got %v\nwant %v", f.calls, want)
 	}
 }
 
-// An unhealthy cluster after a node's rebuild stops the upgrade there: that node stays cordoned, the next is untouched,
-// and the error names the node
+// An unhealthy cluster after a node's rebuild stops the upgrade there: the next is untouched, and the error names the
+// node
 func TestUpgradeStopsOnUnhealthy(t *testing.T) {
 	f := &fakeUpgrader{unhealthy: "node-a"}
 	err := upgrade(t.Context(), upgradeFixture(), f, io.Discard)
@@ -91,7 +92,7 @@ func TestUpgradeStopsOnUnhealthy(t *testing.T) {
 		t.Fatalf("error %v, want one naming node-a", err)
 	}
 	for _, call := range f.calls {
-		if strings.HasSuffix(call, "node-b") || call == "uncordon node-a" {
+		if strings.HasSuffix(call, "node-b") {
 			t.Fatalf("went on after an unhealthy cluster: %v", f.calls)
 		}
 	}

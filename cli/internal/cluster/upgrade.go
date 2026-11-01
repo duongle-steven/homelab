@@ -20,14 +20,15 @@ type upgrader interface {
 	// rebuild switches the node to its flake's system, rebooting it when the kernel or initrd changed
 	rebuild(context.Context, host) error
 	ready(context.Context, host) error
-	// healthy: every node Ready and, once a CephCluster exists, Ceph HEALTH_OK
+	// healthy: every node Ready and, once a CephCluster exists, every mon and OSD running and Ceph HEALTH_OK
 	healthy(context.Context) error
 	uncordon(context.Context, host) error
 }
 
 // Upgrade rebuilds the installed nodes in place from the node flake at flakeDir, one at a time (the initializer
-// first): a node already on its system is skipped; the others are drained, rebuilt, waited for, then uncordoned
-// once the cluster is healthy. It stops at the first failure, leaving that node cordoned.
+// first): a node already on its system is skipped; the others are drained, rebuilt, waited for and uncordoned, and
+// the cluster must be healthy again before the next (a node's Ceph mon and OSD run only on it, so they come back
+// only once it is uncordoned). It stops at the first failure; a node that fails before its uncordon stays cordoned.
 func Upgrade(ctx context.Context, environment, flakeDir string, progress io.Writer) error {
 	cfg, err := loadConfig(environment)
 	if err != nil {
@@ -62,11 +63,11 @@ func upgrade(ctx context.Context, cfg config, nodes upgrader, progress io.Writer
 			{"drain", func() error { return nodes.drain(ctx, node) }},
 			{"rebuild", func() error { return nodes.rebuild(ctx, node) }},
 			{"wait for Ready", func() error { return nodes.ready(ctx, node) }},
-			{"wait for a healthy cluster", func() error { return nodes.healthy(ctx) }},
 			{"uncordon", func() error { return nodes.uncordon(ctx, node) }},
+			{"wait for a healthy cluster", func() error { return nodes.healthy(ctx) }},
 		} {
 			if err := step.run(); err != nil {
-				return fmt.Errorf("%s: %s: %w (the node stays cordoned; fix it, then run the upgrade again)", node.name, step.name, err)
+				return fmt.Errorf("%s: %s: %w (fix it, then run the upgrade again)", node.name, step.name, err)
 			}
 		}
 		_, _ = fmt.Fprintf(progress, "%s: upgraded\n", node.name)
@@ -174,6 +175,17 @@ func (c commands) healthy(ctx context.Context) error {
 		for _, status := range strings.Fields(statuses) {
 			if status != "True" {
 				return fmt.Errorf("a node is not Ready")
+			}
+		}
+		// The node's mon and OSD back first: the CephCluster's health may not have noticed them gone yet
+		pods, err := c.kubectl(ctx, "get", "pods", "-A", "-l", "app in (rook-ceph-mon,rook-ceph-osd)",
+			"-o", `jsonpath={range .items[*]}{.metadata.name}={.status.conditions[?(@.type=="Ready")].status}{" "}{end}`)
+		if err != nil {
+			return err
+		}
+		for _, pod := range strings.Fields(pods) {
+			if !strings.HasSuffix(pod, "=True") {
+				return fmt.Errorf("Ceph pod %s is not ready", strings.Split(pod, "=")[0])
 			}
 		}
 		// No CephCluster yet (or no rook-ceph at all): nothing more to wait for
