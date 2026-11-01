@@ -8,6 +8,14 @@
 # reduction (and grows infra/staging/vms) in a pull request. lab infra forgejo verify derives what staging proves from
 # this file: a release changing only what is left out here needs no staging run.
 argo-cd:
+  configs:
+    # Merged into values.yaml's. A first sync with every chart rendering at once starved the small nodes: k3s lost its
+    # leases and exited (docs/installation/staging.md)
+    params:
+      reposerver.parallelism.limit: 1
+      controller.status.processors: 5
+      controller.operation.processors: 3
+      controller.kubectl.parallelism.limit: 5
   server:
     # Trust the local CA for calls to Kanidm (restated: the bootstrap applies this file alone, without values-local.yaml)
     env:

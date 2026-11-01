@@ -223,3 +223,38 @@ spec:
 	assert.Contains(t, out, "targetRevision: 5.3.0")
 	assert.Equal(t, render, run("https://github.com/example/homelab", ""))
 }
+
+// The wait for a namespace outlasts the API server's restarts and the VIP moving (a first sync on three nodes): a
+// refused connection is retried until its deadline, and only then fails
+func TestWaitNamespaceRetries(t *testing.T) {
+	for _, module := range []string{"secrets", "openbao"} {
+		t.Run(module, func(t *testing.T) {
+			script := "../infra/_modules/" + module + "/wait-namespace.sh"
+			dir, env := fakeBin(t, map[string]string{
+				"kubectl": `n=$(cat "$FIXTURES/tries" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$FIXTURES/tries"
+[ "$n" -gt 2 ] || { echo "connection refused" >&2; exit 1; }`,
+			})
+			cmd := exec.Command("sh", script)
+			cmd.Env = append(env, "KUBECONFIG=/dev/null", "NAMESPACE=x", "WAIT_INTERVAL=0")
+			out, err := cmd.CombinedOutput()
+			require.NoError(t, err, string(out))
+			tries, _ := os.ReadFile(filepath.Join(dir, "tries"))
+			assert.Equal(t, "3\n", string(tries))
+
+			_, env = fakeBin(t, map[string]string{"kubectl": `exit 1`})
+			cmd = exec.Command("sh", script)
+			cmd.Env = append(env, "KUBECONFIG=/dev/null", "NAMESPACE=x", "WAIT_INTERVAL=0", "WAIT_SECONDS=0")
+			out, err = cmd.CombinedOutput()
+			require.Error(t, err)
+			assert.Contains(t, string(out), "x did not appear")
+		})
+	}
+}
+
+// A first sync on staging's small nodes renders one chart at a time: every helm at once starved k3s of CPU and memory
+// until it lost its leases
+func TestStagingArgoCDLimitsTheFirstSync(t *testing.T) {
+	out, err := exec.Command("yq", `.argo-cd.configs.params["reposerver.parallelism.limit"]`, "../system/argocd/values-staging.yaml").Output()
+	require.NoError(t, err)
+	assert.Equal(t, "1", strings.TrimSpace(string(out)))
+}
