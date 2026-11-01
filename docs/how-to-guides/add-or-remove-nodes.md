@@ -12,10 +12,10 @@ Add its details to the inventory:
 
 ```diff title="infra/production/metal/hosts.json"
  {
-   "homelab-1": {"ip": "192.168.1.110", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:01"},
-   "homelab-2": {"ip": "192.168.1.111", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:02"},
-   "homelab-3": {"ip": "192.168.1.112", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:03"},
-+  "homelab-4": {"ip": "192.168.1.113", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:04"},
+   "homelab-1": {"ip": "192.168.1.110", "mac_address": "02:00:00:00:00:01"},
+   "homelab-2": {"ip": "192.168.1.111", "mac_address": "02:00:00:00:00:02"},
+   "homelab-3": {"ip": "192.168.1.112", "mac_address": "02:00:00:00:00:03"},
++  "homelab-4": {"ip": "192.168.1.113", "mac_address": "02:00:00:00:00:04"},
  }
 ```
 
@@ -68,10 +68,10 @@ Remove it from the inventory:
 
 ```diff title="infra/production/metal/hosts.json"
  {
-   "homelab-1": {"ip": "192.168.1.110", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:01"},
-   "homelab-2": {"ip": "192.168.1.111", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:02"},
-   "homelab-3": {"ip": "192.168.1.112", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:03"},
--  "homelab-4": {"ip": "192.168.1.113", "disk": "/dev/sda", "mac_address": "02:00:00:00:00:04"},
+   "homelab-1": {"ip": "192.168.1.110", "mac_address": "02:00:00:00:00:01"},
+   "homelab-2": {"ip": "192.168.1.111", "mac_address": "02:00:00:00:00:02"},
+   "homelab-3": {"ip": "192.168.1.112", "mac_address": "02:00:00:00:00:03"},
+-  "homelab-4": {"ip": "192.168.1.113", "mac_address": "02:00:00:00:00:04"},
  }
 ```
 

@@ -12,7 +12,8 @@ import (
 
 type fakeUpgrader struct {
 	current   map[string]bool
-	unhealthy string // healthy fails after this node's rebuild
+	unhealthy string // healthy fails after this node's upgrade
+	sick      bool   // healthy always fails: the cluster is degraded already
 	calls     []string
 }
 
@@ -35,9 +36,9 @@ func (f *fakeUpgrader) ready(_ context.Context, node host) error {
 	return nil
 }
 func (f *fakeUpgrader) healthy(context.Context) error {
+	last := f.calls[len(f.calls)-1]
 	f.record("healthy")
-	last := f.calls[len(f.calls)-4]
-	if f.unhealthy != "" && last == "rebuild "+f.unhealthy {
+	if f.sick || (f.unhealthy != "" && last == "uncordon "+f.unhealthy) {
 		return errors.New("Ceph HEALTH_WARN")
 	}
 	return nil
@@ -65,7 +66,7 @@ func TestUpgradeSkipsCurrentNodes(t *testing.T) {
 	}
 }
 
-// One node at a time, the cluster's initializer first: each is drained, rebuilt, back Ready and uncordoned, and the
+// One node at a time, the cluster's initializer first: the cluster healthy before each is drained, rebuilt, back Ready and uncordoned, and the
 // cluster healthy again before the next is touched (the node's own Ceph mon and OSD come back only once it is
 // uncordoned)
 func TestUpgradeOneAtATime(t *testing.T) {
@@ -74,9 +75,9 @@ func TestUpgradeOneAtATime(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"current node-a", "drain node-a", "rebuild node-a", "ready node-a", "uncordon node-a", "healthy",
+		"current node-a", "healthy", "drain node-a", "rebuild node-a", "ready node-a", "uncordon node-a", "healthy",
 		"current node-b",
-		"current node-c", "drain node-c", "rebuild node-c", "ready node-c", "uncordon node-c", "healthy",
+		"current node-c", "healthy", "drain node-c", "rebuild node-c", "ready node-c", "uncordon node-c", "healthy",
 	}
 	if !slices.Equal(f.calls, want) {
 		t.Fatalf("calls\n got %v\nwant %v", f.calls, want)
@@ -94,6 +95,20 @@ func TestUpgradeStopsOnUnhealthy(t *testing.T) {
 	for _, call := range f.calls {
 		if strings.HasSuffix(call, "node-b") {
 			t.Fatalf("went on after an unhealthy cluster: %v", f.calls)
+		}
+	}
+}
+
+// A cluster already unhealthy (a failed run left a node down, say) is never made worse: the next node that needs an
+// upgrade is not drained
+func TestUpgradeWaitsForHealthBeforeDraining(t *testing.T) {
+	f := &fakeUpgrader{current: map[string]bool{"node-a": true}, sick: true}
+	if err := upgrade(t.Context(), upgradeFixture(), f, io.Discard); err == nil {
+		t.Fatal("upgraded a degraded cluster")
+	}
+	for _, call := range f.calls {
+		if strings.HasPrefix(call, "drain ") {
+			t.Fatalf("drained a node of a degraded cluster: %v", f.calls)
 		}
 	}
 }

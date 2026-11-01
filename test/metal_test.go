@@ -26,6 +26,7 @@ type metalNode struct {
 		ExtraFlags  []string `json:"extraFlags"`
 		Disable     []string `json:"disable"`
 		Version     string   `json:"version"`
+		Restart     []string `json:"restart"`
 	} `json:"k3s"`
 	Manifests []string          `json:"manifests"`
 	KubeVip   []json.RawMessage `json:"kubeVip"`
@@ -71,7 +72,8 @@ func metalEval(t *testing.T) map[string]metalNode {
 			}
 		}
 		apply := `cs: builtins.mapAttrs (n: c: let k = c.config.services.k3s; m = k.manifests; in {
-			k3s = { inherit (k) clusterInit serverAddr extraFlags disable; version = k.package.version; };
+			k3s = { inherit (k) clusterInit serverAddr extraFlags disable; version = k.package.version;
+				restart = map toString (c.config.systemd.services.k3s.restartTriggers or []); };
 			manifests = builtins.attrNames m;
 			kubeVip = if m ? kube-vip then m.kube-vip.content else [];
 			zram = c.config.zramSwap.enable;
@@ -121,6 +123,12 @@ func TestMetalK3sFlags(t *testing.T) {
 		assert.ElementsMatch(t, []string{"traefik", "local-storage", "gateway-api-crd"}, k.Disable, name)
 		assert.True(t, strings.HasPrefix(k.Version, "1.37."), "%s runs k3s %s, the sandbox 1.37", name, k.Version)
 		assert.Contains(t, node.Manifests, "gateway-api", name)
+		// The API server reads the audit policy only at start: a new policy restarts k3s at the switch
+		policy := false
+		for _, r := range k.Restart {
+			policy = policy || strings.HasSuffix(r, "audit-policy.yaml")
+		}
+		assert.True(t, policy, "%s: k3s does not restart when the audit policy changes (%v)", name, k.Restart)
 	}
 }
 

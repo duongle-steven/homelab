@@ -55,6 +55,12 @@ func virsh(t *testing.T, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// domstate reports a VM's state without failing the test: it runs inside Eventually's condition
+func domstate(name string) string {
+	out, _ := exec.Command("virsh", "-c", "qemu:///system", "domstate", name).Output()
+	return strings.TrimSpace(string(out))
+}
+
 func stagingKubectl(namespace string) *k8s.KubectlOptions {
 	options := k8s.NewKubectlOptions("", "", namespace)
 	options.Logger = logger.Discard
@@ -103,14 +109,14 @@ func TestStagingVIPMoves(t *testing.T) {
 	t.Logf("%s holds the VIP: shutting it down", holder)
 	virsh(t, "shutdown", holder)
 	defer func() {
-		require.Eventually(t, func() bool { return virsh(t, "domstate", holder) == "shut off" }, 3*time.Minute, 5*time.Second)
+		require.Eventually(t, func() bool { return domstate(holder) == "shut off" }, 3*time.Minute, 5*time.Second)
 		virsh(t, "start", holder)
 		// The API server reports the node's last status until its kubelet reports again: wait for the new boot
 		require.Eventually(t, func() bool { id := bootID(); return id != "" && id != booted }, 10*time.Minute, 10*time.Second,
 			"%s did not come back", holder)
 		waitNodeReady(t, holder, 10*time.Minute)
 	}()
-	require.Eventually(t, func() bool { return virsh(t, "domstate", holder) == "shut off" }, 3*time.Minute, 5*time.Second,
+	require.Eventually(t, func() bool { return domstate(holder) == "shut off" }, 3*time.Minute, 5*time.Second,
 		"%s did not shut down", holder)
 	start := time.Now()
 	assert.Eventually(t, func() bool {
@@ -164,9 +170,10 @@ func TestStagingCeph(t *testing.T) {
 
 func waitPodSucceeded(t *testing.T, options *k8s.KubectlOptions, name string) {
 	t.Helper()
+	var phase string
 	require.Eventually(t, func() bool {
-		phase, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "pod", name, "-o", "jsonpath={.status.phase}")
-		require.NotEqual(t, "Failed", phase, "pod %s failed", name)
-		return err == nil && phase == "Succeeded"
+		phase, _ = k8s.RunKubectlAndGetOutputE(t, options, "get", "pod", name, "-o", "jsonpath={.status.phase}")
+		return phase == "Succeeded" || phase == "Failed"
 	}, 5*time.Minute, 5*time.Second, "pod %s did not finish", name)
+	require.Equal(t, "Succeeded", phase, "pod %s failed", name)
 }

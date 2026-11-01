@@ -26,8 +26,9 @@ type upgrader interface {
 }
 
 // Upgrade rebuilds the installed nodes in place from the node flake at flakeDir, one at a time (the initializer
-// first): a node already on its system is skipped; the others are drained, rebuilt, waited for and uncordoned, and
-// the cluster must be healthy again before the next (a node's Ceph mon and OSD run only on it, so they come back
+// first): a node already on its system is skipped; for the others the cluster must be healthy first (a degraded
+// cluster is never made worse), then the node is drained, rebuilt, waited for and uncordoned, and the cluster must be
+// healthy again before the next (a node's Ceph mon and OSD run only on it, so they come back
 // only once it is uncordoned). It stops at the first failure; a node that fails before its uncordon stays cordoned.
 func Upgrade(ctx context.Context, environment, flakeDir string, progress io.Writer) error {
 	cfg, err := loadConfig(environment)
@@ -60,6 +61,7 @@ func upgrade(ctx context.Context, cfg config, nodes upgrader, progress io.Writer
 			name string
 			run  func() error
 		}{
+			{"wait for a healthy cluster before draining", func() error { return nodes.healthy(ctx) }},
 			{"drain", func() error { return nodes.drain(ctx, node) }},
 			{"rebuild", func() error { return nodes.rebuild(ctx, node) }},
 			{"wait for Ready", func() error { return nodes.ready(ctx, node) }},
@@ -145,12 +147,27 @@ func (c commands) rebuild(ctx context.Context, node host) error {
 		return nil
 	}
 	_, _ = fmt.Fprintf(c.progress, "%s: rebooting (%s changed)\n", node.name, strings.ReplaceAll(changed, "\n", ", "))
-	booted, _ := c.ssh(ctx, node, "cat /proc/sys/kernel/random/boot_id")
+	booted, err := c.ssh(ctx, node, "cat /proc/sys/kernel/random/boot_id")
+	if err != nil {
+		return err
+	}
 	_, _ = c.ssh(ctx, node, "systemctl reboot")
-	return poll(ctx, 10*time.Minute, func() error {
-		now, err := c.ssh(ctx, node, "cat /proc/sys/kernel/random/boot_id")
-		if err != nil || now == booted {
+	var now string
+	if err := poll(ctx, 10*time.Minute, func() error {
+		id, err := c.ssh(ctx, node, "cat /proc/sys/kernel/random/boot_id")
+		if err != nil || id == booted {
 			return fmt.Errorf("%s has not rebooted yet", node.name)
+		}
+		now = id
+		return nil
+	}); err != nil {
+		return err
+	}
+	// The API server reports the node's status from before the reboot until its kubelet reports again
+	return poll(ctx, 10*time.Minute, func() error {
+		id, err := c.kubectl(ctx, "get", "node", node.name, "-o", "jsonpath={.status.nodeInfo.bootID}")
+		if err != nil || id != now {
+			return fmt.Errorf("%s's kubelet has not reported since the reboot", node.name)
 		}
 		return nil
 	})

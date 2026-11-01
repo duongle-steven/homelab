@@ -2,7 +2,8 @@
 """Wake-on-LAN for staging's VMs: nixie wakes the machines it installs with a magic packet (UDP broadcast, port 9),
 which a libvirt VM ignores. This listens for those packets and power-cycles the VM with that MAC, so a VM boots from
 the network only once nixie serves it, as a powered-off machine does (a VM that boots first finds no PXE server and
-stops at UEFI's HTTP boot). Runs as root (port 9) until killed: infra/staging/metal's nixie hook starts it."""
+stops at UEFI's HTTP boot). Only the MACs given as arguments (staging's hosts.json) wake a VM. Runs as root (port 9)
+until killed: infra/staging/metal's nixie hook starts it. Usage: staging-wake <mac>..."""
 import socket
 import subprocess
 import sys
@@ -37,10 +38,18 @@ def main():
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     listener.bind(("0.0.0.0", 9))
+    allowed = {mac.lower() for mac in sys.argv[1:]}
     while True:
         packet, _ = listener.recvfrom(1024)
         mac = target(packet)
-        name = domains_by_mac().get(mac) if mac else None
+        if mac not in allowed:
+            continue
+        try:
+            name = domains_by_mac().get(mac)
+        except subprocess.CalledProcessError as e:
+            # A transient virsh failure must not end the listener: nixie would wait forever for that VM
+            print(f"staging-wake: {mac}: {e}", file=sys.stderr, flush=True)
+            continue
         if not name:
             continue
         state = subprocess.run(["virsh", "-c", "qemu:///system", "domstate", name],

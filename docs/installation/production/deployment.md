@@ -17,6 +17,11 @@ installs each with `nixos-anywhere`; [PXE boot](../../concepts/pxe-boot.md)), jo
 cluster enroll`), writes `infra/production/kubeconfig.yaml`, then upgrades nodes already installed in place, one at a
 time (`lab cluster upgrade`), before the rest of the deploy below.
 
+!!! note
+
+    The unit `infra/production/metal` comes with the hardware (step 12b): until then only its `authorized_keys`
+    exists, and the same path runs on [staging](../staging.md)'s VMs.
+
 Yes it's that simple!
 
 !!! note

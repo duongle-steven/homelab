@@ -59,6 +59,8 @@ in
 
   # The API server's audit policy, shared with the k3d sandbox (step 15c): Alloy sends the log to Loki
   environment.etc."rancher/k3s/audit-policy.yaml".source = ../audit-policy.yaml;
+  # The API server reads it only at start: a new policy restarts k3s at the switch (lab cluster upgrade drains first)
+  systemd.services.k3s.restartTriggers = [ config.environment.etc."rancher/k3s/audit-policy.yaml".source ];
   systemd.tmpfiles.rules = [ "d /var/log/kubernetes/audit 0700 root root -" ];
 
   services.k3s = {
