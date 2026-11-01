@@ -170,6 +170,7 @@ groups:
       - scripts/staging-guard
       - scripts/staging-nixie
       - scripts/staging-wake
+      - scripts/staging-mark
       - test/benchmark/**
       - scripts/argocd-admin-password
       - scripts/get-dns-config
