@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terratest/modules/k8s"
+	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -143,4 +145,55 @@ func TestForgejoDeploy(t *testing.T) {
 	assert.Equal(t, "argocd", string(repoSecret["username"]))
 	assert.Equal(t, http.StatusOK, getJSON(t, "GET", "https://"+forgejoHost+"/api/v1/repos/ops/homelab/branches/master", nil,
 		string(repoSecret["username"]), string(repoSecret["password"]), nil, nil))
+}
+
+// At every release Argo CD reads ops/homelab on Forgejo, with the argocd user's read-only token and through the mesh's
+// allow for its repo server. A temporary Application proves that path; the switch of a whole cluster from the seed happens
+// once and stays unproven (docs/superpowers/specs/2026-11-02-testbed-design.md)
+func TestForgejoArgoCDSyncs(t *testing.T) {
+	localOnly(t)
+	waitForApp(t, "https://"+forgejoHost+"/api/healthz")
+	lab(t, "infra", "forgejo", "sync", "--env", labEnv)
+	lab(t, "infra", "forgejo", "push", "--env", labEnv)
+	const name = "forgejo-sync-probe"
+	options := k8s.NewKubectlOptions("", "", "argocd")
+	options.Logger = logger.Discard
+	remove := func() {
+		_, _ = k8s.RunKubectlAndGetOutputE(t, options, "patch", "application", name, "--type", "merge", "-p",
+			`{"metadata":{"finalizers":["resources-finalizer.argocd.argoproj.io"]}}`)
+		_, _ = k8s.RunKubectlAndGetOutputE(t, options, "delete", "application", name, "--ignore-not-found", "--timeout=2m")
+		_, _ = k8s.RunKubectlAndGetOutputE(t, options, "delete", "namespace", name, "--ignore-not-found", "--timeout=2m")
+	}
+	// A failed run may have left it behind
+	remove()
+	defer remove()
+	k8s.KubectlApplyFromString(t, options, fmt.Sprintf(`apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: %[1]s
+  namespace: argocd
+spec:
+  project: default
+  destination: {name: in-cluster, namespace: %[1]s}
+  source:
+    repoURL: http://forgejo-http.forgejo:3000/ops/homelab
+    targetRevision: master
+    path: system/secret-store
+  syncPolicy:
+    automated: {}
+    syncOptions: [CreateNamespace=true]
+`, name))
+	clone := t.TempDir()
+	out, err := forgejoGit(t, clone, "argocd", baoValue(t, "argocd/forgejo", "token"), "ls-remote", "https://"+forgejoHost+"/ops/homelab.git", "refs/heads/master")
+	require.NoError(t, err, out)
+	master := strings.Fields(out)[0]
+	var status string
+	assert.Eventually(t, func() bool {
+		status, _ = k8s.RunKubectlAndGetOutputE(t, options, "get", "application", name, "-o", "jsonpath={.status.sync.status} {.status.sync.revision}")
+		return status == "Synced "+master
+	}, 5*time.Minute, 5*time.Second, "Argo CD did not sync ops/homelab's master %s", master)
+	if status != "Synced "+master {
+		conditions, _ := k8s.RunKubectlAndGetOutputE(t, options, "get", "application", name, "-o", "jsonpath={.status.conditions}")
+		t.Logf("status %q, conditions %s", status, conditions)
+	}
 }
