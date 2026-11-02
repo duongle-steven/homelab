@@ -1,3 +1,5 @@
+# Kyverno excuses what Pod Security restricted cannot hold here (templates/policy-exception.yaml)
+policyExceptions: true
 rook-ceph:
   monitoring:
     enabled: true

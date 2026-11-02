@@ -1,16 +1,14 @@
-# Testbed: production's ApplicationSets on testbed's Forgejo (ops/homelab, as production reads it), seeded from GitHub
-# branch testbed until Forgejo holds it (infra/testbed/argocd, set-seed.sh), with the local CA and the tests' fixtures
-# (values-local.yaml). Helm replaces lists and anchors do not cross files, so generators and sources are restated.
+# Testbed: three VMs on the workstation, proving what needs several nodes (docs/superpowers/specs/2026-11-02-testbed-design.md,
+# docs/installation/testbed.md). Argo CD syncs GitHub branch testbed, which make testbed pushes, as the sandbox's syncs
+# branch sandbox; there is no Forgejo here. Helm replaces lists and anchors do not cross files, so generators and sources
+# are restated.
 #
-# What testbed leaves out of production's set (docs/superpowers/specs/2026-11-01-testbed-platform-design.md): the
-# `exclude: true` entries under "Testbed's reduction" and the apps missing from the apps generator. Sized for a 16 GB
-# workstation with WSL at 12 GB and three 3.5 GB VMs (docs/installation/testbed.md); a larger machine empties the
-# reduction (and grows infra/testbed/vms) in a pull request. lab infra forgejo verify derives what testbed proves from
-# this file: a release changing only what is left out here needs no testbed run.
+# What runs is the list below, which grows by layers, each measured from a fresh install: this workstation's numbers are
+# in docs/installation/testbed.md. Another machine extends it. lab infra forgejo verify derives what the testbed proves
+# from this list: a release changing only what is not here needs no testbed run.
 argo-cd:
   configs:
-    # Merged into values.yaml's. A first sync with every chart rendering at once starved the small nodes: k3s lost its
-    # leases and exited (docs/installation/testbed.md)
+    # Merged into values.yaml's. A first sync with every chart rendering at once starved the small nodes
     params:
       reposerver.parallelism.limit: 2
       # Waiting for those renders (each downloads its chart's dependencies) outlasts the default 60 s
@@ -28,20 +26,6 @@ argo-cd:
       failureThreshold: 6
     readinessProbe:
       timeoutSeconds: 10
-  server:
-    # Trust the local CA for calls to Kanidm (restated: the bootstrap applies this file alone, without values-local.yaml)
-    env:
-      - name: SSL_CERT_DIR
-        value: /etc/ssl/certs:/etc/homelab-dev-ca
-    volumes:
-      - name: dev-ca
-        configMap:
-          name: homelab-dev-ca
-          optional: true
-    volumeMounts:
-      - name: dev-ca
-        mountPath: /etc/homelab-dev-ca
-        readOnly: true
 argocd-apps:
   applicationsets:
     root:
@@ -49,53 +33,13 @@ argocd-apps:
         - matrix:
             generators:
               - git:
-                  repoURL: &repoURL http://forgejo-http.forgejo:3000/ops/homelab
-                  revision: &revision master
+                  repoURL: &repoURL https://github.com/duongle-steven/homelab
+                  # make testbed force-pushes the current commit here
+                  revision: &revision testbed
                   directories:
-                    - path: system/*
-                    # Applied by infra/_modules/argocd: Argo CD does not manage itself
-                    - path: system/argocd
-                      exclude: true
-                    # Rendered into every namespace by each Application (template below), not on its own
-                    - path: system/egress
-                      exclude: true
-                    - path: system/secret-store
-                      exclude: true
-                    # The sandbox's storage (Ceph here)
-                    - path: system/csi-hostpath
-                      exclude: true
-                    - path: platform/*
-                    - path: apps/*
-                    # Testbed's reduction. Cannot run here: no Cloudflare (the Tunnel, its DNS), no GitHub App
-                    - path: system/cloudflared
-                      exclude: true
-                    - path: system/external-dns
-                      exclude: true
-                    - path: platform/renovate
-                      exclude: true
-                    # The sandbox proves it the same way
-                    - path: system/kiali
-                      exclude: true
-                    # Heavy
-                    - path: apps/matrix
-                      exclude: true
-                    # Not yet: the spec's order adds them one at a time, measured (the core and the deploy path first:
-                    # everything at once starved three VMs inside WSL's Hyper-V)
-                    - path: system/trivy-operator
-                      exclude: true
-                    - path: system/loki
-                      exclude: true
-                    - path: system/velero
-                      exclude: true
-                    - path: platform/grafana
-                      exclude: true
-                    - path: platform/zot
-                      exclude: true
-                    - path: platform/woodpecker
-                      exclude: true
-                    - path: platform/secrets-rotation
-                      exclude: true
-              - git: &config
+                    # Layer 1
+                    - path: system/rook-ceph
+              - git:
                   repoURL: *repoURL
                   revision: *revision
                   files:
@@ -103,90 +47,36 @@ argocd-apps:
                   pathParamPrefix: config
       template:
         spec:
-          # A fresh testbed syncs while the CRDs and webhooks its apps wait for appear, as the sandbox does
-          syncPolicy: &retry
+          # A fresh testbed syncs while what its apps wait for appears, as the sandbox does
+          syncPolicy:
             retry:
               limit: 18
               backoff:
                 duration: 30s
                 factor: 2
                 maxDuration: 4m
+          # Only the component: egress and the SecretStore join with the layers that need them
           sources:
             - repoURL: *repoURL
               path: '{{ .path.path }}'
               targetRevision: *revision
               helm:
-                # values-local.yaml: what testbed and the sandbox share (the local CA, the tests' fixtures)
+                # values-local.yaml: what the sandbox and the testbed share (the local CA, the tests' fixtures)
                 valueFiles:
                   - values.yaml
                   - values-local.yaml
                   - values-testbed.yaml
                 ignoreMissingValueFiles: true
-                valuesObject: &values
-                  global:
-                    baseDomain: '{{ .domain }}'
-                    timezone: '{{ .timezone }}'
-                    seedRepository: '{{ .seed_repository }}'
-                    addresses: &addresses
-                      apiVIP: '{{ .vip }}'
-                      router: '{{ .network.gateway }}'
-                      prefixLength: '{{ .network.prefix_length }}'
-                      gatewayVIP: '{{ .service_vips.gateway }}'
-                      wireguardVIP: '{{ .service_vips.wireguard }}'
-            # Default-deny egress for the Application's namespace
-            - &egress
-              repoURL: *repoURL
-              path: system/egress
-              targetRevision: *revision
-              helm:
-                valuesObject: *values
-            # The namespace's SecretStore openbao (its branch of OpenBao)
-            - &secretStore
-              repoURL: *repoURL
-              path: system/secret-store
-              targetRevision: *revision
-              helm:
-                valuesObject: *values
-    apps:
-      generators:
-        - matrix:
-            generators:
-              - git:
-                  repoURL: *repoURL
-                  revision: *revision
-                  # Testbed's apps: production's apps/*.yaml minus testbed's reduction (stateless apps the sandbox
-                  # proves the same way: blog, excalidraw, homepage, pairdrop, speedtest; ntfy; heavy: jellyfin,
-                  # paperless, opencloud; tailscale, which waits for Headscale's key, step 13; not yet: actualbudget).
-                  # wireguard proves kube-vip's Service addresses
-                  files:
-                    - path: apps/wireguard.yaml
-              - git: *config
-      template:
-        spec:
-          syncPolicy: *retry
-          sources:
-            - repoURL: https://bjw-s-labs.github.io/helm-charts
-              chart: app-template
-              targetRevision: 5.3.0
-              helm:
-                releaseName: '{{ .path.filename | trimSuffix ".yaml" }}'
-                valueFiles:
-                  - '$values/apps/{{ .path.filename }}'
-                parameters:
-                  # No Cloudflare Tunnel on testbed: public apps use the LAN Gateway
-                  - name: global.publicGateway
-                    value: gateway
-                  # App files trust the local CA ConfigMap homelab-dev-ca when set
-                  - name: global.devCA
-                    value: "true"
                 valuesObject:
                   global:
                     baseDomain: '{{ .domain }}'
                     timezone: '{{ .timezone }}'
                     seedRepository: '{{ .seed_repository }}'
-                    addresses: *addresses
-            - repoURL: *repoURL
-              targetRevision: *revision
-              ref: values
-            - *egress
-            - *secretStore
+                    addresses:
+                      apiVIP: '{{ .vip }}'
+                      router: '{{ .network.gateway }}'
+                      prefixLength: '{{ .network.prefix_length }}'
+                      gatewayVIP: '{{ .service_vips.gateway }}'
+                      wireguardVIP: '{{ .service_vips.wireguard }}'
+    # No app in this layer
+    apps: null

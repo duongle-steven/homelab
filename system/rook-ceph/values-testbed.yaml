@@ -2,6 +2,8 @@
 # (three mons, an OSD on each node's rook-data partition, two replicas) with less memory: one mgr, an OSD memory
 # limit of 1.25 GiB (Rook sets osd_memory_target from it, about 1 GiB). No CephFS (its MDS pair needs more than
 # testbed has; production keeps it). No monitoring until Prometheus runs on testbed (step 12a-2)
+# No Kyverno in the testbed's first layer: its PolicyException kind does not exist
+policyExceptions: false
 rook-ceph:
   monitoring:
     enabled: false

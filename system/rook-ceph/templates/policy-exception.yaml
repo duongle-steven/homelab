@@ -1,3 +1,4 @@
+{{- if .Values.policyExceptions }}
 # Pod Security restricted (system/kyverno) does not hold here: each exception says why in homelab/reason
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException
@@ -31,3 +32,4 @@ spec:
   matchConditions:
     - name: rook-ceph
       expression: "object.metadata.namespace == '{{ .Release.Namespace }}'"
+{{- end }}

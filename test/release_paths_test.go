@@ -28,18 +28,28 @@ func TestReleasePathsExist(t *testing.T) {
 	}
 }
 
-// What staging's reduction leaves out, whole or switched off inside a chart, is what the gate does not ask staging to
-// prove; the first step of the spec's order holds the core and the deploy path, which must stay
-func TestStagingKeepsTheCore(t *testing.T) {
-	out, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[] | select(.exclude) | .path`, "../system/argocd/values-testbed.yaml").Output()
+// Layer one of the testbed (docs/superpowers/specs/2026-11-02-testbed-design.md): Ceph through Argo CD, from GitHub branch
+// testbed, which make testbed pushes. Another machine extends the list
+func TestTestbedLayerOne(t *testing.T) {
+	values := "../system/argocd/values-testbed.yaml"
+	yq := func(expr, file string) string {
+		out, err := exec.Command("yq", expr, file).Output()
+		require.NoError(t, err, expr)
+		return strings.TrimSpace(string(out))
+	}
+	const git = ".argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git"
+	assert.Equal(t, "system/rook-ceph", yq(git+`.directories[] | select(.exclude != true) | .path`, values))
+	assert.Equal(t, "testbed", yq(git+".revision", values))
+	assert.Equal(t, strings.Trim(yq(".seed_repository", "../infra/testbed/cluster/config.json"), `"`), yq(git+".repoURL", values))
+	assert.Empty(t, renderYq(t, "system/rook-ceph", "testbed", `select(.kind == "PolicyException") | .metadata.name`), "Kyverno is not in this layer")
+	assert.NotEmpty(t, renderYq(t, "system/rook-ceph", "", `select(.kind == "PolicyException") | .metadata.name`))
+}
+
+// 12a-1's 2 vCPUs ran the nodes and rook-ceph: more needs a measurement showing CPU is the limit
+func TestTestbedVMsDefaults(t *testing.T) {
+	raw, err := os.ReadFile("../infra/_modules/testbed-vms/variables.tf")
 	require.NoError(t, err)
-	for _, core := range []string{"system/istio-system", "system/cert-manager", "system/rook-ceph", "system/kyverno", "system/monitoring-system",
-		"platform/external-secrets", "platform/openbao", "platform/generated-secrets", "platform/infra-secrets", "platform/kanidm", "platform/cloudnative-pg", "platform/forgejo", "system/argocd-config"} {
-		assert.NotContains(t, strings.Fields(string(out)), core)
-	}
-	for _, left := range []string{"system/trivy-operator", "system/loki", "system/velero", "platform/grafana", "platform/zot", "platform/woodpecker", "platform/secrets-rotation"} {
-		assert.Contains(t, strings.Fields(string(out)), left)
-	}
+	assert.Regexp(t, `variable "vcpus" \{[^}]*default\s*=\s*2\s`, string(raw))
 }
 
 // The workstation's multi-node environment is the testbed: staging names only an optional environment on its own hardware

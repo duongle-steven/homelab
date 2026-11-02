@@ -16,8 +16,9 @@ variable "memory_mib" {
 
 variable "vcpus" {
   type = number
-  # The workstation has 16 threads; two per VM starved k3s and etcd during the first sync (load 31 on a node)
-  default = 4
+  # 12a-1's two ran the nodes and rook-ceph. More only with a measurement showing CPU is the limit, four at most: the
+  # workstation (i5-12500H) has 4 P-cores and 8 E-cores, and nested virtualization takes its share
+  default = 2
 }
 
 variable "disk_gib" {

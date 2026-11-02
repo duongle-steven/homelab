@@ -1,4 +1,0 @@
-# istiod's autoscaler added pods when a first sync loaded the small nodes, which loaded them more
-istiod:
-  pilot:
-    autoscaleMax: 2
