@@ -1,6 +1,6 @@
 forgejo:
   deployment:
-    # Restated (lists are replaced), plus the local CA (staging and the sandbox) for calls to Kanidm
+    # Restated (lists are replaced), plus the local CA (testbed and the sandbox) for calls to Kanidm
     env:
       - name: CLIENT_SECRET
         valueFrom:

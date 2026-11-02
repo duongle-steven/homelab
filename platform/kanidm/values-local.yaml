@@ -1,5 +1,5 @@
 kanidm:
-  # The local CA (staging and the sandbox), distributed by trust-manager as a ConfigMap
+  # The local CA (testbed and the sandbox), distributed by trust-manager as a ConfigMap
   backendCA: homelab-dev-ca
 groupMembers:
   homelab-admins: [dev-admin]

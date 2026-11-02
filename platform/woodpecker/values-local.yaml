@@ -1,6 +1,6 @@
 woodpecker:
   server:
-    # The local CA (staging and the sandbox): Forgejo's OAuth and API calls. Step pods cannot mount it: the tests'
+    # The local CA (testbed and the sandbox): Forgejo's OAuth and API calls. Step pods cannot mount it: the tests'
     # pipeline skips TLS verification itself
     env:
       SSL_CERT_DIR: /etc/ssl/certs:/etc/homelab-dev-ca
