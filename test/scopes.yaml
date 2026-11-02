@@ -170,7 +170,7 @@ groups:
       - scripts/testbed-guard
       - scripts/testbed-nixie
       - scripts/testbed-wake
-      - scripts/testbed-mark
+      - scripts/mark-proof
       - scripts/testbed-trust
       - test/benchmark/**
       - scripts/argocd-admin-password

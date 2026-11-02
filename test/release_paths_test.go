@@ -11,17 +11,18 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// Every path staging's gate names matches a tracked file: a renamed directory would otherwise drop out of the gate
+// Every path the testbed's gate names matches a tracked file: a renamed directory would otherwise drop out of the gate
 // unseen (lab infra forgejo verify, infra/testbed/release-paths.yaml)
 func TestReleasePathsExist(t *testing.T) {
 	raw, err := os.ReadFile("../infra/testbed/release-paths.yaml")
 	require.NoError(t, err)
 	var release struct {
-		Paths []string `json:"paths"`
+		Paths  []string `json:"paths"`
+		NotRun []string `json:"not_run"`
 	}
 	require.NoError(t, yaml.Unmarshal(raw, &release))
 	require.NotEmpty(t, release.Paths)
-	for _, glob := range release.Paths {
+	for _, glob := range append(release.Paths, release.NotRun...) {
 		out, err := exec.Command("git", "-C", "..", "ls-files", "--", ":(glob)"+glob).Output()
 		require.NoError(t, err, glob)
 		assert.NotEmpty(t, strings.TrimSpace(string(out)), "%s matches no tracked file", glob)
@@ -55,8 +56,8 @@ func TestTestbedVMsDefaults(t *testing.T) {
 // The workstation's multi-node environment is the testbed: staging names only an optional environment on its own hardware
 func TestNoStagingLeftovers(t *testing.T) {
 	out, err := exec.Command("git", "-C", "..", "grep", "-il", "staging", "--",
-		":!docs/superpowers/", ":!CLAUDE.md", ":!docs/installation/testbed.md", ":!docs/installation/staging.md", ":!cli/internal/guard/", ":!cli/internal/cluster/inventory.go", ":!scripts/render-chart", ":!scripts/testbed-mark", ":!test/release_paths_test.go", ":!test/values_layers_test.go",
-		":!cli/internal/cli/infra_forgejo.go", ":!cli/internal/env/env_test.go", ":!Makefile").CombinedOutput()
+		":!docs/superpowers/", ":!CLAUDE.md", ":!docs/installation/testbed.md", ":!docs/installation/staging.md", ":!cli/internal/guard/", ":!cli/internal/cluster/inventory.go", ":!scripts/render-chart", ":!test/release_paths_test.go", ":!test/values_layers_test.go",
+		":!cli/internal/env/", ":!cli/internal/cli/infra_forgejo.go", ":!scripts/mark-proof").CombinedOutput()
 	if err != nil {
 		return // git grep exits 1 when nothing matches
 	}

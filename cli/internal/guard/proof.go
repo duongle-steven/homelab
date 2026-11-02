@@ -11,12 +11,8 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// StagingContext is the commit status make staging writes on the commit whose whole suite passed on staging
-// (scripts/staging-mark)
-const StagingContext = "staging"
-
-// stagingValues is the part of system/argocd/values-staging.yaml that says what staging deploys
-type stagingValues struct {
+// proofValues is the part of system/argocd/values-<env>.yaml that says what the environment deploys
+type proofValues struct {
 	ArgoCDApps struct {
 		ApplicationSets map[string]struct {
 			Generators []struct {
@@ -38,53 +34,63 @@ type stagingValues struct {
 	} `yaml:"argocd-apps"`
 }
 
-// GatedPaths are the globs of what staging proves at commit: infra/staging/release-paths.yaml's, every component
-// under system/, platform/ and apps/ the root ApplicationSet of system/argocd/values-staging.yaml does not exclude,
-// and the app files its apps ApplicationSet lists
-func GatedPaths(root, commit string) ([]string, error) {
-	raw, err := git(root, "show", commit+":infra/staging/release-paths.yaml")
+// Gated is what an environment proves at a commit
+type Gated struct {
+	Paths  []string // globs of what it proves
+	NotRun []string // globs taken out: a component switched off inside its chart
+}
+
+// GatedPaths is what proofEnv proves at commit: infra/<proofEnv>/release-paths.yaml's paths; every directory under
+// system/, platform/ and apps/ that a directories entry of the root ApplicationSet in system/argocd/values-<proofEnv>.yaml
+// matches and no excluded entry does; and the app files its apps ApplicationSet lists. The file's not_run takes out what
+// is switched off inside a chart.
+func GatedPaths(root, proofEnv, commit string) (Gated, error) {
+	raw, err := git(root, "show", commit+":infra/"+proofEnv+"/release-paths.yaml")
 	if err != nil {
-		return nil, err
+		return Gated{}, err
 	}
 	var release struct {
-		Paths []string `yaml:"paths"`
+		Paths  []string `yaml:"paths"`
+		NotRun []string `yaml:"not_run"`
 	}
 	if err := yaml.Unmarshal([]byte(raw), &release); err != nil {
-		return nil, fmt.Errorf("infra/staging/release-paths.yaml at %.12s: %w", commit, err)
+		return Gated{}, fmt.Errorf("infra/%s/release-paths.yaml at %.12s: %w", proofEnv, commit, err)
 	}
-	raw, err = git(root, "show", commit+":system/argocd/values-staging.yaml")
+	raw, err = git(root, "show", commit+":system/argocd/values-"+proofEnv+".yaml")
 	if err != nil {
-		return nil, err
+		return Gated{}, err
 	}
-	var values stagingValues
+	var values proofValues
 	if err := yaml.Unmarshal([]byte(raw), &values); err != nil {
-		return nil, fmt.Errorf("system/argocd/values-staging.yaml at %.12s: %w", commit, err)
+		return Gated{}, fmt.Errorf("system/argocd/values-%s.yaml at %.12s: %w", proofEnv, commit, err)
 	}
-	gated := append([]string{}, release.Paths...)
-	excluded := map[string]bool{}
+	gated := Gated{Paths: append([]string{}, release.Paths...), NotRun: release.NotRun}
+	var included, excluded []string
 	for _, g := range values.ArgoCDApps.ApplicationSets["root"].Generators {
 		for _, sub := range g.Matrix.Generators {
 			for _, d := range sub.Git.Directories {
 				if d.Exclude {
-					excluded[d.Path] = true
+					excluded = append(excluded, d.Path)
+				} else {
+					included = append(included, d.Path)
 				}
 			}
 		}
 	}
 	dirs, err := git(root, "ls-tree", "-d", "--name-only", commit, "system/", "platform/", "apps/")
 	if err != nil {
-		return nil, err
+		return Gated{}, err
 	}
 	for _, dir := range strings.Fields(dirs) {
-		if !excluded[dir] {
-			gated = append(gated, dir+"/**")
+		if matchesAny(included, dir) && !matchesAny(excluded, dir) {
+			gated.Paths = append(gated.Paths, dir+"/**")
 		}
 	}
 	for _, g := range values.ArgoCDApps.ApplicationSets["apps"].Generators {
 		for _, sub := range g.Matrix.Generators {
 			for _, f := range sub.Git.Files {
 				if strings.HasPrefix(f.Path, "apps/") {
-					gated = append(gated, f.Path)
+					gated.Paths = append(gated.Paths, f.Path)
 				}
 			}
 		}
@@ -92,19 +98,19 @@ func GatedPaths(root, commit string) ([]string, error) {
 	return gated, nil
 }
 
-// StagingGate passes when staging proved what release changes: a candidate (newest first) marked by make staging
-// whose gated paths did not change up to release, or no gated path changed since deployed (what production runs;
-// empty: a first install, where everything counts as changed). It never passes when it cannot tell.
-func StagingGate(ctx context.Context, root, repository, deployed, release string, candidates []string, gh GitHub) error {
+// ProofGate passes when proofEnv proved what release changes: a candidate (newest first) with proofEnv's commit status
+// whose gated paths did not change up to release, or no gated path changed since deployed (what production runs; empty:
+// a first install, where everything counts as changed). It never passes when it cannot tell.
+func ProofGate(ctx context.Context, root, repository, proofEnv, deployed, release string, candidates []string, gh GitHub) error {
 	for _, candidate := range candidates {
-		state, err := gh.CommitStatus(ctx, repository, candidate, StagingContext)
+		state, err := gh.CommitStatus(ctx, repository, candidate, proofEnv)
 		if err != nil {
 			return err
 		}
 		if state != "success" {
 			continue
 		}
-		gated, err := GatedPaths(root, candidate)
+		gated, err := GatedPaths(root, proofEnv, candidate)
 		if err != nil {
 			// A commit from before the gate (no release-paths.yaml) proves nothing it can name
 			continue
@@ -113,11 +119,11 @@ func StagingGate(ctx context.Context, root, repository, deployed, release string
 		if err != nil {
 			return err
 		}
-		if len(matching(gated, changed)) == 0 {
+		if len(gated.matching(changed)) == 0 {
 			return nil
 		}
 	}
-	gated, err := GatedPaths(root, release)
+	gated, err := GatedPaths(root, proofEnv, release)
 	if err != nil {
 		return err
 	}
@@ -125,21 +131,21 @@ func StagingGate(ctx context.Context, root, repository, deployed, release string
 	if err != nil {
 		return err
 	}
-	hits := matching(gated, changed)
+	hits := gated.matching(changed)
 	if len(hits) == 0 {
 		return nil
 	}
 	if len(hits) > 10 {
 		hits = append(hits[:10], fmt.Sprintf("and %d more", len(hits)-10))
 	}
-	return fmt.Errorf("staging has not proved what %.12s changes (%s): run make staging on dev's head, or "+
-		"--skip-staging=<reason> (docs/installation/staging.md)", release, strings.Join(hits, ", "))
+	return fmt.Errorf("%s has not proved what %.12s changes (%s): run make %s on dev's head, or --skip-proof=<reason> "+
+		"(docs/installation/testbed.md)", proofEnv, release, strings.Join(hits, ", "), proofEnv)
 }
 
-// SkipStagingReason refuses a --skip-staging without a reason someone can read later
-func SkipStagingReason(reason string) error {
+// SkipProofReason refuses a --skip-proof without a reason someone can read later
+func SkipProofReason(reason string) error {
 	if strings.TrimSpace(reason) == "" {
-		return fmt.Errorf("--skip-staging needs a reason")
+		return fmt.Errorf("--skip-proof needs a reason")
 	}
 	return nil
 }
@@ -159,18 +165,24 @@ func changedFiles(root, from, to string) ([]string, error) {
 	return strings.Fields(out), nil
 }
 
-func matching(globs, files []string) []string {
+func (g Gated) matching(files []string) []string {
 	var hits []string
 	for _, f := range files {
-		for _, g := range globs {
-			if ok, _ := doublestar.Match(g, f); ok {
-				hits = append(hits, f)
-				break
-			}
+		if matchesAny(g.Paths, f) && !matchesAny(g.NotRun, f) {
+			hits = append(hits, f)
 		}
 	}
 	sort.Strings(hits)
 	return hits
+}
+
+func matchesAny(globs []string, path string) bool {
+	for _, g := range globs {
+		if ok, _ := doublestar.Match(g, path); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // CommitStatus is the state of the commit status named context on sha ("" when none was written)
@@ -192,9 +204,9 @@ func (g GitHub) CommitStatus(ctx context.Context, repository, sha, context strin
 	return "", nil
 }
 
-// StagingCandidates are the commits a staging mark may sit on for a release whose pull request head is head: head,
+// ProofCandidates are the commits a mark may sit on for a release whose pull request head is head: head,
 // then its first-parent history back to deployed (exclusive; the newest 200 when nothing is deployed)
-func StagingCandidates(root, deployed, head string) ([]string, error) {
+func ProofCandidates(root, deployed, head string) ([]string, error) {
 	args := []string{"rev-list", "--first-parent", "--max-count=200", head}
 	if deployed != "" {
 		args = append(args, "^"+deployed)

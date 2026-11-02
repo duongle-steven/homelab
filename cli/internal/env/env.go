@@ -17,6 +17,8 @@ type Env struct {
 	Domain         string
 	SeedRepository string
 	Kubeconfig     string
+	// ReleaseProof names the environment that proves production's releases (config.json's release_proof)
+	ReleaseProof string
 }
 
 // Load reads infra/<name>/cluster/config.json in the repository at root.
@@ -32,6 +34,7 @@ func Load(root, name string) (Env, error) {
 	var config struct {
 		Domain         string `json:"domain"`
 		SeedRepository string `json:"seed_repository"`
+		ReleaseProof   string `json:"release_proof"`
 	}
 	if err := json.Unmarshal(data, &config); err != nil {
 		return Env{}, fmt.Errorf("%s: %w", path, err)
@@ -45,6 +48,7 @@ func Load(root, name string) (Env, error) {
 		Domain:         config.Domain,
 		SeedRepository: config.SeedRepository,
 		Kubeconfig:     filepath.Join(root, "infra", name, "kubeconfig.yaml"),
+		ReleaseProof:   config.ReleaseProof,
 	}, nil
 }
 
@@ -59,4 +63,13 @@ func (e Env) GitHubRepository() (string, error) {
 		return "", fmt.Errorf("seed_repository %q is not https://github.com/<owner>/<name>", e.SeedRepository)
 	}
 	return path, nil
+}
+
+// Proof is the environment that proves this one's releases: testbed or staging. Anything else is refused, so a release
+// never goes unproven by omission.
+func (e Env) Proof() (string, error) {
+	if e.ReleaseProof != "testbed" && e.ReleaseProof != "staging" {
+		return "", fmt.Errorf("infra/%s/cluster/config.json: release_proof must be testbed or staging, not %q (docs/installation/testbed.md)", e.Name, e.ReleaseProof)
+	}
+	return e.ReleaseProof, nil
 }
