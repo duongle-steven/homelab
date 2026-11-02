@@ -210,15 +210,3 @@ func TestPushCommitBreakGlass(t *testing.T) {
 		t.Fatalf("a dirty checkout: %v", err)
 	}
 }
-
-// Staging's Forgejo is dialled at its Gateway's VIP (config.json's service_vips.gateway), the sandbox's at the k3d
-// node; staging without a VIP is refused rather than dialled through the domain's DNS
-func TestGatewayAddressStaging(t *testing.T) {
-	addr, err := gatewayAddress(t.Context(), env.Env{Name: "staging", GatewayVIP: "192.168.100.2"})
-	if err != nil || addr != "192.168.100.2" {
-		t.Fatalf("gatewayAddress = %q, %v", addr, err)
-	}
-	if _, err := gatewayAddress(t.Context(), env.Env{Name: "staging"}); err == nil {
-		t.Fatal("staging without a Gateway VIP was accepted")
-	}
-}

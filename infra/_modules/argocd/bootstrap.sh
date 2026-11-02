@@ -36,11 +36,6 @@ if grep -q seed-repository.invalid "$manifests"; then
   echo "the seed repository placeholder was not replaced" >&2
   exit 1
 fi
-# Testbed's seed syncs its branch of the seed repository (SEEDED by choose-values.sh, SEED_REVISION)
-if [ "${SEEDED:-false}" = true ]; then
-  sh "$(dirname "$0")/set-seed.sh" "${SEED_REPOSITORY:-}" "${SEED_REVISION:-}" < "$manifests" > "$manifests.rev"
-  mv "$manifests.rev" "$manifests"
-fi
 # The sandbox on GitHub Actions syncs one commit (REVISION) instead of branch sandbox
 sh "$(dirname "$0")/set-revision.sh" "${REVISION:-}" < "$manifests" > "$manifests.rev"
 mv "$manifests.rev" "$manifests"

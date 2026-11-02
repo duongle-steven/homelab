@@ -16,22 +16,14 @@ import (
 // reads Forgejo, and never because the cluster could not be asked
 func TestArgoCDChooseValues(t *testing.T) {
 	const forgejo = "http://forgejo-http.forgejo:3000/ops/homelab"
-	const seedValues = `{"values":"values-seed.yaml","environment":"seed","seeded":"true"}`
-	const forgejoValues = `{"values":"values-dev.yaml","environment":"dev","seeded":"false"}`
-	// Testbed seeds from its own values file (the seed branch replaces Forgejo's repository: set-seed.sh) under its own
-	// environment, so scripts/env-values reads testbed's config
-	const testbedSeed = `{"values":"values-testbed.yaml","environment":"testbed","seeded":"true"}`
-	const testbedForgejo = `{"values":"values-dev.yaml","environment":"dev","seeded":"false"}`
+	const seedValues = `{"values":"values-seed.yaml","environment":"seed"}`
+	const forgejoValues = `{"values":"values-dev.yaml","environment":"dev"}`
 	for _, c := range []struct {
-		name, seed, seedEnvironment, rootRepo, token, master, want string
-		kubectlFails, execFails, fails, noArgoCD                   bool
+		name, seed, rootRepo, token, master, want string
+		kubectlFails, execFails, fails, noArgoCD  bool
 	}{
 		// A new cluster has no Argo CD yet: no ApplicationSet kind to ask about is a first install, not a failure
 		{name: "first install, no Argo CD CRDs", seed: "values-seed.yaml", noArgoCD: true, want: seedValues},
-		{name: "testbed: first install, no Argo CD CRDs", seed: "values-testbed.yaml", seedEnvironment: "testbed", noArgoCD: true, want: testbedSeed},
-		{name: "testbed: first install", seed: "values-testbed.yaml", seedEnvironment: "testbed", want: testbedSeed},
-		// Review Focus 5: an interrupted make testbed that already switched stays on Forgejo
-		{name: "testbed: switched stays", seed: "values-testbed.yaml", seedEnvironment: "testbed", rootRepo: forgejo, execFails: true, want: testbedForgejo},
 		{name: "sandbox: no seed", want: forgejoValues, kubectlFails: true},
 		{name: "first install, no credential yet", seed: "values-seed.yaml", want: seedValues},
 		{name: "credential, nothing pushed", seed: "values-seed.yaml", token: "t1", want: seedValues},
@@ -61,7 +53,7 @@ esac`
 			if c.noArgoCD {
 				cmd.Env = append(cmd.Env, "NO_ARGOCD=1")
 			}
-			cmd.Stdin = strings.NewReader(`{"values":"values-dev.yaml","environment":"dev","seed":"` + c.seed + `","seed_environment":"` + c.seedEnvironment + `","forgejo_repository":"` + forgejo + `","kubeconfig":"/dev/null"}`)
+			cmd.Stdin = strings.NewReader(`{"values":"values-dev.yaml","environment":"dev","seed":"` + c.seed + `","forgejo_repository":"` + forgejo + `","kubeconfig":"/dev/null"}`)
 			out, err := cmd.CombinedOutput()
 			if c.fails {
 				require.Error(t, err, string(out))
@@ -189,39 +181,6 @@ func TestMakeInfraProduction(t *testing.T) {
 			assert.Equal(t, c.want, strings.Split(strings.TrimSpace(string(calls)), "\n"), string(out))
 		})
 	}
-}
-
-// set-seed.sh points a render's Forgejo repository (ops/homelab) at the seed repository on one branch: testbed syncs
-// GitHub branch testbed (make testbed pushes it) until Forgejo holds ops/homelab; other repositories keep theirs, and
-// no branch leaves the render unchanged
-func TestTestbedSeedSyncsBranch(t *testing.T) {
-	const render = `kind: ApplicationSet
-metadata: {name: root}
-spec:
-  generators:
-    - matrix:
-        generators:
-          - git: {repoURL: http://forgejo-http.forgejo:3000/ops/homelab, revision: master}
-  template:
-    spec:
-      sources:
-        - {repoURL: http://forgejo-http.forgejo:3000/ops/homelab, targetRevision: master}
-        - {repoURL: https://bjw-s-labs.github.io/helm-charts, targetRevision: 5.3.0}
-`
-	run := func(args ...string) string {
-		cmd := exec.Command("sh", append([]string{"../infra/_modules/argocd/set-seed.sh"}, args...)...)
-		cmd.Stdin = strings.NewReader(render)
-		out, err := cmd.CombinedOutput()
-		require.NoError(t, err, string(out))
-		return string(out)
-	}
-	out := run("https://github.com/example/homelab", "testbed")
-	assert.NotContains(t, out, "forgejo-http")
-	assert.Equal(t, 2, strings.Count(out, "https://github.com/example/homelab"))
-	assert.Equal(t, 1, strings.Count(out, "revision: testbed"))
-	assert.Equal(t, 1, strings.Count(out, "targetRevision: testbed"))
-	assert.Contains(t, out, "targetRevision: 5.3.0")
-	assert.Equal(t, render, run("https://github.com/example/homelab", ""))
 }
 
 // The wait for a namespace outlasts the API server's restarts and the VIP moving (a first sync on three nodes): a

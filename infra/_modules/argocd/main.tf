@@ -35,18 +35,6 @@ variable "cluster_id" {
   description = "Identity of the cluster: a new cluster is bootstrapped again"
 }
 
-variable "seed_environment" {
-  type        = string
-  default     = ""
-  description = "Environment scripts/env-values reads while seeding: empty for production's seed file (seed), testbed for testbed, which seeds from its own values file"
-}
-
-variable "seed_revision" {
-  type        = string
-  default     = ""
-  description = "Branch of the seed repository the seed syncs (set-seed.sh): testbed's, which make testbed pushes; empty keeps the seed file's"
-}
-
 variable "seed_repository" {
   type        = string
   default     = ""
@@ -76,11 +64,10 @@ variable "backup_s3_url" {
 data "external" "values" {
   program = ["sh", "${path.module}/choose-values.sh"]
   query = {
-    values           = var.values
-    environment      = var.environment
-    seed             = var.seed
-    seed_environment = var.seed_environment
-    kubeconfig       = var.kubeconfig
+    values      = var.values
+    environment = var.environment
+    seed        = var.seed
+    kubeconfig  = var.kubeconfig
     # Where Argo CD reads once switched: the root ApplicationSet's repository in the values file
     forgejo_repository = try(yamldecode(file("${var.chart}/${var.values}"))["argocd-apps"]["applicationsets"]["root"]["generators"][0]["matrix"]["generators"][0]["git"]["repoURL"], "")
   }
@@ -95,8 +82,6 @@ locals {
     CHART           = var.chart
     VALUES          = data.external.values.result.values
     ENVIRONMENT     = data.external.values.result.environment
-    SEEDED          = data.external.values.result.seeded
-    SEED_REVISION   = var.seed_revision
     SEED_REPOSITORY = var.seed_repository
     REVISION        = var.revision
     BACKUP_S3_URL   = var.backup_s3_url
@@ -107,8 +92,7 @@ locals {
 
 # It has no destroy-time action: destroying it leaves Argo CD running
 resource "terraform_data" "bootstrap" {
-  # seeded too: testbed's seed and its switch use the same values file
-  triggers_replace = [local.hash, data.external.values.result.values, data.external.values.result.seeded, var.cluster_id, var.revision, var.backup_s3_url, var.optional_apps]
+  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, var.revision, var.backup_s3_url, var.optional_apps]
 
   lifecycle {
     precondition {

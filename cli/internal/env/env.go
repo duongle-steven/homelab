@@ -10,21 +10,19 @@ import (
 	"strings"
 )
 
-// Env is one environment of the homelab: production, staging or the sandbox.
+// Env is one environment of the homelab: production or the sandbox.
 type Env struct {
 	Name           string
 	Root           string
 	Domain         string
 	SeedRepository string
 	Kubeconfig     string
-	// GatewayVIP is the address kube-vip gives the Gateway (service_vips.gateway): staging is dialled there
-	GatewayVIP string
 }
 
 // Load reads infra/<name>/cluster/config.json in the repository at root.
 func Load(root, name string) (Env, error) {
-	if name != "production" && name != "staging" && name != "sandbox" {
-		return Env{}, fmt.Errorf("--env must be production, staging or sandbox, not %q", name)
+	if name != "production" && name != "sandbox" {
+		return Env{}, fmt.Errorf("--env must be production or sandbox, not %q", name)
 	}
 	path := filepath.Join(root, "infra", name, "cluster", "config.json")
 	data, err := os.ReadFile(path)
@@ -34,9 +32,6 @@ func Load(root, name string) (Env, error) {
 	var config struct {
 		Domain         string `json:"domain"`
 		SeedRepository string `json:"seed_repository"`
-		ServiceVIPs    struct {
-			Gateway string `json:"gateway"`
-		} `json:"service_vips"`
 	}
 	if err := json.Unmarshal(data, &config); err != nil {
 		return Env{}, fmt.Errorf("%s: %w", path, err)
@@ -50,7 +45,6 @@ func Load(root, name string) (Env, error) {
 		Domain:         config.Domain,
 		SeedRepository: config.SeedRepository,
 		Kubeconfig:     filepath.Join(root, "infra", name, "kubeconfig.yaml"),
-		GatewayVIP:     config.ServiceVIPs.Gateway,
 	}, nil
 }
 

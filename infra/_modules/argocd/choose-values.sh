@@ -10,7 +10,6 @@ get() { printf '%s' "$query" | jq -r --arg k "$1" '.[$k] // ""'; }
 values=$(get values)
 environment=$(get environment)
 seed=$(get seed)
-seeded=false
 if [ -n "$seed" ]; then
 	KUBECONFIG=$(get kubeconfig)
 	export KUBECONFIG
@@ -34,13 +33,8 @@ if [ -n "$seed" ]; then
 			kubectl -n forgejo exec -i deploy/forgejo -c forgejo -- \
 			curl -sf -o /dev/null -H @- http://localhost:3000/api/v1/repos/ops/homelab/branches/master >/dev/null 2>&1; then
 			values=$seed
-			# Production's seed has its own file and environment; testbed seeds from its own values under its own
-			# environment (set-seed.sh then points it at the seed branch)
-			environment=$(get seed_environment)
-			environment=${environment:-seed}
-			seeded=true
+			environment=seed
 		fi
 	fi
 fi
-jq -n --arg values "$values" --arg environment "$environment" --arg seeded "$seeded" \
-	'{values: $values, environment: $environment, seeded: $seeded}'
+jq -n --arg values "$values" --arg environment "$environment" '{values: $values, environment: $environment}'

@@ -58,20 +58,15 @@ dev: sandbox-checkout sandbox-clean
 	{ [ -z "$$alone" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; }; \
 	then status=0; else status=$$?; fi; scripts/warm-image-cache --node || true; exit $$status; }
 
-# Testbed: three NixOS VMs in WSL (infra/testbed, docs/installation/testbed.md), never beside the sandbox, deployed
-# the way production is (docs/superpowers/specs/2026-11-01-testbed-platform-design.md): the commit at HEAD goes to
-# GitHub branch testbed (the seed); infra/testbed installs the VMs nixie has not (PXE), enrolls them, upgrades the
-# others in place and bootstraps Argo CD from the seed; lab pushes HEAD to testbed's Forgejo (ops/homelab) and the
-# bootstrap switches Argo CD there, as make infra env=production does; then the tests. Main checkout only: its state is
-# .state/testbed
+# Testbed: three NixOS VMs in WSL (infra/testbed, docs/installation/testbed.md), never beside the sandbox: what needs
+# several nodes. The commit at HEAD goes to GitHub branch testbed, which its Argo CD syncs; infra/testbed installs the VMs
+# nixie has not (PXE), enrolls them, upgrades the others in place and bootstraps Argo CD; then the tests. Main checkout
+# only: its state is .state/testbed
 testbed_kubeconfig = $(CURDIR)/infra/testbed/kubeconfig.yaml
 testbed: sandbox-checkout sandbox-clean
 	@scripts/testbed-guard testbed
 	git push --force origin HEAD:testbed
 	cd infra/testbed && $(terragrunt_apply)
-	$(lab_cli) infra forgejo sync --env testbed
-	$(lab_cli) infra forgejo push --env testbed
-	cd infra/testbed/argocd && $(terragrunt) apply --non-interactive -- -auto-approve
 	-@kubectl --kubeconfig $(testbed_kubeconfig) -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1
 	$(MAKE) env=testbed ENV=testbed INSECURE_SKIP_VERIFY=1 smoke_filter=Testbed smoke-test
 	scripts/testbed-mark HEAD
@@ -81,11 +76,11 @@ testbed-fresh:
 	$(MAKE) testbed-clean
 	$(MAKE) testbed
 
-# Removes the VMs, their disks and network, nixie's install record and their host keys. argocd, openbao and secrets
-# hold only what is in the cluster, which goes with the disks: their state is dropped, since destroying them asks a
-# cluster that may not answer
+# Removes the VMs, their disks and network, nixie's install record and their host keys. argocd holds only
+# what is in the cluster, which goes with the disks: its state is dropped, since destroying it asks a cluster that may
+# not answer
 testbed-clean: sandbox-checkout
-	rm -rf .state/testbed/argocd .state/testbed/openbao .state/testbed/secrets
+	rm -rf .state/testbed/argocd
 	cd infra/testbed/metal && $(terragrunt) destroy --non-interactive -- -auto-approve
 	cd infra/testbed/vms && $(terragrunt) destroy --non-interactive -- -auto-approve
 	rm -f .state/testbed/metal/nixie-hosts.json

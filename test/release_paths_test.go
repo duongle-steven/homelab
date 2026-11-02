@@ -46,7 +46,7 @@ func TestStagingKeepsTheCore(t *testing.T) {
 func TestNoStagingLeftovers(t *testing.T) {
 	out, err := exec.Command("git", "-C", "..", "grep", "-il", "staging", "--",
 		":!docs/superpowers/", ":!CLAUDE.md", ":!docs/installation/testbed.md", ":!docs/installation/staging.md", ":!cli/internal/guard/", ":!cli/internal/cluster/inventory.go", ":!scripts/render-chart", ":!scripts/testbed-mark", ":!test/release_paths_test.go", ":!test/values_layers_test.go",
-		":!cli/internal/env/", ":!cli/internal/cli/infra_forgejo.go", ":!cli/internal/cli/infra_forgejo_test.go", ":!cli/internal/cli/secrets.go", ":!Makefile").CombinedOutput()
+		":!cli/internal/cli/infra_forgejo.go", ":!cli/internal/env/env_test.go", ":!Makefile").CombinedOutput()
 	if err != nil {
 		return // git grep exits 1 when nothing matches
 	}
