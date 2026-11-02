@@ -45,6 +45,11 @@ type metalNode struct {
 		Timer     string `json:"timer"`
 		Start     string `json:"start"`
 	} `json:"reclaim"`
+	TunnelOffload struct {
+		Condition string   `json:"condition"`
+		Script    string   `json:"script"`
+		WantedBy  []string `json:"wantedBy"`
+	} `json:"tunnelOffload"`
 }
 
 var (
@@ -83,6 +88,11 @@ func metalEval(t *testing.T) map[string]metalNode {
 			disk = c.config.disko.devices.disk.main.device;
 			timeZone = c.config.time.timeZone;
 			kernel = c.config.boot.kernelPackages.kernel.version;
+			tunnelOffload = let s = c.config.systemd.services.vm-tunnel-offload or null; in if s == null then {} else {
+				condition = s.unitConfig.ConditionVirtualization or "";
+				script = s.script;
+				wantedBy = s.wantedBy;
+			};
 			reclaim = let s = c.config.systemd.services.memory-reclaim or null; in if s == null then {} else {
 				condition = s.unitConfig.ConditionVirtualization or "";
 				script = s.script;
@@ -180,6 +190,17 @@ func TestMetalKernel(t *testing.T) {
 		_, err := fmt.Sscanf(node.Kernel, "%d.", &major)
 		assert.NoError(t, err, name)
 		assert.GreaterOrEqual(t, major, 7, "%s runs Linux %s", name, node.Kernel)
+	}
+}
+
+// On a VM, virtio-net on Linux 7.3 hands flannel's VXLAN to the peer as UDP tunnel GSO, and the peer's guest refuses it
+// ("bad gso", 100 lines a minute on every node): a VM turns that offload off; hardware never runs it
+func TestMetalVMTunnelOffload(t *testing.T) {
+	for name, node := range metalEval(t) {
+		assert.Equal(t, "vm", node.TunnelOffload.Condition, name)
+		assert.Contains(t, node.TunnelOffload.Script, "tx-udp_tnl-segmentation off", name)
+		assert.Contains(t, node.TunnelOffload.Script, "tx-udp_tnl-csum-segmentation off", name)
+		assert.Contains(t, node.TunnelOffload.WantedBy, "multi-user.target", name)
 	}
 }
 
