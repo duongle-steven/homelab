@@ -12,21 +12,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// scripts/staging-nixie installs staging's VMs one at a time (three parallel installs ran WSL out of memory): one
+// scripts/testbed-nixie installs testbed's VMs one at a time (three parallel installs ran WSL out of memory): one
 // nixie run per host not yet recorded, each with only that host, and every install recorded in .state/
-func TestStagingNixieOneAtATime(t *testing.T) {
+func TestTestbedNixieOneAtATime(t *testing.T) {
 	repo := t.TempDir()
 	require.NoError(t, exec.Command("git", "init", "-q", repo).Run())
 	require.NoError(t, os.MkdirAll(filepath.Join(repo, "scripts"), 0o755))
-	script, err := os.ReadFile("../scripts/staging-nixie")
+	script, err := os.ReadFile("../scripts/testbed-nixie")
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(repo, "scripts", "staging-nixie"), script, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(repo, "scripts", "staging-wake"), []byte("import time\ntime.sleep(60)\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "scripts", "testbed-nixie"), script, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "scripts", "testbed-wake"), []byte("import time\ntime.sleep(60)\n"), 0o644))
 	hosts := `{"h1": {"mac_address": "52:54:00:00:00:01", "ip": "10.0.0.11"},
 		"h2": {"mac_address": "52:54:00:00:00:02", "ip": "10.0.0.12"},
 		"h3": {"mac_address": "52:54:00:00:00:03", "ip": "10.0.0.13"}}`
 	require.NoError(t, os.WriteFile(filepath.Join(repo, "hosts.json"), []byte(hosts), 0o644))
-	state := filepath.Join(repo, ".state", "staging", "metal", "nixie-hosts.json")
+	state := filepath.Join(repo, ".state", "testbed", "metal", "nixie-hosts.json")
 	require.NoError(t, os.MkdirAll(filepath.Dir(state), 0o755))
 	// h1 was installed before
 	require.NoError(t, os.WriteFile(state, []byte(`{"h1": {"mac_address": "52:54:00:00:00:01", "ip": "10.0.0.11", "machine_id_hash": "old"}}`), 0o644))
@@ -38,7 +38,7 @@ func TestStagingNixieOneAtATime(t *testing.T) {
 jq -c 'keys' "$file" >> "$FIXTURES/runs"
 jq 'map_values(. + {machine_id_hash: "new"})' "$file" > "$file.tmp" && mv "$file.tmp" "$file"`,
 	})
-	cmd := exec.Command("sh", "scripts/staging-nixie", "hosts.json", "--address", "10.0.0.1")
+	cmd := exec.Command("sh", "scripts/testbed-nixie", "hosts.json", "--address", "10.0.0.1")
 	cmd.Dir, cmd.Env = repo, env
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
@@ -58,8 +58,8 @@ jq 'map_values(. + {machine_id_hash: "new"})' "$file" > "$file.tmp" && mv "$file
 	assert.False(t, strings.Contains(string(raw), "tmp"))
 }
 
-// scripts/staging-trust waits for each node's SSH (VMs just started are still booting) and fails only after its wait
-func TestStagingTrustWaitsForBoot(t *testing.T) {
+// scripts/testbed-trust waits for each node's SSH (VMs just started are still booting) and fails only after its wait
+func TestTestbedTrustWaitsForBoot(t *testing.T) {
 	hosts := filepath.Join(t.TempDir(), "hosts.json")
 	require.NoError(t, os.WriteFile(hosts, []byte(`{"h1": {"ip": "10.0.0.11"}, "h2": {"ip": "10.0.0.12"}}`), 0o644))
 	dir, env := fakeBin(t, map[string]string{
@@ -68,8 +68,8 @@ func TestStagingTrustWaitsForBoot(t *testing.T) {
 [ "$n" -gt 2 ] || exit 255
 echo "$*" >> "$FIXTURES/calls"`,
 	})
-	cmd := exec.Command("sh", "../scripts/staging-trust", hosts)
-	cmd.Env = append(env, "STAGING_TRUST_WAIT=20", "STAGING_TRUST_INTERVAL=0")
+	cmd := exec.Command("sh", "../scripts/testbed-trust", hosts)
+	cmd.Env = append(env, "TESTBED_TRUST_WAIT=20", "TESTBED_TRUST_INTERVAL=0")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 	calls, err := os.ReadFile(filepath.Join(dir, "calls"))
@@ -80,8 +80,8 @@ echo "$*" >> "$FIXTURES/calls"`,
 
 	// A node that never answers fails, naming it
 	_, env = fakeBin(t, map[string]string{"ssh": `exit 255`})
-	cmd = exec.Command("sh", "../scripts/staging-trust", hosts)
-	cmd.Env = append(env, "STAGING_TRUST_WAIT=0", "STAGING_TRUST_INTERVAL=0")
+	cmd = exec.Command("sh", "../scripts/testbed-trust", hosts)
+	cmd.Env = append(env, "TESTBED_TRUST_WAIT=0", "TESTBED_TRUST_INTERVAL=0")
 	out, err = cmd.CombinedOutput()
 	require.Error(t, err)
 	assert.Contains(t, string(out), "10.0.0.11")

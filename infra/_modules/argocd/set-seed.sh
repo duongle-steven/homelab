@@ -1,6 +1,6 @@
 #!/bin/sh
-# Point a render's Forgejo repository (ops/homelab) at the seed repository on one branch (stdin to stdout): staging
-# syncs GitHub branch staging, which make staging pushes, until Forgejo holds ops/homelab. Other repositories (the
+# Point a render's Forgejo repository (ops/homelab) at the seed repository on one branch (stdin to stdout): testbed
+# syncs GitHub branch testbed, which make testbed pushes, until Forgejo holds ops/homelab. Other repositories (the
 # app-template chart) keep theirs. No branch: unchanged (production's seed has its own values file).
 # Usage: set-seed.sh <seed repository> <branch>
 set -eu

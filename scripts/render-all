@@ -1,7 +1,7 @@
 #!/bin/sh
 # Render every component and app the way Argo CD does for an environment, one file each, into a directory: comparing
 # two such directories (diff -r) shows what a change does to the renders.
-# Usage: scripts/render-all <prod|dev|staging> <out-dir>
+# Usage: scripts/render-all <prod|dev|testbed> <out-dir>
 set -eu
 env="$1"
 out="$2"

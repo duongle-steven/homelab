@@ -1,7 +1,7 @@
 { pkgs, ... }:
 
 # A VM hands back to its host only the pages its kernel frees (free page reporting), never its page cache, so each
-# staging VM would grow to its whole size in the host's memory. On a VM only, reclaim cache every minute until a
+# testbed VM would grow to its whole size in the host's memory. On a VM only, reclaim cache every minute until a
 # quarter of the node's memory is free again; hardware never runs it.
 {
   systemd.services.memory-reclaim = {

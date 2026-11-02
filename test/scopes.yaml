@@ -157,21 +157,21 @@ groups:
       - infra/production/**
       - infra/_modules/cloudflare/**
       - infra/_modules/backup/**
-      # The nodes (staging and production; make staging proves them), but for the API server's audit policy, which
+      # The nodes (testbed and production; make testbed proves them), but for the API server's audit policy, which
       # the sandbox's k3d node uses too (a group below)
       - infra/_modules/metal/*.tf
       - infra/_modules/metal/flake/*.nix
       - infra/_modules/metal/flake/flake.lock
       - infra/_modules/metal/flake/authorized_keys
       - infra/_modules/metal/flake/profiles/**
-      - infra/_modules/staging-vms/**
-      - infra/staging/**
+      - infra/_modules/testbed-vms/**
+      - infra/testbed/**
       - scripts/lab
-      - scripts/staging-guard
-      - scripts/staging-nixie
-      - scripts/staging-wake
-      - scripts/staging-mark
-      - scripts/staging-trust
+      - scripts/testbed-guard
+      - scripts/testbed-nixie
+      - scripts/testbed-wake
+      - scripts/testbed-mark
+      - scripts/testbed-trust
       - test/benchmark/**
       - scripts/argocd-admin-password
       - scripts/get-dns-config

@@ -1,6 +1,6 @@
 variable "hosts" {
   type        = map(object({ mac_address = string, ip = string }))
-  description = "The machines (infra/staging/metal/hosts.json): one VM each, its MAC and its fixed DHCP address"
+  description = "The machines (infra/testbed/metal/hosts.json): one VM each, its MAC and its fixed DHCP address"
 }
 
 variable "network" {
@@ -11,7 +11,7 @@ variable "network" {
 variable "memory_mib" {
   type        = number
   default     = 3584
-  description = "Each VM's memory: 3 x 3.5 GB in WSL's 12 GB (docs/superpowers/specs/2026-10-31-staging-design.md)"
+  description = "Each VM's memory: 3 x 3.5 GB in WSL's 12 GB (docs/superpowers/specs/2026-10-31-testbed-design.md)"
 }
 
 variable "vcpus" {

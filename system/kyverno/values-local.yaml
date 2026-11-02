@@ -1,5 +1,5 @@
 # Small nodes share everything with Kyverno and the tests: its first full scan, with the suite running, slowed the API
-# server until k3s lost its own leader lease and restarted (the sandbox 2026-10-27; on staging, the top API client while
+# server until k3s lost its own leader lease and restarted (the sandbox 2026-10-27; on testbed, the top API client while
 # k3s restarted six times in 40 minutes, 2026-11-01). Less work here:
 kyverno:
   # No cleanup policy
@@ -17,7 +17,7 @@ kyverno:
       # TestSupplyChain reads its image policy's results
       imageVerify: true
       generate: false
-  # Trust the local CA (staging and the sandbox) for zot, whose signatures TestSupplyChain verifies
+  # Trust the local CA (testbed and the sandbox) for zot, whose signatures TestSupplyChain verifies
   # (allowInsecureRegistry only allows plain HTTP)
   admissionController:
     container:
@@ -51,7 +51,7 @@ kyverno:
         mountPath: /etc/homelab-dev-ca
         readOnly: true
 
-# Staging and the sandbox run lab's image built from the checkout (scripts/build-lab-image), unsigned: TestSupplyChain
+# Testbed and the sandbox run lab's image built from the checkout (scripts/build-lab-image), unsigned: TestSupplyChain
 # proves Kyverno's verification with its own signed image instead
 labImagePolicy:
   enabled: false

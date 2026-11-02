@@ -29,7 +29,7 @@
   # The environment's time zone (infra/<env>/cluster/config.json), like every chart's
   time.timeZone = timezone;
 
-  # Debugging on the node (the control plane's metrics endpoints, the staging tests)
+  # Debugging on the node (the control plane's metrics endpoints, the testbed tests)
   environment.systemPackages = [ pkgs.curl ];
 
   services.openssh.enable = true;

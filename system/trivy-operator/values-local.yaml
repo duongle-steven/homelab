@@ -1,4 +1,4 @@
-# Staging's and the sandbox's small nodes run the suite beside the scans: one scan Job at a time, with limits
+# Testbed's and the sandbox's small nodes run the suite beside the scans: one scan Job at a time, with limits
 trivy-operator:
   # The limits below change Trivy's ConfigMap, so its hash too (values.yaml)
   podAnnotations:

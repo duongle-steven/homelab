@@ -18,20 +18,20 @@ func TestArgoCDChooseValues(t *testing.T) {
 	const forgejo = "http://forgejo-http.forgejo:3000/ops/homelab"
 	const seedValues = `{"values":"values-seed.yaml","environment":"seed","seeded":"true"}`
 	const forgejoValues = `{"values":"values-dev.yaml","environment":"dev","seeded":"false"}`
-	// Staging seeds from its own values file (the seed branch replaces Forgejo's repository: set-seed.sh) under its own
-	// environment, so scripts/env-values reads staging's config
-	const stagingSeed = `{"values":"values-staging.yaml","environment":"staging","seeded":"true"}`
-	const stagingForgejo = `{"values":"values-dev.yaml","environment":"dev","seeded":"false"}`
+	// Testbed seeds from its own values file (the seed branch replaces Forgejo's repository: set-seed.sh) under its own
+	// environment, so scripts/env-values reads testbed's config
+	const testbedSeed = `{"values":"values-testbed.yaml","environment":"testbed","seeded":"true"}`
+	const testbedForgejo = `{"values":"values-dev.yaml","environment":"dev","seeded":"false"}`
 	for _, c := range []struct {
 		name, seed, seedEnvironment, rootRepo, token, master, want string
 		kubectlFails, execFails, fails, noArgoCD                   bool
 	}{
 		// A new cluster has no Argo CD yet: no ApplicationSet kind to ask about is a first install, not a failure
 		{name: "first install, no Argo CD CRDs", seed: "values-seed.yaml", noArgoCD: true, want: seedValues},
-		{name: "staging: first install, no Argo CD CRDs", seed: "values-staging.yaml", seedEnvironment: "staging", noArgoCD: true, want: stagingSeed},
-		{name: "staging: first install", seed: "values-staging.yaml", seedEnvironment: "staging", want: stagingSeed},
-		// Review Focus 5: an interrupted make staging that already switched stays on Forgejo
-		{name: "staging: switched stays", seed: "values-staging.yaml", seedEnvironment: "staging", rootRepo: forgejo, execFails: true, want: stagingForgejo},
+		{name: "testbed: first install, no Argo CD CRDs", seed: "values-testbed.yaml", seedEnvironment: "testbed", noArgoCD: true, want: testbedSeed},
+		{name: "testbed: first install", seed: "values-testbed.yaml", seedEnvironment: "testbed", want: testbedSeed},
+		// Review Focus 5: an interrupted make testbed that already switched stays on Forgejo
+		{name: "testbed: switched stays", seed: "values-testbed.yaml", seedEnvironment: "testbed", rootRepo: forgejo, execFails: true, want: testbedForgejo},
 		{name: "sandbox: no seed", want: forgejoValues, kubectlFails: true},
 		{name: "first install, no credential yet", seed: "values-seed.yaml", want: seedValues},
 		{name: "credential, nothing pushed", seed: "values-seed.yaml", token: "t1", want: seedValues},
@@ -191,10 +191,10 @@ func TestMakeInfraProduction(t *testing.T) {
 	}
 }
 
-// set-seed.sh points a render's Forgejo repository (ops/homelab) at the seed repository on one branch: staging syncs
-// GitHub branch staging (make staging pushes it) until Forgejo holds ops/homelab; other repositories keep theirs, and
+// set-seed.sh points a render's Forgejo repository (ops/homelab) at the seed repository on one branch: testbed syncs
+// GitHub branch testbed (make testbed pushes it) until Forgejo holds ops/homelab; other repositories keep theirs, and
 // no branch leaves the render unchanged
-func TestStagingSeedSyncsBranch(t *testing.T) {
+func TestTestbedSeedSyncsBranch(t *testing.T) {
 	const render = `kind: ApplicationSet
 metadata: {name: root}
 spec:
@@ -215,11 +215,11 @@ spec:
 		require.NoError(t, err, string(out))
 		return string(out)
 	}
-	out := run("https://github.com/example/homelab", "staging")
+	out := run("https://github.com/example/homelab", "testbed")
 	assert.NotContains(t, out, "forgejo-http")
 	assert.Equal(t, 2, strings.Count(out, "https://github.com/example/homelab"))
-	assert.Equal(t, 1, strings.Count(out, "revision: staging"))
-	assert.Equal(t, 1, strings.Count(out, "targetRevision: staging"))
+	assert.Equal(t, 1, strings.Count(out, "revision: testbed"))
+	assert.Equal(t, 1, strings.Count(out, "targetRevision: testbed"))
 	assert.Contains(t, out, "targetRevision: 5.3.0")
 	assert.Equal(t, render, run("https://github.com/example/homelab", ""))
 }
@@ -251,21 +251,21 @@ func TestWaitNamespaceRetries(t *testing.T) {
 	}
 }
 
-// A first sync on staging's small nodes renders two charts at a time: every helm at once starved k3s of CPU and memory
+// A first sync on testbed's small nodes renders two charts at a time: every helm at once starved k3s of CPU and memory
 // until it lost its leases
-func TestStagingArgoCDLimitsTheFirstSync(t *testing.T) {
-	out, err := exec.Command("yq", `.argo-cd.configs.params["reposerver.parallelism.limit"]`, "../system/argocd/values-staging.yaml").Output()
+func TestTestbedArgoCDLimitsTheFirstSync(t *testing.T) {
+	out, err := exec.Command("yq", `.argo-cd.configs.params["reposerver.parallelism.limit"]`, "../system/argocd/values-testbed.yaml").Output()
 	require.NoError(t, err)
 	assert.Equal(t, "2", strings.TrimSpace(string(out)))
 	// Waiting for those renders outlasts the default 60 s: every Application reported DeadlineExceeded and tried again
-	out, err = exec.Command("yq", `.argo-cd.configs.params["controller.repo.server.timeout.seconds"]`, "../system/argocd/values-staging.yaml").Output()
+	out, err = exec.Command("yq", `.argo-cd.configs.params["controller.repo.server.timeout.seconds"]`, "../system/argocd/values-testbed.yaml").Output()
 	require.NoError(t, err)
 	assert.Equal(t, "600", strings.TrimSpace(string(out)))
 	// A starved repo server failed its 1 s liveness probe and restarted, losing the renders in progress
-	out, err = exec.Command("yq", `.argo-cd.repoServer.livenessProbe.timeoutSeconds`, "../system/argocd/values-staging.yaml").Output()
+	out, err = exec.Command("yq", `.argo-cd.repoServer.livenessProbe.timeoutSeconds`, "../system/argocd/values-testbed.yaml").Output()
 	require.NoError(t, err)
 	assert.Equal(t, "10", strings.TrimSpace(string(out)))
-	out, err = exec.Command("yq", `.argo-cd.configs.cm["timeout.reconciliation"]`, "../system/argocd/values-staging.yaml").Output()
+	out, err = exec.Command("yq", `.argo-cd.configs.cm["timeout.reconciliation"]`, "../system/argocd/values-testbed.yaml").Output()
 	require.NoError(t, err)
 	assert.Equal(t, "600s", strings.TrimSpace(string(out)))
 }

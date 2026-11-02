@@ -1,19 +1,19 @@
-# Staging's machines: libvirt VMs on a NAT network whose DHCP gives each MAC its fixed address. They boot their disk
-# first, so an empty one falls through to the network, where nixie (infra/staging/metal) answers as a proxyDHCP and
+# Testbed's machines: libvirt VMs on a NAT network whose DHCP gives each MAC its fixed address. They boot their disk
+# first, so an empty one falls through to the network, where nixie (infra/testbed/metal) answers as a proxyDHCP and
 # installs them like production's machines; an installed one boots NixOS. virsh destroy <host> is a power cut.
 provider "libvirt" {
   uri = "qemu:///system"
 }
 
 locals {
-  pool_dir = "/var/lib/libvirt/images/homelab-staging"
+  pool_dir = "/var/lib/libvirt/images/homelab-testbed"
 }
 
-resource "libvirt_network" "staging" {
-  name      = "homelab-staging"
+resource "libvirt_network" "testbed" {
+  name      = "homelab-testbed"
   autostart = true
   forward   = { mode = "nat" }
-  bridge    = { name = "virbr-staging", stp = "on" }
+  bridge    = { name = "virbr-testbed", stp = "on" }
   ips = [{
     address = var.network.gateway
     prefix  = var.network.prefix_length
@@ -23,8 +23,8 @@ resource "libvirt_network" "staging" {
   }]
 }
 
-resource "libvirt_pool" "staging" {
-  name   = "homelab-staging"
+resource "libvirt_pool" "testbed" {
+  name   = "homelab-testbed"
   type   = "dir"
   target = { path = local.pool_dir }
 }
@@ -34,7 +34,7 @@ resource "libvirt_volume" "disk" {
   # Raw: with cache unsafe below, a write is in WSL's page cache as soon as the guest makes it, so killing QEMU (virsh
   # destroy, the power-cut test) loses nothing; qcow2 would keep metadata in QEMU's memory
   name     = "${each.key}.raw"
-  pool     = libvirt_pool.staging.name
+  pool     = libvirt_pool.testbed.name
   capacity = var.disk_gib * 1024 * 1024 * 1024
   # Sparse: the file grows as the VM writes (it lives in WSL's virtual disk on C:)
   allocation = 0
@@ -62,20 +62,20 @@ resource "libvirt_domain" "node" {
   devices = {
     controllers = [{ type = "scsi", model = "virtio-scsi" }]
     disks = [{
-      source = { volume = { pool = libvirt_pool.staging.name, volume = libvirt_volume.disk[each.key].name } }
+      source = { volume = { pool = libvirt_pool.testbed.name, volume = libvirt_volume.disk[each.key].name } }
       # SCSI, so the disk is /dev/sda like the hardware's (disks.nix's default): nixie keeps only the keys it knows
       # when it records an install in hosts.json, so a per-host disk would not survive
       target = { dev = "sda", bus = "scsi" }
       # Unsafe: flushes stop at WSL's page cache. With every flush reaching WSL's virtual disk, etcd's fsync averaged
       # 27 ms (up to a second) and k3s lost its leases and exited during the first sync; only WSL crashing loses data,
-      # and staging reinstalls from nothing
+      # and testbed reinstalls from nothing
       driver = { name = "qemu", type = "raw", discard = "unmap", cache = "unsafe" }
       boot   = { order = 1 }
     }]
     interfaces = [{
       mac    = { address = each.value.mac_address }
       model  = { type = "virtio" }
-      source = { network = { network = libvirt_network.staging.name } }
+      source = { network = { network = libvirt_network.testbed.name } }
       boot   = { order = 2 }
     }]
     # The guest hands the pages it frees back to WSL: without it a VM keeps every page it ever touched (an install's

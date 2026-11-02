@@ -36,7 +36,7 @@ sandbox-checkout:
 # without them (scripts/warm-image-cache); lab's image for the scheduled rotation is built from the checkout
 # (scripts/build-lab-image)
 dev: sandbox-checkout sandbox-clean
-	@scripts/staging-guard dev
+	@scripts/testbed-guard dev
 	@if [ -n "$(tests)" ]; then sel="--tests '$(tests)'"; \
 	elif [ "$(scope)" = full ]; then sel=--full; \
 	else git fetch -q origin dev || echo "make dev: git fetch failed, comparing with the local $(base)" >&2; sel="--base $(base)"; fi; \
@@ -58,42 +58,42 @@ dev: sandbox-checkout sandbox-clean
 	{ [ -z "$$alone" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; }; \
 	then status=0; else status=$$?; fi; scripts/warm-image-cache --node || true; exit $$status; }
 
-# Staging: three NixOS VMs in WSL (infra/staging, docs/installation/staging.md), never beside the sandbox, deployed
-# the way production is (docs/superpowers/specs/2026-11-01-staging-platform-design.md): the commit at HEAD goes to
-# GitHub branch staging (the seed); infra/staging installs the VMs nixie has not (PXE), enrolls them, upgrades the
-# others in place and bootstraps Argo CD from the seed; lab pushes HEAD to staging's Forgejo (ops/homelab) and the
+# Testbed: three NixOS VMs in WSL (infra/testbed, docs/installation/testbed.md), never beside the sandbox, deployed
+# the way production is (docs/superpowers/specs/2026-11-01-testbed-platform-design.md): the commit at HEAD goes to
+# GitHub branch testbed (the seed); infra/testbed installs the VMs nixie has not (PXE), enrolls them, upgrades the
+# others in place and bootstraps Argo CD from the seed; lab pushes HEAD to testbed's Forgejo (ops/homelab) and the
 # bootstrap switches Argo CD there, as make infra env=production does; then the tests. Main checkout only: its state is
-# .state/staging
-staging_kubeconfig = $(CURDIR)/infra/staging/kubeconfig.yaml
-staging: sandbox-checkout sandbox-clean
-	@scripts/staging-guard staging
-	git push --force origin HEAD:staging
-	cd infra/staging && $(terragrunt_apply)
-	$(lab_cli) infra forgejo sync --env staging
-	$(lab_cli) infra forgejo push --env staging
-	cd infra/staging/argocd && $(terragrunt) apply --non-interactive -- -auto-approve
-	-@kubectl --kubeconfig $(staging_kubeconfig) -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1
-	$(MAKE) env=staging ENV=staging INSECURE_SKIP_VERIFY=1 smoke_filter=Staging smoke-test
-	scripts/staging-mark HEAD
+# .state/testbed
+testbed_kubeconfig = $(CURDIR)/infra/testbed/kubeconfig.yaml
+testbed: sandbox-checkout sandbox-clean
+	@scripts/testbed-guard testbed
+	git push --force origin HEAD:testbed
+	cd infra/testbed && $(terragrunt_apply)
+	$(lab_cli) infra forgejo sync --env testbed
+	$(lab_cli) infra forgejo push --env testbed
+	cd infra/testbed/argocd && $(terragrunt) apply --non-interactive -- -auto-approve
+	-@kubectl --kubeconfig $(testbed_kubeconfig) -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1
+	$(MAKE) env=testbed ENV=testbed INSECURE_SKIP_VERIFY=1 smoke_filter=Testbed smoke-test
+	scripts/testbed-mark HEAD
 
 # Reinstalls the VMs from empty disks (nixie), then the tests
-staging-fresh:
-	$(MAKE) staging-clean
-	$(MAKE) staging
+testbed-fresh:
+	$(MAKE) testbed-clean
+	$(MAKE) testbed
 
 # Removes the VMs, their disks and network, nixie's install record and their host keys. argocd, openbao and secrets
 # hold only what is in the cluster, which goes with the disks: their state is dropped, since destroying them asks a
 # cluster that may not answer
-staging-clean: sandbox-checkout
-	rm -rf .state/staging/argocd .state/staging/openbao .state/staging/secrets
-	cd infra/staging/metal && $(terragrunt) destroy --non-interactive -- -auto-approve
-	cd infra/staging/vms && $(terragrunt) destroy --non-interactive -- -auto-approve
-	rm -f .state/staging/metal/nixie-hosts.json
-	for ip in $$(jq -r '.[].ip' infra/staging/metal/hosts.json); do ssh-keygen -R "$$ip" >/dev/null 2>&1 || true; done
+testbed-clean: sandbox-checkout
+	rm -rf .state/testbed/argocd .state/testbed/openbao .state/testbed/secrets
+	cd infra/testbed/metal && $(terragrunt) destroy --non-interactive -- -auto-approve
+	cd infra/testbed/vms && $(terragrunt) destroy --non-interactive -- -auto-approve
+	rm -f .state/testbed/metal/nixie-hosts.json
+	for ip in $$(jq -r '.[].ip' infra/testbed/metal/hosts.json); do ssh-keygen -R "$$ip" >/dev/null 2>&1 || true; done
 
-# Shuts the VMs down (they keep their disks: make staging starts them again), to run the sandbox
-staging-stop:
-	for name in $$(jq -r 'keys[]' infra/staging/metal/hosts.json); do virsh -c qemu:///system shutdown "$$name" || true; done
+# Shuts the VMs down (they keep their disks: make testbed starts them again), to run the sandbox
+testbed-stop:
+	for name in $$(jq -r 'keys[]' infra/testbed/metal/hosts.json); do virsh -c qemu:///system shutdown "$$name" || true; done
 
 # From scratch, the whole suite: before a dev → master PR and a release
 dev-fresh:
@@ -127,8 +127,8 @@ dev-clean: sandbox-checkout
 # infrastructure, Forgejo's org ops, the push of this commit to ops/homelab, then the bootstrap again (the switch to
 # Forgejo on a first install). force=1 applies the infrastructure only and deploys nothing (a state migration).
 # break_glass="<reason>" deploys while GitHub is down: verify checks a clean checkout that fast-forwards Forgejo instead
-# (docs/how-to-guides/deploy-to-forgejo.md); never with force=1. skip_staging="<reason>" releases what staging has not
-# proved (verify's staging gate), the reason recorded as the commit's staging status (docs/installation/staging.md).
+# (docs/how-to-guides/deploy-to-forgejo.md); never with force=1. skip_staging="<reason>" releases what testbed has not
+# proved (verify's testbed gate), the reason recorded as the commit's testbed status (docs/installation/testbed.md).
 # Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
 # The commit make infra started from: verify and push refuse another (a git pull during the apply)
 infra: deploy_commit := $(shell git rev-parse HEAD)

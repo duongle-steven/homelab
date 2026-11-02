@@ -1,15 +1,15 @@
 #!/bin/sh
-# nixie for staging (infra/staging/metal's hook; run in the node flake): usage staging-nixie <hosts.json> <nixie args>
+# nixie for testbed (infra/testbed/metal's hook; run in the node flake): usage testbed-nixie <hosts.json> <nixie args>
 # - nixie records what it installed (machine_id_hash) by rewriting its hosts file: that is state, so it works on a copy
-#   in .state/staging/ (the repository's hosts.json, plus the hashes recorded for the same name and MAC)
+#   in .state/testbed/ (the repository's hosts.json, plus the hashes recorded for the same name and MAC)
 # - one VM at a time (three parallel installs ran WSL out of memory)
-# - scripts/staging-wake listens meanwhile (only for hosts.json's MACs), so nixie's Wake-on-LAN power-cycles each VM it installs once its PXE
+# - scripts/testbed-wake listens meanwhile (only for hosts.json's MACs), so nixie's Wake-on-LAN power-cycles each VM it installs once its PXE
 #   server answers, as a powered-off machine would boot then
 set -eu
 root=$(git rev-parse --show-toplevel)
 hosts=$1
 shift
-state="$root/.state/staging/metal/nixie-hosts.json"
+state="$root/.state/testbed/metal/nixie-hosts.json"
 mkdir -p "$(dirname "$state")"
 [ -f "$state" ] || echo '{}' > "$state"
 jq --slurpfile recorded "$state" 'with_entries(
@@ -19,7 +19,7 @@ mv "$state.new" "$state"
 # One password prompt, before the listener's sudo goes to the background
 sudo -v
 # shellcheck disable=SC2046 # one argument per MAC
-sudo "$(command -v python3)" "$root/scripts/staging-wake" $(jq -r '.[].mac_address' "$hosts") &
+sudo "$(command -v python3)" "$root/scripts/testbed-wake" $(jq -r '.[].mac_address' "$hosts") &
 wake=$!
 trap 'sudo kill "$wake" 2>/dev/null || true' EXIT
 # One VM at a time: an install runs from the installer's memory, and three at once grew each QEMU to the VM's size in

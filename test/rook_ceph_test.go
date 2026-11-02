@@ -10,7 +10,7 @@ import (
 // nodes' kernel is 7.0 or later, TestMetalKernel), and no environment mutes Ceph's AUTH_INSECURE_* warnings
 func TestRookCephAES256K(t *testing.T) {
 	const cluster = `select(.kind == "CephCluster") | .spec`
-	for _, env := range []string{"", "staging"} {
+	for _, env := range []string{"", "testbed"} {
 		assert.Equal(t, "- aes256k", renderYq(t, "system/rook-ceph", env, cluster+".security.cephx.allowedCiphers"), env)
 		assert.Equal(t, "aes256k", renderYq(t, "system/rook-ceph", env, cluster+".security.cephx.csi.keyType"), env)
 		assert.Equal(t, "KeyGeneration", renderYq(t, "system/rook-ceph", env, cluster+".security.cephx.csi.keyRotationPolicy"), env)

@@ -80,4 +80,4 @@ Don't replace the initializer with a fresh server in an existing cluster.
 
 Optionally, after Ceph finishes recovering, clean up the removed node's OSD records using the [Rook guide](https://rook.io/docs/rook/latest/Storage-Configuration/Advanced/ceph-osd-mgmt/#remove-an-osd).
 
-Staging is the same with `infra/staging/metal/hosts.json` and `make staging`, which also creates the VM.
+Testbed is the same with `infra/testbed/metal/hosts.json` and `make testbed`, which also creates the VM.

@@ -1,2 +1,2 @@
 # The public keys allowed to log in to production's nodes as admin and root (nixie, lab cluster); never a
-# staging key. Added with the hardware (step 12b)
+# testbed key. Added with the hardware (step 12b)

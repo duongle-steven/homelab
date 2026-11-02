@@ -17,17 +17,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Staging's tests run only against staging (make staging: ENV=staging), its three NixOS VMs
-func stagingOnly(t *testing.T) {
-	if os.Getenv("ENV") != "staging" {
-		t.Skip("staging tests run against staging only (make staging)")
+// Testbed's tests run only against testbed (make testbed: ENV=testbed), its three NixOS VMs
+func testbedOnly(t *testing.T) {
+	if os.Getenv("ENV") != "testbed" {
+		t.Skip("testbed tests run against testbed only (make testbed)")
 	}
 }
 
-// stagingHosts reads the VMs' names and addresses (infra/staging/metal/hosts.json), sorted by name
-func stagingHosts(t *testing.T) (names []string, ips map[string]string) {
+// testbedHosts reads the VMs' names and addresses (infra/testbed/metal/hosts.json), sorted by name
+func testbedHosts(t *testing.T) (names []string, ips map[string]string) {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("..", "infra", "staging", "metal", "hosts.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "infra", "testbed", "metal", "hosts.json"))
 	require.NoError(t, err)
 	var hosts map[string]struct {
 		IP string `json:"ip"`
@@ -42,7 +42,7 @@ func stagingHosts(t *testing.T) (names []string, ips map[string]string) {
 	return names, ips
 }
 
-func stagingSSH(t *testing.T, ip, command string) (string, error) {
+func testbedSSH(t *testing.T, ip, command string) (string, error) {
 	t.Helper()
 	out, err := exec.Command("ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "root@"+ip, command).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
@@ -61,7 +61,7 @@ func domstate(name string) string {
 	return strings.TrimSpace(string(out))
 }
 
-func stagingKubectl(namespace string) *k8s.KubectlOptions {
+func testbedKubectl(namespace string) *k8s.KubectlOptions {
 	options := k8s.NewKubectlOptions("", "", namespace)
 	options.Logger = logger.Discard
 	return options
@@ -71,38 +71,38 @@ func stagingKubectl(namespace string) *k8s.KubectlOptions {
 func waitNodeReady(t *testing.T, node string, wait time.Duration) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		out, err := k8s.RunKubectlAndGetOutputE(t, stagingKubectl(""), "get", "node", node,
+		out, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl(""), "get", "node", node,
 			"-o", `jsonpath={.status.conditions[?(@.type=="Ready")].status}`)
 		return err == nil && out == "True"
 	}, wait, 10*time.Second, "%s is not Ready", node)
 }
 
 // Three k3s servers, each an etcd member that sees a leader
-func TestStagingNodes(t *testing.T) {
-	stagingOnly(t)
-	names, ips := stagingHosts(t)
+func TestTestbedNodes(t *testing.T) {
+	testbedOnly(t)
+	names, ips := testbedHosts(t)
 	require.Len(t, names, 3)
 	for _, name := range names {
 		waitNodeReady(t, name, 5*time.Minute)
-		roles, err := k8s.RunKubectlAndGetOutputE(t, stagingKubectl(""), "get", "node", name, "-o", "jsonpath={.metadata.labels}")
+		roles, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl(""), "get", "node", name, "-o", "jsonpath={.metadata.labels}")
 		require.NoError(t, err)
 		assert.Contains(t, roles, `"node-role.kubernetes.io/control-plane":"true"`, name)
 		assert.Contains(t, roles, `"node-role.kubernetes.io/etcd":"true"`, name)
-		metrics, err := stagingSSH(t, ips[name], "curl -s http://127.0.0.1:2381/metrics | grep '^etcd_server_has_leader '")
+		metrics, err := testbedSSH(t, ips[name], "curl -s http://127.0.0.1:2381/metrics | grep '^etcd_server_has_leader '")
 		require.NoError(t, err, metrics)
 		assert.Equal(t, "etcd_server_has_leader 1", metrics, name)
 	}
 }
 
 // The API's VIP moves: with the node holding it shut down, the API still answers through the VIP from another node
-func TestStagingVIPMoves(t *testing.T) {
-	stagingOnly(t)
-	holder, err := k8s.RunKubectlAndGetOutputE(t, stagingKubectl("kube-system"), "get", "lease", "plndr-cp-lock",
+func TestTestbedVIPMoves(t *testing.T) {
+	testbedOnly(t)
+	holder, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl("kube-system"), "get", "lease", "plndr-cp-lock",
 		"-o", "jsonpath={.spec.holderIdentity}")
 	require.NoError(t, err)
 	require.NotEmpty(t, holder, "no kube-vip leader for the control plane")
 	bootID := func() string {
-		id, _ := k8s.RunKubectlAndGetOutputE(t, stagingKubectl(""), "get", "node", holder, "-o", "jsonpath={.status.nodeInfo.bootID}")
+		id, _ := k8s.RunKubectlAndGetOutputE(t, testbedKubectl(""), "get", "node", holder, "-o", "jsonpath={.status.nodeInfo.bootID}")
 		return id
 	}
 	booted := bootID()
@@ -120,20 +120,20 @@ func TestStagingVIPMoves(t *testing.T) {
 		"%s did not shut down", holder)
 	start := time.Now()
 	assert.Eventually(t, func() bool {
-		out, err := k8s.RunKubectlAndGetOutputE(t, stagingKubectl(""), "get", "--raw", "/readyz")
+		out, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl(""), "get", "--raw", "/readyz")
 		return err == nil && out == "ok"
 	}, 2*time.Minute, 5*time.Second, "the API did not answer through the VIP without %s", holder)
 	t.Logf("the API answered through the VIP %s after %s's shutdown", time.Since(start).Round(time.Second), holder)
-	next, err := k8s.RunKubectlAndGetOutputE(t, stagingKubectl("kube-system"), "get", "lease", "plndr-cp-lock",
+	next, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl("kube-system"), "get", "lease", "plndr-cp-lock",
 		"-o", "jsonpath={.spec.holderIdentity}")
 	require.NoError(t, err)
 	assert.NotEqual(t, holder, next, "the VIP did not move")
 }
 
 // Ceph on three nodes: healthy, an OSD on each node, and a volume written on one node read back from another
-func TestStagingCeph(t *testing.T) {
-	stagingOnly(t)
-	ceph := stagingKubectl("rook-ceph")
+func TestTestbedCeph(t *testing.T) {
+	testbedOnly(t)
+	ceph := testbedKubectl("rook-ceph")
 	require.Eventually(t, func() bool {
 		health, err := k8s.RunKubectlAndGetOutputE(t, ceph, "get", "cephcluster", "-o", "jsonpath={.items[*].status.ceph.health}")
 		return err == nil && health == "HEALTH_OK"
@@ -141,13 +141,13 @@ func TestStagingCeph(t *testing.T) {
 	osds, err := k8s.RunKubectlAndGetOutputE(t, ceph, "get", "pods", "-l", "app=rook-ceph-osd",
 		"-o", `jsonpath={range .items[*]}{.spec.nodeName}{" "}{.status.phase}{"\n"}{end}`)
 	require.NoError(t, err)
-	names, _ := stagingHosts(t)
+	names, _ := testbedHosts(t)
 	for _, name := range names {
 		assert.Contains(t, osds, name+" Running", "no running OSD on %s", name)
 	}
 
-	ns := fmt.Sprintf("staging-ceph-%d", time.Now().Unix())
-	options := stagingKubectl(ns)
+	ns := fmt.Sprintf("testbed-ceph-%d", time.Now().Unix())
+	options := testbedKubectl(ns)
 	k8s.CreateNamespace(t, options, ns)
 	defer k8s.DeleteNamespace(t, options, ns)
 	pod := func(name, node, command string) string {
@@ -158,14 +158,14 @@ func TestStagingCeph(t *testing.T) {
 	claim := `{"apiVersion":"v1","kind":"PersistentVolumeClaim","metadata":{"name":"data"},
 		"spec":{"accessModes":["ReadWriteOnce"],"storageClassName":"standard-rwo","resources":{"requests":{"storage":"1Gi"}}}}`
 	k8s.KubectlApplyFromString(t, options, claim)
-	k8s.KubectlApplyFromString(t, options, pod("writer", names[0], "echo staging-ceph > /data/probe && sync"))
+	k8s.KubectlApplyFromString(t, options, pod("writer", names[0], "echo testbed-ceph > /data/probe && sync"))
 	waitPodSucceeded(t, options, "writer")
 	k8s.RunKubectl(t, options, "delete", "pod", "writer", "--wait")
 	k8s.KubectlApplyFromString(t, options, pod("reader", names[1], "cat /data/probe"))
 	waitPodSucceeded(t, options, "reader")
 	logs, err := k8s.RunKubectlAndGetOutputE(t, options, "logs", "reader")
 	require.NoError(t, err)
-	assert.Equal(t, "staging-ceph", logs, "written on %s, read on %s", names[0], names[1])
+	assert.Equal(t, "testbed-ceph", logs, "written on %s, read on %s", names[0], names[1])
 }
 
 func waitPodSucceeded(t *testing.T, options *k8s.KubectlOptions, name string) {

@@ -12,9 +12,9 @@ import (
 )
 
 // Every path staging's gate names matches a tracked file: a renamed directory would otherwise drop out of the gate
-// unseen (lab infra forgejo verify, infra/staging/release-paths.yaml)
+// unseen (lab infra forgejo verify, infra/testbed/release-paths.yaml)
 func TestReleasePathsExist(t *testing.T) {
-	raw, err := os.ReadFile("../infra/staging/release-paths.yaml")
+	raw, err := os.ReadFile("../infra/testbed/release-paths.yaml")
 	require.NoError(t, err)
 	var release struct {
 		Paths []string `json:"paths"`
@@ -31,7 +31,7 @@ func TestReleasePathsExist(t *testing.T) {
 // What staging's reduction leaves out, whole or switched off inside a chart, is what the gate does not ask staging to
 // prove; the first step of the spec's order holds the core and the deploy path, which must stay
 func TestStagingKeepsTheCore(t *testing.T) {
-	out, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[] | select(.exclude) | .path`, "../system/argocd/values-staging.yaml").Output()
+	out, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[] | select(.exclude) | .path`, "../system/argocd/values-testbed.yaml").Output()
 	require.NoError(t, err)
 	for _, core := range []string{"system/istio-system", "system/cert-manager", "system/rook-ceph", "system/kyverno", "system/monitoring-system",
 		"platform/external-secrets", "platform/openbao", "platform/generated-secrets", "platform/infra-secrets", "platform/kanidm", "platform/cloudnative-pg", "platform/forgejo", "system/argocd-config"} {
@@ -40,4 +40,15 @@ func TestStagingKeepsTheCore(t *testing.T) {
 	for _, left := range []string{"system/trivy-operator", "system/loki", "system/velero", "platform/grafana", "platform/zot", "platform/woodpecker", "platform/secrets-rotation"} {
 		assert.Contains(t, strings.Fields(string(out)), left)
 	}
+}
+
+// The workstation's multi-node environment is the testbed: staging names only an optional environment on its own hardware
+func TestNoStagingLeftovers(t *testing.T) {
+	out, err := exec.Command("git", "-C", "..", "grep", "-il", "staging", "--",
+		":!docs/superpowers/", ":!CLAUDE.md", ":!docs/installation/testbed.md", ":!docs/installation/staging.md", ":!cli/internal/guard/", ":!cli/internal/cluster/inventory.go", ":!scripts/render-chart", ":!scripts/testbed-mark", ":!test/release_paths_test.go", ":!test/values_layers_test.go",
+		":!cli/internal/env/", ":!cli/internal/cli/infra_forgejo.go", ":!cli/internal/cli/infra_forgejo_test.go", ":!cli/internal/cli/secrets.go", ":!Makefile").CombinedOutput()
+	if err != nil {
+		return // git grep exits 1 when nothing matches
+	}
+	assert.Empty(t, strings.TrimSpace(string(out)))
 }

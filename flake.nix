@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    # The nodes' installer (PXE, then nixos-anywhere): make staging, make infra
+    # The nodes' installer (PXE, then nixos-anywhere): make testbed, make infra
     nixie.url = "github:khuedoan/nixie";
   };
 
@@ -35,7 +35,7 @@
             kanidm_1_11
             kubectl
             kubernetes-helm
-            libvirt # virsh: staging's VMs (infra/staging)
+            libvirt # virsh: testbed's VMs (infra/testbed)
             nixie.packages.${system}.default
             nixos-anywhere
             nixos-rebuild # lab cluster upgrade

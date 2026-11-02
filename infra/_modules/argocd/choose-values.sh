@@ -34,7 +34,7 @@ if [ -n "$seed" ]; then
 			kubectl -n forgejo exec -i deploy/forgejo -c forgejo -- \
 			curl -sf -o /dev/null -H @- http://localhost:3000/api/v1/repos/ops/homelab/branches/master >/dev/null 2>&1; then
 			values=$seed
-			# Production's seed has its own file and environment; staging seeds from its own values under its own
+			# Production's seed has its own file and environment; testbed seeds from its own values under its own
 			# environment (set-seed.sh then points it at the seed branch)
 			environment=$(get seed_environment)
 			environment=${environment:-seed}

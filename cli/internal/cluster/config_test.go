@@ -24,8 +24,8 @@ func TestEnrollmentInventory(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			for path, data := range map[string]string{
-				"infra/staging/metal/hosts.json":    tc.hosts,
-				"infra/staging/cluster/config.json": tc.cluster,
+				"infra/testbed/metal/hosts.json":    tc.hosts,
+				"infra/testbed/cluster/config.json": tc.cluster,
 			} {
 				if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 					t.Fatal(err)
@@ -34,7 +34,7 @@ func TestEnrollmentInventory(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			cfg, err := loadConfig("staging")
+			cfg, err := loadConfig("testbed")
 			if (err == nil) != tc.valid {
 				t.Fatalf("config %#v, error %v", cfg, err)
 			}

@@ -20,7 +20,7 @@ variable "values" {
 
 variable "environment" {
   type        = string
-  description = "prod, staging or dev: which ApplicationSet values scripts/env-values reads (production's seed file switches to seed)"
+  description = "prod, testbed or dev: which ApplicationSet values scripts/env-values reads (production's seed file switches to seed)"
 }
 
 variable "seed" {
@@ -38,13 +38,13 @@ variable "cluster_id" {
 variable "seed_environment" {
   type        = string
   default     = ""
-  description = "Environment scripts/env-values reads while seeding: empty for production's seed file (seed), staging for staging, which seeds from its own values file"
+  description = "Environment scripts/env-values reads while seeding: empty for production's seed file (seed), testbed for testbed, which seeds from its own values file"
 }
 
 variable "seed_revision" {
   type        = string
   default     = ""
-  description = "Branch of the seed repository the seed syncs (set-seed.sh): staging's, which make staging pushes; empty keeps the seed file's"
+  description = "Branch of the seed repository the seed syncs (set-seed.sh): testbed's, which make testbed pushes; empty keeps the seed file's"
 }
 
 variable "seed_repository" {
@@ -107,7 +107,7 @@ locals {
 
 # It has no destroy-time action: destroying it leaves Argo CD running
 resource "terraform_data" "bootstrap" {
-  # seeded too: staging's seed and its switch use the same values file
+  # seeded too: testbed's seed and its switch use the same values file
   triggers_replace = [local.hash, data.external.values.result.values, data.external.values.result.seeded, var.cluster_id, var.revision, var.backup_s3_url, var.optional_apps]
 
   lifecycle {

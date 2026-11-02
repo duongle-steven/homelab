@@ -68,11 +68,11 @@ type credentials struct {
 const k3dNode = "k3d-homelab-dev-server-0"
 
 // lookupGatewayAddress finds the address the environment's Gateway listens on once: the k3d node's IP in the sandbox,
-// the Gateway's VIP on staging (config.json's service_vips.gateway). An error fails the tests that need it, not the
+// the Gateway's VIP on testbed (config.json's service_vips.gateway). An error fails the tests that need it, not the
 // whole run.
 var lookupGatewayAddress = sync.OnceValues(func() (string, error) {
-	if os.Getenv("ENV") == "staging" {
-		return stagingGatewayVIP()
+	if os.Getenv("ENV") == "testbed" {
+		return testbedGatewayVIP()
 	}
 	out, err := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", k3dNode).Output()
 	if err != nil {

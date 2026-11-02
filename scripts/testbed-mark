@@ -1,0 +1,11 @@
+#!/bin/sh
+# Mark a commit as proved by testbed: GitHub commit status "testbed" (success), which lab infra forgejo verify looks for
+# (docs/installation/testbed.md). make testbed runs it once every testbed test passed; verify --skip-staging runs it
+# with the skip's reason, so the release records why it went without testbed. Uses gh's own login.
+# Usage: scripts/testbed-mark <commit> [description]
+set -eu
+commit=$(git rev-parse --verify "$1^{commit}")
+description=${2:-"make testbed passed"}
+repository=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+gh api --silent "repos/$repository/statuses/$commit" -f state=success -f context=testbed -f description="$description"
+echo "testbed-mark: $commit ($description)"

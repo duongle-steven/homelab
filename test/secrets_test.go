@@ -252,7 +252,7 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 		sum := sha256.Sum256([]byte(generatedValue(t, path, property)))
 		return hex.EncodeToString(sum[:])
 	}
-	// Every destination of every entry holds a value under the entry's key (values.yaml and the extras staging and the
+	// Every destination of every entry holds a value under the entry's key (values.yaml and the extras testbed and the
 	// sandbox share)
 	for _, file := range []string{"values.yaml", "values-local.yaml"} {
 		out, err := exec.Command("yq", "-o=json", "-I=0", "(.secrets // []) + (.extraSecrets // [])", "../platform/generated-secrets/"+file).Output()

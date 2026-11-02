@@ -11,7 +11,7 @@ import (
 )
 
 // envDirs maps the suite's ENV to the environment's directory in infra/; production is never a test target
-var envDirs = map[string]string{"dev": "sandbox", "staging": "staging"}
+var envDirs = map[string]string{"dev": "sandbox", "testbed": "testbed"}
 
 // envConfig is the part of infra/<env>/cluster/config.json the suite reads
 type envConfig struct {
@@ -25,7 +25,7 @@ func readEnvConfig(env string) (envConfig, error) {
 	var config envConfig
 	dir, ok := envDirs[env]
 	if !ok {
-		return config, fmt.Errorf("ENV=%q: the suite runs against the sandbox (dev) or staging only", env)
+		return config, fmt.Errorf("ENV=%q: the suite runs against the sandbox (dev) or testbed only", env)
 	}
 	raw, err := os.ReadFile(filepath.Join("..", "infra", dir, "cluster", "config.json"))
 	if err != nil {
@@ -54,7 +54,7 @@ var suiteDomain = func() string {
 	return domain
 }()
 
-// labEnv is the environment's name for lab's --env (sandbox or staging)
+// labEnv is the environment's name for lab's --env (sandbox or testbed)
 var labEnv = func() string {
 	if dir, ok := envDirs[os.Getenv("ENV")]; ok {
 		return dir
@@ -62,9 +62,9 @@ var labEnv = func() string {
 	return "sandbox"
 }()
 
-// stagingGatewayVIP is the address kube-vip gives staging's Gateway (config.json's service_vips.gateway)
-func stagingGatewayVIP() (string, error) {
-	config, err := readEnvConfig("staging")
+// testbedGatewayVIP is the address kube-vip gives testbed's Gateway (config.json's service_vips.gateway)
+func testbedGatewayVIP() (string, error) {
+	config, err := readEnvConfig("testbed")
 	return config.ServiceVIPs.Gateway, err
 }
 
@@ -76,12 +76,12 @@ func testDomain(t *testing.T) string {
 	return domain
 }
 
-// localOnly skips a test outside the sandbox and staging: it needs the local CA, the tests' fixtures or OpenBao's
+// localOnly skips a test outside the sandbox and testbed: it needs the local CA, the tests' fixtures or OpenBao's
 // admin role, which production does not give the suite
 func localOnly(t *testing.T) {
 	t.Helper()
 	if _, ok := envDirs[os.Getenv("ENV")]; !ok {
-		t.Skip("runs against the sandbox or staging only")
+		t.Skip("runs against the sandbox or testbed only")
 	}
 }
 

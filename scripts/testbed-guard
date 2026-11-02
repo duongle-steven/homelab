@@ -1,0 +1,26 @@
+#!/bin/sh
+# Refuses to run the sandbox and testbed together (12 GB of WSL hold one of them: docs/installation/testbed.md) or
+# with C: nearly full (WSL crashes when its virtual disk on C: cannot grow). Usage: testbed-guard testbed|dev
+set -eu
+case "${1:?usage: testbed-guard testbed|dev}" in
+	testbed)
+		if [ "$(docker inspect -f '{{.State.Running}}' k3d-homelab-dev-server-0 2>/dev/null)" = true ]; then
+			echo "make testbed: the sandbox runs (k3d-homelab-dev-server-0): stop it first (k3d cluster stop homelab-dev)" >&2
+			exit 1
+		fi ;;
+	dev)
+		hosts="$(git rev-parse --show-toplevel)/infra/testbed/metal/hosts.json"
+		running=$(virsh -c qemu:///system list --name --state-running 2>/dev/null || true)
+		if [ -n "$running" ] && printf '%s\n' "$running" | grep -qxF "$(jq -r 'keys[]' "$hosts")"; then
+			echo "make dev: testbed's VMs run: stop them first (make testbed-stop)" >&2
+			exit 1
+		fi ;;
+	*) echo "usage: testbed-guard testbed|dev" >&2; exit 2 ;;
+esac
+if [ -d /mnt/c ]; then
+	free=$(df --output=avail -BG /mnt/c | tail -1 | tr -dc 0-9)
+	if [ "$free" -lt 30 ]; then
+		echo "C: has ${free} GB free: keep 30 GB (WSL's virtual disk lives there)" >&2
+		exit 1
+	fi
+fi

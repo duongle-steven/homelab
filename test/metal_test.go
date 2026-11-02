@@ -153,14 +153,14 @@ func TestMetalKubeVip(t *testing.T) {
 	}
 }
 
-// zram lets a 3.5 GB staging node keep more in memory
+// zram lets a 3.5 GB testbed node keep more in memory
 func TestMetalZram(t *testing.T) {
 	for name, node := range metalEval(t) {
 		assert.True(t, node.Zram, name)
 	}
 }
 
-// A VM hands back only the pages its kernel frees, never its page cache: on a VM (staging) a timer reclaims cache
+// A VM hands back only the pages its kernel frees, never its page cache: on a VM (testbed) a timer reclaims cache
 // each minute so the node keeps some memory free, which free page reporting returns to WSL; hardware never runs it
 func TestMetalVMMemoryReclaim(t *testing.T) {
 	for name, node := range metalEval(t) {
@@ -200,13 +200,13 @@ func TestMetalTimeZone(t *testing.T) {
 }
 
 // Each environment's nodes accept only its own keys (infra/<env>/metal/authorized_keys, written into the flake by
-// the metal unit): a key that leaks from staging, which runs often on the workstation, is not root on production
+// the metal unit): a key that leaks from testbed, which runs often on the workstation, is not root on production
 func TestMetalKeysPerEnvironment(t *testing.T) {
 	ignored := exec.Command("git", "check-ignore", "-q", metalFlake+"/authorized_keys")
 	ignored.Dir = ".."
 	assert.NoError(t, ignored.Run(), "the flake's authorized_keys is generated, not committed")
 	keys := map[string][]string{}
-	for _, env := range []string{"staging", "production"} {
+	for _, env := range []string{"testbed", "production"} {
 		raw, err := os.ReadFile(filepath.Join("..", "infra", env, "metal", "authorized_keys"))
 		require.NoError(t, err, env)
 		for _, line := range strings.Split(string(raw), "\n") {
@@ -217,14 +217,14 @@ func TestMetalKeysPerEnvironment(t *testing.T) {
 			}
 		}
 	}
-	assert.NotEmpty(t, keys["staging"], "staging needs a key")
-	for _, k := range keys["staging"] {
+	assert.NotEmpty(t, keys["testbed"], "testbed needs a key")
+	for _, k := range keys["testbed"] {
 		assert.NotContains(t, keys["production"], k, "a key in both environments")
 	}
 }
 
 // nixie's installer runs from memory and writes the whole system to disk: on a VM it reclaims its page cache too, or
-// three parallel installs grow each QEMU to the VM's size and WSL runs out (12a-2's first staging-fresh)
+// three parallel installs grow each QEMU to the VM's size and WSL runs out (12a-2's first testbed-fresh)
 func TestMetalInstallerReclaimsMemory(t *testing.T) {
 	metalEval(t)
 	dir := t.TempDir()
@@ -260,7 +260,7 @@ func metalExtraFlags(t *testing.T, extra string) []string {
 	return flags
 }
 
-// A control plane on slow machines (staging's VMs inside WSL's Hyper-V, config.json's slow_control_plane) tolerates a
+// A control plane on slow machines (testbed's VMs inside WSL's Hyper-V, config.json's slow_control_plane) tolerates a
 // starved etcd leader: with the defaults k3s lost its leases and exited 18 times in 35 minutes of a first sync, and
 // every restart made it worse. Production keeps the defaults, and so a fast failover
 func TestMetalSlowControlPlane(t *testing.T) {
@@ -274,7 +274,7 @@ func TestMetalSlowControlPlane(t *testing.T) {
 		assert.Contains(t, flags, f)
 	}
 	assert.NotContains(t, strings.Join(metalExtraFlags(t, ""), " "), "heartbeat-interval")
-	for env, want := range map[string]bool{"staging": true, "production": false} {
+	for env, want := range map[string]bool{"testbed": true, "production": false} {
 		raw, err := os.ReadFile(filepath.Join("..", "infra", env, "cluster", "config.json"))
 		require.NoError(t, err)
 		var config struct {

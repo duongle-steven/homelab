@@ -1,4 +1,4 @@
-# Staging and the sandbox have no Telegram bot: no volume, and the receivers restated without telegram_configs (Helm
+# Testbed and the sandbox have no Telegram bot: no volume, and the receivers restated without telegram_configs (Helm
 # replaces lists: keep them in step with values.yaml)
 kube-prometheus-stack:
   alertmanager:

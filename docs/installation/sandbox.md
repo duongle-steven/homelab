@@ -163,7 +163,7 @@ The sandbox survives a WSL or Docker restart: its containers start again (`k3d c
 
 On WSL, a full `C:` drive crashes the whole VM (kernel panics with SIGBUS, reports in `%LOCALAPPDATA%\Temp\wsl-crashes`): the sandbox's disk grows inside WSL's virtual disk on `C:`, so keep about 30 GB free there during the suite.
 
-Never beside [staging](staging.md): `make dev` refuses while staging's VMs run (`make staging-stop`), and both refuse
+Never beside [testbed](testbed.md): `make dev` refuses while testbed's VMs run (`make testbed-stop`), and both refuse
 with less than 30 GB free on `C:`.
 
 ## Clean up

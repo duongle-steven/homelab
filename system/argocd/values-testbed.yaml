@@ -1,16 +1,16 @@
-# Staging: production's ApplicationSets on staging's Forgejo (ops/homelab, as production reads it), seeded from GitHub
-# branch staging until Forgejo holds it (infra/staging/argocd, set-seed.sh), with the local CA and the tests' fixtures
+# Testbed: production's ApplicationSets on testbed's Forgejo (ops/homelab, as production reads it), seeded from GitHub
+# branch testbed until Forgejo holds it (infra/testbed/argocd, set-seed.sh), with the local CA and the tests' fixtures
 # (values-local.yaml). Helm replaces lists and anchors do not cross files, so generators and sources are restated.
 #
-# What staging leaves out of production's set (docs/superpowers/specs/2026-11-01-staging-platform-design.md): the
-# `exclude: true` entries under "Staging's reduction" and the apps missing from the apps generator. Sized for a 16 GB
-# workstation with WSL at 12 GB and three 3.5 GB VMs (docs/installation/staging.md); a larger machine empties the
-# reduction (and grows infra/staging/vms) in a pull request. lab infra forgejo verify derives what staging proves from
-# this file: a release changing only what is left out here needs no staging run.
+# What testbed leaves out of production's set (docs/superpowers/specs/2026-11-01-testbed-platform-design.md): the
+# `exclude: true` entries under "Testbed's reduction" and the apps missing from the apps generator. Sized for a 16 GB
+# workstation with WSL at 12 GB and three 3.5 GB VMs (docs/installation/testbed.md); a larger machine empties the
+# reduction (and grows infra/testbed/vms) in a pull request. lab infra forgejo verify derives what testbed proves from
+# this file: a release changing only what is left out here needs no testbed run.
 argo-cd:
   configs:
     # Merged into values.yaml's. A first sync with every chart rendering at once starved the small nodes: k3s lost its
-    # leases and exited (docs/installation/staging.md)
+    # leases and exited (docs/installation/testbed.md)
     params:
       reposerver.parallelism.limit: 2
       # Waiting for those renders (each downloads its chart's dependencies) outlasts the default 60 s
@@ -66,7 +66,7 @@ argocd-apps:
                       exclude: true
                     - path: platform/*
                     - path: apps/*
-                    # Staging's reduction. Cannot run here: no Cloudflare (the Tunnel, its DNS), no GitHub App
+                    # Testbed's reduction. Cannot run here: no Cloudflare (the Tunnel, its DNS), no GitHub App
                     - path: system/cloudflared
                       exclude: true
                     - path: system/external-dns
@@ -99,11 +99,11 @@ argocd-apps:
                   repoURL: *repoURL
                   revision: *revision
                   files:
-                    - path: infra/staging/cluster/config.json
+                    - path: infra/testbed/cluster/config.json
                   pathParamPrefix: config
       template:
         spec:
-          # A fresh staging syncs while the CRDs and webhooks its apps wait for appear, as the sandbox does
+          # A fresh testbed syncs while the CRDs and webhooks its apps wait for appear, as the sandbox does
           syncPolicy: &retry
             retry:
               limit: 18
@@ -116,11 +116,11 @@ argocd-apps:
               path: '{{ .path.path }}'
               targetRevision: *revision
               helm:
-                # values-local.yaml: what staging and the sandbox share (the local CA, the tests' fixtures)
+                # values-local.yaml: what testbed and the sandbox share (the local CA, the tests' fixtures)
                 valueFiles:
                   - values.yaml
                   - values-local.yaml
-                  - values-staging.yaml
+                  - values-testbed.yaml
                 ignoreMissingValueFiles: true
                 valuesObject: &values
                   global:
@@ -154,7 +154,7 @@ argocd-apps:
               - git:
                   repoURL: *repoURL
                   revision: *revision
-                  # Staging's apps: production's apps/*.yaml minus staging's reduction (stateless apps the sandbox
+                  # Testbed's apps: production's apps/*.yaml minus testbed's reduction (stateless apps the sandbox
                   # proves the same way: blog, excalidraw, homepage, pairdrop, speedtest; ntfy; heavy: jellyfin,
                   # paperless, opencloud; tailscale, which waits for Headscale's key, step 13; not yet: actualbudget).
                   # wireguard proves kube-vip's Service addresses
@@ -173,7 +173,7 @@ argocd-apps:
                 valueFiles:
                   - '$values/apps/{{ .path.filename }}'
                 parameters:
-                  # No Cloudflare Tunnel on staging: public apps use the LAN Gateway
+                  # No Cloudflare Tunnel on testbed: public apps use the LAN Gateway
                   - name: global.publicGateway
                     value: gateway
                   # App files trust the local CA ConfigMap homelab-dev-ca when set

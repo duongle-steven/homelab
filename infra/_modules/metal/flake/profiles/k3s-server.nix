@@ -103,7 +103,7 @@ in
       "--cluster-cidr=10.42.0.0/16"
       "--service-cidr=10.43.0.0/16"
     ]
-    # Slow machines (config.json's slow_control_plane: staging's VMs inside WSL's Hyper-V): a starved etcd leader misses
+    # Slow machines (config.json's slow_control_plane: testbed's VMs inside WSL's Hyper-V): a starved etcd leader misses
     # the default 100 ms heartbeat, and k3s exits when a controller loses its 15 s lease, so every client lists again and
     # etcd starves more. Production keeps the defaults, and so a fast failover
     ++ lib.optionals k3s.slowControlPlane (

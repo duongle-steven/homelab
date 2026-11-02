@@ -6,12 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// The suite's domain is the environment's (infra/<env>/cluster/config.json): the sandbox's under ENV=dev, staging's
-// under ENV=staging
+// The suite's domain is the environment's (infra/<env>/cluster/config.json): the sandbox's under ENV=dev, testbed's
+// under ENV=testbed
 func TestTestDomain(t *testing.T) {
 	t.Setenv("ENV", "dev")
 	assert.Equal(t, "127-0-0-1.nip.io", testDomain(t))
-	t.Setenv("ENV", "staging")
+	t.Setenv("ENV", "testbed")
 	assert.Equal(t, "192-168-100-2.nip.io", testDomain(t))
 }
 

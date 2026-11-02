@@ -3,7 +3,7 @@ include "root" {
 }
 
 terraform {
-  source = "${find_in_parent_folders("_modules")}//staging-vms"
+  source = "${find_in_parent_folders("_modules")}//testbed-vms"
 }
 
 inputs = {

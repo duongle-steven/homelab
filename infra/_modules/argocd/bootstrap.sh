@@ -3,7 +3,7 @@
 # itself. The field manager stays Argo CD's, which managed it before step 10b.
 # Env: KUBECONFIG, CHART (system/argocd), VALUES (file name in CHART, chosen by choose-values.sh: the seed on
 # production's first install), REVISION (optional: the commit every homelab source syncs, set-revision.sh),
-# ENVIRONMENT (prod, staging, dev or seed, for scripts/env-values: the chart gets the same global values Argo CD passes it)
+# ENVIRONMENT (prod, testbed, dev or seed, for scripts/env-values: the chart gets the same global values Argo CD passes it)
 set -eu
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 # shellcheck disable=SC2153 # VALUES and ENVIRONMENT come from OpenTofu (set -u fails when one is missing)
@@ -36,7 +36,7 @@ if grep -q seed-repository.invalid "$manifests"; then
   echo "the seed repository placeholder was not replaced" >&2
   exit 1
 fi
-# Staging's seed syncs its branch of the seed repository (SEEDED by choose-values.sh, SEED_REVISION)
+# Testbed's seed syncs its branch of the seed repository (SEEDED by choose-values.sh, SEED_REVISION)
 if [ "${SEEDED:-false}" = true ]; then
   sh "$(dirname "$0")/set-seed.sh" "${SEED_REPOSITORY:-}" "${SEED_REVISION:-}" < "$manifests" > "$manifests.rev"
   mv "$manifests.rev" "$manifests"

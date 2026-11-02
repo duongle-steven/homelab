@@ -1,5 +1,5 @@
-# Staging's fallback (docs/superpowers/specs/2026-11-01-staging-platform-design.md): the operator and its CRDs, which other
-# charts' monitors need, without Prometheus, Alertmanager or their exporters: staging does not prove them
+# Testbed's fallback (docs/superpowers/specs/2026-11-01-testbed-platform-design.md): the operator and its CRDs, which other
+# charts' monitors need, without Prometheus, Alertmanager or their exporters: testbed does not prove them
 kube-prometheus-stack:
   prometheus:
     enabled: false
