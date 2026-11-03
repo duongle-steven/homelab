@@ -23,6 +23,8 @@ needs the mark. This gate is unit-tested, never run.
 ## What you still write
 
 - A target that deploys staging: `make infra` runs `verify`, `sync` and `push` only for production
+- `lab`'s environments: `env.Load` refuses `--env staging` today
+- Its state's backend: `infra/root.hcl` gives only production R2
 - A step that writes the mark when its run passes (`scripts/mark-proof staging <commit>`)
 - A test suite. The suite's fixtures (Kanidm's `smoke` client, `dev-admin`, the local CA) live in `values-local.yaml`, so
   most sandbox tests would not run there: a staging needs its own, less intrusive suite the first time one exists

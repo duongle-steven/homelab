@@ -1,5 +1,5 @@
 #!/bin/sh
-# Refuses to run the sandbox and testbed together (12 GB of WSL hold one of them: docs/installation/testbed.md) or
+# Refuses to run the sandbox and testbed together (WSL holds one of them: docs/installation/testbed.md) or
 # with C: nearly full (WSL crashes when its virtual disk on C: cannot grow). Usage: testbed-guard testbed|dev
 set -eu
 case "${1:?usage: testbed-guard testbed|dev}" in

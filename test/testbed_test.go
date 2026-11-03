@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -77,6 +78,56 @@ func waitNodeReady(t *testing.T, node string, wait time.Duration) {
 	}, wait, 10*time.Second, "%s is not Ready", node)
 }
 
+// Before the other tests read the running result: every Application the list names has synced this commit and is healthy.
+// Without this a change Argo CD has not reached yet, or a sync that failed, would be marked as proved
+func TestTestbedSynced(t *testing.T) {
+	testbedOnly(t)
+	head, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	require.NoError(t, err)
+	commit := strings.TrimSpace(string(head))
+	listed, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[].path`, "../system/argocd/values-testbed.yaml").Output()
+	require.NoError(t, err)
+	var want []string
+	for _, path := range strings.Fields(string(listed)) {
+		want = append(want, filepath.Base(path))
+	}
+	require.NotEmpty(t, want)
+	var waiting []string
+	if !assert.Eventually(t, func() bool {
+		waiting = nil
+		for _, name := range want {
+			out, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl("argocd"), "get", "application", name, "-o", "json")
+			var app struct {
+				Status struct {
+					Sync struct {
+						Status    string   `json:"status"`
+						Revision  string   `json:"revision"`
+						Revisions []string `json:"revisions"`
+					} `json:"sync"`
+					Health struct {
+						Status string `json:"status"`
+					} `json:"health"`
+				} `json:"status"`
+			}
+			if err != nil || json.Unmarshal([]byte(out), &app) != nil {
+				waiting = append(waiting, name+": not read")
+				continue
+			}
+			revisions := append(app.Status.Sync.Revisions, app.Status.Sync.Revision)
+			atCommit := false
+			for _, revision := range revisions {
+				atCommit = atCommit || revision == commit
+			}
+			if app.Status.Sync.Status != "Synced" || app.Status.Health.Status != "Healthy" || !atCommit {
+				waiting = append(waiting, fmt.Sprintf("%s: %s %s %v", name, app.Status.Sync.Status, app.Status.Health.Status, revisions))
+			}
+		}
+		return len(waiting) == 0
+	}, 35*time.Minute, 15*time.Second) {
+		t.Logf("still waiting: %v", waiting)
+	}
+}
+
 // Three k3s servers, each an etcd member that sees a leader
 func TestTestbedNodes(t *testing.T) {
 	testbedOnly(t)
@@ -141,7 +192,7 @@ func TestTestbedCeph(t *testing.T) {
 	names, _ := testbedHosts(t)
 	// HEALTH_OK can come while Rook still recreates an OSD's pod
 	var osds string
-	assert.Eventually(t, func() bool {
+	if !assert.Eventually(t, func() bool {
 		osds, _ = k8s.RunKubectlAndGetOutputE(t, ceph, "get", "pods", "-l", "app=rook-ceph-osd",
 			"-o", `jsonpath={range .items[*]}{.spec.nodeName}{" "}{.status.phase}{"\n"}{end}`)
 		for _, name := range names {
@@ -150,7 +201,9 @@ func TestTestbedCeph(t *testing.T) {
 			}
 		}
 		return true
-	}, 10*time.Minute, 15*time.Second, "an OSD is not running: %s", &osds)
+	}, 10*time.Minute, 15*time.Second) {
+		t.Logf("an OSD is not running:\n%s", osds)
+	}
 
 	ns := fmt.Sprintf("testbed-ceph-%d", time.Now().Unix())
 	options := testbedKubectl(ns)
@@ -236,22 +289,28 @@ func TestTestbedMesh(t *testing.T) {
 	assert.Equal(t, "000", curl(outside, "plaintext"), "a pod outside the mesh, in plaintext")
 	logs, err := k8s.RunKubectlAndGetOutputE(t, system, "logs", "--selector=app=ztunnel", "--prefix", "--since-time="+since, "--tail=-1")
 	require.NoError(t, err)
-	assert.Contains(t, logs, "policy rejection", "ztunnel did not log a refusal")
-	assert.Contains(t, logs, fmt.Sprintf(`spiffe://cluster.local/ns/%s/sa/default`, meshed), "ztunnel did not carry the neighbour's identity")
+	source := func(namespace string) string {
+		return fmt.Sprintf(`src.identity="spiffe://cluster.local/ns/%s/sa/default"`, namespace)
+	}
+	assert.Contains(t, logs, source(meshed), "ztunnel did not carry the neighbour's identity")
+	assert.Regexp(t, regexp.QuoteMeta(source(stranger))+`[^\n]*policy rejection|policy rejection[^\n]*`+regexp.QuoteMeta(source(stranger)), logs, "ztunnel did not refuse the stranger by policy")
 
 	vip, err := testbedGatewayVIP()
 	require.NoError(t, err)
 	host := "probe." + testDomain(t)
-	var answer []byte
-	require.Eventually(t, func() bool {
+	var answer, issuer []byte
+	if !assert.Eventually(t, func() bool {
 		answer, err = exec.Command("curl", "-sk", "-m", "10", "-o", "/dev/null", "-w", "%{http_code}", "--resolve", host+":80:"+vip, "http://"+host+"/").CombinedOutput()
 		return err == nil && string(answer) == "301"
-	}, 10*time.Minute, 10*time.Second, "port 80 at the VIP: %s", answer)
-	var issuer []byte
-	require.Eventually(t, func() bool {
+	}, 10*time.Minute, 10*time.Second) {
+		t.Logf("port 80 at the VIP: %s", answer)
+	}
+	if !assert.Eventually(t, func() bool {
 		issuer, err = exec.Command("sh", "-c", fmt.Sprintf(`curl -skv -m 10 -o /dev/null --resolve %s:443:%s https://%s/ 2>&1 | grep -i 'issuer:'`, host, vip, host)).CombinedOutput()
 		return err == nil && strings.Contains(string(issuer), "homelab-dev-ca")
-	}, 10*time.Minute, 10*time.Second, "the certificate at the VIP: %s", issuer)
+	}, 10*time.Minute, 10*time.Second) {
+		t.Logf("the certificate at the VIP: %s", issuer)
+	}
 }
 
 // Three CloudNativePG instances across the nodes, in the mesh and on Ceph as Forgejo's database is in production

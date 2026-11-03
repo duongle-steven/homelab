@@ -17,11 +17,11 @@ Both refuse anything but `origin/master` checked out without changes (and no unt
 `infra/production/cluster/config.json` names the environment that proves a release: `"release_proof": "testbed"` or
 `"staging"`; without the key `verify` refuses. A release changing what that environment runs needs a commit carrying its
 mark, the commit status of that name, written when `make testbed` passes: `infra/testbed/release-paths.yaml`'s paths and the
-components `system/argocd/values-testbed.yaml` lists, less `not_run`. A mark on an earlier commit counts when those paths are
-the same. `verify` always says how far the testbed goes: "only the testbed proved this: no production-like environment did".
+components `system/argocd/values-testbed.yaml` lists, less `not_run`. A mark on an earlier commit, a merged branch's tip included, counts when those
+paths are the same. `verify` always says how far the testbed goes: "only the testbed proved this: no production-like environment did".
 
 Without the mark `verify` refuses and names the paths; `make infra env=production skip_proof="<reason>"`
-(`--skip-proof=<reason>`) releases anyway and records the reason as a commit status.
+(`--skip-proof=<reason>`) releases anyway and records the reason as the commit status `testbed/skipped`, which proves nothing to a later release.
 
 ## What `lab infra forgejo sync` owns
 

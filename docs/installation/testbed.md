@@ -42,7 +42,8 @@ It force-pushes the commit you are on to GitHub branch `testbed`, which the test
    differs from the flake's, one at a time
 3. `argocd`: Argo CD and its ApplicationSets (`system/argocd` with `values-testbed.yaml`)
 
-Then it runs the testbed's tests (`TestTestbed*`) and, when they pass, writes the commit status `testbed`, the mark
+Then it runs the testbed's tests (`TestTestbed*`; the first waits for every listed Application to have synced this commit and
+be healthy) and, when they pass, writes the commit status `testbed` on the commit it started from, the mark
 `lab infra forgejo verify` reads.
 
 `nixie` records what it installed in `.state/testbed/metal/nixie-hosts.json` and never installs those machines again;
@@ -73,7 +74,7 @@ Measured from `make testbed-fresh`:
 
 | | Layer 1 | Layer 2 | Layer 3, 2 vCPUs | Layer 3, 4 vCPUs |
 | --- | --- | --- | --- | --- |
-| Tests | pass | pass | pass | Gateway and Postgres fail |
+| Tests | pass | pass | pass | Ceph (a test race, fixed), Mesh fail; Postgres cut by go test's hour |
 | `TestTestbedCeph`, which starts about a minute after the bootstrap | 12.6 min | 19.7 min | 29.4 min | 22 min |
 | k3s exits, install and tests | 0 | 0 | 4 | 1 |
 | In the 30 minutes: k3s exits, leader changes | 0, 0 | 0, 0 | 1, 1 | not measured |

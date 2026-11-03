@@ -63,16 +63,22 @@ dev: sandbox-checkout sandbox-clean
 # nixie has not (PXE), enrolls them, upgrades the others in place and bootstraps Argo CD; then the tests. Main checkout
 # only: its state is .state/testbed
 testbed_kubeconfig = $(CURDIR)/infra/testbed/kubeconfig.yaml
+# The commit make testbed started from is the one it marks: it refuses another (a git pull during the run)
+testbed: proof_commit := $(shell git rev-parse HEAD)
 testbed: sandbox-checkout sandbox-clean
 	@scripts/testbed-guard testbed
-	git push --force origin HEAD:testbed
+	@gh auth status >/dev/null || { echo "make testbed: gh is not logged in, so the mark could not be written" >&2; exit 1; }
+	git push --force origin $(proof_commit):refs/heads/testbed
 	cd infra/testbed && $(terragrunt_apply)
 	-@kubectl --kubeconfig $(testbed_kubeconfig) -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1
+	-@kubectl --kubeconfig $(testbed_kubeconfig) -n argocd annotate applications --all argocd.argoproj.io/refresh=normal --overwrite >/dev/null 2>&1
 	$(MAKE) env=testbed ENV=testbed INSECURE_SKIP_VERIFY=1 smoke_filter=Testbed smoke-test
-	scripts/mark-proof testbed HEAD
+	@test "$$(git rev-parse HEAD)" = "$(proof_commit)" || { echo "make testbed: HEAD moved from $(proof_commit) during the run: no mark" >&2; exit 1; }
+	scripts/mark-proof testbed $(proof_commit)
 
 # Reinstalls the VMs from empty disks (nixie), then the tests
-testbed-fresh:
+testbed-fresh: sandbox-checkout sandbox-clean
+	@scripts/testbed-guard testbed
 	$(MAKE) testbed-clean
 	$(MAKE) testbed
 

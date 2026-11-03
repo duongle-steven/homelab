@@ -97,3 +97,8 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 12a-1 | On a fresh sandbox `ntfy-auth`'s ExternalSecret ran before `generated-secrets` pushed ntfy's values: ESO deleted the Secret (`SecretDeleted`) and waits for its 1h refresh, so ntfy stays in `CreateContainerConfigError` and `TestNtfy*` time out (a `force-sync` fixed it): a shorter refresh while the Secret is missing, or retry on missing keys | any |
 | 12a-2 | `TestTestbedPostgresFailover` is only reachable on a machine that lists `platform/cloudnative-pg`: it passed once, at 2 vCPUs, and nothing runs it here | layer 3 |
 | 12a-2 | SSH to a VM once took over 240 s after boot, reachable right after: `scripts/testbed-trust` rides it out, the cause is unknown | any |
+| 12a-2 | `flake.lock` (pins `nixie`) is outside the testbed's gate: a bump every release would otherwise need a run | 12b |
+| 12a-2 | `labEnv` returns `testbed`, which `env.Load` refuses: matters once the list names Forgejo | when it does |
+| 12a-2 | `make infra break_glass= skip_proof=` ignores the skip without recording its reason | any |
+| 12a-2 | `scripts/mark-proof` finds its repository with `gh repo view`, `verify` with `seed_repository`: a checkout whose `gh` default is another fork marks there | 16 (portability) |
+| 12a-2 | Comments and docs that still say `values-dev.yaml` for what moved to `values-local.yaml` (`system/velero`, `system/kiali`, `set-backup-endpoint.sh`, `secrets-management.md`, `supply-chain.md`) | any |

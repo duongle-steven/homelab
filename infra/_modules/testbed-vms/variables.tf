@@ -11,7 +11,7 @@ variable "network" {
 variable "memory_mib" {
   type        = number
   default     = 3584
-  description = "Each VM's memory: 3 x 3.5 GB in WSL's 12 GB (docs/superpowers/specs/2026-10-31-testbed-design.md)"
+  description = "Each VM's memory: 3 x 3.5 GB in WSL's 13 GB (docs/installation/testbed.md)"
 }
 
 variable "vcpus" {
@@ -24,5 +24,5 @@ variable "vcpus" {
 variable "disk_gib" {
   type        = number
   default     = 100
-  description = "Each VM's disk, a sparse qcow2 file: disko's 64G system partition, the rest Ceph's OSD"
+  description = "Each VM's disk, a sparse raw file: disko's 64G system partition, the rest Ceph's OSD"
 }
