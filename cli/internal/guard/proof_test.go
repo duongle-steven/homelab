@@ -271,3 +271,82 @@ func TestProofGateStaging(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A skip records why a release went without proof; it never counts as the proof of a later one
+func TestProofGateIgnoresSkip(t *testing.T) {
+	r := newProofRepo(t)
+	deployed := r.git("rev-parse", "HEAD")
+	release := r.write(map[string]string{"system/rook-ceph/values.yaml": "a: 2\n"})
+	gh := statuses(t, map[string]string{release + " " + SkipContext("testbed"): "success"})
+	if err := ProofGate(t.Context(), r.dir, "owner/homelab", "testbed", deployed, release, []string{release}, gh); err == nil {
+		t.Fatal("a skip passed as a proof")
+	}
+}
+
+// Pull requests merge with a merge commit: the mark make testbed wrote on the branch's tip still counts
+func TestProofGateAcceptsMarkOnMergedBranch(t *testing.T) {
+	r := newProofRepo(t)
+	deployed := r.git("rev-parse", "HEAD")
+	r.git("checkout", "-q", "-b", "feature")
+	tip := r.write(map[string]string{"system/rook-ceph/values.yaml": "a: 2\n"})
+	r.git("checkout", "-q", "master")
+	r.write(map[string]string{"docs/guide.md": "elsewhere\n"})
+	r.git("merge", "-q", "--no-ff", "-m", "merge", "feature")
+	merge := r.git("rev-parse", "HEAD")
+	candidates, err := ProofCandidates(r.dir, deployed, merge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gh := statuses(t, map[string]string{tip + " testbed": "success"})
+	if err := ProofGate(t.Context(), r.dir, "owner/homelab", "testbed", deployed, merge, candidates, gh); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// GitHub allows 60 unauthenticated requests an hour: only a commit whose gated paths match the release is worth asking
+// about, and a long history ends in the gate's own message, not a rate limit's
+func TestProofGateAsksGitHubSparingly(t *testing.T) {
+	r := newProofRepo(t)
+	deployed := r.git("rev-parse", "HEAD")
+	asked := 0
+	gh := statuses(t, nil)
+	gh.HTTP = &http.Client{Transport: roundTripCounter{&asked, http.DefaultTransport}}
+	changed := r.write(map[string]string{"system/rook-ceph/values.yaml": "a: 2\n"})
+	older := r.write(map[string]string{"system/rook-ceph/values.yaml": "a: 3\n"})
+	var candidates []string
+	release := older
+	for i := range maxProofChecks + 5 {
+		release = r.write(map[string]string{"docs/guide.md": strings.Repeat("x", i+1) + "\n"})
+		candidates = append([]string{release}, candidates...)
+	}
+	candidates = append(candidates, older, changed)
+	err := ProofGate(t.Context(), r.dir, "owner/homelab", "testbed", deployed, release, candidates, gh)
+	if err == nil || !strings.Contains(err.Error(), "has not proved") {
+		t.Fatalf("got %v", err)
+	}
+	if asked != maxProofChecks {
+		t.Fatalf("asked GitHub %d times, want %d", asked, maxProofChecks)
+	}
+}
+
+type roundTripCounter struct {
+	n    *int
+	next http.RoundTripper
+}
+
+func (c roundTripCounter) RoundTrip(r *http.Request) (*http.Response, error) {
+	*c.n++
+	return c.next.RoundTrip(r)
+}
+
+// A file moved out of what the testbed runs changed what it runs
+func TestProofGateSeesAMoveOut(t *testing.T) {
+	r := newProofRepo(t)
+	deployed := r.write(map[string]string{"system/rook-ceph/other.yaml": "b: 1\n"})
+	r.git("mv", "system/rook-ceph/values.yaml", "docs/moved.yaml")
+	release := r.write(nil)
+	err := ProofGate(t.Context(), r.dir, "owner/homelab", "testbed", deployed, release, []string{release}, statuses(t, nil))
+	if err == nil || !strings.Contains(err.Error(), "system/rook-ceph/values.yaml") {
+		t.Fatalf("got %v", err)
+	}
+}

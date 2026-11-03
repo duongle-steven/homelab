@@ -98,18 +98,22 @@ func GatedPaths(root, proofEnv, commit string) (Gated, error) {
 	return gated, nil
 }
 
+// maxProofChecks bounds the gate's requests: GitHub allows 60 an hour without a token, make infra runs the gate twice
+// and verify needs some of its own
+const maxProofChecks = 20
+
+// SkipContext is the commit status that records a --skip-proof: never proofEnv's own, or a later release would take the
+// skip for a proof
+func SkipContext(proofEnv string) string {
+	return proofEnv + "/skipped"
+}
+
 // ProofGate passes when proofEnv proved what release changes: a candidate (newest first) with proofEnv's commit status
 // whose gated paths did not change up to release, or no gated path changed since deployed (what production runs; empty:
 // a first install, where everything counts as changed). It never passes when it cannot tell.
 func ProofGate(ctx context.Context, root, repository, proofEnv, deployed, release string, candidates []string, gh GitHub) error {
+	asked := 0
 	for _, candidate := range candidates {
-		state, err := gh.CommitStatus(ctx, repository, candidate, proofEnv)
-		if err != nil {
-			return err
-		}
-		if state != "success" {
-			continue
-		}
 		gated, err := GatedPaths(root, proofEnv, candidate)
 		if err != nil {
 			// A commit from before the gate (no release-paths.yaml) proves nothing it can name
@@ -119,7 +123,18 @@ func ProofGate(ctx context.Context, root, repository, proofEnv, deployed, releas
 		if err != nil {
 			return err
 		}
-		if len(gated.matching(changed)) == 0 {
+		if len(gated.matching(changed)) != 0 {
+			continue
+		}
+		if asked == maxProofChecks {
+			break
+		}
+		asked++
+		state, err := gh.CommitStatus(ctx, repository, candidate, proofEnv)
+		if err != nil {
+			return err
+		}
+		if state == "success" {
 			return nil
 		}
 	}
@@ -157,7 +172,7 @@ func changedFiles(root, from, to string) ([]string, error) {
 	if from == "" {
 		out, err = git(root, "ls-tree", "-r", "--name-only", to)
 	} else {
-		out, err = git(root, "diff", "--name-only", from, to)
+		out, err = git(root, "diff", "--name-only", "--no-renames", from, to)
 	}
 	if err != nil {
 		return nil, err
@@ -205,9 +220,10 @@ func (g GitHub) CommitStatus(ctx context.Context, repository, sha, context strin
 }
 
 // ProofCandidates are the commits a mark may sit on for a release whose pull request head is head: head,
-// then its first-parent history back to deployed (exclusive; the newest 200 when nothing is deployed)
+// then its history back to deployed (exclusive; the newest 200 when nothing is deployed), merged branches included: make
+// testbed marks a branch's tip before the merge
 func ProofCandidates(root, deployed, head string) ([]string, error) {
-	args := []string{"rev-list", "--first-parent", "--max-count=200", head}
+	args := []string{"rev-list", "--max-count=200", head}
 	if deployed != "" {
 		args = append(args, "^"+deployed)
 	}

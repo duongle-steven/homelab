@@ -212,7 +212,7 @@ func verifyProof(cmd *cobra.Command, e env.Env, repository, head string, gh guar
 		if err := guard.SkipProofReason(reason); err != nil {
 			return err
 		}
-		mark := exec.CommandContext(cmd.Context(), "scripts/mark-proof", proof, head, "skipped: "+reason)
+		mark := exec.CommandContext(cmd.Context(), "scripts/mark-proof", guard.SkipContext(proof), head, "skipped: "+reason)
 		mark.Dir, mark.Stdout, mark.Stderr = e.Root, cmd.ErrOrStderr(), cmd.ErrOrStderr()
 		if err := mark.Run(); err != nil {
 			return fmt.Errorf("recording --skip-proof's reason on %.12s: %w", head, err)
