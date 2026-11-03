@@ -45,6 +45,11 @@ type metalNode struct {
 		Timer     string `json:"timer"`
 		Start     string `json:"start"`
 	} `json:"reclaim"`
+	TunnelOffload struct {
+		Condition string   `json:"condition"`
+		Script    string   `json:"script"`
+		WantedBy  []string `json:"wantedBy"`
+	} `json:"tunnelOffload"`
 }
 
 var (
@@ -83,6 +88,11 @@ func metalEval(t *testing.T) map[string]metalNode {
 			disk = c.config.disko.devices.disk.main.device;
 			timeZone = c.config.time.timeZone;
 			kernel = c.config.boot.kernelPackages.kernel.version;
+			tunnelOffload = let s = c.config.systemd.services.vm-tunnel-offload or null; in if s == null then {} else {
+				condition = s.unitConfig.ConditionVirtualization or "";
+				script = s.script;
+				wantedBy = s.wantedBy;
+			};
 			reclaim = let s = c.config.systemd.services.memory-reclaim or null; in if s == null then {} else {
 				condition = s.unitConfig.ConditionVirtualization or "";
 				script = s.script;
@@ -153,14 +163,14 @@ func TestMetalKubeVip(t *testing.T) {
 	}
 }
 
-// zram lets a 3.5 GB staging node keep more in memory
+// zram lets a 3.5 GB testbed node keep more in memory
 func TestMetalZram(t *testing.T) {
 	for name, node := range metalEval(t) {
 		assert.True(t, node.Zram, name)
 	}
 }
 
-// A VM hands back only the pages its kernel frees, never its page cache: on a VM (staging) a timer reclaims cache
+// A VM hands back only the pages its kernel frees, never its page cache: on a VM (testbed) a timer reclaims cache
 // each minute so the node keeps some memory free, which free page reporting returns to WSL; hardware never runs it
 func TestMetalVMMemoryReclaim(t *testing.T) {
 	for name, node := range metalEval(t) {
@@ -183,6 +193,17 @@ func TestMetalKernel(t *testing.T) {
 	}
 }
 
+// On a VM, virtio-net on Linux 7.3 hands flannel's VXLAN to the peer as UDP tunnel GSO, and the peer's guest refuses it
+// ("bad gso", 100 lines a minute on every node): a VM turns that offload off; hardware never runs it
+func TestMetalVMTunnelOffload(t *testing.T) {
+	for name, node := range metalEval(t) {
+		assert.Equal(t, "vm", node.TunnelOffload.Condition, name)
+		assert.Contains(t, node.TunnelOffload.Script, "tx-udp_tnl-segmentation off", name)
+		assert.Contains(t, node.TunnelOffload.Script, "tx-udp_tnl-csum-segmentation off", name)
+		assert.Contains(t, node.TunnelOffload.WantedBy, "multi-user.target", name)
+	}
+}
+
 // The rest of the disk is a partition rook-ceph takes as its OSD: labelled, never formatted
 func TestMetalDisk(t *testing.T) {
 	for name, node := range metalEval(t) {
@@ -200,13 +221,13 @@ func TestMetalTimeZone(t *testing.T) {
 }
 
 // Each environment's nodes accept only its own keys (infra/<env>/metal/authorized_keys, written into the flake by
-// the metal unit): a key that leaks from staging, which runs often on the workstation, is not root on production
+// the metal unit): a key that leaks from testbed, which runs often on the workstation, is not root on production
 func TestMetalKeysPerEnvironment(t *testing.T) {
 	ignored := exec.Command("git", "check-ignore", "-q", metalFlake+"/authorized_keys")
 	ignored.Dir = ".."
 	assert.NoError(t, ignored.Run(), "the flake's authorized_keys is generated, not committed")
 	keys := map[string][]string{}
-	for _, env := range []string{"staging", "production"} {
+	for _, env := range []string{"testbed", "production"} {
 		raw, err := os.ReadFile(filepath.Join("..", "infra", env, "metal", "authorized_keys"))
 		require.NoError(t, err, env)
 		for _, line := range strings.Split(string(raw), "\n") {
@@ -217,8 +238,70 @@ func TestMetalKeysPerEnvironment(t *testing.T) {
 			}
 		}
 	}
-	assert.NotEmpty(t, keys["staging"], "staging needs a key")
-	for _, k := range keys["staging"] {
+	assert.NotEmpty(t, keys["testbed"], "testbed needs a key")
+	for _, k := range keys["testbed"] {
 		assert.NotContains(t, keys["production"], k, "a key in both environments")
+	}
+}
+
+// nixie's installer runs from memory and writes the whole system to disk: on a VM it reclaims its page cache too, or
+// three parallel installs grow each QEMU to the VM's size and WSL runs out (12a-2's first testbed-fresh)
+func TestMetalInstallerReclaimsMemory(t *testing.T) {
+	metalEval(t)
+	dir := t.TempDir()
+	cp := exec.Command("cp", "-r", filepath.Join("..", metalFlake)+"/.", dir)
+	out, err := cp.CombinedOutput()
+	require.NoError(t, err, string(out))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "authorized_keys"), []byte("ssh-ed25519 AAAAfixture fixture\n"), 0o600))
+	cmd := exec.Command("nix", "eval", "--raw", "--no-write-lock-file",
+		"path:"+dir+"#nixosConfigurations.installer.config.systemd.services.memory-reclaim.unitConfig.ConditionVirtualization")
+	got, err := cmd.Output()
+	require.NoError(t, err)
+	assert.Equal(t, "vm", string(got))
+}
+
+// metalExtraFlags evaluates node-a's k3s flags with extra keys in cluster.json
+func metalExtraFlags(t *testing.T, extra string) []string {
+	t.Helper()
+	dir := t.TempDir()
+	out, err := exec.Command("cp", "-r", filepath.Join("..", metalFlake)+"/.", dir).CombinedOutput()
+	require.NoError(t, err, string(out))
+	files := map[string]string{
+		"hosts.json":      `{"node-a": {"mac_address": "02:00:00:00:00:01", "ip": "10.0.0.11"}}`,
+		"cluster.json":    `{"init_host": "node-a", "vip": "10.0.0.10", "network": {"prefix_length": 24, "gateway": "10.0.0.1"}, "service_vips": {"gateway": "10.0.0.2", "wireguard": "10.0.0.3"}, "domain": "example.test", "timezone": "Asia/Ho_Chi_Minh"` + extra + `}`,
+		"authorized_keys": "ssh-ed25519 AAAAfixture fixture\n",
+	}
+	for name, body := range files {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
+	}
+	got, err := exec.Command("nix", "eval", "--json", "--no-write-lock-file", "path:"+dir+"#nixosConfigurations.node-a.config.services.k3s.extraFlags").Output()
+	require.NoError(t, err)
+	var flags []string
+	require.NoError(t, json.Unmarshal(got, &flags))
+	return flags
+}
+
+// A control plane on slow machines (testbed's VMs inside WSL's Hyper-V, config.json's slow_control_plane) tolerates a
+// starved etcd leader: with the defaults k3s lost its leases and exited 18 times in 35 minutes of a first sync, and
+// every restart made it worse. Production keeps the defaults, and so a fast failover
+func TestMetalSlowControlPlane(t *testing.T) {
+	flags := metalExtraFlags(t, `, "slow_control_plane": true`)
+	for _, f := range []string{
+		"--etcd-arg=heartbeat-interval=500", "--etcd-arg=election-timeout=5000",
+		"--kube-controller-manager-arg=leader-elect-lease-duration=60s", "--kube-controller-manager-arg=leader-elect-renew-deadline=40s",
+		"--kube-scheduler-arg=leader-elect-lease-duration=60s", "--kube-scheduler-arg=leader-elect-renew-deadline=40s",
+		"--kube-cloud-controller-manager-arg=leader-elect-lease-duration=60s", "--kube-cloud-controller-manager-arg=leader-elect-renew-deadline=40s",
+	} {
+		assert.Contains(t, flags, f)
+	}
+	assert.NotContains(t, strings.Join(metalExtraFlags(t, ""), " "), "heartbeat-interval")
+	for env, want := range map[string]bool{"testbed": true, "production": false} {
+		raw, err := os.ReadFile(filepath.Join("..", "infra", env, "cluster", "config.json"))
+		require.NoError(t, err)
+		var config struct {
+			Slow bool `json:"slow_control_plane"`
+		}
+		require.NoError(t, json.Unmarshal(raw, &config))
+		assert.Equal(t, want, config.Slow, env)
 	}
 }

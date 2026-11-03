@@ -89,7 +89,7 @@ func allSyncedHealthy(t *testing.T) []string {
 // alone: a restore rolls back all of OpenBao and restarts every reader.
 func TestBackupRestore(t *testing.T) {
 	meshSandboxOnly(t)
-	env := []string{"--env", "sandbox"}
+	env := []string{"--env", labEnv}
 	velero := k8s.NewKubectlOptions("", "", "velero")
 	t.Cleanup(func() { _, _ = labE(append([]string{"backup", "disable"}, env...)...) })
 

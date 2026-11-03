@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -50,11 +49,7 @@ func TestGatewayNodeAddressFromInspect(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func gatewaySandboxOnly(t *testing.T) {
-	if os.Getenv("ENV") != "dev" {
-		t.Skip("Gateway tests run against the sandbox only")
-	}
-}
+func gatewaySandboxOnly(t *testing.T) { localOnly(t) }
 
 // gateway is the part of a Gateway API Gateway the tests read.
 type gateway struct {
@@ -79,7 +74,7 @@ func TestGatewayProgrammed(t *testing.T) {
 			require.NotEmpty(t, gw.Status.Addresses)
 			if name == "gateway" {
 				// ServiceLB publishes it on the node the tests dial
-				assert.Equal(t, sandboxAddress(t), gw.Status.Addresses[0].Value)
+				assert.Equal(t, gatewayAddress(t), gw.Status.Addresses[0].Value)
 			}
 		})
 	}
@@ -123,7 +118,7 @@ func TestGatewayNoIngress(t *testing.T) {
 func TestGatewayForgejoSSH(t *testing.T) {
 	gatewaySandboxOnly(t)
 	require.Eventually(t, func() bool {
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(sandboxAddress(t), "22"), 10*time.Second)
+		conn, err := net.DialTimeout("tcp", net.JoinHostPort(gatewayAddress(t), "22"), 10*time.Second)
 		if err != nil {
 			return false
 		}
@@ -131,7 +126,7 @@ func TestGatewayForgejoSSH(t *testing.T) {
 		_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		banner, err := bufio.NewReader(conn).ReadString('\n')
 		return err == nil && strings.HasPrefix(banner, "SSH-2.0-")
-	}, 20*time.Minute, 15*time.Second, "no SSH banner from forgejo on %s:22", sandboxAddress(t))
+	}, 20*time.Minute, 15*time.Second, "no SSH banner from forgejo on %s:22", gatewayAddress(t))
 }
 
 // TestGatewayZotLargePush uploads one 200 MiB blob through the Gateway, as an image push would.

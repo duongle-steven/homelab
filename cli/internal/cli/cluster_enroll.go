@@ -16,7 +16,7 @@ func newClusterEnrollCmd() *cobra.Command {
 		Use:     "enroll",
 		Short:   "Join installed servers to the configured k3s cluster",
 		Long:    "Enroll installed servers using verified root SSH connections. Host keys must already be trusted in known_hosts. Existing conflicting credentials or cluster state are never overwritten. This does not install nodes or recover a lost cluster.",
-		Example: "  lab cluster enroll --environment staging\n  lab cluster enroll --environment production --timeout 15m",
+		Example: "  lab cluster enroll --environment testbed\n  lab cluster enroll --environment production --timeout 15m",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if timeout <= 0 {
@@ -31,7 +31,7 @@ func newClusterEnrollCmd() *cobra.Command {
 			return err
 		},
 	}
-	command.Flags().StringVar(&environment, "environment", "", "Environment to enroll: staging or production (required)")
+	command.Flags().StringVar(&environment, "environment", "", "Environment to enroll: testbed or production (required)")
 	command.Flags().DurationVar(&timeout, "timeout", 10*time.Minute, "Maximum time for enrollment and readiness checks")
 	requireFlags(command, "environment")
 	return command

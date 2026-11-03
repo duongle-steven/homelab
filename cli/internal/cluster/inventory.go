@@ -24,8 +24,8 @@ type config struct {
 
 func loadConfig(environment string) (config, error) {
 	var cfg config
-	if environment != "staging" && environment != "production" {
-		return cfg, fmt.Errorf("--environment must be staging or production")
+	if environment != "testbed" && environment != "staging" && environment != "production" {
+		return cfg, fmt.Errorf("--environment must be testbed, staging or production")
 	}
 	var cluster struct {
 		Initializer string `json:"init_host"`

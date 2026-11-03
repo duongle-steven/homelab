@@ -13,8 +13,17 @@ seed=$(get seed)
 if [ -n "$seed" ]; then
 	KUBECONFIG=$(get kubeconfig)
 	export KUBECONFIG
-	root=$(kubectl -n argocd get applicationset root --ignore-not-found \
-		-o jsonpath='{.spec.generators[0].matrix.generators[0].git.repoURL}')
+	# A new cluster has no Argo CD yet (no ApplicationSet kind): a first install, not a cluster that cannot be asked
+	if ! root=$(kubectl -n argocd get applicationset root --ignore-not-found \
+		-o jsonpath='{.spec.generators[0].matrix.generators[0].git.repoURL}' 2>"${TMPDIR:-/tmp}/choose-values.$$"); then
+		if ! grep -q "doesn't have a resource type" "${TMPDIR:-/tmp}/choose-values.$$"; then
+			cat "${TMPDIR:-/tmp}/choose-values.$$" >&2
+			rm -f "${TMPDIR:-/tmp}/choose-values.$$"
+			exit 1
+		fi
+		root=
+	fi
+	rm -f "${TMPDIR:-/tmp}/choose-values.$$"
 	if [ "$root" != "$(get forgejo_repository)" ]; then
 		# Argo CD's own credential (lab infra forgejo sync's read-only token) reads ops/homelab's master: Forgejo
 		# runs, the token exists and lab infra forgejo push deployed. The token goes through stdin, not an argument.

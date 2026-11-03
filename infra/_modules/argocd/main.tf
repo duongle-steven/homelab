@@ -20,7 +20,7 @@ variable "values" {
 
 variable "environment" {
   type        = string
-  description = "prod or dev: which ApplicationSet values scripts/env-values reads (the seed file switches to seed)"
+  description = "prod, testbed or dev: which ApplicationSet values scripts/env-values reads (production's seed file switches to seed)"
 }
 
 variable "seed" {

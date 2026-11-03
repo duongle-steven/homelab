@@ -77,7 +77,7 @@ func TestSFTPPublicationDoesNotReplaceExistingToken(t *testing.T) {
 	}
 	entries, err := os.ReadDir(filepath.Dir(destination))
 	if err != nil || len(entries) != 1 {
-		t.Fatalf("left staging credentials: %v, %v", entries, err)
+		t.Fatalf("left testbed credentials: %v, %v", entries, err)
 	}
 }
 

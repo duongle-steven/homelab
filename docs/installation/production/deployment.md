@@ -20,7 +20,7 @@ time (`lab cluster upgrade`), before the rest of the deploy below.
 !!! note
 
     The unit `infra/production/metal` comes with the hardware (step 12b): until then only its `authorized_keys`
-    exists, and the same path runs on [staging](../staging.md)'s VMs.
+    exists, and the same path runs on [testbed](../testbed.md)'s VMs.
 
 Yes it's that simple!
 

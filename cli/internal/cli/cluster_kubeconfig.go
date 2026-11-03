@@ -20,7 +20,7 @@ func newClusterKubeconfigCmd() *cobra.Command {
 		Use:     "kubeconfig",
 		Short:   "Export authenticated kubeconfig for the control-plane VIP",
 		Long:    "Fetch kubeconfig from the configured initializer over verified root SSH. Verify authenticated VIP readiness before writing credentials. Files are published atomically with mode 0600. Use --output - to send credentials to stdout.",
-		Example: "  lab cluster kubeconfig --environment staging\n  lab cluster kubeconfig --environment production --output ~/.kube/homelab.yaml",
+		Example: "  lab cluster kubeconfig --environment testbed\n  lab cluster kubeconfig --environment production --output ~/.kube/homelab.yaml",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if timeout <= 0 {
@@ -48,7 +48,7 @@ func newClusterKubeconfigCmd() *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().StringVar(&environment, "environment", "", "Environment to export: staging or production (required)")
+	command.Flags().StringVar(&environment, "environment", "", "Environment to export: testbed or production (required)")
 	command.Flags().StringVarP(&output, "output", "o", "infra/kubeconfig.yaml", "Destination path, or - for stdout")
 	command.Flags().DurationVar(&timeout, "timeout", 2*time.Minute, "Maximum time for export and readiness checks")
 	requireFlags(command, "environment")
@@ -73,7 +73,7 @@ func writeKubeconfig(destination string, data []byte, stdout io.Writer) (result 
 		if !closed {
 			result = errors.Join(result, file.Close())
 		}
-		// A successful rename already removed the staging path.
+		// A successful rename already removed the testbed path.
 		if err := os.Remove(file.Name()); err != nil && !errors.Is(err, os.ErrNotExist) {
 			result = errors.Join(result, err)
 		}

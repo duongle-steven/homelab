@@ -2,7 +2,6 @@ package test
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"testing"
 	"time"
@@ -44,11 +43,7 @@ func TestMeshOptOutAllowed(t *testing.T) {
 	assert.False(t, optOutAllowed("excalidraw", "excalidraw"))
 }
 
-func meshSandboxOnly(t *testing.T) {
-	if os.Getenv("ENV") != "dev" {
-		t.Skip("mesh tests run against the sandbox only")
-	}
-}
+func meshSandboxOnly(t *testing.T) { localOnly(t) }
 
 type meshPod struct {
 	Metadata struct {

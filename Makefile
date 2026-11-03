@@ -36,7 +36,7 @@ sandbox-checkout:
 # without them (scripts/warm-image-cache); lab's image for the scheduled rotation is built from the checkout
 # (scripts/build-lab-image)
 dev: sandbox-checkout sandbox-clean
-	@scripts/staging-guard dev
+	@scripts/testbed-guard dev
 	@if [ -n "$(tests)" ]; then sel="--tests '$(tests)'"; \
 	elif [ "$(scope)" = full ]; then sel=--full; \
 	else git fetch -q origin dev || echo "make dev: git fetch failed, comparing with the local $(base)" >&2; sel="--base $(base)"; fi; \
@@ -58,36 +58,43 @@ dev: sandbox-checkout sandbox-clean
 	{ [ -z "$$alone" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; }; \
 	then status=0; else status=$$?; fi; scripts/warm-image-cache --node || true; exit $$status; }
 
-# Staging: three NixOS VMs in WSL (infra/staging, docs/installation/staging.md), never beside the sandbox. Installs
-# the VMs nixie has not (PXE), enrolls them, upgrades the others in place, applies rook-ceph (Argo CD comes in 12a-2;
-# its PolicyException waits for Kyverno; CRDs first, as Argo CD does), then runs the staging tests. Main checkout only: its state is .state/staging
-staging_kubeconfig = $(CURDIR)/infra/staging/kubeconfig.yaml
-staging: sandbox-checkout
-	@scripts/staging-guard staging
-	cd infra/staging && $(terragrunt_apply)
-	kubectl --kubeconfig $(staging_kubeconfig) create namespace rook-ceph --dry-run=client -o yaml | \
-		kubectl --kubeconfig $(staging_kubeconfig) apply -f -
-	scripts/render-chart system/rook-ceph staging --include-crds > .state/staging/rook-ceph.yaml
-	yq 'select(.kind == "CustomResourceDefinition")' .state/staging/rook-ceph.yaml | \
-		kubectl --kubeconfig $(staging_kubeconfig) apply --server-side --force-conflicts -f -
-	yq 'select(.kind != "CustomResourceDefinition" and .kind != "PolicyException")' .state/staging/rook-ceph.yaml | \
-		kubectl --kubeconfig $(staging_kubeconfig) apply --server-side --force-conflicts -f -
-	$(MAKE) env=staging ENV=staging smoke_filter=Staging smoke-test
+# Testbed: three NixOS VMs in WSL (infra/testbed, docs/installation/testbed.md), never beside the sandbox: what needs
+# several nodes. The commit at HEAD goes to GitHub branch testbed, which its Argo CD syncs; infra/testbed installs the VMs
+# nixie has not (PXE), enrolls them, upgrades the others in place and bootstraps Argo CD; then the tests. Main checkout
+# only: its state is .state/testbed
+testbed_kubeconfig = $(CURDIR)/infra/testbed/kubeconfig.yaml
+# The commit make testbed started from is the one it marks: it refuses another (a git pull during the run)
+testbed: proof_commit := $(shell git rev-parse HEAD)
+testbed: sandbox-checkout sandbox-clean
+	@scripts/testbed-guard testbed
+	@gh auth status >/dev/null || { echo "make testbed: gh is not logged in, so the mark could not be written" >&2; exit 1; }
+	git push --force origin $(proof_commit):refs/heads/testbed
+	cd infra/testbed && $(terragrunt_apply)
+	-@kubectl --kubeconfig $(testbed_kubeconfig) -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1
+	-@kubectl --kubeconfig $(testbed_kubeconfig) -n argocd annotate applications --all argocd.argoproj.io/refresh=normal --overwrite >/dev/null 2>&1
+	$(MAKE) env=testbed ENV=testbed INSECURE_SKIP_VERIFY=1 smoke_filter=Testbed smoke-test
+	@test "$$(git rev-parse HEAD)" = "$(proof_commit)" || { echo "make testbed: HEAD moved from $(proof_commit) during the run: no mark" >&2; exit 1; }
+	scripts/mark-proof testbed $(proof_commit)
 
 # Reinstalls the VMs from empty disks (nixie), then the tests
-staging-fresh:
-	$(MAKE) staging-clean
-	$(MAKE) staging
+testbed-fresh: sandbox-checkout sandbox-clean
+	@scripts/testbed-guard testbed
+	$(MAKE) testbed-clean
+	$(MAKE) testbed
 
-# Removes the VMs, their disks and network, nixie's install record and their host keys
-staging-clean: sandbox-checkout
-	cd infra/staging && $(terragrunt) run --all destroy --non-interactive -- -auto-approve
-	rm -f .state/staging/metal/nixie-hosts.json
-	for ip in $$(jq -r '.[].ip' infra/staging/metal/hosts.json); do ssh-keygen -R "$$ip" >/dev/null 2>&1 || true; done
+# Removes the VMs, their disks and network, nixie's install record and their host keys. argocd holds only
+# what is in the cluster, which goes with the disks: its state is dropped, since destroying it asks a cluster that may
+# not answer
+testbed-clean: sandbox-checkout
+	rm -rf .state/testbed/argocd
+	cd infra/testbed/metal && $(terragrunt) destroy --non-interactive -- -auto-approve
+	cd infra/testbed/vms && $(terragrunt) destroy --non-interactive -- -auto-approve
+	rm -f .state/testbed/metal/nixie-hosts.json
+	for ip in $$(jq -r '.[].ip' infra/testbed/metal/hosts.json); do ssh-keygen -R "$$ip" >/dev/null 2>&1 || true; done
 
-# Shuts the VMs down (they keep their disks: make staging starts them again), to run the sandbox
-staging-stop:
-	for name in $$(jq -r 'keys[]' infra/staging/metal/hosts.json); do virsh -c qemu:///system shutdown "$$name" || true; done
+# Shuts the VMs down (they keep their disks: make testbed starts them again), to run the sandbox
+testbed-stop:
+	for name in $$(jq -r 'keys[]' infra/testbed/metal/hosts.json); do virsh -c qemu:///system shutdown "$$name" || true; done
 
 # From scratch, the whole suite: before a dev → master PR and a release
 dev-fresh:
@@ -121,7 +128,8 @@ dev-clean: sandbox-checkout
 # infrastructure, Forgejo's org ops, the push of this commit to ops/homelab, then the bootstrap again (the switch to
 # Forgejo on a first install). force=1 applies the infrastructure only and deploys nothing (a state migration).
 # break_glass="<reason>" deploys while GitHub is down: verify checks a clean checkout that fast-forwards Forgejo instead
-# (docs/how-to-guides/deploy-to-forgejo.md); never with force=1.
+# (docs/how-to-guides/deploy-to-forgejo.md); never with force=1. skip_proof="<reason>" releases what release_proof's
+# environment has not proved (verify's gate), the reason recorded as the commit's status (docs/installation/testbed.md).
 # Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
 # The commit make infra started from: verify and push refuse another (a git pull during the apply)
 infra: deploy_commit := $(shell git rev-parse HEAD)
@@ -135,17 +143,20 @@ infra: override HOMELAB_GITHUB_APP_KEY := $(if $(HOMELAB_GITHUB_APP_KEY),$(call 
 # The reason reaches lab through the environment, so no quote in it reaches the shell; $(value) keeps make from
 # expanding a $ in it
 infra: export HOMELAB_BREAK_GLASS := $(value break_glass)
+infra: export HOMELAB_SKIP_PROOF := $(value skip_proof)
 infra:
 	@if [ -n "$$HOMELAB_BREAK_GLASS" ] && { [ "$(force)" = 1 ] || [ "$(env)" != production ]; }; then \
 		echo "break_glass deploys production and cannot be combined with force=1" >&2; exit 1; fi
 	@if [ "$(env)" = sandbox ]; then $(MAKE) -s sandbox-checkout; fi
 	go -C cli build -o /dev/null ./cmd/lab
 	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then \
-		$(lab_cli) infra forgejo verify --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"}; fi
+		$(lab_cli) infra forgejo verify --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"} \
+			$${HOMELAB_SKIP_PROOF:+"--skip-proof=$$HOMELAB_SKIP_PROOF"}; fi
 	cd infra/$(env) && $(terragrunt_apply)
 	@if [ "$(env)" = production ] && [ "$(force)" != 1 ]; then \
 		$(lab_cli) infra forgejo sync && \
-		$(lab_cli) infra forgejo push --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"} && \
+		$(lab_cli) infra forgejo push --commit $(deploy_commit) $${HOMELAB_BREAK_GLASS:+"--break-glass=$$HOMELAB_BREAK_GLASS"} \
+			$${HOMELAB_SKIP_PROOF:+"--skip-proof=$$HOMELAB_SKIP_PROOF"} && \
 		(cd infra/production/argocd && $(terragrunt) apply --non-interactive -- -auto-approve) && \
 		{ $(lab_cli) secrets list --due --workstation || echo "warning: could not check the secrets rotated from here" >&2; }; \
 	fi

@@ -1,0 +1,4 @@
+# Testbed and the sandbox have no Cloudflare or WireGuard; the WireGuard key proves the path (test/secrets_test.go)
+secrets:
+  - path: wireguard/private-key
+    properties: [private-key]

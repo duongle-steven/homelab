@@ -3,6 +3,9 @@ gateway:
   # infra/<env>/cluster/config.json): Forgejo SSH keeps port 22 (node sshd owns it on the node IPs) and the address
   # moves to another node when one fails. Without a VIP (the sandbox), k3s ServiceLB serves it.
   loadBalancerClass: kube-vip.io/kube-vip-class
+# Off where Kyverno or the monitoring operator does not run, so these kinds do not exist (the testbed)
+policyExceptions: true
+podMonitors: true
 # Sandbox only: pods resolve sandbox hostnames to the Gateway instead of their own loopback
 corednsRewrite: false
 # Ambient mesh (no sidecars): istio-cni redirects pods of labelled namespaces to the node's ztunnel.

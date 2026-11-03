@@ -1,0 +1,4 @@
+# Neither Kyverno nor the monitoring operator runs on the testbed: their kinds do not exist, and Argo CD refuses a whole
+# sync holding a kind it cannot find
+policyExceptions: false
+podMonitors: false

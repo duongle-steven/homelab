@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Wake-on-LAN for testbed's VMs: nixie wakes the machines it installs with a magic packet (UDP broadcast, port 9),
+which a libvirt VM ignores. This listens for those packets and power-cycles the VM with that MAC, so a VM boots from
+the network only once nixie serves it, as a powered-off machine does (a VM that boots first finds no PXE server and
+stops at UEFI's HTTP boot). Only the MACs given as arguments (testbed's hosts.json) wake a VM. Runs as root (port 9)
+until killed: infra/testbed/metal's nixie hook starts it. Usage: testbed-wake <mac>..."""
+import socket
+import subprocess
+import sys
+
+
+def domains_by_mac():
+    names = subprocess.run(["virsh", "-c", "qemu:///system", "list", "--all", "--name"],
+                           check=True, capture_output=True, text=True).stdout.split()
+    found = {}
+    for name in names:
+        rows = subprocess.run(["virsh", "-c", "qemu:///system", "domiflist", name],
+                              check=True, capture_output=True, text=True).stdout.splitlines()
+        for row in rows[2:]:
+            fields = row.split()
+            if len(fields) == 5:
+                found[fields[4].lower()] = name
+    return found
+
+
+def target(packet):
+    # 6 bytes of FF, then the MAC 16 times
+    if len(packet) < 102 or packet[:6] != b"\xff" * 6:
+        return None
+    mac = packet[6:12]
+    if packet[6:102] != mac * 16:
+        return None
+    return ":".join(f"{b:02x}" for b in mac)
+
+
+def main():
+    listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    listener.bind(("0.0.0.0", 9))
+    allowed = {mac.lower() for mac in sys.argv[1:]}
+    while True:
+        packet, _ = listener.recvfrom(1024)
+        mac = target(packet)
+        if mac not in allowed:
+            continue
+        try:
+            name = domains_by_mac().get(mac)
+        except subprocess.CalledProcessError as e:
+            # A transient virsh failure must not end the listener: nixie would wait forever for that VM
+            print(f"testbed-wake: {mac}: {e}", file=sys.stderr, flush=True)
+            continue
+        if not name:
+            continue
+        state = subprocess.run(["virsh", "-c", "qemu:///system", "domstate", name],
+                               capture_output=True, text=True).stdout.strip()
+        action = "reset" if state == "running" else "start"
+        subprocess.run(["virsh", "-c", "qemu:///system", action, name], capture_output=True)
+        print(f"testbed-wake: {mac}: {action} {name}", file=sys.stderr, flush=True)
+
+
+if __name__ == "__main__":
+    main()

@@ -9,7 +9,7 @@ nix develop
 Everything that depends on where your homelab runs lives in `infra/production/cluster/config.json`; edit it:
 
 - `domain`: your domain (apps are served as `<app>.<domain>`)
-- `zone`: the Cloudflare zone holding it (the domain itself, or its parent for a subdomain such as `staging.example.com`)
+- `zone`: the Cloudflare zone holding it (the domain itself, or its parent for a subdomain such as `home.example.com`)
 - `timezone`: your time zone (the charts receive it as `global.timezone`)
 - `seed_repository`: the Git repository (your fork) the first install copies into Forgejo
 - `vip`: the Kubernetes API address; `network.gateway`, `network.prefix_length`: your router and LAN prefix

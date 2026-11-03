@@ -1,0 +1,13 @@
+#!/bin/sh
+# Mark a commit as proved by an environment: a GitHub commit status named after it, which lab infra forgejo verify looks
+# for when production's config.json names that environment in release_proof (docs/installation/testbed.md). make testbed
+# runs it once every test passed; verify --skip-proof records its reason under <environment>/skipped, which is no proof.
+# Uses gh's own login.
+# Usage: scripts/mark-proof <environment> <commit> [description]
+set -eu
+environment=$1
+commit=$(git rev-parse --verify "$2^{commit}")
+description=${3:-"make $environment passed"}
+repository=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+gh api --silent "repos/$repository/statuses/$commit" -f state=success -f context="$environment" -f description="$description"
+echo "mark-proof: $environment $commit ($description)"

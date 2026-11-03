@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const kialiHost = "kiali.127-0-0-1.nip.io"
+var kialiHost = "kiali." + suiteDomain
 
 // renderKiali renders system/kiali for env ("" or dev) and runs a yq expression on it
 func renderKiali(t *testing.T, env, expr string) string {

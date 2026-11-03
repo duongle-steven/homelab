@@ -1,0 +1,29 @@
+# What the testbed proves beyond the components and apps it deploys (lab infra forgejo verify's gate, which adds those
+# from system/argocd/values-testbed.yaml): a release changing any of these needs make testbed's mark
+# (docs/superpowers/specs/2026-11-02-testbed-design.md). Globs, ** spans directories. Argo CD reading Forgejo is proved on
+# the sandbox (TestForgejoArgoCDSyncs), so the deploy path's units are not here.
+paths:
+  # The nodes: NixOS, k3s, kube-vip, the audit policy
+  - infra/_modules/metal/**
+  - infra/production/metal/**
+  - infra/_modules/testbed-vms/**
+  - infra/testbed/**
+  # How Argo CD gets onto a cluster with nodes
+  - infra/_modules/argocd/**
+  - system/argocd/**
+  # lab's commands that build and upgrade the cluster
+  - cli/internal/cluster/**
+  - cli/internal/cli/cluster_*.go
+  - scripts/render-chart
+  - scripts/env-values
+# A component the list above or values-testbed.yaml names but that is switched off inside its chart: not proved
+not_run:
+  # Their kinds come from Kyverno and the monitoring operator, which the testbed does not run
+  - system/istio-system/templates/policy-exception.yaml
+  - system/istio-system/templates/pod-monitors.yaml
+  - system/rook-ceph/templates/policy-exception.yaml
+  # Off on the testbed, or read only by another environment
+  - system/cert-manager/templates/cloudflare-secret.yaml
+  - system/istio-system/templates/coredns-custom.yaml
+  - system/*/values-dev.yaml
+  - system/argocd/values-seed.yaml

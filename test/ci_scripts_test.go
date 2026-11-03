@@ -20,8 +20,10 @@ func TestArgoCDChooseValues(t *testing.T) {
 	const forgejoValues = `{"values":"values-dev.yaml","environment":"dev"}`
 	for _, c := range []struct {
 		name, seed, rootRepo, token, master, want string
-		kubectlFails, execFails, fails            bool
+		kubectlFails, execFails, fails, noArgoCD  bool
 	}{
+		// A new cluster has no Argo CD yet: no ApplicationSet kind to ask about is a first install, not a failure
+		{name: "first install, no Argo CD CRDs", seed: "values-seed.yaml", noArgoCD: true, want: seedValues},
 		{name: "sandbox: no seed", want: forgejoValues, kubectlFails: true},
 		{name: "first install, no credential yet", seed: "values-seed.yaml", want: seedValues},
 		{name: "credential, nothing pushed", seed: "values-seed.yaml", token: "t1", want: seedValues},
@@ -34,7 +36,7 @@ func TestArgoCDChooseValues(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			kubectl := `case "$*" in
-  *applicationset*) echo "$ROOT_REPO" ;;
+  *applicationset*) [ -z "$NO_ARGOCD" ] || { echo 'error: the server doesn'"'"'t have a resource type "applicationset"' >&2; exit 1; }; echo "$ROOT_REPO" ;;
   *"get secret argocd-repo-forgejo"*) [ -z "$TOKEN" ] || printf '%s' "$TOKEN" | base64 ;;
   *exec*) echo "$*" >> "$FIXTURES/exec-args"; [ -z "$EXEC_FAILS" ] || exit 1; [ -n "$MASTER" ] && [ "$(cat)" = "Authorization: token $MASTER" ] ;;
   *) echo "unexpected kubectl $*" >&2; exit 2 ;;
@@ -47,6 +49,9 @@ esac`
 			cmd.Env = append(env, "ROOT_REPO="+c.rootRepo, "TOKEN="+c.token, "MASTER="+c.master)
 			if c.execFails {
 				cmd.Env = append(cmd.Env, "EXEC_FAILS=1")
+			}
+			if c.noArgoCD {
+				cmd.Env = append(cmd.Env, "NO_ARGOCD=1")
 			}
 			cmd.Stdin = strings.NewReader(`{"values":"values-dev.yaml","environment":"dev","seed":"` + c.seed + `","forgejo_repository":"` + forgejo + `","kubeconfig":"/dev/null"}`)
 			out, err := cmd.CombinedOutput()
@@ -176,4 +181,50 @@ func TestMakeInfraProduction(t *testing.T) {
 			assert.Equal(t, c.want, strings.Split(strings.TrimSpace(string(calls)), "\n"), string(out))
 		})
 	}
+}
+
+// The wait for a namespace outlasts the API server's restarts and the VIP moving (a first sync on three nodes): a
+// refused connection is retried until its deadline, and only then fails
+func TestWaitNamespaceRetries(t *testing.T) {
+	for _, module := range []string{"secrets", "openbao"} {
+		t.Run(module, func(t *testing.T) {
+			script := "../infra/_modules/" + module + "/wait-namespace.sh"
+			dir, env := fakeBin(t, map[string]string{
+				"kubectl": `n=$(cat "$FIXTURES/tries" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$FIXTURES/tries"
+[ "$n" -gt 2 ] || { echo "connection refused" >&2; exit 1; }`,
+			})
+			cmd := exec.Command("sh", script)
+			cmd.Env = append(env, "KUBECONFIG=/dev/null", "NAMESPACE=x", "WAIT_INTERVAL=0")
+			out, err := cmd.CombinedOutput()
+			require.NoError(t, err, string(out))
+			tries, _ := os.ReadFile(filepath.Join(dir, "tries"))
+			assert.Equal(t, "3\n", string(tries))
+
+			_, env = fakeBin(t, map[string]string{"kubectl": `exit 1`})
+			cmd = exec.Command("sh", script)
+			cmd.Env = append(env, "KUBECONFIG=/dev/null", "NAMESPACE=x", "WAIT_INTERVAL=0", "WAIT_SECONDS=0")
+			out, err = cmd.CombinedOutput()
+			require.Error(t, err)
+			assert.Contains(t, string(out), "x did not appear")
+		})
+	}
+}
+
+// A first sync on testbed's small nodes renders two charts at a time: every helm at once starved k3s of CPU and memory
+// until it lost its leases
+func TestTestbedArgoCDLimitsTheFirstSync(t *testing.T) {
+	out, err := exec.Command("yq", `.argo-cd.configs.params["reposerver.parallelism.limit"]`, "../system/argocd/values-testbed.yaml").Output()
+	require.NoError(t, err)
+	assert.Equal(t, "2", strings.TrimSpace(string(out)))
+	// Waiting for those renders outlasts the default 60 s: every Application reported DeadlineExceeded and tried again
+	out, err = exec.Command("yq", `.argo-cd.configs.params["controller.repo.server.timeout.seconds"]`, "../system/argocd/values-testbed.yaml").Output()
+	require.NoError(t, err)
+	assert.Equal(t, "600", strings.TrimSpace(string(out)))
+	// A starved repo server failed its 1 s liveness probe and restarted, losing the renders in progress
+	out, err = exec.Command("yq", `.argo-cd.repoServer.livenessProbe.timeoutSeconds`, "../system/argocd/values-testbed.yaml").Output()
+	require.NoError(t, err)
+	assert.Equal(t, "10", strings.TrimSpace(string(out)))
+	out, err = exec.Command("yq", `.argo-cd.configs.cm["timeout.reconciliation"]`, "../system/argocd/values-testbed.yaml").Output()
+	require.NoError(t, err)
+	assert.Equal(t, "600s", strings.TrimSpace(string(out)))
 }

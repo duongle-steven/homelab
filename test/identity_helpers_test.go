@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -33,11 +34,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	kanidmURL         = "https://auth.127-0-0-1.nip.io"
-	smokeRedirect     = "https://smoke.127-0-0-1.nip.io/callback"
-	credentialsSecret = "identity-test-credentials"
+var (
+	kanidmURL     = "https://auth." + suiteDomain
+	smokeRedirect = "https://smoke." + suiteDomain + "/callback"
 )
+
+const credentialsSecret = "identity-test-credentials"
 
 type testAccount struct {
 	name  string
@@ -65,8 +67,13 @@ type credentials struct {
 // stall for ~4.5 s and hang the browser.
 const k3dNode = "k3d-homelab-dev-server-0"
 
-// lookupSandboxAddress finds the node's IP once; an error fails the tests that need it, not the whole run.
-var lookupSandboxAddress = sync.OnceValues(func() (string, error) {
+// lookupGatewayAddress finds the address the environment's Gateway listens on once: the k3d node's IP in the sandbox,
+// the Gateway's VIP on testbed (config.json's service_vips.gateway). An error fails the tests that need it, not the
+// whole run.
+var lookupGatewayAddress = sync.OnceValues(func() (string, error) {
+	if os.Getenv("ENV") == "testbed" {
+		return testbedGatewayVIP()
+	}
 	out, err := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", k3dNode).Output()
 	if err != nil {
 		return "", fmt.Errorf("docker inspect %s: %w (is the sandbox running?)", k3dNode, err)
@@ -74,9 +81,9 @@ var lookupSandboxAddress = sync.OnceValues(func() (string, error) {
 	return nodeAddressFromInspect(string(out))
 })
 
-// sandboxAddress is the node's IP, or fails the test.
-func sandboxAddress(t *testing.T) string {
-	addr, err := lookupSandboxAddress()
+// gatewayAddress is the address the Gateway listens on, or fails the test.
+func gatewayAddress(t *testing.T) string {
+	addr, err := lookupGatewayAddress()
 	require.NoError(t, err)
 	return addr
 }
@@ -90,11 +97,11 @@ func nodeAddressFromInspect(out string) (string, error) {
 	return addr, nil
 }
 
-// dialSandbox sends the sandbox's hosts (*.127-0-0-1.nip.io) to the k3d node instead of the localhost proxy, which
-// GitHub Actions does not run; other hosts (production) are dialled as they are
-func dialSandbox(ctx context.Context, network, addr string) (net.Conn, error) {
-	if host, port, err := net.SplitHostPort(addr); err == nil && strings.HasSuffix(host, ".127-0-0-1.nip.io") {
-		node, err := lookupSandboxAddress()
+// dialGateway sends the environment's hosts (*.<suiteDomain>) to its Gateway (the sandbox's k3d node instead of the
+// localhost proxy, which GitHub Actions does not run); other hosts are dialled as they are
+func dialGateway(ctx context.Context, network, addr string) (net.Conn, error) {
+	if host, port, err := net.SplitHostPort(addr); err == nil && strings.HasSuffix(host, "."+suiteDomain) {
+		node, err := lookupGatewayAddress()
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +115,7 @@ var insecureClient = &http.Client{
 	Timeout: 30 * time.Second,
 	Transport: &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		DialContext:     dialSandbox,
+		DialContext:     dialGateway,
 	},
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }
@@ -301,11 +308,11 @@ func (k *totpClock) code(t *testing.T, account string, c credentials) string {
 	}
 }
 
-// newBrowser starts headless chromium that resolves sandbox hosts to the k3d node.
+// newBrowser starts headless chromium that resolves the environment's hosts to its Gateway.
 func newBrowser(t *testing.T) (context.Context, func()) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("ignore-certificate-errors", true),
-		chromedp.Flag("host-resolver-rules", "MAP *.127-0-0-1.nip.io "+sandboxAddress(t)),
+		chromedp.Flag("host-resolver-rules", "MAP *."+suiteDomain+" "+gatewayAddress(t)),
 		// NixOS-WSL exports an LD_LIBRARY_PATH built for a newer glibc than the dev shell's chromium
 		chromedp.Env("LD_LIBRARY_PATH="),
 	)

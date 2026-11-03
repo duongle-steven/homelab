@@ -1,6 +1,7 @@
 #!/bin/sh
 # Render a component the same way ArgoCD does.
-# Usage: scripts/render-chart <chart-dir> [env [helm-args...]]      wrapper chart: values.yaml, then values-<env>.yaml if it exists
+# Usage: scripts/render-chart <chart-dir> [env [helm-args...]]      wrapper chart: values.yaml, then values-local.yaml (dev, testbed)
+#        and values-<env>.yaml where they exist
 #        scripts/render-chart apps/<name>.yaml [env [helm-args...]]  app file: app-template with the ApplicationSet "apps" parameters
 # helm-args reach helm template as they are (a --set a value only the bootstrap passes, such as global.backupS3Url)
 set -euf
@@ -64,6 +65,9 @@ for value in $values; do
 done
 unset IFS
 [ -f "$target/values.yaml" ] && set -- "$@" -f "$target/values.yaml"
+# The sandbox and the testbed, on the workstation, share values-local.yaml (the local CA, the tests' fixtures), then
+# their own file; a staging on hardware does not load it
+case "$env" in dev | testbed) if [ -f "$target/values-local.yaml" ]; then set -- "$@" -f "$target/values-local.yaml"; fi ;; esac
 [ "$env" != prod ] && [ -f "$target/values-$env.yaml" ] && set -- "$@" -f "$target/values-$env.yaml"
 # Downloads the dependencies only when charts/ lacks one or holds another version: renders (and the offline tests that
 # use them) need no network once the charts are there

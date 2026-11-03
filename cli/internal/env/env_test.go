@@ -3,6 +3,7 @@ package env
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -36,7 +37,9 @@ func TestLoad(t *testing.T) {
 func TestLoadRefusesUnknownEnvironments(t *testing.T) {
 	root := t.TempDir()
 	writeConfig(t, root, "production", `{"domain": "example.dev"}`)
-	for _, name := range []string{"prod", "dev", "", "../production"} {
+	writeConfig(t, root, "testbed", `{"domain": "example.dev"}`)
+	writeConfig(t, root, "staging", `{"domain": "example.dev"}`)
+	for _, name := range []string{"prod", "dev", "testbed", "staging", "", "../production"} {
 		if _, err := Load(root, name); err == nil {
 			t.Errorf("Load(%q) succeeded", name)
 		}
@@ -59,5 +62,31 @@ func TestGitHubRepositoryRefusesOtherHosts(t *testing.T) {
 	}
 	if repo, err := (Env{SeedRepository: "https://github.com/owner/homelab.git"}).GitHubRepository(); err != nil || repo != "owner/homelab" {
 		t.Errorf("GitHubRepository() = %q, %v", repo, err)
+	}
+}
+
+// Production names what proves its releases; missing or unknown is refused, so no release goes unproven by omission
+func TestLoadReleaseProof(t *testing.T) {
+	for _, want := range []string{"testbed", "staging"} {
+		root := t.TempDir()
+		writeConfig(t, root, "production", `{"domain": "example.dev", "release_proof": "`+want+`"}`)
+		e, err := Load(root, "production")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, err := e.Proof(); err != nil || got != want {
+			t.Fatalf("Proof() = %q, %v, want %q", got, err, want)
+		}
+	}
+	for _, config := range []string{`{"domain": "example.dev"}`, `{"domain": "example.dev", "release_proof": "prod"}`} {
+		root := t.TempDir()
+		writeConfig(t, root, "production", config)
+		e, err := Load(root, "production")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.Proof(); err == nil || !strings.Contains(err.Error(), "release_proof") {
+			t.Fatalf("Proof() on %s: %v, want an error naming release_proof", config, err)
+		}
 	}
 }

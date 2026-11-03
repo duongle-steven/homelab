@@ -1,8 +1,0 @@
-issuer:
-  dev: true
-trust-manager:
-  # Distributes the dev CA (templates/bundle.yaml)
-  enabled: true
-  # The sandbox needs no public CA bundle
-  defaultPackage:
-    enabled: false

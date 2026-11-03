@@ -35,7 +35,7 @@ func newInfraForgejoCmd() *cobra.Command {
 	verify := &cobra.Command{
 		Use:   "verify",
 		Short: "Check that HEAD may be deployed to production",
-		Long:  "Pass only when the checkout is origin/master without uncommitted changes, its check checks succeeded, and the pull request merged into master as HEAD has a succeeded check sandbox on its head. A running check or an API error fails. With --break-glass (GitHub down): a clean checkout whose HEAD fast-forwards ops/homelab's master, asking no GitHub.",
+		Long:  "Pass only when the checkout is origin/master without uncommitted changes, its check checks succeeded, the pull request merged into master as HEAD has a succeeded check sandbox on its head, and the environment config.json's release_proof names marked a commit that proved what HEAD changes since what production runs (or --skip-proof gives a reason). A running check or an API error fails. With --break-glass (GitHub down): a clean checkout whose HEAD fast-forwards ops/homelab's master, asking no GitHub.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			e, err := forgejoEnv(cmd)
@@ -154,6 +154,9 @@ func newInfraForgejoCmd() *cobra.Command {
 	}
 	verify.Flags().String("break-glass", "", "when GitHub is down: instead of GitHub's checks, a clean checkout that fast-forwards ops/homelab's master (docs/how-to-guides/deploy-to-forgejo.md)")
 	push.Flags().String("break-glass", "", "production only, when GitHub is down: skip verify's GitHub checks for this reason (docs/how-to-guides/deploy-to-forgejo.md)")
+	for _, c := range []*cobra.Command{verify, push} {
+		c.Flags().String("skip-proof", "", "release without release_proof's environment proving what it changes, for this reason (recorded as the commit's status; docs/installation/testbed.md)")
+	}
 	group.AddCommand(verify, sync, push)
 	return group
 }
@@ -182,11 +185,79 @@ func verifyProduction(cmd *cobra.Command, e env.Env) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(cmd.Context(), 2*time.Minute)
 	defer cancel()
-	head, err := guard.Verify(ctx, e.Root, repository, guard.GitHub{BaseURL: "https://api.github.com", HTTP: &http.Client{Timeout: 30 * time.Second}})
+	gh := guard.GitHub{BaseURL: "https://api.github.com", HTTP: &http.Client{Timeout: 30 * time.Second}}
+	head, err := guard.Verify(ctx, e.Root, repository, gh)
 	if err != nil {
 		return "", err
 	}
-	return head, sameCommit(head, expected)
+	if err := sameCommit(head, expected); err != nil {
+		return "", err
+	}
+	return head, verifyProof(cmd, e, repository, head, gh)
+}
+
+// verifyProof refuses a release that changes what production's proving environment runs (config.json's release_proof)
+// unless a commit carries that environment's mark (guard.ProofGate), or --skip-proof gives a reason, recorded as the
+// release's status (docs/superpowers/specs/2026-11-02-testbed-design.md)
+func verifyProof(cmd *cobra.Command, e env.Env, repository, head string, gh guard.GitHub) error {
+	proof, err := e.Proof()
+	if err != nil {
+		return err
+	}
+	if cmd.Flags().Changed("skip-proof") {
+		reason, err := cmd.Flags().GetString("skip-proof")
+		if err != nil {
+			return err
+		}
+		if err := guard.SkipProofReason(reason); err != nil {
+			return err
+		}
+		mark := exec.CommandContext(cmd.Context(), "scripts/mark-proof", guard.SkipContext(proof), head, "skipped: "+reason)
+		mark.Dir, mark.Stdout, mark.Stderr = e.Root, cmd.ErrOrStderr(), cmd.ErrOrStderr()
+		if err := mark.Run(); err != nil {
+			return fmt.Errorf("recording --skip-proof's reason on %.12s: %w", head, err)
+		}
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "Without %s's proof of %.12s: %s\n", proof, head, reason)
+		return err
+	}
+	ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
+	defer cancel()
+	pullHead, err := gh.MergedPullHead(ctx, repository, head)
+	if err != nil {
+		return err
+	}
+	deployed := productionDeployed(ctx, cmd, e)
+	candidates, err := guard.ProofCandidates(e.Root, deployed, pullHead)
+	if err != nil {
+		return err
+	}
+	if err := guard.ProofGate(ctx, e.Root, repository, proof, deployed, head, append([]string{head}, candidates...), gh); err != nil {
+		return err
+	}
+	if proof == "testbed" {
+		_, err = fmt.Fprintln(cmd.OutOrStdout(), "only the testbed proved this: no production-like environment did")
+	}
+	return err
+}
+
+// productionDeployed is the commit ops/homelab's master holds on production's Forgejo, or "" when it cannot be read
+// (a first install has no Forgejo): the proof's gate then counts everything as changed, never less
+func productionDeployed(ctx context.Context, cmd *cobra.Command, e env.Env) string {
+	s, err := openSession(ctx, e)
+	if err != nil {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "production's Forgejo is unreachable (%v): every path counts as changed for the proof's gate\n", err)
+		return ""
+	}
+	defer func() { _ = s.close(context.Background()) }()
+	deploy, err := s.store.Read(ctx, forgejo.DeployPath)
+	if err == nil && deploy["token"] != "" {
+		var deployed string
+		if deployed, err = forgejo.Deployed(ctx, s.ep, e.Root, deploy["token"]); err == nil {
+			return deployed
+		}
+	}
+	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "ops/homelab's master is unreadable (%v): every path counts as changed for the proof's gate\n", err)
+	return ""
 }
 
 // pushCommit is the commit push deploys: in production the one verify passes or, with --break-glass, the clean

@@ -1,0 +1,10 @@
+grafana:
+  # Trust the local CA (testbed and the sandbox) for calls to Kanidm
+  env:
+    SSL_CERT_DIR: /etc/ssl/certs:/etc/homelab-dev-ca
+  # Not optional: the pod waits until trust-manager has copied the CA here
+  extraConfigmapMounts:
+    - name: dev-ca
+      configMap: homelab-dev-ca
+      mountPath: /etc/homelab-dev-ca
+      readOnly: true

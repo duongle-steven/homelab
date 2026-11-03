@@ -52,7 +52,7 @@ func TestEgressBlocksInternet(t *testing.T) {
 func TestEgressBlocksNodePorts(t *testing.T) {
 	meshSandboxOnly(t)
 	waitForEgressPolicies(t, "excalidraw")
-	node := sandboxAddress(t)
+	node := gatewayAddress(t)
 	assert.Equal(t, "000", egressBlocked(t, "excalidraw", "https://"+node+":10250/"), "excalidraw reached the kubelet")
 	assert.NotEqual(t, "000", egressCurl(t, "excalidraw", "https://kubernetes.default.svc/version"), "excalidraw lost the API server")
 }

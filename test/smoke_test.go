@@ -144,10 +144,10 @@ func TestSmoke(t *testing.T) {
 				InsecureSkipVerify: os.Getenv("INSECURE_SKIP_VERIFY") != "",
 			}
 
-			// The endpoint must answer 200 within 30 minutes; sandbox hosts are dialled on the node (dialSandbox)
+			// The endpoint must answer 200 within 30 minutes; sandbox hosts are dialled on the node (dialGateway)
 			client := &http.Client{
 				Timeout:   30 * time.Second,
-				Transport: &http.Transport{TLSClientConfig: &tlsConfig, DialContext: dialSandbox},
+				Transport: &http.Transport{TLSClientConfig: &tlsConfig, DialContext: dialGateway},
 			}
 			url := fmt.Sprintf("https://%s", host)
 			for attempt := 1; ; attempt++ {

@@ -22,7 +22,7 @@ resource "local_file" "cluster" {
   file_permission = "600"
 }
 
-# The environment's own keys: a staging key is never root on production
+# The environment's own keys: a testbed key is never root on production
 resource "local_file" "authorized_keys" {
   content         = var.authorized_keys
   filename        = "${path.module}/flake/authorized_keys"

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -18,11 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func secretsSandboxOnly(t *testing.T) {
-	if os.Getenv("ENV") != "dev" {
-		t.Skip("OpenBao tests run against the sandbox only")
-	}
-}
+func secretsSandboxOnly(t *testing.T) { localOnly(t) }
 
 // bao runs the OpenBao CLI in OpenBao's pod, logged in with a token of service account namespace/account (audience
 // openbao, the only one OpenBao's roles accept) and the given role. The token reaches the pod on stdin and is never
@@ -257,8 +252,9 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 		sum := sha256.Sum256([]byte(generatedValue(t, path, property)))
 		return hex.EncodeToString(sum[:])
 	}
-	// Every destination of every entry holds a value under the entry's key (values.yaml and the sandbox's extras)
-	for _, file := range []string{"values.yaml", "values-dev.yaml"} {
+	// Every destination of every entry holds a value under the entry's key (values.yaml and the extras testbed and the
+	// sandbox share)
+	for _, file := range []string{"values.yaml", "values-local.yaml"} {
 		out, err := exec.Command("yq", "-o=json", "-I=0", "(.secrets // []) + (.extraSecrets // [])", "../platform/generated-secrets/"+file).Output()
 		require.NoError(t, err, file)
 		var entries []generatedEntry

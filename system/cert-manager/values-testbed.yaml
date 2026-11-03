@@ -1,0 +1,5 @@
+# No monitoring operator on the testbed: its ServiceMonitor kind does not exist
+cert-manager:
+  prometheus:
+    servicemonitor:
+      enabled: false

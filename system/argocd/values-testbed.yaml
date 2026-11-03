@@ -1,0 +1,85 @@
+# Testbed: three VMs on the workstation, proving what needs several nodes (docs/superpowers/specs/2026-11-02-testbed-design.md,
+# docs/installation/testbed.md). Argo CD syncs GitHub branch testbed, which make testbed pushes, as the sandbox's syncs
+# branch sandbox; there is no Forgejo here. Helm replaces lists and anchors do not cross files, so generators and sources
+# are restated.
+#
+# What runs is the list below, which grows by layers, each measured from a fresh install: this workstation's numbers are
+# in docs/installation/testbed.md. Another machine extends it. lab infra forgejo verify derives what the testbed proves
+# from this list: a release changing only what is not here needs no testbed run.
+argo-cd:
+  configs:
+    # Merged into values.yaml's. A first sync with every chart rendering at once starved the small nodes
+    params:
+      reposerver.parallelism.limit: 2
+      # Waiting for those renders (each downloads its chart's dependencies) outlasts the default 60 s
+      controller.repo.server.timeout.seconds: 600
+      controller.status.processors: 5
+      controller.operation.processors: 3
+      controller.kubectl.parallelism.limit: 5
+    cm:
+      # Compare less often than the default three minutes: each comparison asks the small nodes for every render
+      timeout.reconciliation: 600s
+  repoServer:
+    # A starved repo server failed its 1 s probe and restarted, losing the renders in progress
+    livenessProbe:
+      timeoutSeconds: 10
+      failureThreshold: 6
+    readinessProbe:
+      timeoutSeconds: 10
+argocd-apps:
+  applicationsets:
+    root:
+      generators:
+        - matrix:
+            generators:
+              - git:
+                  repoURL: &repoURL https://github.com/duongle-steven/homelab
+                  # make testbed force-pushes the current commit here
+                  revision: &revision testbed
+                  directories:
+                    # Layer 1
+                    - path: system/rook-ceph
+                    # Layer 2
+                    - path: system/cert-manager
+                    - path: system/istio-system
+              - git:
+                  repoURL: *repoURL
+                  revision: *revision
+                  files:
+                    - path: infra/testbed/cluster/config.json
+                  pathParamPrefix: config
+      template:
+        spec:
+          # A fresh testbed syncs while what its apps wait for appears, as the sandbox does
+          syncPolicy:
+            retry:
+              limit: 18
+              backoff:
+                duration: 30s
+                factor: 2
+                maxDuration: 4m
+          # Only the component: egress and the SecretStore join with the layers that need them
+          sources:
+            - repoURL: *repoURL
+              path: '{{ .path.path }}'
+              targetRevision: *revision
+              helm:
+                # values-local.yaml: what the sandbox and the testbed share (the local CA, the tests' fixtures)
+                valueFiles:
+                  - values.yaml
+                  - values-local.yaml
+                  - values-testbed.yaml
+                ignoreMissingValueFiles: true
+                valuesObject:
+                  global:
+                    baseDomain: '{{ .domain }}'
+                    timezone: '{{ .timezone }}'
+                    seedRepository: '{{ .seed_repository }}'
+                    addresses:
+                      apiVIP: '{{ .vip }}'
+                      router: '{{ .network.gateway }}'
+                      prefixLength: '{{ .network.prefix_length }}'
+                      gatewayVIP: '{{ .service_vips.gateway }}'
+                      wireguardVIP: '{{ .service_vips.wireguard }}'
+    # No app in this layer
+    apps: null

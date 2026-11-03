@@ -12,9 +12,9 @@ func TestKubeconfigArguments(t *testing.T) {
 	for _, args := range [][]string{
 		{"cluster", "kubeconfig"},
 		{"cluster", "kubeconfig", "--environment", "../production"},
-		{"cluster", "kubeconfig", "--environment", "staging", "--timeout", "0s"},
-		{"cluster", "kubeconfig", "--environment", "staging", "--output", ""},
-		{"cluster", "kubeconfig", "extra", "--environment", "staging"},
+		{"cluster", "kubeconfig", "--environment", "testbed", "--timeout", "0s"},
+		{"cluster", "kubeconfig", "--environment", "testbed", "--output", ""},
+		{"cluster", "kubeconfig", "extra", "--environment", "testbed"},
 	} {
 		if out, _, err := operationExecute(args...); err == nil || out != "" {
 			t.Fatalf("accepted invalid arguments or emitted credentials: %v, %v", args, err)

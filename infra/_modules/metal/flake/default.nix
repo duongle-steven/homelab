@@ -30,6 +30,7 @@
       k3s = {
         clusterInit = name == cluster.init_host;
         vip = cluster.vip;
+        slowControlPlane = cluster.slow_control_plane or false;
         nodeIPs = nixpkgs.lib.mapAttrsToList (_: host: host.ip) hosts;
       };
     };
