@@ -42,8 +42,6 @@ argocd-apps:
                     # Layer 2
                     - path: system/cert-manager
                     - path: system/istio-system
-                    # Layer 3
-                    - path: platform/cloudnative-pg
               - git:
                   repoURL: *repoURL
                   revision: *revision

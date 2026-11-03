@@ -137,14 +137,20 @@ func TestTestbedCeph(t *testing.T) {
 	require.Eventually(t, func() bool {
 		health, err := k8s.RunKubectlAndGetOutputE(t, ceph, "get", "cephcluster", "-o", "jsonpath={.items[*].status.ceph.health}")
 		return err == nil && health == "HEALTH_OK"
-	}, 45*time.Minute, 15*time.Second, "Ceph is not HEALTH_OK")
-	osds, err := k8s.RunKubectlAndGetOutputE(t, ceph, "get", "pods", "-l", "app=rook-ceph-osd",
-		"-o", `jsonpath={range .items[*]}{.spec.nodeName}{" "}{.status.phase}{"\n"}{end}`)
-	require.NoError(t, err)
+	}, 30*time.Minute, 15*time.Second, "Ceph is not HEALTH_OK")
 	names, _ := testbedHosts(t)
-	for _, name := range names {
-		assert.Contains(t, osds, name+" Running", "no running OSD on %s", name)
-	}
+	// HEALTH_OK can come while Rook still recreates an OSD's pod
+	var osds string
+	assert.Eventually(t, func() bool {
+		osds, _ = k8s.RunKubectlAndGetOutputE(t, ceph, "get", "pods", "-l", "app=rook-ceph-osd",
+			"-o", `jsonpath={range .items[*]}{.spec.nodeName}{" "}{.status.phase}{"\n"}{end}`)
+		for _, name := range names {
+			if !strings.Contains(osds, name+" Running") {
+				return false
+			}
+		}
+		return true
+	}, 10*time.Minute, 15*time.Second, "an OSD is not running: %s", &osds)
 
 	ns := fmt.Sprintf("testbed-ceph-%d", time.Now().Unix())
 	options := testbedKubectl(ns)
@@ -248,10 +254,16 @@ func TestTestbedMesh(t *testing.T) {
 	}, 10*time.Minute, 10*time.Second, "the certificate at the VIP: %s", issuer)
 }
 
-// Layer 3: three CloudNativePG instances across the nodes, in the mesh and on Ceph as Forgejo's database is in production
-// (platform/forgejo/templates/database.yaml): the primary's pod goes, a replica on another node takes over and keeps the data
+// Three CloudNativePG instances across the nodes, in the mesh and on Ceph as Forgejo's database is in production
+// (platform/forgejo/templates/database.yaml): the primary's pod goes, a replica on another node takes over and keeps the data.
+// This workstation does not hold that layer (docs/installation/testbed.md): it runs where the list names the operator
 func TestTestbedPostgresFailover(t *testing.T) {
 	testbedOnly(t)
+	listed, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[].path`, "../system/argocd/values-testbed.yaml").Output()
+	require.NoError(t, err)
+	if !strings.Contains(string(listed), "platform/cloudnative-pg") {
+		t.Skip("system/argocd/values-testbed.yaml does not list platform/cloudnative-pg")
+	}
 	out, err := exec.Command("yq", ".database.cnpg.image", "../platform/forgejo/values.yaml").Output()
 	require.NoError(t, err)
 	image := strings.TrimSpace(string(out))

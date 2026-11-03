@@ -1,4 +1,0 @@
-# No monitoring operator on the testbed: its PodMonitor kind does not exist
-cloudnative-pg:
-  monitoring:
-    podMonitorEnabled: false

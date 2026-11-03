@@ -40,13 +40,13 @@ func TestTestbedLayers(t *testing.T) {
 		return strings.TrimSpace(string(out))
 	}
 	const git = ".argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git"
-	assert.Equal(t, "system/rook-ceph\nsystem/cert-manager\nsystem/istio-system\nplatform/cloudnative-pg", yq(git+`.directories[] | select(.exclude != true) | .path`, values))
+	assert.Equal(t, "system/rook-ceph\nsystem/cert-manager\nsystem/istio-system", yq(git+`.directories[] | select(.exclude != true) | .path`, values))
 	assert.Equal(t, "testbed", yq(git+".revision", values))
 	assert.Equal(t, strings.Trim(yq(".seed_repository", "../infra/testbed/cluster/config.json"), `"`), yq(git+".repoURL", values))
 	assert.Empty(t, renderYq(t, "system/rook-ceph", "testbed", `select(.kind == "PolicyException") | .metadata.name`), "Kyverno is not in this layer")
 	assert.NotEmpty(t, renderYq(t, "system/rook-ceph", "", `select(.kind == "PolicyException") | .metadata.name`))
-	// Layers 2 and 3 need neither Kyverno nor the monitoring operator: their kinds are switched off, and only here
-	for _, chart := range []string{"system/istio-system", "system/cert-manager", "platform/cloudnative-pg"} {
+	// Layer 2 needs neither Kyverno nor the monitoring operator: their kinds are switched off, and only here
+	for _, chart := range []string{"system/istio-system", "system/cert-manager"} {
 		for _, kind := range []string{"PolicyException", "PodMonitor", "ServiceMonitor"} {
 			assert.Empty(t, renderYq(t, chart, "testbed", fmt.Sprintf(`select(.kind == %q) | .metadata.name`, kind)), "%s renders a %s", chart, kind)
 		}
@@ -54,7 +54,6 @@ func TestTestbedLayers(t *testing.T) {
 	assert.NotEmpty(t, renderYq(t, "system/istio-system", "", `select(.kind == "PolicyException") | .metadata.name`))
 	assert.NotEmpty(t, renderYq(t, "system/istio-system", "", `select(.kind == "PodMonitor") | .metadata.name`))
 	assert.NotEmpty(t, renderYq(t, "system/cert-manager", "", `select(.kind == "ServiceMonitor") | .metadata.name`))
-	assert.NotEmpty(t, renderYq(t, "platform/cloudnative-pg", "", `select(.kind == "PodMonitor") | .metadata.name`))
 }
 
 // 12a-1's 2 vCPUs ran the nodes and rook-ceph: more needs a measurement showing CPU is the limit
