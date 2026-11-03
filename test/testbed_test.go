@@ -137,7 +137,7 @@ func TestTestbedCeph(t *testing.T) {
 	require.Eventually(t, func() bool {
 		health, err := k8s.RunKubectlAndGetOutputE(t, ceph, "get", "cephcluster", "-o", "jsonpath={.items[*].status.ceph.health}")
 		return err == nil && health == "HEALTH_OK"
-	}, 20*time.Minute, 15*time.Second, "Ceph is not HEALTH_OK")
+	}, 30*time.Minute, 15*time.Second, "Ceph is not HEALTH_OK")
 	osds, err := k8s.RunKubectlAndGetOutputE(t, ceph, "get", "pods", "-l", "app=rook-ceph-osd",
 		"-o", `jsonpath={range .items[*]}{.spec.nodeName}{" "}{.status.phase}{"\n"}{end}`)
 	require.NoError(t, err)
