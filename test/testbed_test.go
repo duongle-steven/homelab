@@ -247,3 +247,81 @@ func TestTestbedMesh(t *testing.T) {
 		return err == nil && strings.Contains(string(issuer), "homelab-dev-ca")
 	}, 10*time.Minute, 10*time.Second, "the certificate at the VIP: %s", issuer)
 }
+
+// Layer 3: three CloudNativePG instances across the nodes, in the mesh and on Ceph as Forgejo's database is in production
+// (platform/forgejo/templates/database.yaml): the primary's pod goes, a replica on another node takes over and keeps the data
+func TestTestbedPostgresFailover(t *testing.T) {
+	testbedOnly(t)
+	out, err := exec.Command("yq", ".database.cnpg.image", "../platform/forgejo/values.yaml").Output()
+	require.NoError(t, err)
+	image := strings.TrimSpace(string(out))
+	ns := fmt.Sprintf("testbed-postgres-%d", time.Now().Unix())
+	options := testbedKubectl(ns)
+	k8s.KubectlApplyFromString(t, options, fmt.Sprintf(`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":%q,"labels":{"istio.io/dataplane-mode":"ambient"}}}`, ns))
+	defer k8s.DeleteNamespace(t, options, ns)
+	k8s.KubectlApplyFromString(t, options, fmt.Sprintf(`{"apiVersion":"v1","kind":"List","items":[
+		{"apiVersion":"security.istio.io/v1","kind":"AuthorizationPolicy","metadata":{"name":"allow","namespace":%[1]q},
+			"spec":{"action":"ALLOW","rules":[{"from":[{"source":{"namespaces":[%[1]q]}}]}]}},
+		{"apiVersion":"security.istio.io/v1","kind":"AuthorizationPolicy","metadata":{"name":"allow-cnpg-status","namespace":%[1]q},
+			"spec":{"action":"ALLOW","selector":{"matchLabels":{"cnpg.io/cluster":"db"}},"rules":[{"to":[{"operation":{"ports":["8000"]}}]}]}},
+		{"apiVersion":"security.istio.io/v1","kind":"PeerAuthentication","metadata":{"name":"db-status","namespace":%[1]q},
+			"spec":{"selector":{"matchLabels":{"cnpg.io/cluster":"db"}},"mtls":{"mode":"STRICT"},"portLevelMtls":{"8000":{"mode":"PERMISSIVE"}}}}]}`, ns))
+	cluster := fmt.Sprintf(`{"apiVersion":"postgresql.cnpg.io/v1","kind":"Cluster","metadata":{"name":"db","namespace":%q},
+		"spec":{"instances":3,"imageName":%q,"storage":{"size":"1Gi","storageClass":"standard-rwo"}}}`, ns, image)
+	// The operator's CRD and webhook may still be coming up on a fresh install
+	require.Eventually(t, func() bool {
+		return k8s.KubectlApplyFromStringE(t, options, cluster) == nil
+	}, 20*time.Minute, 15*time.Second, "CloudNativePG refuses the Cluster")
+
+	status := func(field string) string {
+		out, _ := k8s.RunKubectlAndGetOutputE(t, options, "get", "cluster", "db", "-o", "jsonpath={.status."+field+"}")
+		return out
+	}
+	allReady := func(message string) {
+		require.Eventually(t, func() bool { return status("readyInstances") == "3" }, 20*time.Minute, 10*time.Second, message)
+	}
+	psql := func(pod, query string) (string, error) {
+		out, err := k8s.RunKubectlAndGetOutputE(t, options, "exec", pod, "-c", "postgres", "--", "psql", "-d", "app", "-tAc", query)
+		return strings.TrimSpace(out), err
+	}
+	node := func(pod string) string {
+		out, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "pod", pod, "-o", "jsonpath={.spec.nodeName}")
+		require.NoError(t, err)
+		return out
+	}
+	allReady("three instances are not ready")
+	primary := status("currentPrimary")
+	require.NotEmpty(t, primary)
+	_, err = psql(primary, "CREATE TABLE probe (value text); INSERT INTO probe VALUES ('testbed-postgres')")
+	require.NoError(t, err)
+	pods, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "pods", "-l", "cnpg.io/cluster=db,cnpg.io/instanceRole=replica", "-o", "jsonpath={.items[*].metadata.name}")
+	require.NoError(t, err)
+	replicas := strings.Fields(pods)
+	require.Len(t, replicas, 2)
+	// Replication is asynchronous: only a row the replicas hold must survive
+	for _, replica := range replicas {
+		require.Eventually(t, func() bool {
+			value, err := psql(replica, "SELECT value FROM probe")
+			return err == nil && value == "testbed-postgres"
+		}, 2*time.Minute, 5*time.Second, "%s did not receive the row", replica)
+	}
+
+	lost := node(primary)
+	k8s.RunKubectl(t, options, "delete", "pod", primary, "--wait=false")
+	require.Eventually(t, func() bool {
+		current := status("currentPrimary")
+		return current != "" && current != primary && status("targetPrimary") == current
+	}, 5*time.Minute, 5*time.Second, "no replica was promoted")
+	promoted := status("currentPrimary")
+	assert.NotEqual(t, lost, node(promoted), "the new primary is on the node that lost the old one")
+	require.Eventually(t, func() bool {
+		value, err := psql(promoted, "INSERT INTO probe VALUES ('after'); SELECT value FROM probe WHERE value = 'testbed-postgres'")
+		return err == nil && strings.HasSuffix(value, "testbed-postgres")
+	}, 3*time.Minute, 5*time.Second, "the promoted %s neither keeps the row nor takes writes", promoted)
+	// The old primary comes back as a replica of the new one
+	allReady("the old primary did not come back")
+	require.Eventually(t, func() bool {
+		value, err := psql(primary, "SELECT count(*) FROM probe")
+		return err == nil && value == "2"
+	}, 5*time.Minute, 5*time.Second, "%s did not catch up", primary)
+}
