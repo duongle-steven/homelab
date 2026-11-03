@@ -113,6 +113,7 @@ func SkipContext(proofEnv string) string {
 // a first install, where everything counts as changed). It never passes when it cannot tell.
 func ProofGate(ctx context.Context, root, repository, proofEnv, deployed, release string, candidates []string, gh GitHub) error {
 	asked := 0
+	capped := false
 	for _, candidate := range candidates {
 		gated, err := GatedPaths(root, proofEnv, candidate)
 		if err != nil {
@@ -127,6 +128,7 @@ func ProofGate(ctx context.Context, root, repository, proofEnv, deployed, releas
 			continue
 		}
 		if asked == maxProofChecks {
+			capped = true
 			break
 		}
 		asked++
@@ -153,8 +155,12 @@ func ProofGate(ctx context.Context, root, repository, proofEnv, deployed, releas
 	if len(hits) > 10 {
 		hits = append(hits[:10], fmt.Sprintf("and %d more", len(hits)-10))
 	}
-	return fmt.Errorf("%s has not proved what %.12s changes (%s): run make %s on dev's head, or --skip-proof=<reason> "+
-		"(docs/installation/testbed.md)", proofEnv, release, strings.Join(hits, ", "), proofEnv)
+	found := "has not proved"
+	if capped {
+		found = fmt.Sprintf("has no mark on the %d commits asked about, an older one goes unseen, and has not proved", maxProofChecks)
+	}
+	return fmt.Errorf("%s %s what %.12s changes (%s): run make %s on dev's head, or --skip-proof=<reason> "+
+		"(docs/installation/testbed.md)", proofEnv, found, release, strings.Join(hits, ", "), proofEnv)
 }
 
 // SkipProofReason refuses a --skip-proof without a reason someone can read later
@@ -219,17 +225,34 @@ func (g GitHub) CommitStatus(ctx context.Context, repository, sha, context strin
 	return "", nil
 }
 
-// ProofCandidates are the commits a mark may sit on for a release whose pull request head is head: head,
-// then its history back to deployed (exclusive; the newest 200 when nothing is deployed), merged branches included: make
-// testbed marks a branch's tip before the merge
+// ProofCandidates are the commits a mark may sit on for a release whose pull request head is head: head, then its history
+// back to deployed (exclusive; the newest 200 when nothing is deployed), merged branches included. make testbed marks a
+// branch's tip or dev's head, so merges and their parents come first: the gate asks about only maxProofChecks of them.
 func ProofCandidates(root, deployed, head string) ([]string, error) {
-	args := []string{"rev-list", "--max-count=200", head}
+	args := []string{"rev-list", "--parents", head}
 	if deployed != "" {
 		args = append(args, "^"+deployed)
+	} else {
+		args = append(args, "--max-count=200")
 	}
 	out, err := git(root, args...)
 	if err != nil {
 		return nil, err
 	}
-	return strings.Fields(out), nil
+	likely := map[string]bool{head: true}
+	var commits []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		commits = append(commits, fields[0])
+		if len(fields) > 2 {
+			for _, c := range fields {
+				likely[c] = true
+			}
+		}
+	}
+	sort.SliceStable(commits, func(i, j int) bool { return likely[commits[i]] && !likely[commits[j]] })
+	return commits, nil
 }

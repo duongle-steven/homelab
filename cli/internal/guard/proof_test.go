@@ -192,8 +192,8 @@ func TestSkipProofNeedsReason(t *testing.T) {
 	}
 }
 
-// The commits a mark may sit on: the release, then dev's first-parent history back to what production runs (newest
-// first); with nothing deployed, the history is bounded
+// The commits a mark may sit on: the release, then its history back to what production runs (newest first); with nothing
+// deployed, the history is bounded
 func TestProofCandidates(t *testing.T) {
 	r := newProofRepo(t)
 	deployed := r.git("rev-parse", "HEAD")
@@ -326,6 +326,45 @@ func TestProofGateAsksGitHubSparingly(t *testing.T) {
 	}
 	if asked != maxProofChecks {
 		t.Fatalf("asked GitHub %d times, want %d", asked, maxProofChecks)
+	}
+}
+
+// Merged branches' tips, where make testbed leaves its mark, are asked about before the commits around them
+func TestProofGateFindsAMarkPastTheCap(t *testing.T) {
+	r := newProofRepo(t)
+	deployed := r.git("rev-parse", "HEAD")
+	r.git("switch", "-q", "-c", "feature")
+	tip := r.write(map[string]string{"system/rook-ceph/values.yaml": "a: 2\n"})
+	r.git("switch", "-q", "-")
+	r.git("merge", "-q", "--no-ff", "-m", "merge", "feature")
+	release := tip
+	for i := range maxProofChecks + 5 {
+		release = r.write(map[string]string{"docs/guide.md": strings.Repeat("x", i+1) + "\n"})
+	}
+	candidates, err := ProofCandidates(r.dir, deployed, release)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gh := statuses(t, map[string]string{tip + " testbed": "success"})
+	if err := ProofGate(t.Context(), r.dir, "owner/homelab", "testbed", deployed, release, candidates, gh); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Running out of questions says so: the mark may exist further back
+func TestProofGateNamesTheCap(t *testing.T) {
+	r := newProofRepo(t)
+	deployed := r.git("rev-parse", "HEAD")
+	r.write(map[string]string{"system/rook-ceph/values.yaml": "a: 2\n"})
+	var candidates []string
+	release := ""
+	for i := range maxProofChecks + 1 {
+		release = r.write(map[string]string{"docs/guide.md": strings.Repeat("x", i+1) + "\n"})
+		candidates = append([]string{release}, candidates...)
+	}
+	err := ProofGate(t.Context(), r.dir, "owner/homelab", "testbed", deployed, release, candidates, statuses(t, nil))
+	if err == nil || !strings.Contains(err.Error(), "an older one goes unseen") {
+		t.Fatalf("got %v", err)
 	}
 }
 
