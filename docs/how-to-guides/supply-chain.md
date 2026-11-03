@@ -96,7 +96,7 @@ kubectl get policyreports -n secrets-rotation -o yaml | grep -B2 -A6 verify-lab-
 In the sandbox, `TestSupplyChain` proves the same path with zot: it signs a test image with a key it generates, runs a
 signed and an unsigned pod under an Audit policy with that key, and expects the unsigned pod's `fail` (Kyverno keeps
 no `pass` results, `--allowedResults`). Kyverno's admission and reports controllers trust the sandbox CA for that
-(`system/kyverno/values-dev.yaml`).
+(`system/kyverno/values-local.yaml`).
 
 The blog's image will be signed by its own pipeline (Woodpecker, a key in OpenBao) when its repository comes.
 

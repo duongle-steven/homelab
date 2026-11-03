@@ -14,7 +14,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | #31 (7b) | Argo CD's `argocd-notifications-cm` keeps the chart default `argocdUrl: https://argocd.example.com` | any |
 | #31 (7b) | Forgejo's `[server]` ConfigMap duplicates what the chart derives from the route host | any |
 | #31 (7b) | `global.timezone` is read by no chart | any |
-| #31 (7b) | The tests hard-code `*.127-0-0-1.nip.io` | 12 (staging) |
+| #31 (7b) | The tests hard-code `*.127-0-0-1.nip.io` | any (`testDomain` reads the environment where the testbed needs it) |
 | #31 (7b) | The seed `sed` breaks on `&` or `\|` in `seed_repository`; `SEED_REPOSITORY` duplicates `global.seedRepository` | any |
 | #31 (7b) | woodpecker's and zot's config changes do not roll their pods (the woodpecker chart passes `podAnnotations` without `tpl`; Secrets ESO refreshes never would); 11b's rotations restart them explicitly, other changes still need a restart by hand | any (Reloader) |
 | #31 (7b) | `scripts/check-env-config`'s untemplated-global check knows only four keys | any |
@@ -95,3 +95,5 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 12a-1 | The nodes resolve through `8.8.8.8`/`1.1.1.1` over UDP 53 (`profiles/network.nix`), outside `config.json`, and the home ISP's modem intercepts UDP 53: resolvers in `config.json`, or DoT | 12b |
 | 12a-1 | `nixie` rewrites its hosts file with only the keys it knows when it records an install: a per-host `disk` in production's `hosts.json` is lost, so a disk other than `/dev/sda` needs another place | 12b |
 | 12a-1 | On a fresh sandbox `ntfy-auth`'s ExternalSecret ran before `generated-secrets` pushed ntfy's values: ESO deleted the Secret (`SecretDeleted`) and waits for its 1h refresh, so ntfy stays in `CreateContainerConfigError` and `TestNtfy*` time out (a `force-sync` fixed it): a shorter refresh while the Secret is missing, or retry on missing keys | any |
+| 12a-2 | `TestTestbedPostgresFailover` is only reachable on a machine that lists `platform/cloudnative-pg`: it passed once, at 2 vCPUs, and nothing runs it here | layer 3 |
+| 12a-2 | SSH to a VM once took over 240 s after boot, reachable right after: `scripts/testbed-trust` rides it out, the cause is unknown | any |

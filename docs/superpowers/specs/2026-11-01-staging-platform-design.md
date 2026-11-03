@@ -1,3 +1,5 @@
+**Replaced by `docs/superpowers/specs/2026-11-02-testbed-design.md`:** this staging ran out of CPU on the workstation before the core was up.
+
 # Step 12a-2: staging's platform, deploy path and release mark
 
 Status: designed in chat 2026-11-01. Builds on 12a-1 (`docs/superpowers/specs/2026-10-31-staging-design.md`,

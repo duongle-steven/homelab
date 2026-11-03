@@ -41,6 +41,7 @@ nav:
   - Installation:
     - installation/sandbox.md
     - installation/testbed.md
+    - installation/staging.md
     - Production:
       - installation/production/prerequisites.md
       - installation/production/external-resources.md
