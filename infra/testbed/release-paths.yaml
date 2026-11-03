@@ -14,4 +14,8 @@ paths:
   # lab's commands that build and upgrade the cluster
   - cli/internal/cluster/**
 # A component the list above or values-testbed.yaml names but that is switched off inside its chart: not proved
-not_run: []
+not_run:
+  # Their kinds come from Kyverno and the monitoring operator, which the testbed does not run
+  - system/istio-system/templates/policy-exception.yaml
+  - system/istio-system/templates/pod-monitors.yaml
+  - system/rook-ceph/templates/policy-exception.yaml

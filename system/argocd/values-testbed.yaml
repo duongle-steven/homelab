@@ -39,6 +39,9 @@ argocd-apps:
                   directories:
                     # Layer 1
                     - path: system/rook-ceph
+                    # Layer 2
+                    - path: system/cert-manager
+                    - path: system/istio-system
               - git:
                   repoURL: *repoURL
                   revision: *revision

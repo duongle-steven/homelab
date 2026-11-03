@@ -177,3 +177,73 @@ func waitPodSucceeded(t *testing.T, options *k8s.KubectlOptions, name string) {
 	}, 5*time.Minute, 5*time.Second, "pod %s did not finish", name)
 	require.Equal(t, "Succeeded", phase, "pod %s failed", name)
 }
+
+// Layer 2: pods on two nodes reach each other through ztunnel, the mesh refuses what no policy allows, and the Gateway
+// answers at its VIP with a certificate from the local CA
+func TestTestbedMesh(t *testing.T) {
+	testbedOnly(t)
+	system := testbedKubectl("istio-system")
+	require.Eventually(t, func() bool {
+		out, err := k8s.RunKubectlAndGetOutputE(t, system, "get", "gateway", "gateway",
+			"-o", `jsonpath={.status.conditions[?(@.type=="Programmed")].status}`)
+		return err == nil && out == "True"
+	}, 30*time.Minute, 15*time.Second, "the Gateway is not programmed")
+
+	names, _ := testbedHosts(t)
+	suffix := time.Now().Unix()
+	meshed := fmt.Sprintf("testbed-mesh-%d", suffix)
+	stranger := fmt.Sprintf("testbed-stranger-%d", suffix)
+	outside := fmt.Sprintf("testbed-outside-%d", suffix)
+	options := testbedKubectl(meshed)
+	namespace := func(name, mode string) {
+		k8s.KubectlApplyFromString(t, options, fmt.Sprintf(`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":%q,"labels":{"istio.io/dataplane-mode":%q}}}`, name, mode))
+	}
+	for name, mode := range map[string]string{meshed: "ambient", stranger: "ambient", outside: "none"} {
+		namespace(name, mode)
+		defer k8s.DeleteNamespace(t, testbedKubectl(name), name)
+	}
+	k8s.KubectlApplyFromString(t, options, fmt.Sprintf(`{"apiVersion":"security.istio.io/v1","kind":"AuthorizationPolicy","metadata":{"name":"allow","namespace":%q},
+		"spec":{"action":"ALLOW","rules":[{"from":[{"source":{"namespaces":[%q]}}]}]}}`, meshed, meshed))
+	k8s.KubectlApplyFromString(t, options, fmt.Sprintf(`{"apiVersion":"v1","kind":"Pod","metadata":{"name":"server"},"spec":{"nodeName":%q,
+		"containers":[{"name":"c","image":"busybox:1.37.0","command":["sh","-c","mkdir -p /www && echo ok > /www/index.html && exec httpd -f -p 8080 -h /www"]}]}}`, names[0]))
+	k8s.WaitUntilPodAvailable(t, options, "server", 40, 15*time.Second)
+	redirection, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "pod", "server", "-o", `jsonpath={.metadata.annotations.ambient\.istio\.io/redirection}`)
+	require.NoError(t, err)
+	assert.Equal(t, "enabled", redirection, "the server is not redirected to ztunnel")
+	ip, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "pod", "server", "-o", "jsonpath={.status.podIP}")
+	require.NoError(t, err)
+
+	// From another node, so the connection crosses between two ztunnels
+	curl := func(namespace, name string) string {
+		client := testbedKubectl(namespace)
+		k8s.KubectlApplyFromString(t, client, fmt.Sprintf(`{"apiVersion":"v1","kind":"Pod","metadata":{"name":%q},"spec":{"nodeName":%q,"restartPolicy":"Never",
+			"containers":[{"name":"c","image":"curlimages/curl:8.23.0","command":["sh","-c",%q]}]}}`, name, names[1],
+			fmt.Sprintf(`sleep 5; curl -s -m 10 -o /dev/null -w "%%{http_code}" http://%s:8080/ || true`, ip)))
+		waitPodSucceeded(t, client, name)
+		out, err := k8s.RunKubectlAndGetOutputE(t, client, "logs", name)
+		require.NoError(t, err)
+		return strings.TrimSpace(out)
+	}
+	since := time.Now().UTC().Format(time.RFC3339)
+	assert.Equal(t, "200", curl(meshed, "neighbour"), "a meshed pod on another node, in the allowed namespace")
+	assert.Equal(t, "000", curl(stranger, "stranger"), "a meshed pod no policy allows")
+	assert.Equal(t, "000", curl(outside, "plaintext"), "a pod outside the mesh, in plaintext")
+	logs, err := k8s.RunKubectlAndGetOutputE(t, system, "logs", "--selector=app=ztunnel", "--prefix", "--since-time="+since, "--tail=-1")
+	require.NoError(t, err)
+	assert.Contains(t, logs, "policy rejection", "ztunnel did not log a refusal")
+	assert.Contains(t, logs, fmt.Sprintf(`spiffe://cluster.local/ns/%s/sa/default`, meshed), "ztunnel did not carry the neighbour's identity")
+
+	vip, err := testbedGatewayVIP()
+	require.NoError(t, err)
+	host := "probe." + testDomain(t)
+	var answer []byte
+	require.Eventually(t, func() bool {
+		answer, err = exec.Command("curl", "-sk", "-m", "10", "-o", "/dev/null", "-w", "%{http_code}", "--resolve", host+":80:"+vip, "http://"+host+"/").CombinedOutput()
+		return err == nil && string(answer) == "301"
+	}, 10*time.Minute, 10*time.Second, "port 80 at the VIP: %s", answer)
+	var issuer []byte
+	require.Eventually(t, func() bool {
+		issuer, err = exec.Command("sh", "-c", fmt.Sprintf(`curl -skv -m 10 -o /dev/null --resolve %s:443:%s https://%s/ 2>&1 | grep -i 'issuer:'`, host, vip, host)).CombinedOutput()
+		return err == nil && strings.Contains(string(issuer), "homelab-dev-ca")
+	}, 10*time.Minute, 10*time.Second, "the certificate at the VIP: %s", issuer)
+}

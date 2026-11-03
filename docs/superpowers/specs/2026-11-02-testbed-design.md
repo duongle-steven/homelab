@@ -81,8 +81,11 @@ measurement needs it:
 | 2 | Istio with what it needs (cert-manager, and the CRDs of Kyverno and the monitoring operator, as little of them as works) | the ambient mesh and the Gateway's VIP on several nodes |
 | 3 | CloudNativePG's three instances, failing over | what only production otherwise runs |
 
-- **Stable** means, over 30 minutes after the last Application is healthy: no k3s restart, no `leader failed to send out
-  heartbeat`, and WSL with at least 2 GB available *(Claude's call)*.
+- **Stable** means, over 30 minutes after the last Application is healthy: no k3s restart, no etcd leader change, no
+  API server or lease error (`leaderelection lost`, `request timed out`, `deadline exceeded`), and WSL with at least 2 GB
+  available *(user, 2026-11-03)*. `leader failed to send out heartbeat` warnings are counted and recorded, not failed:
+  layer 1 logged two (2.3 s and 35 ms over) with no leader change and no error, and the first followed a sign of the VM
+  being stalled from outside. A delay close to the 5 s election timeout stops the run to ask.
 - The list stops where the machine stops *(user: fit what fits)*, recorded with its numbers in `docs/installation/testbed.md`.
   Another machine extends the list in `system/argocd/values-testbed.yaml`, up to everything.
 - A vCPU ceiling of 4 per VM *(user)*: a layer that fails at that stops the list at the layer before it, which is not a
