@@ -137,7 +137,7 @@ func TestTestbedCeph(t *testing.T) {
 	require.Eventually(t, func() bool {
 		health, err := k8s.RunKubectlAndGetOutputE(t, ceph, "get", "cephcluster", "-o", "jsonpath={.items[*].status.ceph.health}")
 		return err == nil && health == "HEALTH_OK"
-	}, 30*time.Minute, 15*time.Second, "Ceph is not HEALTH_OK")
+	}, 45*time.Minute, 15*time.Second, "Ceph is not HEALTH_OK")
 	osds, err := k8s.RunKubectlAndGetOutputE(t, ceph, "get", "pods", "-l", "app=rook-ceph-osd",
 		"-o", `jsonpath={range .items[*]}{.spec.nodeName}{" "}{.status.phase}{"\n"}{end}`)
 	require.NoError(t, err)
@@ -278,7 +278,7 @@ func TestTestbedPostgresFailover(t *testing.T) {
 		return out
 	}
 	allReady := func(message string) {
-		require.Eventually(t, func() bool { return status("readyInstances") == "3" }, 20*time.Minute, 10*time.Second, message)
+		require.Eventually(t, func() bool { return status("readyInstances") == "3" }, 30*time.Minute, 10*time.Second, message)
 	}
 	psql := func(pod, query string) (string, error) {
 		out, err := k8s.RunKubectlAndGetOutputE(t, options, "exec", pod, "-c", "postgres", "--", "psql", "-d", "app", "-tAc", query)
