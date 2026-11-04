@@ -135,7 +135,16 @@ func cephAnswersHealthy(t *testing.T, osds int) bool {
 		}
 		return out
 	}
-	return strings.HasPrefix(ceph("health"), "HEALTH_OK") && strings.Contains(ceph("osd", "stat"), fmt.Sprintf("%d up", osds))
+	if !strings.HasPrefix(ceph("health"), "HEALTH_OK") || !strings.Contains(ceph("osd", "stat"), fmt.Sprintf("%d up", osds)) {
+		return false
+	}
+	// Ceph counts a dead OSD as up for a while after a cut: only the OSD itself tells
+	for _, id := range strings.Fields(ceph("osd", "ls")) {
+		if ceph("tell", "osd."+id, "version") == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func powerHealthy(t *testing.T, wait time.Duration) {
@@ -305,6 +314,23 @@ func controllerReplicas(t *testing.T) string {
 	return out
 }
 
+// A poweroff stops the node's services and leaves that in its journal, unless the deadline cut it: at most one node, the one
+// holding the probe's volume, may have needed that
+func stoppedInOrder(t *testing.T) {
+	t.Helper()
+	_, ips := testbedHosts(t)
+	stopped := 0
+	for _, ip := range ips {
+		out, err := testbedSSH(t, ip, "journalctl -b -1 -q --no-pager --grep 'Stopped target Multi-User' | wc -l")
+		require.NoError(t, err, out)
+		if out != "0" {
+			stopped++
+		}
+	}
+	t.Logf("%d of %d nodes stopped their services before the power went", stopped, len(ips))
+	assert.GreaterOrEqual(t, stopped, len(ips)-1, "the poweroff cut the nodes instead of stopping them")
+}
+
 func waitAllShutOff(t *testing.T, names []string) {
 	t.Helper()
 	start := time.Now()
@@ -315,7 +341,7 @@ func waitAllShutOff(t *testing.T, names []string) {
 			}
 		}
 		return true
-	}, 5*time.Minute, 5*time.Second, "a node did not power off")
+	}, 4*time.Minute, 5*time.Second, "a node did not power off")
 	t.Logf("every node off after %s", time.Since(start).Round(time.Second))
 }
 
@@ -348,6 +374,7 @@ func TestPowerShutdownStartup(t *testing.T) {
 	}
 	recovery := powerRecovery{t, time.Now()}
 	recovery.nodesBack(booted, names...)
+	stoppedInOrder(t)
 	recovery.reached("the marker gone", func() bool { return markerGone(t) })
 	assert.Equal(t, "false", cronSuspended(t, powerNamespace, "running"), "the CronJob it suspended stays suspended")
 	assert.Equal(t, "true", cronSuspended(t, powerNamespace, "held"), "the CronJob suspended on purpose was resumed")
@@ -399,6 +426,7 @@ func TestPowerNodeNotReturning(t *testing.T) {
 	// noout's 30 minutes count from startup's first run, with a margin
 	limit := powerRecovery{t, recovery.start.Add(40*time.Minute - powerLimit)}
 	limit.reached("the marker gone, its limit over", func() bool { return markerGone(t) })
+	assert.GreaterOrEqual(t, time.Since(recovery.start), 29*time.Minute, "noout came off before its limit with an OSD away")
 	noout, err := nooutSet(t)
 	assert.NoError(t, err)
 	assert.False(t, noout, "noout is still set")

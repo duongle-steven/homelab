@@ -6,9 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -201,8 +203,30 @@ func TestMetalPoweroffDeadline(t *testing.T) {
 		assert.False(t, deadline.Dependencies, "%s: the default dependencies stop it at shutdown", name)
 		assert.Regexp(t, `^@\S+/bash @poweroff-deadline -c `, deadline.Exec, name)
 		assert.Contains(t, deadline.Exec, "exec -a @poweroff-sleep", name)
-		assert.Contains(t, deadline.Exec, "sleep 180", name)
+		assert.Contains(t, deadline.Exec, "--coreutils-prog=sleep 180", name)
 		assert.Contains(t, deadline.Exec, "echo o > /proc/sysrq-trigger", name)
+	}
+}
+
+// Its sleep really sleeps under that name: NixOS's coreutils is one program choosing by its name, so a wrong one exits at
+// once, and every poweroff becomes a sudden cut
+func TestMetalPoweroffDeadlineWaits(t *testing.T) {
+	coreutils, err := exec.LookPath("coreutils")
+	require.NoError(t, err)
+	for name, node := range metalEval(t) {
+		trigger := filepath.Join(t.TempDir(), "sysrq-trigger")
+		script := regexp.MustCompile(`-c "(.*)"$`).FindStringSubmatch(node.PoweroffDeadline.Exec)
+		require.Len(t, script, 2, name)
+		command := regexp.MustCompile(`\S+/bin/coreutils`).ReplaceAllString(script[1], coreutils)
+		command = strings.ReplaceAll(strings.ReplaceAll(command, "--coreutils-prog=sleep 180", "--coreutils-prog=sleep 2"), "/proc/sysrq-trigger", trigger)
+		started := time.Now()
+		out, err := exec.Command("bash", "-c", command).CombinedOutput()
+		require.NoError(t, err, string(out))
+		assert.GreaterOrEqual(t, time.Since(started), 2*time.Second, "%s: it cut the power at once: %s", name, out)
+		written, err := os.ReadFile(trigger)
+		require.NoError(t, err, name)
+		assert.Equal(t, "o\n", string(written), name)
+		break
 	}
 }
 

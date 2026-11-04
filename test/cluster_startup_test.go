@@ -15,7 +15,7 @@ import (
 )
 
 // A kubectl answering from files in $FAKE: data/<key> is the marker (no directory: NotFound), boot-<node> a node's boot ID,
-// osds the OSD pods' readiness (no file: no Ceph), fail how many calls first find the API away, cron-gone and marker-gone
+// osds the OSDs' ids (no file: no Ceph), away those that do not answer, fail how many calls first find the API away, cron-gone and marker-gone
 // a CronJob or marker another node removed meanwhile
 const startupKubectl = `#!/usr/bin/env bash
 echo "$*" >> "$FAKE/log"
@@ -43,7 +43,14 @@ case "$*" in
 	[ -f "$FAKE/osds" ] || { echo "error: the server doesn't have a resource type \"cephclusters\"" >&2; exit 1; }
 	echo cephcluster.ceph.rook.io/rook-ceph
 	;;
-*"get pods"*) cat "$FAKE/osds" ;;
+*"osd ls"*) tr ' ' '\n' < "$FAKE/osds" ;;
+*"tell osd."*)
+	id=$(echo "$*" | sed -n 's/.*tell osd\.\([0-9]*\).*/\1/p')
+	if grep -qw "$id" "$FAKE/away" 2>/dev/null; then
+		echo "Error ENXIO: problem getting command descriptions from osd.$id" >&2
+		exit 6
+	fi
+	;;
 *"get clusters.postgresql"*) echo "error: the server doesn't have a resource type" >&2; exit 1 ;;
 esac
 `
@@ -167,9 +174,10 @@ func TestClusterStartupMajorityRebooted(t *testing.T) {
 
 func TestClusterStartupUndoes(t *testing.T) {
 	f := newStartupFake(t, shutdownMarker(), newBoots())
-	f.write("osds", "True True True")
+	f.write("osds", "0 1 2")
 	code, out := f.run()
 	assert.Equal(t, 0, code, out)
+	assert.NotContains(t, out, "still away")
 	assert.NotEqual(t, -1, f.index("-n velero patch cronjob snapshots"), "%v", f.log())
 	assert.NotEqual(t, -1, f.index("-n openbao patch cronjob snapshot"), "%v", f.log())
 	assert.NotEqual(t, -1, f.index("scale statefulset argocd-application-controller --replicas=2"), "%v", f.log())
@@ -189,14 +197,17 @@ func TestClusterStartupGoneMeanwhile(t *testing.T) {
 	assert.NotEqual(t, -1, f.index("scale statefulset"), "it did not finish: %v", f.log())
 }
 
-// Ceph short of an OSD for good: noout comes off so it copies what the dead node held, and the rest did not wait for that
+// Ceph short of an OSD for good: noout comes off so it copies what the dead node held, and the rest did not wait for that.
+// Only the OSD itself tells: its pod stays Ready and Ceph counts it up for a while after its node died
 func TestClusterStartupNoOutLimit(t *testing.T) {
 	marker := shutdownMarker()
 	marker["startupBegan"] = "1"
 	f := newStartupFake(t, marker, newBoots())
-	f.write("osds", "True False")
+	f.write("osds", "0 1 2")
+	f.write("away", "2")
 	code, out := f.run()
 	assert.Equal(t, 0, code, out)
+	assert.Contains(t, out, "still away", "%v", f.log())
 	unset := f.index("osd unset noout")
 	require.NotEqual(t, -1, unset, "%v", f.log())
 	assert.Less(t, f.index("patch cronjob"), unset)

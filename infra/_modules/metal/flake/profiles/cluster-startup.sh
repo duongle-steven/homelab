@@ -101,13 +101,21 @@ marker replicas replicas
 echo "starting Argo CD's application controller"
 gone_ok -n argocd scale statefulset argocd-application-controller "--replicas=$replicas"
 
+# Only the OSD itself tells: after a cut its pod stays Ready and Ceph counts it up until the others report it
+every_osd_answers() {
+	local ids id
+	ids=$(kube -n rook-ceph exec deploy/rook-ceph-operator -- ceph "--conf=$ceph_config" osd ls 2>/dev/null) || return 1
+	[ -n "$ids" ] || return 1
+	for id in $ids; do
+		kube -n rook-ceph exec deploy/rook-ceph-operator -- timeout 20 ceph "--conf=$ceph_config" tell "osd.$id" version >/dev/null 2>&1 || return 1
+	done
+}
+
 code=0
 ask get cephclusters.ceph.rook.io -A -o name >/dev/null || code=$?
 if [ "$code" = 0 ]; then
 	while :; do
-		osds=$(ask -n rook-ceph get pods -l app=rook-ceph-osd \
-			-o 'jsonpath={range .items[*]}{.status.conditions[?(@.type=="Ready")].status} {end}') || osds=""
-		if [ -n "${osds// /}" ] && ! grep -q False <<<"$osds"; then
+		if every_osd_answers; then
 			break
 		fi
 		# Short of a node for good: Ceph must copy what it held rather than stay short of a replica
