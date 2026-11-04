@@ -102,3 +102,4 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 12a-2 | `make infra break_glass= skip_proof=` ignores the skip without recording its reason | any |
 | 12a-2 | `scripts/mark-proof` finds its repository with `gh repo view`, `verify` with `seed_repository`: a checkout whose `gh` default is another fork marks there | 16 (portability) |
 | 12a-2 | Comments and docs that still say `values-dev.yaml` for what moved to `values-local.yaml` (`system/velero`, `system/kiali`, `set-backup-endpoint.sh`, `secrets-management.md`, `supply-chain.md`) | any |
+| 12a-3 | `lab cluster upgrade`: a drain that fails leaves the node cordoned with its mon evicted, and the next run waits for a healthy cluster before draining, so it never starts until someone runs `kubectl uncordon` | any |
