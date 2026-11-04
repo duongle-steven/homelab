@@ -36,10 +36,15 @@ type metalNode struct {
 		Label   string          `json:"label"`
 		Content json.RawMessage `json:"content"`
 	} `json:"data"`
-	Disk     string `json:"disk"`
-	TimeZone string `json:"timeZone"`
-	Kernel   string `json:"kernel"`
-	Reclaim  struct {
+	Disk             string `json:"disk"`
+	TimeZone         string `json:"timeZone"`
+	Kernel           string `json:"kernel"`
+	PoweroffDeadline struct {
+		WantedBy     []string `json:"wantedBy"`
+		Dependencies bool     `json:"dependencies"`
+		Exec         string   `json:"exec"`
+	} `json:"poweroffDeadline"`
+	Reclaim struct {
 		Condition string `json:"condition"`
 		Script    string `json:"script"`
 		Timer     string `json:"timer"`
@@ -92,6 +97,11 @@ func metalEval(t *testing.T) map[string]metalNode {
 				condition = s.unitConfig.ConditionVirtualization or "";
 				script = s.script;
 				wantedBy = s.wantedBy;
+			};
+			poweroffDeadline = let s = c.config.systemd.services.poweroff-deadline or null; in if s == null then {} else {
+				inherit (s) wantedBy;
+				dependencies = s.unitConfig.DefaultDependencies or true;
+				exec = s.serviceConfig.ExecStart;
 			};
 			reclaim = let s = c.config.systemd.services.memory-reclaim or null; in if s == null then {} else {
 				condition = s.unitConfig.ConditionVirtualization or "";
@@ -179,6 +189,20 @@ func TestMetalVMMemoryReclaim(t *testing.T) {
 		assert.Equal(t, "1min", node.Reclaim.Start, "%s: starts after an upgrade too, not only at boot", name)
 		assert.Contains(t, node.Reclaim.Script, "/sys/fs/cgroup/memory.reclaim", name)
 		assert.Contains(t, node.Reclaim.Script, "swappiness=0", "%s: only the page cache, never swap", name)
+	}
+}
+
+// A node holding a Ceph volume hangs at poweroff once the OSDs are gone, PID 1 itself in sync(): a unit started with the
+// poweroff, which nothing stops, cuts the power without syncing. Its processes' names start with @, which systemd-shutdown spares
+func TestMetalPoweroffDeadline(t *testing.T) {
+	for name, node := range metalEval(t) {
+		deadline := node.PoweroffDeadline
+		assert.Equal(t, []string{"poweroff.target"}, deadline.WantedBy, name)
+		assert.False(t, deadline.Dependencies, "%s: the default dependencies stop it at shutdown", name)
+		assert.Regexp(t, `^@\S+/bash @poweroff-deadline -c `, deadline.Exec, name)
+		assert.Contains(t, deadline.Exec, "exec -a @poweroff-sleep", name)
+		assert.Contains(t, deadline.Exec, "sleep 180", name)
+		assert.Contains(t, deadline.Exec, "echo o > /proc/sysrq-trigger", name)
 	}
 }
 

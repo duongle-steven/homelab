@@ -307,6 +307,7 @@ func controllerReplicas(t *testing.T) string {
 
 func waitAllShutOff(t *testing.T, names []string) {
 	t.Helper()
+	start := time.Now()
 	require.Eventually(t, func() bool {
 		for _, name := range names {
 			if domstate(name) != "shut off" {
@@ -315,6 +316,7 @@ func waitAllShutOff(t *testing.T, names []string) {
 		}
 		return true
 	}, 5*time.Minute, 5*time.Second, "a node did not power off")
+	t.Logf("every node off after %s", time.Since(start).Round(time.Second))
 }
 
 // An ordered shutdown stays off until someone starts the nodes; they then undo it by themselves, and only what it changed

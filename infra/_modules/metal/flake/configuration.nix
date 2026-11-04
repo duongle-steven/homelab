@@ -32,12 +32,15 @@
   # Debugging on the node (the control plane's metrics endpoints, the testbed tests)
   environment.systemPackages = [ pkgs.curl ];
 
-  # lab cluster shutdown powers every node off at once, and a node holding a Ceph volume hangs once the OSDs are gone: with
-  # poweroff-force its final stage hung too, about 11 minutes in all, so go straight to the power off. That is a sudden cut
-  # for what is left, which the power tests prove survivable
-  systemd.targets.poweroff.unitConfig = {
-    JobTimeoutSec = "180s";
-    JobTimeoutAction = "poweroff-immediate";
+  # lab cluster shutdown powers every node off at once, and a node holding a Ceph volume hangs once the OSDs are gone. systemd's
+  # own limits do not help: poweroff-force's final stage took about 8 minutes, and poweroff-immediate leaves PID 1 in sync(), which
+  # waits for the volume for good. So cut the power without syncing: a sudden cut for what is left, which the power tests prove
+  # survivable. Nothing stops this unit, and systemd-shutdown spares processes whose name starts with @
+  systemd.services.poweroff-deadline = {
+    description = "Cut the power of a poweroff that hangs";
+    wantedBy = [ "poweroff.target" ];
+    unitConfig.DefaultDependencies = false;
+    serviceConfig.ExecStart = ''@${pkgs.bash}/bin/bash @poweroff-deadline -c "(exec -a @poweroff-sleep ${pkgs.coreutils}/bin/sleep 180); echo o > /proc/sysrq-trigger"'';
   };
 
   services.openssh.enable = true;
