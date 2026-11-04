@@ -165,3 +165,39 @@ func TestMarkerRoundTrip(t *testing.T) {
 		t.Fatalf("empty: %+v, %v", empty, err)
 	}
 }
+
+func TestStartupTriesTheNextNode(t *testing.T) {
+	nodes := []host{{name: "a"}, {name: "b"}, {name: "c"}}
+	var tried []string
+	err := startup(nodes, func(node host) error {
+		tried = append(tried, node.name)
+		if node.name == "a" {
+			return errUnreachable
+		}
+		return nil
+	})
+	if err != nil || strings.Join(tried, ",") != "a,b" {
+		t.Fatalf("tried %v, err %v", tried, err)
+	}
+}
+
+// The script failing is its answer: another node would say the same
+func TestStartupStopsAtAFailure(t *testing.T) {
+	nodes := []host{{name: "a"}, {name: "b"}}
+	var tried []string
+	want := errors.New("exit status 1")
+	err := startup(nodes, func(node host) error {
+		tried = append(tried, node.name)
+		return want
+	})
+	if !errors.Is(err, want) || len(tried) != 1 {
+		t.Fatalf("tried %v, err %v", tried, err)
+	}
+}
+
+func TestStartupNoNodeAnswers(t *testing.T) {
+	err := startup([]host{{name: "a"}}, func(host) error { return errUnreachable })
+	if err == nil || !strings.Contains(err.Error(), "no node answered") {
+		t.Fatalf("got %v", err)
+	}
+}
