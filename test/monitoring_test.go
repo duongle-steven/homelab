@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,4 +85,24 @@ func TestAlertmanagerDevReceiversFollowProduction(t *testing.T) {
 	prod := renderVelero(t, "system/monitoring-system", "", config+` | .receivers | map(del(.telegram_configs)) | to_json`)
 	dev := renderVelero(t, "system/monitoring-system", "dev", config+` | .receivers | to_json`)
 	assert.JSONEq(t, prod, dev, "system/monitoring-system/values-local.yaml's receivers differ from values.yaml's beyond Telegram")
+}
+
+// ClusterShutdownMarkerStuck reads the marker's metric: the rule loaded, and kube-state-metrics exports the ConfigMap
+func TestMonitoringClusterShutdownMarker(t *testing.T) {
+	meshSandboxOnly(t)
+	options := k8s.NewKubectlOptions("", "", "monitoring-system")
+	options.Logger = logger.Discard
+	assert.Eventually(t, func() bool {
+		rules, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "--raw",
+			"/api/v1/namespaces/monitoring-system/services/monitoring-system-kube-pro-prometheus:9090/proxy/api/v1/rules?type=alert")
+		return err == nil && strings.Contains(rules, "ClusterShutdownMarkerStuck")
+	}, 5*time.Minute, 15*time.Second, "the alert is not loaded")
+
+	system := k8s.NewKubectlOptions("", "", "kube-system")
+	k8s.RunKubectl(t, system, "create", "configmap", "cluster-shutdown", "--from-literal=replicas=1")
+	defer k8s.RunKubectl(t, system, "delete", "configmap", "cluster-shutdown", "--ignore-not-found")
+	assert.Eventually(t, func() bool {
+		metrics, err := prometheusQuery(t, `kube_configmap_created{namespace="kube-system",configmap="cluster-shutdown"}`)
+		return err == nil && len(metrics) > 0
+	}, 5*time.Minute, 15*time.Second, "the marker's metric never appeared")
 }

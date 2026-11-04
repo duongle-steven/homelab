@@ -224,3 +224,23 @@ func TestClusterStartupNoCeph(t *testing.T) {
 	assert.Equal(t, 0, code, out)
 	assert.Equal(t, -1, f.index("osd unset noout"))
 }
+
+// The watchdog breaks the mesh's deadlock after a restart, so a shutdown leaves it running; nothing else is exempt
+func TestClusterStartupKeepsTheWatchdog(t *testing.T) {
+	const label = `select(.kind == "CronJob") | .metadata.labels."homelab/power-keep"`
+	assert.Equal(t, "true", renderYq(t, "system/istio-system", "", label))
+	for _, dir := range []string{"system/velero", "platform/openbao", "platform/secrets-rotation"} {
+		for _, value := range strings.Fields(renderYq(t, dir, "", label)) {
+			assert.Equal(t, "null", value, dir)
+		}
+	}
+}
+
+// A marker left long after the nodes returned means startup failed: nobody would otherwise learn backups stayed off
+func TestClusterStartupAlert(t *testing.T) {
+	const rule = `select(.kind == "PrometheusRule" and .metadata.name == "cluster-shutdown") | .spec.groups[0].rules[0]`
+	assert.Equal(t, "ClusterShutdownMarkerStuck", renderYq(t, "system/monitoring-system", "", rule+" | .alert"))
+	expr := renderYq(t, "system/monitoring-system", "", rule+" | .expr")
+	assert.Contains(t, expr, `kube_configmap_created{namespace="kube-system",configmap="cluster-shutdown"}`)
+	assert.Contains(t, expr, "> 7200")
+}

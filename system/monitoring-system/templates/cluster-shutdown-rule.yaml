@@ -1,0 +1,23 @@
+# lab cluster shutdown's marker outlives its welcome: the nodes' cluster-startup removes it within about 30 minutes of a
+# majority returning, so this means it failed and CronJobs (backups, rotation) stay suspended. A node that never returns
+# is KubeNodeNotReady's. docs/how-to-guides/power.md
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cluster-shutdown
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: cluster-shutdown
+      rules:
+        - alert: ClusterShutdownMarkerStuck
+          expr: |
+            time() - kube_configmap_created{namespace="kube-system",configmap="cluster-shutdown"} > 7200
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: A shutdown's marker is still there, so what it stopped may still be stopped
+            description: >-
+              kube-system/cluster-shutdown is over two hours old. See journalctl -u cluster-startup on a node, or run
+              lab cluster startup (docs/how-to-guides/power.md).
