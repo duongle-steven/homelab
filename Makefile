@@ -98,7 +98,7 @@ power_tests := PowerCutEveryNode PowerShutdownStartup PowerNodeNotReturning
 testbed-power: sandbox-checkout
 	@scripts/testbed-guard testbed
 	for t in $(or $(tests),$(power_tests)); do \
-		$(MAKE) env=testbed ENV=testbed INSECURE_SKIP_VERIFY=1 smoke_filter="$$t" smoke-test || exit 1; \
+		$(MAKE) env=testbed ENV=testbed INSECURE_SKIP_VERIFY=1 smoke_filter="$$t" format=standard-verbose smoke-test || exit 1; \
 	done
 
 # Shuts the VMs down (they keep their disks: make testbed starts them again), to run the sandbox

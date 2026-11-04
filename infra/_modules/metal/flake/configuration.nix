@@ -32,11 +32,12 @@
   # Debugging on the node (the control plane's metrics endpoints, the testbed tests)
   environment.systemPackages = [ pkgs.curl ];
 
-  # lab cluster shutdown powers every node off at once: a volume's unmount can stall once the OSDs are gone, and nobody
-  # may be home to press the button
+  # lab cluster shutdown powers every node off at once, and a node holding a Ceph volume hangs once the OSDs are gone: with
+  # poweroff-force its final stage hung too, about 11 minutes in all, so go straight to the power off. That is a sudden cut
+  # for what is left, which the power tests prove survivable
   systemd.targets.poweroff.unitConfig = {
     JobTimeoutSec = "180s";
-    JobTimeoutAction = "poweroff-force";
+    JobTimeoutAction = "poweroff-immediate";
   };
 
   services.openssh.enable = true;
