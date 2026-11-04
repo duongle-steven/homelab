@@ -111,14 +111,14 @@ Measured at 2 vCPUs from a fresh install, from the moment the VMs start:
 
 | Test | | Time |
 | --- | --- | --- |
-| Every node cut (`virsh destroy`) | the API at its VIP, every node Ready on a new boot, etcd whole | 1m03s |
-| | Ceph `HEALTH_OK` with every OSD answering, the Gateway at its VIP | 2m43s |
-| | 56 acknowledged lines intact, the probe writing again | 5m20s, with the checks |
+| Every node cut (`virsh destroy`) | the API at its VIP, every node Ready on a new boot, etcd whole | 1m07s |
+| | Ceph `HEALTH_OK` with every OSD answering, the Gateway at its VIP | 3m02s |
+| | 58 acknowledged lines intact, the probe writing again | 5m25s, with the checks |
 | Ordered shutdown | the nodes off, after `lab` returned: the one holding the probe's volume cut at 180 s, the others in 20 and 90 s | 3m05s |
-| | back on: every node Ready | 1m13s |
-| | the marker gone (CronJobs, Argo CD's controller and `noout` undone), Applications Synced | 2m48s |
-| A node not returning | CronJobs and Argo CD's controller back, with two nodes | 1m15s |
-| | `noout` off and the marker gone, at its limit | 31m26s |
+| | back on: every node Ready | 1m15s |
+| | the marker gone (CronJobs, Argo CD's controller and `noout` undone), Applications Synced | 3m18s |
+| A node not returning | CronJobs and Argo CD's controller back, with two nodes | 1m23s |
+| | `noout` off and the marker gone, at its limit | 31m23s |
 
 WSL's lowest available across these runs was 1.66 GB.
 
