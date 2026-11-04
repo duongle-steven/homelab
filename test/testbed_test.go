@@ -237,6 +237,33 @@ func waitPodSucceeded(t *testing.T, options *k8s.KubectlOptions, name string) {
 	require.Equal(t, "Succeeded", phase, "pod %s failed", name)
 }
 
+// A Gateway pod restarting changes its EndpointSlice: k3s's ServiceLB, which ignores loadBalancerClass, then wrote the Service's
+// status empty. When that came after kube-vip's own write, nothing wrote it again and kube-proxy had no rule for the VIP, for good.
+// The two race, so the test reads every second: the empty status itself is the failure, whichever came last
+func TestTestbedGatewayKeepsItsAddress(t *testing.T) {
+	testbedOnly(t)
+	system := testbedKubectl("istio-system")
+	require.Eventually(t, func() bool { return gatewayAnswers(t) }, 30*time.Minute, 10*time.Second, "the Gateway's VIP does not answer")
+	pods, err := k8s.RunKubectlAndGetOutputE(t, system, "get", "pods", "-l", "gateway.networking.k8s.io/gateway-name=gateway", "-o", "name")
+	require.NoError(t, err)
+	k8s.RunKubectl(t, system, "delete", strings.Fields(pods)[0], "--wait=false")
+	// Long enough for the pod to return and for what its endpoints set off
+	deadline := time.Now().Add(3 * time.Minute)
+	for time.Now().Before(deadline) {
+		status, err := k8s.RunKubectlAndGetOutputE(t, system, "get", "service", "gateway-istio", "-o", "jsonpath={.status.loadBalancer.ingress[*].ip}")
+		// The API may be busy: only an answer counts
+		if err == nil {
+			require.NotEmpty(t, status, "the Service's address went away with its pod")
+		}
+		time.Sleep(time.Second)
+	}
+	require.Eventually(t, func() bool {
+		out, err := k8s.RunKubectlAndGetOutputE(t, system, "get", "deployment", "gateway-istio", "-o", "jsonpath={.status.readyReplicas}")
+		return err == nil && out != "" && out != "0"
+	}, 5*time.Minute, 5*time.Second, "the Gateway's pod did not return")
+	assert.Eventually(t, func() bool { return gatewayAnswers(t) }, 2*time.Minute, 5*time.Second, "the Gateway's VIP stopped answering")
+}
+
 // Layer 2: pods on two nodes reach each other through ztunnel, the mesh refuses what no policy allows, and the Gateway
 // answers at its VIP with a certificate from the local CA
 func TestTestbedMesh(t *testing.T) {

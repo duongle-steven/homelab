@@ -133,7 +133,7 @@ func TestMetalK3sFlags(t *testing.T) {
 		for _, f := range auditFlags {
 			assert.Contains(t, flags, "--kube-apiserver-arg="+f, name)
 		}
-		assert.ElementsMatch(t, []string{"traefik", "local-storage", "gateway-api-crd"}, k.Disable, name)
+		assert.ElementsMatch(t, []string{"servicelb", "traefik", "local-storage", "gateway-api-crd"}, k.Disable, name)
 		assert.True(t, strings.HasPrefix(k.Version, "1.37."), "%s runs k3s %s, the sandbox 1.37", name, k.Version)
 		assert.Contains(t, node.Manifests, "gateway-api", name)
 		// The API server reads the audit policy only at start: a new policy restarts k3s at the switch
@@ -145,8 +145,8 @@ func TestMetalK3sFlags(t *testing.T) {
 	}
 }
 
-// kube-vip holds the API's VIP and serves only Services of its class (the Gateway's and WireGuard's addresses);
-// ServiceLB serves the rest, so no cloud controller hands out addresses
+// kube-vip holds the API's VIP and serves the Services of its class (the Gateway's and WireGuard's addresses), the only
+// LoadBalancer Services there are: ServiceLB is off, so no cloud controller hands out addresses
 func TestMetalKubeVip(t *testing.T) {
 	for name, node := range metalEval(t) {
 		assert.NotContains(t, node.Manifests, "kube-vip-cloud-controller", name)
