@@ -425,8 +425,10 @@ func TestPowerNodeNotReturning(t *testing.T) {
 
 	// noout's 30 minutes count from startup's first run, with a margin
 	limit := powerRecovery{t, recovery.start.Add(40*time.Minute - powerLimit)}
-	limit.reached("the marker gone, its limit over", func() bool { return markerGone(t) })
-	assert.GreaterOrEqual(t, time.Since(recovery.start), 29*time.Minute, "noout came off before its limit with an OSD away")
+	limit.reached("the marker gone", func() bool { return markerGone(t) })
+	gone := time.Since(recovery.start)
+	t.Logf("the marker lasted %s", gone.Round(time.Second))
+	assert.GreaterOrEqual(t, gone, 29*time.Minute, "noout came off before its limit with an OSD away")
 	noout, err := nooutSet(t)
 	assert.NoError(t, err)
 	assert.False(t, noout, "noout is still set")
@@ -439,6 +441,7 @@ func TestPowerCutPostgres(t *testing.T) {
 	if err != nil {
 		t.Skip("CloudNativePG is not installed: this is a one-off measurement")
 	}
+	powerHealthy(t, 30*time.Minute)
 	options := applyTestbedPostgres(t)
 	status := func(field string) string {
 		out, _ := k8s.RunKubectlAndGetOutputE(t, options, "get", "cluster", "db", "-o", "jsonpath={.status."+field+"}")
@@ -458,10 +461,16 @@ func TestPowerCutPostgres(t *testing.T) {
 	cutEveryNode(t)
 	start := time.Now()
 	powerRecovery{t, start}.nodesBack(booted, names...)
-	require.Eventually(t, func() bool { return status("readyInstances") == "3" }, 45*time.Minute-time.Since(start), 15*time.Second, "three instances did not return")
-	t.Logf("three instances ready after %s", time.Since(start).Round(time.Second))
-	value, err := psql(status("currentPrimary"), "SELECT value FROM probe")
-	require.NoError(t, err)
-	assert.Equal(t, "power-cut", value)
+	// Postgres itself tells: the Cluster's status still says what the operator saw before the cut
+	require.Eventually(t, func() bool {
+		value, err := psql(status("currentPrimary"), "SELECT value FROM probe")
+		return err == nil && value == "power-cut"
+	}, 45*time.Minute-time.Since(start), 15*time.Second, "no primary returned with the write")
+	t.Logf("a primary has the write after %s", time.Since(start).Round(time.Second))
+	require.Eventually(t, func() bool {
+		replicas, err := psql(status("currentPrimary"), "SELECT count(*) FROM pg_stat_replication WHERE state = 'streaming'")
+		return err == nil && replicas == "2"
+	}, 45*time.Minute-time.Since(start), 15*time.Second, "the replicas did not return")
+	t.Logf("two replicas streaming after %s", time.Since(start).Round(time.Second))
 	t.Logf("primary %s before, %s after", primary, status("currentPrimary"))
 }
