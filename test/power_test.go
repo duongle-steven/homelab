@@ -29,6 +29,11 @@ const (
 func powerNamespaceReady(t *testing.T) *k8s.KubectlOptions {
 	t.Helper()
 	options := testbedKubectl(powerNamespace)
+	// A run before this one may still be deleting it
+	require.Eventually(t, func() bool {
+		_, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "namespace", powerNamespace)
+		return err != nil && strings.Contains(err.Error(), "NotFound")
+	}, 10*time.Minute, 5*time.Second, "%s is still there", powerNamespace)
 	k8s.KubectlApplyFromString(t, options, fmt.Sprintf(`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":%q,"labels":{"istio.io/dataplane-mode":"none"}}}`, powerNamespace))
 	t.Cleanup(func() { k8s.DeleteNamespace(t, options, powerNamespace) })
 	return options
@@ -49,7 +54,7 @@ i=$(tail -n 1 /data/log)
 i=${i:-0}
 while :; do
 	i=$((i + 1))
-	echo "$i" >> /data/log && sync -d /data/log && echo "$i"
+	echo "$i" | dd of=/data/log oflag=append conv=notrunc,fsync 2>/dev/null && echo "$i"
 	sleep 0.2
 done`
 
@@ -121,12 +126,23 @@ func (p *powerProbe) verify(t *testing.T, acked []string) {
 	t.Logf("%d acknowledged records intact, %d in the file", len(acked), before)
 }
 
+// cephAnswersHealthy asks Ceph itself: the CephCluster's status still says what the operator saw before a cut
+func cephAnswersHealthy(t *testing.T, osds int) bool {
+	ceph := func(args ...string) string {
+		out, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl("rook-ceph"), append([]string{"exec", "deploy/rook-ceph-operator", "--", "ceph", "--conf=" + cephConfigPath}, args...)...)
+		if err != nil {
+			return ""
+		}
+		return out
+	}
+	return strings.HasPrefix(ceph("health"), "HEALTH_OK") && strings.Contains(ceph("osd", "stat"), fmt.Sprintf("%d up", osds))
+}
+
 func powerHealthy(t *testing.T, wait time.Duration) {
 	t.Helper()
 	names, _ := testbedHosts(t)
 	require.Eventually(t, func() bool {
-		health, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl("rook-ceph"), "get", "cephcluster", "-o", "jsonpath={.items[*].status.ceph.health}")
-		if err != nil || health != "HEALTH_OK" {
+		if !cephAnswersHealthy(t, len(names)) {
 			return false
 		}
 		ready, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl(""), "get", "nodes", "-o", `jsonpath={.items[*].status.conditions[?(@.type=="Ready")].status}`)
@@ -239,10 +255,7 @@ func TestPowerCutEveryNode(t *testing.T) {
 		out, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl(""), "get", "nodes", "-o", `jsonpath={.items[*].metadata.annotations.etcd\.k3s\.cattle\.io/node-name}`)
 		return err == nil && len(strings.Fields(out)) == len(names)
 	})
-	recovery.reached("Ceph HEALTH_OK", func() bool {
-		out, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl("rook-ceph"), "get", "cephcluster", "-o", "jsonpath={.items[*].status.ceph.health}")
-		return err == nil && out == "HEALTH_OK"
-	})
+	recovery.reached("Ceph HEALTH_OK with every OSD up", func() bool { return cephAnswersHealthy(t, len(names)) })
 	if !assert.Eventually(t, func() bool { return gatewayAnswers(t) }, max(powerLimit-time.Since(start), time.Minute), 10*time.Second,
 		"the Gateway's VIP did not answer: is this 12a-2's kube-vip finding (its lease held, the Service's status empty)?") {
 		dumpKubeVIP(t)
