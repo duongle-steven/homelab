@@ -24,15 +24,13 @@ const (
 	cephConfig = "/var/lib/rook/rook-ceph/rook-ceph.config"
 )
 
-// errNoCeph: the cluster has no CephCluster, so there is no noout to set
-var errNoCeph = errors.New("no CephCluster")
-
 // marker is what a shutdown changed, for the nodes' cluster-startup to undo
 // (infra/_modules/metal/flake/profiles/cluster-startup.sh reads these keys)
 type marker struct {
 	Replicas int               // Argo CD's application controller before it stopped
 	CronJobs []string          // namespace/name of those this shutdown suspended
 	Boots    map[string]string // each node's boot ID: startup waits for a majority on a new boot
+	NoOut    bool              // this shutdown set Ceph's noout
 }
 
 func (m marker) data() map[string]string {
@@ -41,11 +39,15 @@ func (m marker) data() map[string]string {
 		boots = append(boots, node+"="+id)
 	}
 	sort.Strings(boots)
-	return map[string]string{
+	data := map[string]string{
 		"replicas": strconv.Itoa(m.Replicas),
 		"cronjobs": strings.Join(m.CronJobs, "\n"),
 		"boots":    strings.Join(boots, "\n"),
 	}
+	if m.NoOut {
+		data["noout"] = "true"
+	}
+	return data
 }
 
 func parseMarker(data map[string]string) (marker, error) {
@@ -53,7 +55,7 @@ func parseMarker(data map[string]string) (marker, error) {
 	if err != nil {
 		return marker{}, fmt.Errorf("marker's replicas: %w", err)
 	}
-	m := marker{Replicas: replicas, CronJobs: strings.Fields(data["cronjobs"])}
+	m := marker{Replicas: replicas, CronJobs: strings.Fields(data["cronjobs"]), NoOut: data["noout"] != ""}
 	for _, line := range strings.Fields(data["boots"]) {
 		node, id, _ := strings.Cut(line, "=")
 		if m.Boots == nil {
@@ -79,6 +81,7 @@ type stopper interface {
 	cronJobs(context.Context) ([]cronJob, error)
 	suspend(ctx context.Context, name string) error
 	runningJobs(context.Context) ([]string, error)
+	hasCeph(context.Context) (bool, error)
 	noout(context.Context) error
 	powerOff(context.Context) error
 }
@@ -160,10 +163,17 @@ func stopWorkloads(ctx context.Context, cluster stopper, jobWait time.Duration, 
 		// A sudden cut is proven survivable, so a Job never holds the shutdown back
 		_, _ = fmt.Fprintf(progress, "going on without waiting longer (%v): %s\n", waited, strings.Join(running, ", "))
 	}
-	if err := cluster.noout(ctx); err != nil && !errors.Is(err, errNoCeph) {
+	ceph, err := cluster.hasCeph(ctx)
+	if err != nil || !ceph {
 		return err
 	}
-	return nil
+	if !saved.NoOut {
+		saved.NoOut = true
+		if err := cluster.writeMarker(ctx, saved); err != nil {
+			return err
+		}
+	}
+	return cluster.noout(ctx)
 }
 
 // clusterPower does it with kubectl and ssh
@@ -298,15 +308,16 @@ func (c clusterPower) runningJobs(ctx context.Context) ([]string, error) {
 	return running, nil
 }
 
-func (c clusterPower) noout(ctx context.Context) error {
+func (c clusterPower) hasCeph(ctx context.Context) (bool, error) {
 	clusters, err := c.kubectl(ctx, "get", "cephclusters.ceph.rook.io", "-A", "-o", "name")
-	if err != nil && strings.Contains(err.Error(), "the server doesn't have a resource type") || err == nil && clusters == "" {
-		return errNoCeph
+	if err != nil && strings.Contains(err.Error(), "the server doesn't have a resource type") {
+		return false, nil
 	}
-	if err != nil {
-		return err
-	}
-	_, err = c.kubectl(ctx, "-n", "rook-ceph", "exec", "deploy/rook-ceph-operator", "--", "ceph", "--conf="+cephConfig, "osd", "set", "noout")
+	return clusters != "", err
+}
+
+func (c clusterPower) noout(ctx context.Context) error {
+	_, err := c.kubectl(ctx, "-n", "rook-ceph", "exec", "deploy/rook-ceph-operator", "--", "ceph", "--conf="+cephConfig, "osd", "set", "noout")
 	return err
 }
 

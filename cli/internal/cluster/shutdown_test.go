@@ -29,7 +29,11 @@ func (f *fakeStopper) readMarker(context.Context) (marker, bool, error) {
 }
 func (f *fakeStopper) writeMarker(_ context.Context, m marker) error {
 	f.saved = &m
-	f.calls = append(f.calls, "marker "+strconv.Itoa(m.Replicas)+" "+strings.Join(m.CronJobs, ","))
+	call := "marker " + strconv.Itoa(m.Replicas) + " " + strings.Join(m.CronJobs, ",")
+	if m.NoOut {
+		call += " noout"
+	}
+	f.calls = append(f.calls, call)
 	return nil
 }
 func (f *fakeStopper) controllerReplicas(context.Context) (int, error) { return f.replicas, nil }
@@ -49,11 +53,9 @@ func (f *fakeStopper) suspend(_ context.Context, name string) error {
 	return nil
 }
 func (f *fakeStopper) runningJobs(context.Context) ([]string, error) { return f.jobs, nil }
+func (f *fakeStopper) hasCeph(context.Context) (bool, error)         { return !f.noCeph, nil }
 func (f *fakeStopper) noout(context.Context) error {
 	f.calls = append(f.calls, "noout")
-	if f.noCeph {
-		return errNoCeph
-	}
 	return nil
 }
 func (f *fakeStopper) powerOff(context.Context) error {
@@ -73,6 +75,7 @@ func TestShutdownOrder(t *testing.T) {
 		"suspend a/one",
 		"marker 1 a/one,b/two",
 		"suspend b/two",
+		"marker 1 a/one,b/two noout",
 		"noout",
 		"power off",
 	}
@@ -133,8 +136,21 @@ func TestShutdownNoCeph(t *testing.T) {
 	if err := shutdown(t.Context(), f, time.Minute, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
-	if f.calls[len(f.calls)-1] != "power off" {
-		t.Fatalf("calls %q", f.calls)
+	want := []string{"marker 1 ", "stop controller", "power off"}
+	if !reflect.DeepEqual(f.calls, want) {
+		t.Fatalf("calls\n%q\nwant\n%q", f.calls, want)
+	}
+}
+
+// A partial run recorded noout already: the next run sets it again without writing the marker for it
+func TestShutdownAgainKeepsNoOut(t *testing.T) {
+	f := &fakeStopper{saved: &marker{Replicas: 2, NoOut: true}}
+	if err := shutdown(t.Context(), f, time.Minute, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"stop controller", "noout", "power off"}
+	if !reflect.DeepEqual(f.calls, want) {
+		t.Fatalf("calls\n%q\nwant\n%q", f.calls, want)
 	}
 }
 
@@ -152,7 +168,7 @@ func TestShutdownFailureSaysStartup(t *testing.T) {
 }
 
 func TestMarkerRoundTrip(t *testing.T) {
-	m := marker{Replicas: 2, CronJobs: []string{"a/b", "c/d"}, Boots: map[string]string{"homelab-1": "x", "homelab-2": "y"}}
+	m := marker{Replicas: 2, CronJobs: []string{"a/b", "c/d"}, Boots: map[string]string{"homelab-1": "x", "homelab-2": "y"}, NoOut: true}
 	got, err := parseMarker(m.data())
 	if err != nil {
 		t.Fatal(err)
@@ -161,7 +177,7 @@ func TestMarkerRoundTrip(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 	empty, err := parseMarker(marker{Replicas: 1}.data())
-	if err != nil || len(empty.CronJobs) != 0 {
+	if err != nil || len(empty.CronJobs) != 0 || empty.NoOut {
 		t.Fatalf("empty: %+v, %v", empty, err)
 	}
 }

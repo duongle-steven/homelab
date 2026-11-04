@@ -15,8 +15,8 @@ import (
 )
 
 // A kubectl answering from files in $FAKE: data/<key> is the marker (no directory: NotFound), boot-<node> a node's boot ID,
-// osds the OSDs' ids (no file: no Ceph), away those that do not answer, fail how many calls first find the API away, cron-gone and marker-gone
-// a CronJob or marker another node removed meanwhile
+// osds the OSDs' ids, away those that do not answer, fail how many calls first find the API away, cron-gone and marker-gone
+// a CronJob or marker another node removed meanwhile, unset-fail how many times the operator's pod is gone under noout's unset, operator-gone the operator removed
 const startupKubectl = `#!/usr/bin/env bash
 echo "$*" >> "$FAKE/log"
 n=$(cat "$FAKE/count" 2>/dev/null || echo 0)
@@ -39,11 +39,17 @@ case "$*" in
 	cat "$FAKE/boot-$node"
 	;;
 *"patch cronjob"*) [ ! -f "$FAKE/cron-gone" ] || notfound cronjob ;;
-*"get cephclusters"*)
-	[ -f "$FAKE/osds" ] || { echo "error: the server doesn't have a resource type \"cephclusters\"" >&2; exit 1; }
-	echo cephcluster.ceph.rook.io/rook-ceph
-	;;
+*"get cephclusters"*) echo "error: the server doesn't have a resource type \"cephclusters\"" >&2; exit 1 ;;
 *"osd ls"*) tr ' ' '\n' < "$FAKE/osds" ;;
+*"osd unset noout"*)
+	[ ! -f "$FAKE/operator-gone" ] || notfound deployment
+	left=$(cat "$FAKE/unset-fail" 2>/dev/null || echo 0)
+	if [ "$left" -gt 0 ]; then
+		echo $((left - 1)) > "$FAKE/unset-fail"
+		notfound pod
+	fi
+	;;
+*"get deployment rook-ceph-operator"*) [ ! -f "$FAKE/operator-gone" ] || notfound deployment ;;
 *"tell osd."*)
 	id=$(echo "$*" | sed -n 's/.*tell osd\.\([0-9]*\).*/\1/p')
 	if grep -qw "$id" "$FAKE/away" 2>/dev/null; then
@@ -125,6 +131,13 @@ func shutdownMarker() map[string]string {
 	return map[string]string{"replicas": "2", "cronjobs": "velero/snapshots\nopenbao/snapshot", "boots": "a=old-a\nb=old-b\nc=old-c"}
 }
 
+// The marker of a shutdown that set noout
+func nooutMarker() map[string]string {
+	marker := shutdownMarker()
+	marker["noout"] = "true"
+	return marker
+}
+
 func newBoots() map[string]string { return map[string]string{"a": "new-a", "b": "new-b", "c": "new-c"} }
 
 // A joiner not yet enrolled has no k3s to ask, and must not loop until it has
@@ -173,7 +186,7 @@ func TestClusterStartupMajorityRebooted(t *testing.T) {
 }
 
 func TestClusterStartupUndoes(t *testing.T) {
-	f := newStartupFake(t, shutdownMarker(), newBoots())
+	f := newStartupFake(t, nooutMarker(), newBoots())
 	f.write("osds", "0 1 2")
 	code, out := f.run()
 	assert.Equal(t, 0, code, out)
@@ -200,7 +213,7 @@ func TestClusterStartupGoneMeanwhile(t *testing.T) {
 // Ceph short of an OSD for good: noout comes off so it copies what the dead node held, and the rest did not wait for that.
 // Only the OSD itself tells: its pod stays Ready and Ceph counts it up for a while after its node died
 func TestClusterStartupNoOutLimit(t *testing.T) {
-	marker := shutdownMarker()
+	marker := nooutMarker()
 	marker["startupBegan"] = "1"
 	f := newStartupFake(t, marker, newBoots())
 	f.write("osds", "0 1 2")
@@ -229,11 +242,46 @@ func TestClusterStartupKeepsItsClock(t *testing.T) {
 	assert.NotEqual(t, -1, f.index("patch configmap cluster-shutdown"), "%v", f.log())
 }
 
+// The marker tells whether noout was set: nothing here guesses from the API
 func TestClusterStartupNoCeph(t *testing.T) {
 	f := newStartupFake(t, shutdownMarker(), newBoots())
+	f.write("osds", "0 1 2")
 	code, out := f.run()
 	assert.Equal(t, 0, code, out)
-	assert.Equal(t, -1, f.index("osd unset noout"))
+	assert.Equal(t, -1, f.index("osd "), "%v", f.log())
+}
+
+// An API still without the CRDs just after boot is not a cluster without Ceph: noout would stay with the marker gone
+func TestClusterStartupNoOutWithoutDiscovery(t *testing.T) {
+	marker := nooutMarker()
+	marker["startupBegan"] = "1"
+	f := newStartupFake(t, marker, newBoots())
+	code, out := f.run()
+	assert.Equal(t, 0, code, out)
+	assert.NotEqual(t, -1, f.index("osd unset noout"), "%v", f.log())
+}
+
+// The operator's pod replaced under the exec says NotFound too: the marker stays until noout is really off
+func TestClusterStartupNoOutSurvivesThePod(t *testing.T) {
+	f := newStartupFake(t, nooutMarker(), newBoots())
+	f.write("osds", "0 1 2")
+	f.write("unset-fail", "2")
+	code, out := f.run()
+	assert.Equal(t, 0, code, out)
+	assert.Equal(t, 3, strings.Count(strings.Join(f.log(), "\n"), "osd unset noout"), "%v", f.log())
+	log := f.log()
+	assert.Contains(t, log[len(log)-1], "delete configmap cluster-shutdown", "the marker goes last")
+}
+
+// Ceph removed meanwhile: no noout left to take off, and the marker must not wait for it forever
+func TestClusterStartupNoOutOperatorGone(t *testing.T) {
+	marker := nooutMarker()
+	marker["startupBegan"] = "1"
+	f := newStartupFake(t, marker, newBoots())
+	f.write("operator-gone", "")
+	code, out := f.run()
+	assert.Equal(t, 0, code, out)
+	assert.NotEqual(t, -1, f.index("delete configmap cluster-shutdown"), "%v", f.log())
 }
 
 // The watchdog breaks the mesh's deadlock after a restart, so a shutdown leaves it running; nothing else is exempt

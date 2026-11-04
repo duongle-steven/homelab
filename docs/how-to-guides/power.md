@@ -9,8 +9,11 @@ Set each node's BIOS "Restore on AC power loss" to **Last State**: a node runnin
 turned off on purpose stays off, even through an outage.
 
 The nodes boot, k3s and etcd form a cluster again, then Ceph and the mesh follow. On the [testbed](../installation/testbed.md)
-this takes about 3 minutes from the VMs starting. Hardware has its own numbers: the testbed does not prove a real disk keeps
-what it acknowledged, so 12b prefers SSDs with power-loss protection and repeats the cut before real data.
+this takes about 3 minutes from the VMs starting, with only Ceph and the mesh on it. The whole platform takes longer: on the
+one-node sandbox a cut took from 5.5 to 23 minutes, the mesh's restart deadlock accounting for the slowest
+(`docs/reference/architecture/networking.md`), so wait that long before going home to look. Hardware has its own numbers: the
+testbed does not prove a real disk keeps what it acknowledged, so 12b prefers SSDs with power-loss protection and repeats the
+cut before real data.
 
 ## Turning the homelab off
 

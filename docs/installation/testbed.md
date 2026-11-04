@@ -85,8 +85,8 @@ Measured from `make testbed-fresh`:
 
 Layer 3's failover itself passes, in about 19 minutes at 2 vCPUs. What fails is the control plane around it: under the
 install and Postgres on Ceph, k3s lost its leases and left. At 4 vCPUs the nodes were 41–84% idle on average and k3s left
-once, so CPU alone does not explain it. The Gateway's address also stopped answering at 4 vCPUs: that was k3s's ServiceLB writing the
-Service's status empty, since fixed by turning it off on the nodes (`TestTestbedGatewayKeepsItsAddress`). So the list stops at layer 2 on
+once, so CPU alone does not explain it. The Gateway's address also stopped answering at 4 vCPUs: most likely k3s's ServiceLB writing the
+Service's status empty (reproduced at 2 vCPUs, matched at 4 only by its symptom), since fixed by turning it off on the nodes (`TestTestbedGatewayKeepsItsAddress`). So the list stops at layer 2 on
 this machine.
 
 Another machine extends the list in `system/argocd/values-testbed.yaml` and its VM size in `infra/testbed/vms/terragrunt.hcl`

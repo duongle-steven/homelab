@@ -111,9 +111,22 @@ every_osd_answers() {
 	done
 }
 
-code=0
-ask get cephclusters.ceph.rook.io -A -o name >/dev/null || code=$?
-if [ "$code" = 0 ]; then
+# Only a real unset or no operator ends this: NotFound may be its pod being replaced, and the marker's alert goes with the marker
+unset_noout() {
+	local code
+	until kube -n rook-ceph exec deploy/rook-ceph-operator -- ceph "--conf=$ceph_config" osd unset noout >/dev/null 2>"$errors"; do
+		echo "noout is still set: $(head -c 200 "$errors")" >&2
+		code=0
+		ask -n rook-ceph get deployment rook-ceph-operator >/dev/null || code=$?
+		[ "$code" != "$not_found" ] || return 0
+		sleep "$retry_seconds"
+	done
+}
+
+# The marker says, not the API: just after boot it may not serve Ceph's CRDs yet
+noout=""
+marker noout noout
+if [ -n "$noout" ]; then
 	while :; do
 		if every_osd_answers; then
 			break
@@ -125,7 +138,7 @@ if [ "$code" = 0 ]; then
 		fi
 		sleep "$retry_seconds"
 	done
-	gone_ok -n rook-ceph exec deploy/rook-ceph-operator -- ceph "--conf=$ceph_config" osd unset noout
+	unset_noout
 fi
 
 code=0
