@@ -51,10 +51,11 @@ power-loss protection and repeats the cut on hardware before real data *(discuss
 
 Beside `lab cluster upgrade`, same flags (`--environment`, `--flake`, a timeout), reaching the nodes the same way. In order:
 
-1. Stop Argo CD's application controller (scale to zero). Applications self-heal, so it would undo the next step at once; Argo
+1. Write the marker: a ConfigMap (`kube-system`, name left to the builder) listing what this shutdown changes, before changing
+   it, so a shutdown cut halfway still gets undone. It also records each node's boot ID, which startup needs below, and the
+   controller's replicas.
+2. Stop Argo CD's application controller (scale to zero). Applications self-heal, so it would undo the next step at once; Argo
    CD does not manage itself, so it stays stopped *(Claude's call)*.
-2. Write the marker: a ConfigMap (`kube-system`, name left to the builder) listing what this shutdown changed, before changing
-   it, so a shutdown cut halfway still gets undone. It also records each node's boot ID, which startup needs below.
 3. Suspend every CronJob that is not already suspended, recording its name in the marker, except those labelled to keep running
    (below).
 4. Wait for running Jobs, at most 5 minutes by default (a flag), then go on and name the Jobs it left *(Claude's call: a bounded
