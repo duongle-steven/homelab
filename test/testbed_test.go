@@ -241,6 +241,11 @@ func waitPodSucceeded(t *testing.T, options *k8s.KubectlOptions, name string) {
 // answers at its VIP with a certificate from the local CA
 func TestTestbedMesh(t *testing.T) {
 	testbedOnly(t)
+	testbedMeshWorks(t)
+}
+
+func testbedMeshWorks(t *testing.T) {
+	t.Helper()
 	system := testbedKubectl("istio-system")
 	require.Eventually(t, func() bool {
 		out, err := k8s.RunKubectlAndGetOutputE(t, system, "get", "gateway", "gateway",
@@ -313,23 +318,16 @@ func TestTestbedMesh(t *testing.T) {
 	}
 }
 
-// Three CloudNativePG instances across the nodes, in the mesh and on Ceph as Forgejo's database is in production
-// (platform/forgejo/templates/database.yaml): the primary's pod goes, a replica on another node takes over and keeps the data.
-// This workstation does not hold that layer (docs/installation/testbed.md): it runs where the list names the operator
-func TestTestbedPostgresFailover(t *testing.T) {
-	testbedOnly(t)
-	listed, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[].path`, "../system/argocd/values-testbed.yaml").Output()
-	require.NoError(t, err)
-	if !strings.Contains(string(listed), "platform/cloudnative-pg") {
-		t.Skip("system/argocd/values-testbed.yaml does not list platform/cloudnative-pg")
-	}
+// applyTestbedPostgres creates a namespace in the mesh holding CloudNativePG's Cluster db, three instances on Ceph
+func applyTestbedPostgres(t *testing.T) *k8s.KubectlOptions {
+	t.Helper()
 	out, err := exec.Command("yq", ".database.cnpg.image", "../platform/forgejo/values.yaml").Output()
 	require.NoError(t, err)
 	image := strings.TrimSpace(string(out))
 	ns := fmt.Sprintf("testbed-postgres-%d", time.Now().Unix())
 	options := testbedKubectl(ns)
 	k8s.KubectlApplyFromString(t, options, fmt.Sprintf(`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":%q,"labels":{"istio.io/dataplane-mode":"ambient"}}}`, ns))
-	defer k8s.DeleteNamespace(t, options, ns)
+	t.Cleanup(func() { k8s.DeleteNamespace(t, options, ns) })
 	k8s.KubectlApplyFromString(t, options, fmt.Sprintf(`{"apiVersion":"v1","kind":"List","items":[
 		{"apiVersion":"security.istio.io/v1","kind":"AuthorizationPolicy","metadata":{"name":"allow","namespace":%[1]q},
 			"spec":{"action":"ALLOW","rules":[{"from":[{"source":{"namespaces":[%[1]q]}}]}]}},
@@ -343,6 +341,20 @@ func TestTestbedPostgresFailover(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return k8s.KubectlApplyFromStringE(t, options, cluster) == nil
 	}, 20*time.Minute, 15*time.Second, "CloudNativePG refuses the Cluster")
+	return options
+}
+
+// Three CloudNativePG instances across the nodes, in the mesh and on Ceph as Forgejo's database is in production
+// (platform/forgejo/templates/database.yaml): the primary's pod goes, a replica on another node takes over and keeps the data.
+// This workstation does not hold that layer (docs/installation/testbed.md): it runs where the list names the operator
+func TestTestbedPostgresFailover(t *testing.T) {
+	testbedOnly(t)
+	listed, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[].path`, "../system/argocd/values-testbed.yaml").Output()
+	require.NoError(t, err)
+	if !strings.Contains(string(listed), "platform/cloudnative-pg") {
+		t.Skip("system/argocd/values-testbed.yaml does not list platform/cloudnative-pg")
+	}
+	options := applyTestbedPostgres(t)
 
 	status := func(field string) string {
 		out, _ := k8s.RunKubectlAndGetOutputE(t, options, "get", "cluster", "db", "-o", "jsonpath={.status."+field+"}")
