@@ -32,6 +32,13 @@
   # Debugging on the node (the control plane's metrics endpoints, the testbed tests)
   environment.systemPackages = [ pkgs.curl ];
 
+  # lab cluster shutdown powers every node off at once: a volume's unmount can stall once the OSDs are gone, and nobody
+  # may be home to press the button
+  systemd.targets.poweroff.unitConfig = {
+    JobTimeoutSec = "180s";
+    JobTimeoutAction = "poweroff-force";
+  };
+
   services.openssh.enable = true;
   security.sudo.wheelNeedsPassword = false;
 
