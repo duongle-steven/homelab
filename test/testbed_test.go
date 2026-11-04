@@ -274,11 +274,8 @@ func TestTestbedMesh(t *testing.T) {
 func testbedMeshWorks(t *testing.T) {
 	t.Helper()
 	system := testbedKubectl("istio-system")
-	require.Eventually(t, func() bool {
-		out, err := k8s.RunKubectlAndGetOutputE(t, system, "get", "gateway", "gateway",
-			"-o", `jsonpath={.status.conditions[?(@.type=="Programmed")].status}`)
-		return err == nil && out == "True"
-	}, 30*time.Minute, 15*time.Second, "the Gateway is not programmed")
+	// Not its status: Programmed stays False after its only pod's node goes, until istiod restarts, though it serves again
+	require.Eventually(t, func() bool { return gatewayAnswers(t) }, 30*time.Minute, 10*time.Second, "the Gateway does not answer")
 
 	names, _ := testbedHosts(t)
 	suffix := time.Now().Unix()
