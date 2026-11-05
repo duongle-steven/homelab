@@ -21,6 +21,9 @@ in
     }
   ];
 
+  # etcdctl: TestTestbedSecretsEncrypted reads a Secret raw, and k3s ships none
+  environment.systemPackages = [ pkgs.etcd ];
+
   # TODO revisit THP after HA testing
   boot.kernelParams = [ "transparent_hugepage=never" ];
 
@@ -99,8 +102,13 @@ in
       "--kube-apiserver-arg=audit-log-path=/var/log/kubernetes/audit/audit.log"
       "--kube-apiserver-arg=audit-log-maxsize=100"
       "--kube-apiserver-arg=audit-log-maxbackup=3"
+      "--kube-apiserver-arg=audit-log-maxage=30"
       "--kube-apiserver-arg=audit-log-truncate-enabled=true"
       "--kube-apiserver-arg=audit-log-truncate-max-event-size=102400"
+      # kube-bench's 1.2.30, 4.2.14 and 4.2.13 (docs/how-to-guides/cluster-scan.md): the same on k3d
+      "--kube-apiserver-arg=service-account-extend-token-expiration=false"
+      "--kubelet-arg=seccomp-default=true"
+      "--kubelet-arg=pod-max-pids=4096"
       "--node-ip=${hostConfig.ip}"
       "--tls-san=${k3s.vip}"
       "--cluster-cidr=10.42.0.0/16"

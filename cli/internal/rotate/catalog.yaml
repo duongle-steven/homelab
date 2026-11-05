@@ -340,6 +340,29 @@
     Revoke the token with BotFather (/revoke; there is no overlap), then write the new one to OpenBao with the admin
     role (docs/how-to-guides/alerts.md)
 
+- name: k3s.encryption-key
+  envs: [production]
+  kind: manual
+  class: 1
+  reason: >-
+    k3s's key for Secrets in etcd, on each server's disk. With stolen disks set aside it guards little, and k3s warns a
+    wrong rotation can corrupt the cluster for good, so it is rotated only by a person, when there is a reason
+  steps: >-
+    On one server, k3s secrets-encrypt rotate-keys; wait until k3s secrets-encrypt status says reencrypt_finished and
+    All hashes match; restart k3s on each server in turn (docs/how-to-guides/cluster-scan.md)
+
+- name: k3s.token
+  envs: [production]
+  kind: manual
+  class: 2
+  reason: >-
+    k3s's cluster token, which a server shows to join. No overlap, and only k3s's own command replaces it, so it is
+    rotated only by a person. Never run here: read k3s's docs for the current steps first
+  steps: >-
+    Never run on this repository's clusters. k3s's documented steps: on one server, k3s token rotate --token <old>
+    --new-token <new>; restart k3s on every server in turn; update the enrollment token file of any node yet to join
+    (lab cluster enroll)
+
 - name: openbao.unseal-key
   kind: never
   reason: it holds all of OpenBao's data; a new key means a new OpenBao, so nothing is gained against a leak

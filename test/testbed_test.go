@@ -1,6 +1,8 @@
 package test
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -80,6 +82,30 @@ func waitNodeReady(t *testing.T, node string, wait time.Duration) {
 
 // Before the other tests read the running result: every Application the list names has synced this commit and is healthy.
 // Without this a change Argo CD has not reached yet, or a sync that failed, would be marked as proved
+// TestTestbedSecretsEncrypted reads a Secret raw from etcd on a node (TestSecretIsEncrypted proves the check can fail).
+// Only etcdctl's stdout: ssh's warnings would hide the prefix
+func TestTestbedSecretsEncrypted(t *testing.T) {
+	testbedOnly(t)
+	names, ips := testbedHosts(t)
+	random := make([]byte, 16)
+	_, err := rand.Read(random)
+	require.NoError(t, err)
+	value, name := hex.EncodeToString(random), "secrets-encrypted-test"
+	options := testbedKubectl("kube-system")
+	t.Cleanup(func() { _ = k8s.RunKubectlE(t, options, "delete", "secret", name, "--ignore-not-found") })
+	require.NoError(t, k8s.KubectlApplyFromStringE(t, options, fmt.Sprintf(`apiVersion: v1
+kind: Secret
+metadata: {name: %s}
+stringData: {value: %s}
+`, name, value)))
+
+	tls := "/var/lib/rancher/k3s/server/tls/etcd"
+	raw, err := exec.Command("ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "root@"+ips[names[0]],
+		fmt.Sprintf("etcdctl --endpoints https://127.0.0.1:2379 --cacert %[1]s/server-ca.crt --cert %[1]s/server-client.crt --key %[1]s/server-client.key get /registry/secrets/kube-system/%[2]s --print-value-only", tls, name)).Output()
+	require.NoError(t, err)
+	require.NoError(t, secretIsEncrypted(raw, value))
+}
+
 func TestTestbedSynced(t *testing.T) {
 	testbedOnly(t)
 	head, err := exec.Command("git", "rev-parse", "HEAD").Output()

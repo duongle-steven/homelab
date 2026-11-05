@@ -45,10 +45,19 @@ options:
         nodeFilters: [server:*]
       - arg: --kube-apiserver-arg=audit-log-maxbackup=3
         nodeFilters: [server:*]
+      - arg: --kube-apiserver-arg=audit-log-maxage=30
+        nodeFilters: [server:*]
       # An event over 100KiB (a large CRD's body) keeps who and what without its bodies: Loki refuses a line over 256KB
       - arg: --kube-apiserver-arg=audit-log-truncate-enabled=true
         nodeFilters: [server:*]
       - arg: --kube-apiserver-arg=audit-log-truncate-max-event-size=102400
+        nodeFilters: [server:*]
+      # kube-bench's 1.2.30, 4.2.14 and 4.2.13 (docs/how-to-guides/cluster-scan.md): the same on the nodes
+      - arg: --kube-apiserver-arg=service-account-extend-token-expiration=false
+        nodeFilters: [server:*]
+      - arg: --kubelet-arg=seccomp-default=true
+        nodeFilters: [server:*]
+      - arg: --kubelet-arg=pod-max-pids=4096
         nodeFilters: [server:*]
   kubeconfig:
     updateDefaultKubeconfig: false

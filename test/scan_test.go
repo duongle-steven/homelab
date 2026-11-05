@@ -357,6 +357,23 @@ func scanTail(out []byte) string {
 	return strings.Join(lines[max(0, len(lines)-5):], "\n")
 }
 
+// The flags kube-bench asks for, the same on k3d and the nodes: the sandbox's whole platform is what proves them harmless
+func TestScanHardeningFlags(t *testing.T) {
+	k3d, err := os.ReadFile(filepath.Join("..", "infra", "_modules", "k3d", "k3d.yaml"))
+	require.NoError(t, err)
+	nodes, err := os.ReadFile(filepath.Join("..", "infra", "_modules", "metal", "flake", "profiles", "k3s-server.nix"))
+	require.NoError(t, err)
+	for _, flag := range []string{
+		"--kube-apiserver-arg=service-account-extend-token-expiration=false",
+		"--kube-apiserver-arg=audit-log-maxage=30",
+		"--kubelet-arg=seccomp-default=true",
+		"--kubelet-arg=pod-max-pids=4096",
+	} {
+		assert.Contains(t, string(k3d), "- arg: "+flag+"\n", "k3d.yaml")
+		assert.Contains(t, string(nodes), `"`+flag+`"`, "k3s-server.nix")
+	}
+}
+
 func TestScanAcceptedRefused(t *testing.T) {
 	for name, raw := range map[string]string{
 		"check without a reason":    "kubeBench: [{check: 1.3.7}]",
