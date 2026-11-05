@@ -348,8 +348,8 @@
     k3s's key for Secrets in etcd, on each server's disk. With stolen disks set aside it guards little, and k3s warns a
     wrong rotation can corrupt the cluster for good, so it is rotated only by a person, when there is a reason
   steps: >-
-    On one server, k3s secrets-encrypt rotate-keys; wait until k3s secrets-encrypt status says reencrypt_finished and
-    All hashes match; restart k3s on each server in turn (docs/how-to-guides/cluster-scan.md)
+    On one server, k3s secrets-encrypt rotate-keys, then restart k3s on each server in turn; k3s secrets-encrypt status
+    says All hashes match only a little after the last restart (docs/how-to-guides/cluster-scan.md)
 
 - name: k3s.token
   envs: [production]
