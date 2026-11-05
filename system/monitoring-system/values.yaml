@@ -1,4 +1,34 @@
 kube-prometheus-stack:
+  kube-state-metrics:
+    # The chart's list without secrets: nothing here reads kube_secret_*, and listing them is reading every Secret
+    collectors:
+      - certificatesigningrequests
+      - configmaps
+      - cronjobs
+      - daemonsets
+      - deployments
+      - endpointslices
+      - horizontalpodautoscalers
+      - ingresses
+      - jobs
+      - leases
+      - limitranges
+      - mutatingwebhookconfigurations
+      - namespaces
+      - networkpolicies
+      - nodes
+      - persistentvolumeclaims
+      - persistentvolumes
+      - poddisruptionbudgets
+      - pods
+      - replicasets
+      - replicationcontrollers
+      - resourcequotas
+      - services
+      - statefulsets
+      - storageclasses
+      - validatingwebhookconfigurations
+      - volumeattachments
   prometheusOperator:
     # The API server (outside the mesh) calls its admission webhook
     podLabels:
