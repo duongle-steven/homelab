@@ -374,6 +374,30 @@ func TestScanHardeningFlags(t *testing.T) {
 	}
 }
 
+// What kubescape found and step 15d narrowed: no component here holds cluster-admin or reads every Secret for nothing
+func TestScanNarrowedRBAC(t *testing.T) {
+	for _, env := range []string{"", "dev"} {
+		velero := renderYq(t, "system/velero", env, `select(.kind == "ClusterRoleBinding" and .metadata.name == "velero-server") | .roleRef.name`)
+		assert.Equal(t, "velero-volumes", velero, "velero, env=%q", env)
+		rules := renderYq(t, "system/velero", env, `select(.kind == "ClusterRole" and .metadata.name == "velero-volumes") | .rules | tojson`)
+		assert.NotContains(t, rules, `"*"`, "velero's ClusterRole names what it needs")
+		assert.NotContains(t, rules, "secrets", "velero's Secrets are in its own namespace")
+
+		assert.Empty(t, renderYq(t, "platform/grafana", env, `select(.kind == "ClusterRole" or .kind == "ClusterRoleBinding") | .metadata.name`), "grafana")
+		for _, namespace := range []string{"grafana", "monitoring-system"} {
+			binding := renderYq(t, "platform/grafana", env, `select(.kind == "RoleBinding" and .metadata.namespace == "`+namespace+`") | .roleRef.name`)
+			assert.Equal(t, "grafana-sidecar", binding, "grafana in %s", namespace)
+			role := renderYq(t, "platform/grafana", env, `select(.kind == "Role" and .metadata.namespace == "`+namespace+`") | .rules | tojson`)
+			assert.Contains(t, role, "configmaps", "grafana in %s", namespace)
+			assert.NotContains(t, role, "secrets", "grafana in %s", namespace)
+		}
+
+		metrics := renderYq(t, "system/monitoring-system", env, `select(.kind == "ClusterRole" and .metadata.name == "monitoring-system-kube-state-metrics") | .rules | tojson`)
+		assert.Contains(t, metrics, "pods")
+		assert.NotContains(t, metrics, "secrets", "kube-state-metrics")
+	}
+}
+
 func TestScanAcceptedRefused(t *testing.T) {
 	for name, raw := range map[string]string{
 		"check without a reason":    "kubeBench: [{check: 1.3.7}]",

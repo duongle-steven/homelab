@@ -40,6 +40,9 @@ velero:
       data:
         node-agent-config.json: '{"restorePVC":{"ignoreDelayBinding":true}}'
   snapshotsEnabled: false
+  rbac:
+    # templates/rbac.yaml: the chart's binding, to a role that names what Velero needs
+    clusterAdministratorName: velero-volumes
   # CRDs come with the chart (helm template --include-crds): no upgrade Job running kubectl
   upgradeCRDs: false
   configuration:
