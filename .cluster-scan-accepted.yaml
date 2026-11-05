@@ -1,5 +1,22 @@
-# Findings make testbed-scan and make dev-scan accept, each with its reason (docs/how-to-guides/cluster-scan.md)
-kubeBench: []
+# Findings make testbed-scan and make dev-scan accept, each with its reason (docs/how-to-guides/cluster-scan.md).
+# kubescape's controls are noise accepted whole; its dangerous controls are accepted only by resource, a name pattern
+# at most, so a new workload there fails the target.
+kubeBench:
+  - check: 1.3.7
+    reason: >-
+      The controller manager binds beyond localhost on purpose, for Prometheus; nixos-fw admits only pods and nodes on
+      its port (infra/_modules/metal)
+  - check: 1.4.2
+    reason: >-
+      The scheduler binds beyond localhost on purpose, for Prometheus; nixos-fw admits only pods and nodes on its port
+  - check: 4.2.4
+    reason: >-
+      A false report: k3s's journal line ends read-only-port=0" and the check reads 0" as another value; nothing
+      listens on 10255
+  - check: 4.3.1
+    reason: >-
+      kube-proxy's metrics bind beyond localhost on purpose, for Prometheus; nixos-fw admits only pods and nodes on its
+      port
 kubescape:
   controls: []
   resources: []

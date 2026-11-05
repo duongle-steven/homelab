@@ -101,6 +101,11 @@ testbed-power: sandbox-checkout
 		$(MAKE) env=testbed ENV=testbed INSECURE_SKIP_VERIFY=1 smoke_filter="$$t" format=standard-verbose smoke-test || exit 1; \
 	done
 
+# kube-bench on every node, against .cluster-scan-accepted.yaml, by hand (docs/how-to-guides/cluster-scan.md): not part of the mark
+testbed-scan: sandbox-checkout
+	@scripts/testbed-guard testbed
+	$(MAKE) env=testbed ENV=testbed INSECURE_SKIP_VERIFY=1 smoke_filter=ScanBench format=standard-verbose smoke-test
+
 # Shuts the VMs down (they keep their disks: make testbed starts them again), to run the sandbox
 testbed-stop:
 	for name in $$(jq -r 'keys[]' infra/testbed/metal/hosts.json); do virsh -c qemu:///system shutdown "$$name" || true; done

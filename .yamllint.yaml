@@ -6,6 +6,8 @@ ignore: |
   .terragrunt-cache/
   # Upstream's manifests, vendored unchanged (csi-driver-host-path)
   system/csi-hostpath/files/
+  # kube-bench's benchmark, vendored unchanged from its main branch
+  test/kube-bench-cfg/
 
 extends: default
 
