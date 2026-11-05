@@ -76,8 +76,11 @@ in
     clusterInit = k3s.clusterInit;
     serverAddr = if k3s.clusterInit then "" else "https://${k3s.vip}:6443";
     tokenFile = if k3s.clusterInit then null else "/var/lib/rancher/k3s/enrollment/token";
-    # ServiceLB stays: kube-vip serves only its class (profiles/kube-vip.nix)
     disable = [
+      # kube-vip serves the LoadBalancer Services (profiles/kube-vip.nix). ServiceLB ignores loadBalancerClass when it writes
+      # a Service's status: at each change of endpoints it wrote kube-vip's status empty, and with no status kube-proxy has
+      # no rule for the VIP. The Gateway's address stayed down when that came after kube-vip's write
+      "servicelb"
       "traefik" # Istio serves the Gateways
       "local-storage" # rook-ceph serves the volumes
       "gateway-api-crd"

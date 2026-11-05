@@ -85,7 +85,8 @@ Measured from `make testbed-fresh`:
 
 Layer 3's failover itself passes, in about 19 minutes at 2 vCPUs. What fails is the control plane around it: under the
 install and Postgres on Ceph, k3s lost its leases and left. At 4 vCPUs the nodes were 41–84% idle on average and k3s left
-once, so CPU alone does not explain it, and the Gateway's address stopped answering for at least 30 minutes after API errors (kube-vip held its lease with the Service's status empty, cause not proven). So the list stops at layer 2 on
+once, so CPU alone does not explain it. The Gateway's address also stopped answering at 4 vCPUs: most likely k3s's ServiceLB writing the
+Service's status empty (reproduced at 2 vCPUs, matched at 4 only by its symptom), since fixed by turning it off on the nodes (`TestTestbedGatewayKeepsItsAddress`). So the list stops at layer 2 on
 this machine.
 
 Another machine extends the list in `system/argocd/values-testbed.yaml` and its VM size in `infra/testbed/vms/terragrunt.hcl`
@@ -94,6 +95,61 @@ beside it with `cloudnative-pg.monitoring.podMonitorEnabled: false`; `TestTestbe
 
 "Up to everything" is a direction, not a promise: past these layers, components need more than the list (OpenBao and its
 units, Forgejo, tests made general for them).
+
+## Power
+
+```sh
+make testbed-power
+```
+
+On a healthy testbed, from the main checkout, alone: it wrecks the cluster's availability, so it is never part of `make testbed` and gives
+no mark. Run it when `lab cluster shutdown|startup`, the node profile or the recovery path change, and before step 12b. `tests=` picks
+the tests (`PowerCutEveryNode`, `PowerShutdownStartup`, `PowerNodeNotReturning`). A probe on a Ceph volume writes numbered lines, flushing
+each, and every number it reported must be in its file afterwards ([what they cover](../how-to-guides/power.md)).
+
+Measured at 2 vCPUs from a fresh install, from the moment the VMs start:
+
+| Test | | Time |
+| --- | --- | --- |
+| Every node cut (`virsh destroy`) | the API at its VIP, every node Ready on a new boot, etcd whole | 1m07s |
+| | Ceph `HEALTH_OK` with every OSD answering, the Gateway at its VIP | 3m02s |
+| | 58 acknowledged lines intact, the probe writing again | 5m25s, with the checks |
+| Ordered shutdown | the nodes off, after `lab` returned: the one holding the probe's volume cut at 180 s, the others in 20 and 90 s | 3m05s |
+| | back on: every node Ready | 1m15s |
+| | the marker gone (CronJobs, Argo CD's controller and `noout` undone), Applications Synced | 3m18s |
+| A node not returning | CronJobs and Argo CD's controller back, with two nodes | 1m23s |
+| | `noout` off and the marker gone, at its limit | 31m23s |
+
+WSL's lowest available across these runs was 1.66 GB.
+
+Two status fields read wrong after a cut, so the tests and `cluster-startup` ask the thing itself. An OSD's pod stays `Ready` and `ceph osd stat`
+counts it `up` for a while after its node died (only `ceph tell osd.N version` tells), and a CephCluster's or CloudNativePG `Cluster`'s status
+says what the operator saw before.
+
+**What this does not prove.** `virsh destroy` kills QEMU, and with `cache=unsafe` what the guest handed to QEMU survives in WSL's page cache, a
+flush forced to no disk. So it proves the software recovers and that writes the guest never flushed do not count as acknowledged, not
+that a real disk keeps what it acknowledged. Without a UPS that risk sits entirely in the hardware: step 12b prefers SSDs with power-loss
+protection and repeats the cut before real data.
+
+### CloudNativePG, one measurement
+
+Once, not on the list and not in the mark (`make testbed-power tests=PowerCutPostgres`, the operator rendered and applied by hand with its `PodMonitor`
+removed, an instance on each node, 2 vCPUs):
+
+| | |
+| --- | --- |
+| Result | pass: the same primary with the write after 4m20s, two replicas streaming after 5m37s |
+| k3s exits | 1, on one node, 49 s after its boot (below) |
+| CPU idle in each node, average over 15 minutes (lowest 0) | 10–30% |
+| I/O wait, average; highest | 0–3%; 21% |
+| MemAvailable in each node, lowest | 1.08–1.21 GB |
+| Disk, average per sample of about a minute | written 120–140 MB, read 330–890 MB |
+| WSL's lowest available | 1.69 GB |
+
+The nodes ran short of CPU, not of disk or memory, while everything restarted at once, and rode it out. No lease was lost: 12a-2's finding
+did not recur, so it says nothing about that and was not repeated at 4 vCPUs. k3s stopped itself twice across the two runs, both on one node shortly after a boot, and systemd restarted it: `failed to start
+networking: unable to initialize network policy controller: error getting node subnet` here, and in a first run (failed by a test reading stale status) a nil pointer in Flannel 0.28.4's
+`watchVXLANDevice`. Neither stopped the recovery; both go with k3s's own updates.
 
 ## Memory
 
@@ -104,7 +160,7 @@ quarter goes back to WSL (without it each VM grew to 3.0–3.4 GB and WSL ran ou
 
 ## Differences from production
 
-- VMs on one workstation: no real power loss, no real Wake-on-LAN (`scripts/testbed-wake` plays it), one disk per node
+- VMs on one workstation: no real power loss ([Power](#power)), no real Wake-on-LAN (`scripts/testbed-wake` plays it), one disk per node
   (SCSI, `/dev/sda`) shared by the system and Ceph's OSD
 - `slow_control_plane` (`infra/testbed/cluster/config.json`): etcd heartbeat 500 ms and election 5 s, controller leases 60 s.
   Production keeps the defaults, so a stall this environment rides out would be an election there
@@ -114,4 +170,5 @@ quarter goes back to WSL (without it each VM grew to 3.0–3.4 GB and WSL ran ou
   `values-testbed.yaml`
 - No Kyverno and no monitoring operator: the `PolicyException`s and `PodMonitor`s of the charts it runs are off, listed as
   `not_run` in `infra/testbed/release-paths.yaml`, so a release changing only those needs no testbed run
+- ServiceLB is off on the nodes, as in production; the sandbox keeps it
 - No Forgejo: the sandbox proves Argo CD reading `ops/homelab` (`TestForgejoArgoCDSyncs`)

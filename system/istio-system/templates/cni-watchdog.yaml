@@ -37,6 +37,9 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: istio-cni-watchdog
+  labels:
+    # lab cluster shutdown leaves it running: suspended, it could leave the mesh deadlocked while the nodes come back
+    homelab/power-keep: "true"
 spec:
   schedule: "* * * * *"
   concurrencyPolicy: Forbid

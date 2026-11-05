@@ -43,6 +43,7 @@
       ./profiles/rook-ceph.nix
       ./profiles/zram.nix
       ./profiles/vm-memory.nix
+      ./profiles/cluster-startup.nix
       {
         networking.hostName = name;
       }

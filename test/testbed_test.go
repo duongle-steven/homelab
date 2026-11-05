@@ -237,16 +237,45 @@ func waitPodSucceeded(t *testing.T, options *k8s.KubectlOptions, name string) {
 	require.Equal(t, "Succeeded", phase, "pod %s failed", name)
 }
 
+// A Gateway pod restarting changes its EndpointSlice: k3s's ServiceLB, which ignores loadBalancerClass, then wrote the Service's
+// status empty. When that came after kube-vip's own write, nothing wrote it again and kube-proxy had no rule for the VIP, for good.
+// The two race, so the test reads every second: the empty status itself is the failure, whichever came last
+func TestTestbedGatewayKeepsItsAddress(t *testing.T) {
+	testbedOnly(t)
+	system := testbedKubectl("istio-system")
+	require.Eventually(t, func() bool { return gatewayAnswers(t) }, 30*time.Minute, 10*time.Second, "the Gateway's VIP does not answer")
+	pods, err := k8s.RunKubectlAndGetOutputE(t, system, "get", "pods", "-l", "gateway.networking.k8s.io/gateway-name=gateway", "-o", "name")
+	require.NoError(t, err)
+	k8s.RunKubectl(t, system, "delete", strings.Fields(pods)[0], "--wait=false")
+	// Long enough for the pod to return and for what its endpoints set off
+	deadline := time.Now().Add(3 * time.Minute)
+	for time.Now().Before(deadline) {
+		status, err := k8s.RunKubectlAndGetOutputE(t, system, "get", "service", "gateway-istio", "-o", "jsonpath={.status.loadBalancer.ingress[*].ip}")
+		// The API may be busy: only an answer counts
+		if err == nil {
+			require.NotEmpty(t, status, "the Service's address went away with its pod")
+		}
+		time.Sleep(time.Second)
+	}
+	require.Eventually(t, func() bool {
+		out, err := k8s.RunKubectlAndGetOutputE(t, system, "get", "deployment", "gateway-istio", "-o", "jsonpath={.status.readyReplicas}")
+		return err == nil && out != "" && out != "0"
+	}, 5*time.Minute, 5*time.Second, "the Gateway's pod did not return")
+	assert.Eventually(t, func() bool { return gatewayAnswers(t) }, 2*time.Minute, 5*time.Second, "the Gateway's VIP stopped answering")
+}
+
 // Layer 2: pods on two nodes reach each other through ztunnel, the mesh refuses what no policy allows, and the Gateway
 // answers at its VIP with a certificate from the local CA
 func TestTestbedMesh(t *testing.T) {
 	testbedOnly(t)
+	testbedMeshWorks(t)
+}
+
+func testbedMeshWorks(t *testing.T) {
+	t.Helper()
 	system := testbedKubectl("istio-system")
-	require.Eventually(t, func() bool {
-		out, err := k8s.RunKubectlAndGetOutputE(t, system, "get", "gateway", "gateway",
-			"-o", `jsonpath={.status.conditions[?(@.type=="Programmed")].status}`)
-		return err == nil && out == "True"
-	}, 30*time.Minute, 15*time.Second, "the Gateway is not programmed")
+	// Not its status: Programmed stays False after its only pod's node goes, until istiod restarts, though it serves again
+	require.Eventually(t, func() bool { return gatewayAnswers(t) }, 30*time.Minute, 10*time.Second, "the Gateway does not answer")
 
 	names, _ := testbedHosts(t)
 	suffix := time.Now().Unix()
@@ -313,23 +342,16 @@ func TestTestbedMesh(t *testing.T) {
 	}
 }
 
-// Three CloudNativePG instances across the nodes, in the mesh and on Ceph as Forgejo's database is in production
-// (platform/forgejo/templates/database.yaml): the primary's pod goes, a replica on another node takes over and keeps the data.
-// This workstation does not hold that layer (docs/installation/testbed.md): it runs where the list names the operator
-func TestTestbedPostgresFailover(t *testing.T) {
-	testbedOnly(t)
-	listed, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[].path`, "../system/argocd/values-testbed.yaml").Output()
-	require.NoError(t, err)
-	if !strings.Contains(string(listed), "platform/cloudnative-pg") {
-		t.Skip("system/argocd/values-testbed.yaml does not list platform/cloudnative-pg")
-	}
+// applyTestbedPostgres creates a namespace in the mesh holding CloudNativePG's Cluster db, three instances on Ceph
+func applyTestbedPostgres(t *testing.T) *k8s.KubectlOptions {
+	t.Helper()
 	out, err := exec.Command("yq", ".database.cnpg.image", "../platform/forgejo/values.yaml").Output()
 	require.NoError(t, err)
 	image := strings.TrimSpace(string(out))
 	ns := fmt.Sprintf("testbed-postgres-%d", time.Now().Unix())
 	options := testbedKubectl(ns)
 	k8s.KubectlApplyFromString(t, options, fmt.Sprintf(`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":%q,"labels":{"istio.io/dataplane-mode":"ambient"}}}`, ns))
-	defer k8s.DeleteNamespace(t, options, ns)
+	t.Cleanup(func() { k8s.DeleteNamespace(t, options, ns) })
 	k8s.KubectlApplyFromString(t, options, fmt.Sprintf(`{"apiVersion":"v1","kind":"List","items":[
 		{"apiVersion":"security.istio.io/v1","kind":"AuthorizationPolicy","metadata":{"name":"allow","namespace":%[1]q},
 			"spec":{"action":"ALLOW","rules":[{"from":[{"source":{"namespaces":[%[1]q]}}]}]}},
@@ -343,6 +365,20 @@ func TestTestbedPostgresFailover(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return k8s.KubectlApplyFromStringE(t, options, cluster) == nil
 	}, 20*time.Minute, 15*time.Second, "CloudNativePG refuses the Cluster")
+	return options
+}
+
+// Three CloudNativePG instances across the nodes, in the mesh and on Ceph as Forgejo's database is in production
+// (platform/forgejo/templates/database.yaml): the primary's pod goes, a replica on another node takes over and keeps the data.
+// This workstation does not hold that layer (docs/installation/testbed.md): it runs where the list names the operator
+func TestTestbedPostgresFailover(t *testing.T) {
+	testbedOnly(t)
+	listed, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[].path`, "../system/argocd/values-testbed.yaml").Output()
+	require.NoError(t, err)
+	if !strings.Contains(string(listed), "platform/cloudnative-pg") {
+		t.Skip("system/argocd/values-testbed.yaml does not list platform/cloudnative-pg")
+	}
+	options := applyTestbedPostgres(t)
 
 	status := func(field string) string {
 		out, _ := k8s.RunKubectlAndGetOutputE(t, options, "get", "cluster", "db", "-o", "jsonpath={.status."+field+"}")

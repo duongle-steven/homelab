@@ -92,6 +92,15 @@ testbed-clean: sandbox-checkout
 	rm -f .state/testbed/metal/nixie-hosts.json
 	for ip in $$(jq -r '.[].ip' infra/testbed/metal/hosts.json); do ssh-keygen -R "$$ip" >/dev/null 2>&1 || true; done
 
+# The power tests, on a healthy testbed, one at a time since each takes the whole cluster down and go test's hour applies to
+# each (docs/how-to-guides/power.md): tests= runs others. They do not count towards the mark
+power_tests := PowerCutEveryNode PowerShutdownStartup PowerNodeNotReturning
+testbed-power: sandbox-checkout
+	@scripts/testbed-guard testbed
+	for t in $(or $(tests),$(power_tests)); do \
+		$(MAKE) env=testbed ENV=testbed INSECURE_SKIP_VERIFY=1 smoke_filter="$$t" format=standard-verbose smoke-test || exit 1; \
+	done
+
 # Shuts the VMs down (they keep their disks: make testbed starts them again), to run the sandbox
 testbed-stop:
 	for name in $$(jq -r 'keys[]' infra/testbed/metal/hosts.json); do virsh -c qemu:///system shutdown "$$name" || true; done

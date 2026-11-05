@@ -6,9 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,10 +38,15 @@ type metalNode struct {
 		Label   string          `json:"label"`
 		Content json.RawMessage `json:"content"`
 	} `json:"data"`
-	Disk     string `json:"disk"`
-	TimeZone string `json:"timeZone"`
-	Kernel   string `json:"kernel"`
-	Reclaim  struct {
+	Disk             string `json:"disk"`
+	TimeZone         string `json:"timeZone"`
+	Kernel           string `json:"kernel"`
+	PoweroffDeadline struct {
+		WantedBy     []string `json:"wantedBy"`
+		Dependencies bool     `json:"dependencies"`
+		Exec         string   `json:"exec"`
+	} `json:"poweroffDeadline"`
+	Reclaim struct {
 		Condition string `json:"condition"`
 		Script    string `json:"script"`
 		Timer     string `json:"timer"`
@@ -93,6 +100,11 @@ func metalEval(t *testing.T) map[string]metalNode {
 				script = s.script;
 				wantedBy = s.wantedBy;
 			};
+			poweroffDeadline = let s = c.config.systemd.services.poweroff-deadline or null; in if s == null then {} else {
+				inherit (s) wantedBy;
+				dependencies = s.unitConfig.DefaultDependencies or true;
+				exec = s.serviceConfig.ExecStart;
+			};
 			reclaim = let s = c.config.systemd.services.memory-reclaim or null; in if s == null then {} else {
 				condition = s.unitConfig.ConditionVirtualization or "";
 				script = s.script;
@@ -133,7 +145,7 @@ func TestMetalK3sFlags(t *testing.T) {
 		for _, f := range auditFlags {
 			assert.Contains(t, flags, "--kube-apiserver-arg="+f, name)
 		}
-		assert.ElementsMatch(t, []string{"traefik", "local-storage", "gateway-api-crd"}, k.Disable, name)
+		assert.ElementsMatch(t, []string{"servicelb", "traefik", "local-storage", "gateway-api-crd"}, k.Disable, name)
 		assert.True(t, strings.HasPrefix(k.Version, "1.37."), "%s runs k3s %s, the sandbox 1.37", name, k.Version)
 		assert.Contains(t, node.Manifests, "gateway-api", name)
 		// The API server reads the audit policy only at start: a new policy restarts k3s at the switch
@@ -145,8 +157,8 @@ func TestMetalK3sFlags(t *testing.T) {
 	}
 }
 
-// kube-vip holds the API's VIP and serves only Services of its class (the Gateway's and WireGuard's addresses);
-// ServiceLB serves the rest, so no cloud controller hands out addresses
+// kube-vip holds the API's VIP and serves the Services of its class (the Gateway's and WireGuard's addresses), the only
+// LoadBalancer Services there are: ServiceLB is off, so no cloud controller hands out addresses
 func TestMetalKubeVip(t *testing.T) {
 	for name, node := range metalEval(t) {
 		assert.NotContains(t, node.Manifests, "kube-vip-cloud-controller", name)
@@ -179,6 +191,42 @@ func TestMetalVMMemoryReclaim(t *testing.T) {
 		assert.Equal(t, "1min", node.Reclaim.Start, "%s: starts after an upgrade too, not only at boot", name)
 		assert.Contains(t, node.Reclaim.Script, "/sys/fs/cgroup/memory.reclaim", name)
 		assert.Contains(t, node.Reclaim.Script, "swappiness=0", "%s: only the page cache, never swap", name)
+	}
+}
+
+// A node holding a Ceph volume hangs at poweroff once the OSDs are gone, PID 1 itself in sync(): a unit started with the
+// poweroff, which nothing stops, cuts the power without syncing. Its processes' names start with @, which systemd-shutdown spares
+func TestMetalPoweroffDeadline(t *testing.T) {
+	for name, node := range metalEval(t) {
+		deadline := node.PoweroffDeadline
+		assert.Equal(t, []string{"poweroff.target"}, deadline.WantedBy, name)
+		assert.False(t, deadline.Dependencies, "%s: the default dependencies stop it at shutdown", name)
+		assert.Regexp(t, `^@\S+/bash @poweroff-deadline -c `, deadline.Exec, name)
+		assert.Contains(t, deadline.Exec, "exec -a @poweroff-sleep", name)
+		assert.Contains(t, deadline.Exec, "--coreutils-prog=sleep 180", name)
+		assert.Contains(t, deadline.Exec, "echo o > /proc/sysrq-trigger", name)
+	}
+}
+
+// Its sleep really sleeps under that name: NixOS's coreutils is one program choosing by its name, so a wrong one exits at
+// once, and every poweroff becomes a sudden cut
+func TestMetalPoweroffDeadlineWaits(t *testing.T) {
+	coreutils, err := exec.LookPath("coreutils")
+	require.NoError(t, err)
+	for name, node := range metalEval(t) {
+		trigger := filepath.Join(t.TempDir(), "sysrq-trigger")
+		script := regexp.MustCompile(`-c "(.*)"$`).FindStringSubmatch(node.PoweroffDeadline.Exec)
+		require.Len(t, script, 2, name)
+		command := regexp.MustCompile(`\S+/bin/coreutils`).ReplaceAllString(script[1], coreutils)
+		command = strings.ReplaceAll(strings.ReplaceAll(command, "--coreutils-prog=sleep 180", "--coreutils-prog=sleep 2"), "/proc/sysrq-trigger", trigger)
+		started := time.Now()
+		out, err := exec.Command("bash", "-c", command).CombinedOutput()
+		require.NoError(t, err, string(out))
+		assert.GreaterOrEqual(t, time.Since(started), 2*time.Second, "%s: it cut the power at once: %s", name, out)
+		written, err := os.ReadFile(trigger)
+		require.NoError(t, err, name)
+		assert.Equal(t, "o\n", string(written), name)
+		break
 	}
 }
 
