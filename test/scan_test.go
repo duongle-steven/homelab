@@ -1,0 +1,364 @@
+package test
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"path"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+)
+
+// What make testbed-scan and make dev-scan compare a tool's report with (docs/how-to-guides/cluster-scan.md).
+// Reports hold command lines and config: nothing here names more than a check, a control and a resource.
+
+// The scan must have seen the cluster: the spike's sandbox had 1307 resources
+const scanMinResources = 500
+
+// A resource the sandbox always has and kubescape always reports on
+const scanKnownResource = "istio-system/DaemonSet/ztunnel"
+
+// Accepted only by resource, so a new workload that may do these fails the target
+var scanDangerous = []string{"C-0185", "C-0187", "C-0035", "C-0065", "C-0191", "C-0057", "C-0045", "C-0048", "C-0041", "C-0038", "C-0046", "C-0012", "C-0259"}
+
+type scanCheck struct {
+	Check  string `yaml:"check"`
+	Reason string `yaml:"reason"`
+}
+
+type scanControl struct {
+	ID     string `yaml:"id"`
+	Reason string `yaml:"reason"`
+}
+
+type scanResource struct {
+	ID       string `yaml:"id"`
+	Resource string `yaml:"resource"`
+	Reason   string `yaml:"reason"`
+}
+
+type scanAccepted struct {
+	KubeBench []scanCheck `yaml:"kubeBench"`
+	Kubescape struct {
+		Controls  []scanControl  `yaml:"controls"`
+		Resources []scanResource `yaml:"resources"`
+	} `yaml:"kubescape"`
+}
+
+func loadScanAccepted(raw []byte) (scanAccepted, error) {
+	var accepted scanAccepted
+	decoder := yaml.NewDecoder(bytes.NewReader(raw))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&accepted); err != nil {
+		return accepted, fmt.Errorf("accepted findings: %w", err)
+	}
+	for _, c := range accepted.KubeBench {
+		if c.Check == "" || strings.TrimSpace(c.Reason) == "" {
+			return accepted, fmt.Errorf("kubeBench check %q needs a number and a reason", c.Check)
+		}
+	}
+	for _, c := range accepted.Kubescape.Controls {
+		if c.ID == "" || strings.TrimSpace(c.Reason) == "" {
+			return accepted, fmt.Errorf("kubescape control %q needs an id and a reason", c.ID)
+		}
+		if slices.Contains(scanDangerous, c.ID) {
+			return accepted, fmt.Errorf("kubescape control %s is dangerous: accept it by resource", c.ID)
+		}
+	}
+	for _, r := range accepted.Kubescape.Resources {
+		if r.ID == "" || r.Resource == "" || strings.TrimSpace(r.Reason) == "" {
+			return accepted, fmt.Errorf("kubescape resource %q of %q needs an id, a resource and a reason", r.Resource, r.ID)
+		}
+		fields := strings.Split(r.Resource, "/")
+		if _, err := path.Match(r.Resource, ""); err != nil || len(fields) != 3 ||
+			strings.Contains(fields[0], "*") || strings.Contains(fields[1], "*") || fields[2] == "*" {
+			return accepted, fmt.Errorf("kubescape resource %q of %s must be <namespace>/<Kind>/<name>, with a pattern only inside the name", r.Resource, r.ID)
+		}
+	}
+	return accepted, nil
+}
+
+// undecidedBench returns the FAILs of one node's kube-bench report that nobody decided on. It refuses a report that
+// did not really check: a section missing or empty, or a check whose audit command was not found (the image has no
+// journalctl unless the node's /nix is mounted, and every k3s check calls it)
+func undecidedBench(report []byte, accepted scanAccepted) ([]string, error) {
+	var parsed struct {
+		Controls []struct {
+			ID    string `json:"id"`
+			Tests []struct {
+				Results []struct {
+					Number      string `json:"test_number"`
+					Status      string `json:"status"`
+					Reason      string `json:"reason"`
+					ActualValue string `json:"actual_value"`
+				} `json:"results"`
+			} `json:"tests"`
+		} `json:"Controls"`
+	}
+	if err := json.Unmarshal(report, &parsed); err != nil {
+		return nil, fmt.Errorf("kube-bench report: %w", err)
+	}
+	checked := map[string]int{}
+	undecided := []string{}
+	for _, control := range parsed.Controls {
+		for _, test := range control.Tests {
+			for _, result := range test.Results {
+				checked[control.ID]++
+				if strings.Contains(result.Reason, ": not found") || strings.Contains(result.ActualValue, ": not found") {
+					return nil, fmt.Errorf("kube-bench check %s: its audit command was not found", result.Number)
+				}
+				if result.Status == "FAIL" && !slices.ContainsFunc(accepted.KubeBench, func(c scanCheck) bool { return c.Check == result.Number }) {
+					undecided = append(undecided, result.Number)
+				}
+			}
+		}
+	}
+	for _, section := range []string{"1", "2", "3", "4", "5"} {
+		if checked[section] == 0 {
+			return nil, fmt.Errorf("kube-bench report: section %s did not run", section)
+		}
+	}
+	slices.Sort(undecided)
+	return slices.Compact(undecided), nil
+}
+
+// scanResourceKey is <namespace>/<Kind>/<name>, the last three fields of a resourceID: kubescape prefixes an API
+// group and version, and names a binding by its subject and role first. A cluster-scoped resource starts with "/"
+func scanResourceKey(resourceID string) string {
+	fields := strings.Split(resourceID, "/")
+	if len(fields) < 3 {
+		return resourceID
+	}
+	return strings.Join(fields[len(fields)-3:], "/")
+}
+
+// undecidedKubescape returns "<control> <resource>" for each failure nobody decided on. It refuses a report that did
+// not see the cluster: too few resources, or a known one missing
+func undecidedKubescape(report []byte, accepted scanAccepted) ([]string, error) {
+	var parsed struct {
+		SummaryDetails struct {
+			ResourceCounters struct {
+				Passed   int `json:"passedResources"`
+				Failed   int `json:"failedResources"`
+				Skipped  int `json:"skippedResources"`
+				Excluded int `json:"excludedResources"`
+			} `json:"ResourceCounters"`
+		} `json:"summaryDetails"`
+		Results []struct {
+			ResourceID string `json:"resourceID"`
+			Controls   []struct {
+				ControlID string `json:"controlID"`
+				Status    struct {
+					Status string `json:"status"`
+				} `json:"status"`
+			} `json:"controls"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(report, &parsed); err != nil {
+		return nil, fmt.Errorf("kubescape report: %w", err)
+	}
+	counters := parsed.SummaryDetails.ResourceCounters
+	if seen := counters.Passed + counters.Failed + counters.Skipped + counters.Excluded; seen < scanMinResources {
+		return nil, fmt.Errorf("kubescape report: saw %d resources, fewer than %d", seen, scanMinResources)
+	}
+	known := false
+	undecided := []string{}
+	for _, result := range parsed.Results {
+		resource := scanResourceKey(result.ResourceID)
+		known = known || resource == scanKnownResource
+		for _, control := range result.Controls {
+			if control.Status.Status != "failed" {
+				continue
+			}
+			if slices.ContainsFunc(accepted.Kubescape.Controls, func(c scanControl) bool { return c.ID == control.ControlID }) {
+				continue
+			}
+			if slices.ContainsFunc(accepted.Kubescape.Resources, func(r scanResource) bool {
+				matched, _ := path.Match(r.Resource, resource)
+				return r.ID == control.ControlID && matched
+			}) {
+				continue
+			}
+			undecided = append(undecided, control.ControlID+" "+resource)
+		}
+	}
+	if !known {
+		return nil, fmt.Errorf("kubescape report: %s is not in the results", scanKnownResource)
+	}
+	slices.Sort(undecided)
+	return slices.Compact(undecided), nil
+}
+
+// secretIsEncrypted checks a Secret's raw value in etcd: k3s's provider prefix, and no trace of the plain value
+func secretIsEncrypted(raw []byte, value string) error {
+	if value == "" {
+		return errors.New("no value to look for")
+	}
+	if !bytes.HasPrefix(raw, []byte("k8s:enc:aescbc:")) {
+		return errors.New("the value in etcd lacks the prefix k8s:enc:aescbc:")
+	}
+	if bytes.Contains(raw, []byte(value)) {
+		return errors.New("the plain value is readable in etcd")
+	}
+	return nil
+}
+
+func TestScanAcceptedRefused(t *testing.T) {
+	for name, raw := range map[string]string{
+		"check without a reason":    "kubeBench: [{check: 1.3.7}]",
+		"control without a reason":  "kubescape: {controls: [{id: C-0050}]}",
+		"resource without a reason": "kubescape: {resources: [{id: C-0057, resource: a/Pod/b}]}",
+		"a dangerous whole control": "kubescape: {controls: [{id: C-0185, reason: noise}]}",
+		"a bad pattern":             "kubescape: {resources: [{id: C-0057, resource: 'a/Pod/[', reason: x}]}",
+		"not three fields":          "kubescape: {resources: [{id: C-0057, resource: a/Pod, reason: x}]}",
+		"every name":                "kubescape: {resources: [{id: C-0057, resource: 'a/Pod/*', reason: x}]}",
+		"every namespace":           "kubescape: {resources: [{id: C-0057, resource: '*/Pod/b', reason: x}]}",
+		"a misspelt key":            "kubeBench: [{check: 1.3.7, reasn: x}]",
+	} {
+		_, err := loadScanAccepted([]byte(raw))
+		assert.Error(t, err, name)
+	}
+	_, err := loadScanAccepted([]byte("kubescape: {controls: [{id: C-0185, reason: noise}]}"))
+	assert.ErrorContains(t, err, "C-0185")
+	accepted, err := loadScanAccepted([]byte(`
+kubeBench: [{check: 1.3.7, reason: Prometheus}]
+kubescape:
+  controls: [{id: C-0050, reason: noise}]
+  resources: [{id: C-0057, resource: kube-system/DaemonSet/svclb-*, reason: ServiceLB}]
+`))
+	require.NoError(t, err)
+	assert.Len(t, accepted.KubeBench, 1)
+	assert.Len(t, accepted.Kubescape.Controls, 1)
+	assert.Len(t, accepted.Kubescape.Resources, 1)
+}
+
+func TestScanReportsRefused(t *testing.T) {
+	for _, report := range []string{"", "not json", "level=warn something\n{\"Controls\":[]}", "{}"} {
+		_, err := undecidedBench([]byte(report), scanAccepted{})
+		assert.Error(t, err, "kube-bench: %q", report)
+		_, err = undecidedKubescape([]byte(report), scanAccepted{})
+		assert.Error(t, err, "kubescape: %q", report)
+	}
+}
+
+func benchReport(results map[string][][3]string) []byte {
+	type result struct {
+		Number string `json:"test_number"`
+		Status string `json:"status"`
+		Reason string `json:"reason"`
+	}
+	type test struct {
+		Results []result `json:"results"`
+	}
+	type control struct {
+		ID    string `json:"id"`
+		Tests []test `json:"tests"`
+	}
+	report := struct {
+		Controls []control `json:"Controls"`
+	}{}
+	for _, section := range []string{"1", "2", "3", "4", "5"} {
+		if rows, ok := results[section]; ok {
+			current := test{}
+			for _, row := range rows {
+				current.Results = append(current.Results, result{row[0], row[1], row[2]})
+			}
+			report.Controls = append(report.Controls, control{section, []test{current}})
+		}
+	}
+	out, _ := json.Marshal(report)
+	return out
+}
+
+func TestScanBenchDecided(t *testing.T) {
+	full := map[string][][3]string{
+		"1": {{"1.2.30", "FAIL", ""}, {"1.2.3", "WARN", ""}},
+		"2": {{"2.1", "PASS", ""}},
+		"3": {{"3.1.1", "WARN", ""}},
+		"4": {{"4.2.4", "FAIL", ""}},
+		"5": {{"5.1.1", "WARN", ""}},
+	}
+	undecided, err := undecidedBench(benchReport(full), scanAccepted{KubeBench: []scanCheck{{"4.2.4", "false"}}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"1.2.30"}, undecided)
+
+	undecided, err = undecidedBench(benchReport(full), scanAccepted{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"1.2.30", "4.2.4"}, undecided)
+
+	_, err = undecidedBench(benchReport(map[string][][3]string{"1": full["1"], "4": full["4"], "5": full["5"]}), scanAccepted{})
+	assert.ErrorContains(t, err, "section 2")
+
+	empty := map[string][][3]string{"1": full["1"], "2": {}, "3": full["3"], "4": full["4"], "5": full["5"]}
+	_, err = undecidedBench(benchReport(empty), scanAccepted{})
+	assert.ErrorContains(t, err, "section 2")
+
+	blind := map[string][][3]string{"1": {{"1.2.1", "PASS", "journalctl: not found"}}, "2": full["2"], "3": full["3"], "4": full["4"], "5": full["5"]}
+	_, err = undecidedBench(benchReport(blind), scanAccepted{})
+	assert.ErrorContains(t, err, "1.2.1")
+}
+
+func kubescapeReport(resources int, failed map[string][]string) []byte {
+	type status struct {
+		Status string `json:"status"`
+	}
+	type control struct {
+		ControlID string `json:"controlID"`
+		Status    status `json:"status"`
+	}
+	type result struct {
+		ResourceID string    `json:"resourceID"`
+		Controls   []control `json:"controls"`
+	}
+	report := map[string]any{"summaryDetails": map[string]any{"ResourceCounters": map[string]int{"passedResources": resources}}}
+	results := []result{}
+	for id, controls := range failed {
+		current := result{ResourceID: id, Controls: []control{{"C-0001", status{"passed"}}}}
+		for _, c := range controls {
+			current.Controls = append(current.Controls, control{c, status{"failed"}})
+		}
+		results = append(results, current)
+	}
+	report["results"] = results
+	out, _ := json.Marshal(report)
+	return out
+}
+
+func TestScanKubescapeDecided(t *testing.T) {
+	accepted := scanAccepted{}
+	accepted.Kubescape.Controls = []scanControl{{"C-0050", "noise"}}
+	accepted.Kubescape.Resources = []scanResource{
+		{"C-0057", "istio-system/DaemonSet/ztunnel", "the mesh"},
+		{"C-0057", "kube-system/DaemonSet/svclb-*", "ServiceLB"},
+		{"C-0185", "/ClusterRoleBinding/known", "known"},
+	}
+	undecided, err := undecidedKubescape(kubescapeReport(scanMinResources, map[string][]string{
+		"apps/v1/istio-system/DaemonSet/ztunnel":        {"C-0057", "C-0050", "C-0045"},
+		"apps/v1/kube-system/DaemonSet/svclb-gateway-1": {"C-0057"},
+		"apps/v1/ns/DaemonSet/other":                    {"C-0057", "C-0057"},
+		"/ns/ServiceAccount/a/rbac.authorization.k8s.io/v1//ClusterRole/cluster-admin/rbac.authorization.k8s.io/v1//ClusterRoleBinding/known": {"C-0185"},
+		"/ns/ServiceAccount/a/rbac.authorization.k8s.io/v1//ClusterRole/cluster-admin/rbac.authorization.k8s.io/v1//ClusterRoleBinding/new":   {"C-0185"},
+	}), accepted)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"C-0045 istio-system/DaemonSet/ztunnel", "C-0057 ns/DaemonSet/other", "C-0185 /ClusterRoleBinding/new"}, undecided)
+
+	_, err = undecidedKubescape(kubescapeReport(scanMinResources-1, map[string][]string{"apps/v1/istio-system/DaemonSet/ztunnel": {}}), accepted)
+	assert.ErrorContains(t, err, "resources")
+
+	_, err = undecidedKubescape(kubescapeReport(scanMinResources, map[string][]string{"apps/v1/ns/DaemonSet/other": {}}), accepted)
+	assert.ErrorContains(t, err, scanKnownResource)
+}
+
+func TestSecretIsEncrypted(t *testing.T) {
+	assert.NoError(t, secretIsEncrypted([]byte("k8s:enc:aescbc:v1:aescbckey:\x01\x02\x03"), "plain-value"))
+	assert.ErrorContains(t, secretIsEncrypted([]byte("k8s\x00\nplain-value"), "plain-value"), "prefix")
+	assert.ErrorContains(t, secretIsEncrypted([]byte("\x01\x02"), "plain-value"), "prefix")
+	assert.ErrorContains(t, secretIsEncrypted([]byte("k8s:enc:aescbc:v1:aescbckey:plain-value"), "plain-value"), "plain value")
+	assert.Error(t, secretIsEncrypted(nil, ""))
+}

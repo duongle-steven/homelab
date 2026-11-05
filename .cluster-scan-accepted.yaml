@@ -1,0 +1,5 @@
+# Findings make testbed-scan and make dev-scan accept, each with its reason (docs/how-to-guides/cluster-scan.md)
+kubeBench: []
+kubescape:
+  controls: []
+  resources: []

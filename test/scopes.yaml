@@ -16,6 +16,10 @@ skip:
   - .gitignore
   - .dockerignore
   - .yamllint.yaml
+  # Read only by make testbed-scan and make dev-scan, which run by hand
+  - .cluster-scan-accepted.yaml
+  - test/scan_test.go
+  - test/kube-bench-cfg/**
   # Offline tests and their scripts: the basic checks run them
   - test/state_*_test.go
   - test/ci_scripts_test.go
