@@ -214,3 +214,28 @@ kubescape:
         - istio-system/Deployment/gateway-istio
       reason: >-
         The LAN Gateway is what is meant to face outside (Istio serves it)
+    - ids: [C-0278]
+      resources:
+        - /ClusterRoleBinding/velero-server
+      reason: >-
+        Velero's own ClusterRole (system/velero/templates/rbac.yaml, step 15d, instead of cluster-admin): a restore
+        creates claims and volumes; TestBackupRestore proves it needs no more
+    - ids: [C-0002, C-0015, C-0035, C-0063, C-0065, C-0186, C-0187, C-0188, C-0191, C-0278, C-0279, C-0280, C-0281, C-0282]
+      resources:
+        - velero/RoleBinding/velero-server
+      reason: >-
+        The chart's Role, everything in Velero's own namespace only: its data mover's pods, its credentials and its
+        kinds live there
+    - ids: [C-0267, C-0272]
+      resources:
+        - velero/Deployment/velero
+        - velero/DaemonSet/node-agent
+        - velero/Job/*-kopia-maintain-job-*
+      reason: >-
+        Velero's workloads hold the roles above: they must create pods and volumes to move data
+    - ids: [C-0307]
+      resources:
+        - kyverno/Job/kyverno-migrate-resources
+      reason: >-
+        The chart's post-upgrade hook, which Argo CD runs after a sync: it completes, then its ServiceAccount, a hook
+        too, is deleted, and the finished Job stays
