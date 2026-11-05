@@ -23,6 +23,11 @@ rules:
   - apiGroups: [storage.k8s.io]
     resources: [storageclasses, csidrivers, csinodes, volumeattachments]
     verbs: [get, list, watch]
+  # Its controllers watch its own kinds at cluster scope, though they live in its namespace: without this a restore
+  # waits for its informers forever
+  - apiGroups: [velero.io]
+    resources: ["*"]
+    verbs: [get, list, watch]
   # Its ServiceAccount plugin lists these when it starts, whatever a backup holds
   - apiGroups: [rbac.authorization.k8s.io]
     resources: [clusterrolebindings]

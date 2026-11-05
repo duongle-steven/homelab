@@ -380,8 +380,10 @@ func TestScanNarrowedRBAC(t *testing.T) {
 		velero := renderYq(t, "system/velero", env, `select(.kind == "ClusterRoleBinding" and .metadata.name == "velero-server") | .roleRef.name`)
 		assert.Equal(t, "velero-volumes", velero, "velero, env=%q", env)
 		rules := renderYq(t, "system/velero", env, `select(.kind == "ClusterRole" and .metadata.name == "velero-volumes") | .rules | tojson`)
-		assert.NotContains(t, rules, `"*"`, "velero's ClusterRole names what it needs")
+		others := renderYq(t, "system/velero", env, `select(.kind == "ClusterRole" and .metadata.name == "velero-volumes") | .rules[] | select(.apiGroups[0] != "velero.io") | tojson`)
+		assert.NotContains(t, others, `"*"`, "velero's ClusterRole names what it needs")
 		assert.NotContains(t, rules, "secrets", "velero's Secrets are in its own namespace")
+		assert.Contains(t, rules, `"velero.io"`, "its controllers watch Velero's kinds at cluster scope: a restore waits for them forever")
 
 		assert.Empty(t, renderYq(t, "platform/grafana", env, `select(.kind == "ClusterRole" or .kind == "ClusterRoleBinding") | .metadata.name`), "grafana")
 		for _, namespace := range []string{"grafana", "monitoring-system"} {
