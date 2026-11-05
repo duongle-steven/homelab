@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"slices"
@@ -40,10 +41,11 @@ type scanControl struct {
 	Reason string `yaml:"reason"`
 }
 
+// scanResource accepts each of its controls on each of its resources, for one reason
 type scanResource struct {
-	ID       string `yaml:"id"`
-	Resource string `yaml:"resource"`
-	Reason   string `yaml:"reason"`
+	IDs       []string `yaml:"ids"`
+	Resources []string `yaml:"resources"`
+	Reason    string   `yaml:"reason"`
 }
 
 type scanAccepted struct {
@@ -75,13 +77,15 @@ func loadScanAccepted(raw []byte) (scanAccepted, error) {
 		}
 	}
 	for _, r := range accepted.Kubescape.Resources {
-		if r.ID == "" || r.Resource == "" || strings.TrimSpace(r.Reason) == "" {
-			return accepted, fmt.Errorf("kubescape resource %q of %q needs an id, a resource and a reason", r.Resource, r.ID)
+		if len(r.IDs) == 0 || len(r.Resources) == 0 || strings.TrimSpace(r.Reason) == "" {
+			return accepted, fmt.Errorf("kubescape resources %q of %q need ids, resources and a reason", r.Resources, r.IDs)
 		}
-		fields := strings.Split(r.Resource, "/")
-		if _, err := path.Match(r.Resource, ""); err != nil || len(fields) != 3 ||
-			strings.Contains(fields[0], "*") || strings.Contains(fields[1], "*") || fields[2] == "*" {
-			return accepted, fmt.Errorf("kubescape resource %q of %s must be <namespace>/<Kind>/<name>, with a pattern only inside the name", r.Resource, r.ID)
+		for _, resource := range r.Resources {
+			fields := strings.Split(resource, "/")
+			if _, err := path.Match(resource, ""); err != nil || len(fields) != 3 ||
+				strings.Contains(fields[1], "*") || strings.Contains(fields[0], "*") || fields[2] == "*" {
+				return accepted, fmt.Errorf("kubescape resource %q must be <namespace>/<Kind>/<name>, with a pattern only inside the name", resource)
+			}
 		}
 	}
 	return accepted, nil
@@ -183,8 +187,10 @@ func undecidedKubescape(report []byte, accepted scanAccepted) ([]string, error) 
 				continue
 			}
 			if slices.ContainsFunc(accepted.Kubescape.Resources, func(r scanResource) bool {
-				matched, _ := path.Match(r.Resource, resource)
-				return r.ID == control.ControlID && matched
+				return slices.Contains(r.IDs, control.ControlID) && slices.ContainsFunc(r.Resources, func(pattern string) bool {
+					matched, _ := path.Match(pattern, resource)
+					return matched
+				})
 			}) {
 				continue
 			}
@@ -323,16 +329,46 @@ metadata:
 	}
 }
 
+// TestScanKubescape runs kubescape on the sandbox (make dev-scan). --keep-local: nothing leaves the workstation. Its
+// exit code stays 0 on findings, as no --compliance-threshold is set, so a non-zero one means the scan did not run
+func TestScanKubescape(t *testing.T) {
+	if os.Getenv("ENV") != "dev" {
+		t.Skip("kubescape runs against the sandbox only (make dev-scan)")
+	}
+	raw, err := os.ReadFile(filepath.Join("..", ".cluster-scan-accepted.yaml"))
+	require.NoError(t, err)
+	accepted, err := loadScanAccepted(raw)
+	require.NoError(t, err)
+
+	file := filepath.Join(t.TempDir(), "report.json")
+	out, err := exec.Command("kubescape", "scan", "framework", "allcontrols", "--keep-local", "--format", "json", "--output", file).CombinedOutput()
+	require.NoError(t, err, "kubescape failed: its last lines: %s", scanTail(out))
+	report, err := os.ReadFile(file)
+	require.NoError(t, err)
+	undecided, err := undecidedKubescape(report, accepted)
+	require.NoError(t, err)
+	if len(undecided) > 0 {
+		t.Errorf("undecided, fix or accept in .cluster-scan-accepted.yaml:\n%s", strings.Join(undecided, "\n"))
+	}
+}
+
+func scanTail(out []byte) string {
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	return strings.Join(lines[max(0, len(lines)-5):], "\n")
+}
+
 func TestScanAcceptedRefused(t *testing.T) {
 	for name, raw := range map[string]string{
 		"check without a reason":    "kubeBench: [{check: 1.3.7}]",
 		"control without a reason":  "kubescape: {controls: [{id: C-0050}]}",
-		"resource without a reason": "kubescape: {resources: [{id: C-0057, resource: a/Pod/b}]}",
+		"resource without a reason": "kubescape: {resources: [{ids: [C-0057], resources: [a/Pod/b]}]}",
 		"a dangerous whole control": "kubescape: {controls: [{id: C-0185, reason: noise}]}",
-		"a bad pattern":             "kubescape: {resources: [{id: C-0057, resource: 'a/Pod/[', reason: x}]}",
-		"not three fields":          "kubescape: {resources: [{id: C-0057, resource: a/Pod, reason: x}]}",
-		"every name":                "kubescape: {resources: [{id: C-0057, resource: 'a/Pod/*', reason: x}]}",
-		"every namespace":           "kubescape: {resources: [{id: C-0057, resource: '*/Pod/b', reason: x}]}",
+		"a bad pattern":             "kubescape: {resources: [{ids: [C-0057], resources: ['a/Pod/['], reason: x}]}",
+		"not three fields":          "kubescape: {resources: [{ids: [C-0057], resources: [a/Pod], reason: x}]}",
+		"every name":                "kubescape: {resources: [{ids: [C-0057], resources: ['a/Pod/*'], reason: x}]}",
+		"no ids":                    "kubescape: {resources: [{resources: [a/Pod/b], reason: x}]}",
+		"no resources":              "kubescape: {resources: [{ids: [C-0057], reason: x}]}",
+		"every namespace":           "kubescape: {resources: [{ids: [C-0057], resources: ['*/Pod/b'], reason: x}]}",
 		"a misspelt key":            "kubeBench: [{check: 1.3.7, reasn: x}]",
 	} {
 		_, err := loadScanAccepted([]byte(raw))
@@ -344,7 +380,7 @@ func TestScanAcceptedRefused(t *testing.T) {
 kubeBench: [{check: 1.3.7, reason: Prometheus}]
 kubescape:
   controls: [{id: C-0050, reason: noise}]
-  resources: [{id: C-0057, resource: kube-system/DaemonSet/svclb-*, reason: ServiceLB}]
+  resources: [{ids: [C-0057, C-0045], resources: [kube-system/DaemonSet/svclb-*, a/Pod/b], reason: ServiceLB}]
 `))
 	require.NoError(t, err)
 	assert.Len(t, accepted.KubeBench, 1)
@@ -448,9 +484,8 @@ func TestScanKubescapeDecided(t *testing.T) {
 	accepted := scanAccepted{}
 	accepted.Kubescape.Controls = []scanControl{{"C-0050", "noise"}}
 	accepted.Kubescape.Resources = []scanResource{
-		{"C-0057", "istio-system/DaemonSet/ztunnel", "the mesh"},
-		{"C-0057", "kube-system/DaemonSet/svclb-*", "ServiceLB"},
-		{"C-0185", "/ClusterRoleBinding/known", "known"},
+		{[]string{"C-0057"}, []string{"istio-system/DaemonSet/ztunnel", "kube-system/DaemonSet/svclb-*"}, "accepted"},
+		{[]string{"C-0185"}, []string{"/ClusterRoleBinding/known"}, "known"},
 	}
 	undecided, err := undecidedKubescape(kubescapeReport(scanMinResources, map[string][]string{
 		"apps/v1/istio-system/DaemonSet/ztunnel":        {"C-0057", "C-0050", "C-0045"},

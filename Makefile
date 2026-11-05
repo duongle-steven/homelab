@@ -110,6 +110,11 @@ testbed-scan: sandbox-checkout
 testbed-stop:
 	for name in $$(jq -r 'keys[]' infra/testbed/metal/hosts.json); do virsh -c qemu:///system shutdown "$$name" || true; done
 
+# kubescape on the running sandbox, against .cluster-scan-accepted.yaml, by hand (docs/how-to-guides/cluster-scan.md)
+dev-scan: sandbox-checkout
+	@scripts/testbed-guard dev
+	$(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter=ScanKubescape format=standard-verbose smoke-test
+
 # From scratch, the whole suite: before a dev → master PR and a release
 dev-fresh:
 	$(MAKE) dev-clean
