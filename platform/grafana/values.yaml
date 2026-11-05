@@ -12,13 +12,20 @@ grafana:
           sectionName: https
       hostnames:
         - grafana.{{ .Values.global.baseDomain }}
+  # templates/rbac.yaml: only ConfigMaps, only here and in monitoring-system
+  rbac:
+    namespaced: true
+    namespaces: [monitoring-system]
+    useExistingRole: grafana-sidecar
   sidecar:
     dashboards:
       enabled: true
       searchNamespace: monitoring-system
+      resource: configmap
     datasources:
       enabled: true
       searchNamespace: monitoring-system
+      resource: configmap
   # CLIENT_ID and CLIENT_SECRET of the Kanidm client (templates/kanidm-client.yaml)
   envFromSecret: grafana-kanidm-oauth2-credentials
   grafana.ini:
