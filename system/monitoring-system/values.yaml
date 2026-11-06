@@ -1,6 +1,7 @@
 kube-prometheus-stack:
   kube-state-metrics:
-    # The chart's list without secrets: nothing here reads kube_secret_*, and listing them is reading every Secret
+    # The chart's list without secrets: nothing here reads kube_secret_*, and listing them is reading every Secret. A copy
+    # of the chart's defaults: compare it with the chart's at each bump, or a new collector stays off
     collectors:
       - certificatesigningrequests
       - configmaps

@@ -11,8 +11,13 @@ rules:
   - apiGroups: [""]
     resources: [nodes, pods]
     verbs: [get, list, watch]
+  # No create on volumes: a volume Velero could create (a hostPath one, bound to a claim in its own namespace) would give
+  # its pods the node. Restored claims get theirs from the CSI provisioner
   - apiGroups: [""]
-    resources: [persistentvolumes, persistentvolumeclaims, persistentvolumeclaims/status]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch, update, patch, delete]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims, persistentvolumeclaims/status]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [events]

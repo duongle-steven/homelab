@@ -357,9 +357,9 @@
   class: 2
   reason: >-
     k3s's cluster token, which a server shows to join. No overlap, and only k3s's own command replaces it, so it is
-    rotated only by a person. Never run here: read k3s's docs for the current steps first
+    rotated only by a person. Not yet run here: read k3s's docs for the current steps first
   steps: >-
-    Never run on this repository's clusters. k3s's documented steps: on one server, k3s token rotate --token <old>
+    Not yet run on this repository's clusters. k3s's documented steps: on one server, k3s token rotate --token <old>
     --new-token <new>; restart k3s on every server in turn; update the enrollment token file of any node yet to join
     (lab cluster enroll)
 

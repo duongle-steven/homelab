@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -28,8 +29,16 @@ const scanMinResources = 500
 // A resource the sandbox always has and kubescape always reports on
 const scanKnownResource = "istio-system/DaemonSet/ztunnel"
 
-// Accepted only by resource, so a new workload that may do these fails the target
-var scanDangerous = []string{"C-0185", "C-0187", "C-0035", "C-0065", "C-0191", "C-0057", "C-0045", "C-0048", "C-0041", "C-0038", "C-0046", "C-0012", "C-0259"}
+// Accepted only by resource, so a new workload that may do these fails the target: the spec's thirteen (cluster-admin,
+// wildcards, impersonation, bind and escalate, privileged, host path, network and PID, capabilities, credentials in
+// configuration), then who may read every Secret, exec, create pods or volumes, port-forward or reach the kubelets'
+// proxy, and the workloads holding those roles
+var scanDangerous = []string{"C-0185", "C-0187", "C-0035", "C-0065", "C-0191", "C-0057", "C-0045", "C-0048", "C-0041", "C-0038", "C-0046", "C-0012", "C-0259",
+	"C-0002", "C-0015", "C-0016", "C-0044", "C-0063", "C-0186", "C-0188", "C-0256", "C-0262", "C-0267", "C-0272", "C-0275",
+	"C-0278", "C-0279", "C-0280", "C-0281", "C-0282", "C-0307"}
+
+// What a name pattern keeps once its wildcards and classes are gone: too little of it matches nearly every name
+var scanPatternParts = regexp.MustCompile(`\[[^\]]*\]|[*?\\]`)
 
 type scanCheck struct {
 	Check  string `yaml:"check"`
@@ -83,7 +92,7 @@ func loadScanAccepted(raw []byte) (scanAccepted, error) {
 		for _, resource := range r.Resources {
 			fields := strings.Split(resource, "/")
 			if _, err := path.Match(resource, ""); err != nil || len(fields) != 3 ||
-				strings.Contains(fields[1], "*") || strings.Contains(fields[0], "*") || fields[2] == "*" {
+				strings.ContainsAny(fields[0]+fields[1], `*?[\`) || (fields[2] != scanPatternParts.ReplaceAllString(fields[2], "") && len(scanPatternParts.ReplaceAllString(fields[2], "")) < 3) {
 				return accepted, fmt.Errorf("kubescape resource %q must be <namespace>/<Kind>/<name>, with a pattern only inside the name", resource)
 			}
 		}
@@ -220,7 +229,7 @@ func secretIsEncrypted(raw []byte, value string) error {
 
 const (
 	scanBenchNamespace = "scan-bench"
-	scanBenchImage     = "docker.io/aquasec/kube-bench:v0.16.0"
+	scanBenchImage     = "docker.io/aquasec/kube-bench:v0.16.0@sha256:75506f222d1eb6ce2a751a5533bdc0a3b54c898e2e49e7751d0ee22cfb862679"
 )
 
 // scanBenchJob runs kube-bench on one node. --targets because it detects no control plane on k3s and skips three
@@ -283,7 +292,9 @@ func TestScanBench(t *testing.T) {
 
 	cluster, namespaced := testbedKubectl(""), testbedKubectl(scanBenchNamespace)
 	remove := func() {
-		_ = k8s.RunKubectlE(t, cluster, "delete", "namespace", scanBenchNamespace, "--ignore-not-found", "--timeout=5m")
+		if err := k8s.RunKubectlE(t, cluster, "delete", "namespace", scanBenchNamespace, "--ignore-not-found", "--timeout=5m"); err != nil {
+			t.Errorf("the privileged namespace %s may be left behind: delete it", scanBenchNamespace)
+		}
 	}
 	remove()
 	t.Cleanup(remove)
@@ -386,6 +397,8 @@ func TestScanNarrowedRBAC(t *testing.T) {
 		assert.NotContains(t, others, `"*"`, "velero's ClusterRole names what it needs")
 		assert.NotContains(t, rules, "secrets", "velero's Secrets are in its own namespace")
 		assert.Contains(t, rules, `"velero.io"`, "its controllers watch Velero's kinds at cluster scope: a restore waits for them forever")
+		volumes := renderYq(t, "system/velero", env, `select(.kind == "ClusterRole" and .metadata.name == "velero-volumes") | .rules[] | select(.resources[] == "persistentvolumes") | .verbs[]`)
+		assert.NotContains(t, strings.Fields(volumes), "create", "a volume velero creates could be a hostPath one its pods mount")
 
 		assert.Empty(t, renderYq(t, "platform/grafana", env, `select(.kind == "ClusterRole" or .kind == "ClusterRoleBinding") | .metadata.name`), "grafana")
 		for _, namespace := range []string{"grafana", "monitoring-system"} {
@@ -414,6 +427,11 @@ func TestScanAcceptedRefused(t *testing.T) {
 		"no ids":                    "kubescape: {resources: [{resources: [a/Pod/b], reason: x}]}",
 		"no resources":              "kubescape: {resources: [{ids: [C-0057], reason: x}]}",
 		"every namespace":           "kubescape: {resources: [{ids: [C-0057], resources: ['*/Pod/b'], reason: x}]}",
+		"any namespace character":   "kubescape: {resources: [{ids: [C-0057], resources: ['?/Pod/b'], reason: x}]}",
+		"a class for the Kind":      "kubescape: {resources: [{ids: [C-0057], resources: ['a/[A-Z]od/b'], reason: x}]}",
+		"every name, spelt longer":  "kubescape: {resources: [{ids: [C-0057], resources: ['a/Pod/?*', 'a/Pod/[a-z]*'], reason: x}]}",
+		"reading every Secret":      "kubescape: {controls: [{id: C-0015, reason: noise}]}",
+		"creating pods":             "kubescape: {controls: [{id: C-0186, reason: noise}]}",
 		"a misspelt key":            "kubeBench: [{check: 1.3.7, reasn: x}]",
 	} {
 		_, err := loadScanAccepted([]byte(raw))
@@ -431,6 +449,12 @@ kubescape:
 	assert.Len(t, accepted.KubeBench, 1)
 	assert.Len(t, accepted.Kubescape.Controls, 1)
 	assert.Len(t, accepted.Kubescape.Resources, 1)
+
+	// The repository's own file loads, so a refused entry fails the basic checks rather than the next scan
+	raw, err := os.ReadFile(filepath.Join("..", ".cluster-scan-accepted.yaml"))
+	require.NoError(t, err)
+	_, err = loadScanAccepted(raw)
+	assert.NoError(t, err)
 }
 
 func TestScanReportsRefused(t *testing.T) {
