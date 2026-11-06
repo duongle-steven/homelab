@@ -13,8 +13,9 @@ targets: [www, draw, chat, ntfy]
 # Requests per second: under half of Cloudflare's rate limit (infra/_modules/cloudflare rate_limit_requests per
 # rate_limit_period), so the scan never shares a block with the household: about an hour a host (29 000 requests)
 rateLimit: 8
-# A run that loaded fewer templates did not really run (set from the sandbox's first run)
-minTemplates: 1000
+# A run that loaded fewer templates did not really run: 90% of the 10 594 v10.5.1 loads (a local run); recheck at
+# each templates bump
+minTemplates: 9500
 # Findings decided on: hidden on their host only, each with its reason. {template: <template-id>, host: <label>, reason: ...}
 accepted: []
 # Sandbox only: trust the local CA (the preflight's wget checks certificates)
