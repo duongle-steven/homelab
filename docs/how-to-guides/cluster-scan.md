@@ -45,7 +45,8 @@ accepted.
     (`kube-system/DaemonSet/svclb-*`), so a new workload holding the same power fails the target. The dangerous
     controls (cluster-admin, wildcards, impersonation, bind and escalate, privileged, host path, network and PID,
     capabilities, credentials in configuration) can only be accepted here; the file is refused otherwise. So are
-    who may read every Secret, create pods, port-forward or reach the kubelets' proxy.
+    who may read every Secret, exec, create pods or volumes, port-forward or reach the kubelets' proxy
+    (`scanDangerous` in `test/scan_test.go`), and a name pattern keeps at least three characters of its own.
 
 Sort by what a finding would let someone do, not by the tool's score.
 
@@ -98,7 +99,9 @@ The fourteen warnings outside section 5's manual policy checks (section 5 is wha
 - Velero was bound to `cluster-admin`, though it moves only volumes: its own ClusterRole now
   (`system/velero/templates/rbac.yaml`). Two tries were short of what it needs: its ServiceAccount plugin lists
   ClusterRoleBindings when it starts, and its controllers watch its own kinds (`datauploads`) at cluster scope, so a
-  restore waited for them forever. `TestBackupRestore` is the proof.
+  restore waited for them forever. It may not create volumes: one could be a `hostPath` volume a pod in its own
+  namespace mounts, which is the node (restored claims get theirs from the CSI provisioner). `TestBackupRestore` is
+  the proof.
 - Grafana could read every Secret (the chart's ClusterRole for its sidecars): a Role reading only ConfigMaps in
   `grafana` and `monitoring-system` now.
 - kube-state-metrics listed every Secret for `kube_secret_*`, which nothing here reads: that collector is off.
