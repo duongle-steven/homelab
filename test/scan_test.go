@@ -398,6 +398,7 @@ func TestScanNarrowedRBAC(t *testing.T) {
 		assert.NotContains(t, rules, "secrets", "velero's Secrets are in its own namespace")
 		assert.Contains(t, rules, `"velero.io"`, "its controllers watch Velero's kinds at cluster scope: a restore waits for them forever")
 		volumes := renderYq(t, "system/velero", env, `select(.kind == "ClusterRole" and .metadata.name == "velero-volumes") | .rules[] | select(.resources[] == "persistentvolumes") | .verbs[]`)
+		assert.Contains(t, strings.Fields(volumes), "patch", "velero rebinds restored volumes")
 		assert.NotContains(t, strings.Fields(volumes), "create", "a volume velero creates could be a hostPath one its pods mount")
 
 		assert.Empty(t, renderYq(t, "platform/grafana", env, `select(.kind == "ClusterRole" or .kind == "ClusterRoleBinding") | .metadata.name`), "grafana")
