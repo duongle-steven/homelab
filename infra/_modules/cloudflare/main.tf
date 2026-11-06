@@ -82,3 +82,42 @@ resource "cloudflare_account_token" "cert_manager" {
   name       = "${var.resource_prefix}-cert-manager"
   policies   = local.dns_policies
 }
+
+# One rate limit per client IP on the whole zone (docs/how-to-guides/public-surface.md): the Free plan allows one rule,
+# counted over 10 s and blocking for 10 s, whose expression may use only the path, so it cannot name the Tunnel's
+# hosts. Nothing else in the zone is proxied; a proxied host added later gets it too. Per-account limits stay the
+# apps' own (ntfy's per-visitor limits)
+resource "cloudflare_ruleset" "rate_limit" {
+  zone_id     = data.cloudflare_zone.zone.id
+  name        = "${var.resource_prefix}-rate-limit"
+  description = "One client IP's requests to the public apps"
+  kind        = "zone"
+  phase       = "http_ratelimit"
+  rules = [{
+    ref         = "per_ip"
+    description = "Block a client IP over the threshold"
+    expression  = "(http.request.uri.path wildcard \"/*\")"
+    action      = "block"
+    ratelimit = {
+      # cf.colo.id: the API requires it beside the IP
+      characteristics     = ["cf.colo.id", "ip.src"]
+      period              = var.rate_limit_period
+      requests_per_period = var.rate_limit_requests
+      mitigation_timeout  = 10
+    }
+  }]
+}
+
+# The WAF's managed rules: the Free plan's Free Managed Ruleset, which Cloudflare manages on the zone itself (its id is
+# not published, and declaring the zone's managed entry point here would replace Cloudflare's). A plan warns when the
+# zone has no managed entry point, so a Free zone that lost it shows
+data "cloudflare_rulesets" "zone" {
+  zone_id = data.cloudflare_zone.zone.id
+}
+
+check "managed_rules" {
+  assert {
+    condition     = anytrue([for ruleset in data.cloudflare_rulesets.zone.rulesets : ruleset.kind == "zone" && ruleset.phase == "http_request_firewall_managed"])
+    error_message = "The zone has no WAF managed rules (phase http_request_firewall_managed): check Security > WAF > Managed rules in Cloudflare's dashboard."
+  }
+}
