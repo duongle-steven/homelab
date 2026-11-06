@@ -59,14 +59,16 @@ terragrunt --working-dir infra/production/cloudflare plan
 `system/public-scan`'s CronJob runs Sunday at 04:00 (`global.timezone`). For each host of `targets`, through public DNS
 and Cloudflare, as an outsider's requests arrive:
 
-1. **Preflight**: the host's first page must answer normally. An error, a block, or a Cloudflare challenge
-   (`cf-mitigated`, "Just a moment...") fails the run: the scan would see Cloudflare, not the app.
+1. **Preflight**, right before the host's scan and again right after it: the host's first page must answer
+   normally. An error, a block, or a Cloudflare challenge (a 403, or a "Just a moment..." page) fails the run: the
+   scan would see Cloudflare, not the app, and a challenge that began mid-scan would otherwise end as a clean run.
 2. **nuclei** (`image`) with a pinned templates release (`templates`: a tarball checked against its sha256), throttled
    to `rateLimit` (8 requests per second, under half the rate limit: `TestPublicScanRateBelowLimit`), so a run never
    blocks the household. About 29 000 requests a host, an hour each. Excluded: `dos`, `fuzz` and `intrusive` templates,
    and out-of-band ones (`-no-interactsh`: they would send probes' data to ProjectDiscovery's servers). The WAF blocks
    some probes: the protection working, not a failure.
-3. A run that loaded fewer than `minTemplates` templates (90% of the release's count) fails.
+3. A run that loaded fewer than `minTemplates` templates (90% of the release's count) fails, and so does one with a
+   finding the report cannot read.
 
 The Job's log holds one line per finding, `{"public_scan":"finding","template":...,"host":...,"severity":...}`, and a
 last `{"public_scan":"done","templates":N}`. nuclei's own output (its requests as curl commands, what templates
@@ -97,7 +99,7 @@ scan does not have.
 
 ### A Cloudflare challenge
 
-When the preflight reports `Cloudflare challenged the scan`, find out why before loosening anything: Cloudflare saw the
+When the preflight reports `did not answer normally` (a 403) or `Cloudflare challenged the scan`, find out why before loosening anything: Cloudflare saw the
 home connection as hostile (a shared CGNAT address with a bad reputation, or the rate limit). The scan never gets a way
 around the edge: it would then test a surface no outsider sees.
 

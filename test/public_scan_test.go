@@ -1,6 +1,8 @@
 package test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -123,8 +126,8 @@ func TestPublicScanReport(t *testing.T) {
 	require.NoError(t, err)
 	found := `{"template-id":"git-config","info":{"name":"Git Config","severity":"medium","metadata":{"max-request":1}},"host":"10.0.0.1","matched-at":"https://draw.example.org/.git/config","extracted-results":["secret-value"],"curl-command":"curl -H 'Cookie: secret-value' https://draw.example.org/.git/config","matcher-status":true}`
 	cmd := exec.Command("docker", "run", "--rm", "--entrypoint", "sh", "-e", "PUBLIC_SCAN_DOMAIN=example.org",
-		"-e", "PUBLIC_SCAN_REPORT=/tmp/found.jsonl", "-v", script+":/scan.sh:ro", image,
-		"-c", "printf '%s\\n' '"+found+"' > /tmp/found.jsonl && sh /scan.sh draw")
+		"-e", "PUBLIC_SCAN_REPORT=/tmp/found.jsonl", "-e", "FOUND="+found, "-v", script+":/scan.sh:ro", image,
+		"-c", `printf '%s\n' "$FOUND" > /tmp/found.jsonl && sh /scan.sh draw`)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 	assert.Equal(t, `{"public_scan":"finding","template":"git-config","host":"draw.example.org","severity":"medium"}`, strings.TrimSpace(string(out)))
@@ -265,4 +268,65 @@ func TestPublicScan(t *testing.T) {
 			"/api/v1/namespaces/loki/services/loki:3100/proxy/prometheus/api/v1/rules")
 		return err == nil && strings.Contains(out, `"name":"PublicScanFinding"`)
 	}, 5*time.Minute, 15*time.Second, "Loki's ruler has no PublicScanFinding")
+}
+
+// A host Cloudflare starts challenging while it is scanned fails the run: nuclei alone would report nothing and the
+// run would look clean. A stub nuclei flips the host to a challenge, as the WAF would mid-run
+func TestPublicScanChallengedMidRun(t *testing.T) {
+	_, _, _, image := publicScanValues(t, "")
+	script, err := filepath.Abs("../system/public-scan/files/scan.sh")
+	require.NoError(t, err)
+	tarball := publicScanTarball(t)
+	var challenged atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/templates.tar.gz":
+			_, _ = w.Write(tarball)
+		case r.URL.Path == "/flip":
+			challenged.Store(true)
+		case challenged.Load():
+			w.Header().Set("cf-mitigated", "challenge")
+			w.WriteHeader(http.StatusForbidden)
+		default:
+			fmt.Fprint(w, "app")
+		}
+	}))
+	defer server.Close()
+	target := strings.TrimPrefix(server.URL, "http://")
+	sum := sha256.Sum256(tarball)
+	stub := "#!/bin/sh\nwget -q -O /dev/null http://" + target + "/flip\necho 'Templates loaded for current scan: 20000' >&2\n"
+	out, err := exec.Command("docker", "run", "--rm", "--network", "host", "--entrypoint", "sh",
+		"-e", "PUBLIC_SCAN_SCHEME=http", "-e", "PUBLIC_SCAN_DOMAIN=", "-e", "PUBLIC_SCAN_TARGETS=/tmp/targets",
+		"-e", "PUBLIC_SCAN_TEMPLATES_URL="+server.URL+"/templates.tar.gz", "-e", "PUBLIC_SCAN_TEMPLATES_VERSION=test",
+		"-e", "PUBLIC_SCAN_TEMPLATES_SHA256="+hex.EncodeToString(sum[:]), "-e", "PUBLIC_SCAN_RATE=1",
+		"-e", "PUBLIC_SCAN_MIN_TEMPLATES=1", "-e", "STUB="+stub, "-e", "TARGET="+target, "-v", script+":/scan.sh:ro", image,
+		"-c", `mkdir /tmp/bin && printf '%s' "$STUB" > /tmp/bin/nuclei && chmod +x /tmp/bin/nuclei && echo "$TARGET -" > /tmp/targets && PATH=/tmp/bin:$PATH sh /scan.sh`).CombinedOutput()
+	assert.Error(t, err, string(out))
+	assert.Contains(t, string(out), target+" did not answer normally")
+	assert.NotContains(t, string(out), `"public_scan":"done"`)
+}
+
+// publicScanTarball is a templates tarball with one directory, as GitHub's tag archives have
+func publicScanTarball(t *testing.T) []byte {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "nuclei-templates-test"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "nuclei-templates-test", "t.yaml"), []byte("id: t\n"), 0o644))
+	out, err := exec.Command("tar", "-czf", "-", "-C", dir, "nuclei-templates-test").Output()
+	require.NoError(t, err)
+	return out
+}
+
+// A finding the report cannot read fails the run instead of disappearing from the log
+func TestPublicScanReportUnreadable(t *testing.T) {
+	_, _, _, image := publicScanValues(t, "")
+	script, err := filepath.Abs("../system/public-scan/files/scan.sh")
+	require.NoError(t, err)
+	found := `{"template-id":"odd id","info":{"severity":"high"},"host":"10.0.0.1"}`
+	out, err := exec.Command("docker", "run", "--rm", "--entrypoint", "sh", "-e", "PUBLIC_SCAN_DOMAIN=example.org",
+		"-e", "PUBLIC_SCAN_REPORT=/tmp/found.jsonl", "-e", "FOUND="+found, "-v", script+":/scan.sh:ro", image,
+		"-c", `printf '%s\n' "$FOUND" > /tmp/found.jsonl && sh /scan.sh draw`).CombinedOutput()
+	assert.Error(t, err, string(out))
+	assert.Contains(t, string(out), "could not be read")
+	assert.Contains(t, string(out), "draw.example.org")
 }

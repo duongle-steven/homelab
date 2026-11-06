@@ -46,6 +46,10 @@ func publicRouteProblems(routes []renderedRoute, public map[string][]string, dom
 			problems = append(problems, id+": its namespace is not in system/istio-system's public map")
 			continue
 		}
+		// A route without hostnames takes the listener's *.<domain>: every host under the domain
+		if len(r.Hostnames) == 0 {
+			problems = append(problems, id+": no hostnames, so it serves every host of the listener")
+		}
 		for _, host := range r.Hostnames {
 			allowed := false
 			for _, label := range labels {
@@ -73,6 +77,7 @@ func TestPublicRoutes(t *testing.T) {
 		"listed namespace, unlisted host":       {[]renderedRoute{{"matrix", "admin", "public", []string{"admin.example.org"}, true}}, 1},
 		"not proxied":                           {[]renderedRoute{{"blog", "blog", "public", []string{"www.example.org"}, false}}, 1},
 		"listed namespace on the LAN Gateway":   {[]renderedRoute{{"matrix", "dendrite", "gateway", []string{"matrix.example.org"}, false}}, 0},
+		"no hostname on public":                 {[]renderedRoute{{"blog", "any", "public", nil, true}}, 1},
 		"unlisted namespace on the LAN Gateway": {[]renderedRoute{{"argocd", "argocd", "gateway", []string{"argocd.example.org"}, false}}, 0},
 	}
 	for name, c := range cases {
