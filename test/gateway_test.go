@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -168,4 +169,70 @@ func TestGatewayZotLargePush(t *testing.T) {
 	resp.Body.Close()
 	require.Equal(t, http.StatusCreated, resp.StatusCode, "%s", body)
 	t.Logf("pushed 200 MiB through the Gateway in %s", time.Since(start).Round(time.Millisecond))
+}
+
+// Gateway public admits routes only from the public map's namespaces (system/istio-system/values.yaml public): an
+// admin app's route there must stay refused, a listed one accepted
+func TestGatewayPublicAllowList(t *testing.T) {
+	gatewaySandboxOnly(t)
+	host := "public-allow-probe." + testDomain(t)
+	route := func(namespace string) string {
+		return `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: public-allow-probe
+  namespace: ` + namespace + `
+spec:
+  parentRefs:
+    - {name: public, namespace: istio-system, sectionName: https}
+  hostnames: [` + host + `]
+  rules:
+    - backendRefs:
+        - {name: public-allow-probe, port: 80}
+`
+	}
+	apply := func(manifest string) {
+		cmd := exec.Command("kubectl", "apply", "-f", "-")
+		cmd.Stdin = strings.NewReader(manifest)
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	// The parent's Accepted condition and its reason
+	accepted := func(namespace string) (status, reason string) {
+		var r struct {
+			Status struct {
+				Parents []struct {
+					Conditions []struct{ Type, Status, Reason string } `json:"conditions"`
+				} `json:"parents"`
+			} `json:"status"`
+		}
+		if !getResource(t, namespace, &r, "httproute", "public-allow-probe") {
+			return "", ""
+		}
+		for _, p := range r.Status.Parents {
+			for _, c := range p.Conditions {
+				if c.Type == "Accepted" {
+					return c.Status, c.Reason
+				}
+			}
+		}
+		return "", ""
+	}
+
+	refused := "public-allow-test"
+	apply("apiVersion: v1\nkind: Namespace\nmetadata:\n  name: " + refused + "\n")
+	t.Cleanup(func() { _ = exec.Command("kubectl", "delete", "namespace", refused, "--wait=false").Run() })
+	apply(route(refused))
+	var status, reason string
+	require.Eventually(t, func() bool { status, reason = accepted(refused); return status != "" }, 2*time.Minute, 5*time.Second,
+		"Gateway public never reported on a route from %s", refused)
+	assert.Equal(t, "False", status, "a namespace off the public map reaches Gateway public")
+	assert.Equal(t, "NotAllowedByListeners", reason)
+
+	t.Cleanup(func() {
+		_ = exec.Command("kubectl", "--namespace", "ntfy", "delete", "httproute", "public-allow-probe").Run()
+	})
+	apply(route("ntfy"))
+	require.Eventually(t, func() bool { status, _ = accepted("ntfy"); return status == "True" }, 2*time.Minute, 5*time.Second,
+		"Gateway public refuses ntfy, which the public map lists")
 }

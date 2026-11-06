@@ -53,6 +53,9 @@ service:
         protocol: HTTP
 route:
   main:
+    # A Tunnel host works only proxied, and only then gets the WAF and the rate limit (infra/_modules/cloudflare)
+    annotations:
+      external-dns.kubernetes.io/cloudflare-proxied: "true"
     hostnames:
       - ntfy.{{ .Values.global.baseDomain }}
     parentRefs:

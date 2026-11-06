@@ -35,6 +35,7 @@ skip:
   - test/renovate_test.go
   - test/cni_watchdog_test.go
   - test/apps_test.go
+  - test/public_surface_test.go
   - scripts/check-*
   - scripts/render-chart
   - scripts/cloudflare-credentials

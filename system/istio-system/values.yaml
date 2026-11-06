@@ -3,6 +3,15 @@ gateway:
   # infra/<env>/cluster/config.json): Forgejo SSH keeps port 22 (node sshd owns it on the node IPs) and the address
   # moves to another node when one fails. Without a VIP (the sandbox), k3s ServiceLB serves it.
   loadBalancerClass: kube-vip.io/kube-vip-class
+# What the Cloudflare Tunnel publishes: Gateway public admits routes only from these namespaces, each with only these hosts
+# (<label>.<global.baseDomain>), and test/public_surface_test.go fails a route outside it or not proxied by Cloudflare.
+# A public app adds its line here, external-dns.kubernetes.io/cloudflare-proxied: "true" on its route, and its host to
+# system/public-scan's targets (docs/how-to-guides/public-surface.md). Admin apps stay on the LAN Gateway
+public:
+  blog: [www]
+  excalidraw: [draw]
+  matrix: [chat]
+  ntfy: [ntfy]
 # Off where Kyverno or the monitoring operator does not run, so these kinds do not exist (the testbed)
 policyExceptions: true
 podMonitors: true
