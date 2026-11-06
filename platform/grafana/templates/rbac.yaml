@@ -1,0 +1,13 @@
+{{- /* Instead of the chart's role, which reads every Secret (kubescape, docs/how-to-guides/cluster-scan.md): the sidecars take dashboards and data sources only from ConfigMaps */}}
+{{- range list .Release.Namespace "monitoring-system" }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grafana-sidecar
+  namespace: {{ . }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, watch]
+{{- end }}

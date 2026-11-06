@@ -11,8 +11,8 @@ built, and the workflows that build it are checked on every pull request (step 1
 | lab's image | `.github/workflows/lab-image.yaml`, Kyverno's `verify-lab-image` | a keyless signature and an SPDX SBOM from that workflow on `master` |
 | GitHub Actions workflows | the basic check `workflows` (zizmor, offline) | template injection, dangerous triggers, unpinned actions, credentials left in the checkout |
 
-Manifests are Kyverno's ([Policy](policy.md)) and the cluster's configuration is kube-bench's and kubescape's (step
-15d): the operator's config audit, RBAC, infra and compliance scanners are off.
+Manifests are Kyverno's ([Policy](policy.md)) and the cluster's configuration is kube-bench's and kubescape's
+([Cluster scan](cluster-scan.md)): the operator's config audit, RBAC, infra and compliance scanners are off.
 
 ## The Trivy Operator
 

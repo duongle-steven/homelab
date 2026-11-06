@@ -1,6 +1,8 @@
 package test
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -126,6 +128,30 @@ func TestTestbedSynced(t *testing.T) {
 	}, 35*time.Minute, 15*time.Second) {
 		t.Logf("still waiting: %v", waiting)
 	}
+}
+
+// TestTestbedSecretsEncrypted reads a Secret raw from etcd on a node (TestSecretIsEncrypted proves the check can fail).
+// Only etcdctl's stdout: ssh's warnings would hide the prefix
+func TestTestbedSecretsEncrypted(t *testing.T) {
+	testbedOnly(t)
+	names, ips := testbedHosts(t)
+	random := make([]byte, 16)
+	_, err := rand.Read(random)
+	require.NoError(t, err)
+	value, name := hex.EncodeToString(random), "secrets-encrypted-test"
+	options := testbedKubectl("kube-system")
+	t.Cleanup(func() { _ = k8s.RunKubectlE(t, options, "delete", "secret", name, "--ignore-not-found") })
+	require.NoError(t, k8s.KubectlApplyFromStringE(t, options, fmt.Sprintf(`apiVersion: v1
+kind: Secret
+metadata: {name: %s}
+stringData: {value: %s}
+`, name, value)))
+
+	tls := "/var/lib/rancher/k3s/server/tls/etcd"
+	raw, err := exec.Command("ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "root@"+ips[names[0]],
+		fmt.Sprintf("etcdctl --endpoints https://127.0.0.1:2379 --cacert %[1]s/server-ca.crt --cert %[1]s/server-client.crt --key %[1]s/server-client.key get /registry/secrets/kube-system/%[2]s --print-value-only", tls, name)).Output()
+	require.NoError(t, err)
+	require.NoError(t, secretIsEncrypted(raw, value))
 }
 
 // Three k3s servers, each an etcd member that sees a leader

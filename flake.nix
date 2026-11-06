@@ -51,6 +51,7 @@
             renovate # renovate-config-validator (scripts/lint)
             shellcheck
             unstable.k3d
+            (callPackage ./nix/kubescape.nix { }) # make dev-scan
             (callPackage ./nix/cloudflare-cf.nix { }) # cf: Cloudflare's CLI, its OAuth login gives OpenTofu its token
             wireguard-tools
             yamllint

@@ -1,0 +1,241 @@
+# Findings make testbed-scan and make dev-scan accept, each with its reason (docs/how-to-guides/cluster-scan.md).
+# kubescape: controls are accepted whole only when they are noise here; what would let someone reach a node, every
+# Secret or everything else is accepted by resource (a pattern only inside the name), so a new one fails the target.
+kubeBench:
+  - check: 1.3.7
+    reason: >-
+      The controller manager binds beyond localhost on purpose, for Prometheus; nixos-fw admits only pods and nodes on
+      its port (infra/_modules/metal)
+  - check: 1.4.2
+    reason: >-
+      The scheduler binds beyond localhost on purpose, for Prometheus; nixos-fw admits only pods and nodes on its port
+  - check: 4.2.4
+    reason: >-
+      A false report: k3s's journal line ends read-only-port=0" and the check reads 0" as another value; nothing
+      listens on 10255
+  - check: 4.3.1
+    reason: >-
+      kube-proxy's metrics bind beyond localhost on purpose, for Prometheus; nixos-fw admits only pods and nodes on its
+      port
+kubescape:
+  controls:
+    - {id: C-0004, reason: "Limits and requests: a homelab sets them where a workload proved it needs them, and the sandbox sizes differ from production"}
+    - {id: C-0009, reason: "Limits and requests: a homelab sets them where a workload proved it needs them, and the sandbox sizes differ from production"}
+    - {id: C-0050, reason: "Limits and requests: a homelab sets them where a workload proved it needs them, and the sandbox sizes differ from production"}
+    - {id: C-0268, reason: "Limits and requests: a homelab sets them where a workload proved it needs them, and the sandbox sizes differ from production"}
+    - {id: C-0269, reason: "Limits and requests: a homelab sets them where a workload proved it needs them, and the sandbox sizes differ from production"}
+    - {id: C-0270, reason: "Limits and requests: a homelab sets them where a workload proved it needs them, and the sandbox sizes differ from production"}
+    - {id: C-0271, reason: "Limits and requests: a homelab sets them where a workload proved it needs them, and the sandbox sizes differ from production"}
+    - {id: C-0076, reason: "Labels for people, not a control"}
+    - {id: C-0077, reason: "Labels for people, not a control"}
+    - {id: C-0018, reason: "Probes: availability, not security; charts decide them"}
+    - {id: C-0056, reason: "Probes: availability, not security; charts decide them"}
+    - {id: C-0236, reason: "Image signatures: step 15e signs what is ours (lab) and upstream images are pinned; the rest of the world does not sign"}
+    - {id: C-0237, reason: "Image signatures: step 15e signs what is ours (lab) and upstream images are pinned; the rest of the world does not sign"}
+    - {id: C-0234, reason: "Secrets come from OpenBao through ESO (step 8a), which this control cannot see"}
+    - {id: C-0013, reason: "Pod Security, per workload: Kyverno checks the same on every pull request, and each exception has its reason (step 15b, docs/how-to-guides/policy.md)"}
+    - {id: C-0017, reason: "Pod Security, per workload: Kyverno checks the same on every pull request, and each exception has its reason (step 15b, docs/how-to-guides/policy.md)"}
+    - {id: C-0055, reason: "Pod Security, per workload: Kyverno checks the same on every pull request, and each exception has its reason (step 15b, docs/how-to-guides/policy.md)"}
+    - {id: C-0197, reason: "Pod Security, per workload: Kyverno checks the same on every pull request, and each exception has its reason (step 15b, docs/how-to-guides/policy.md)"}
+    - {id: C-0198, reason: "Pod Security, per workload: Kyverno checks the same on every pull request, and each exception has its reason (step 15b, docs/how-to-guides/policy.md)"}
+    - {id: C-0200, reason: "Pod Security, per workload: Kyverno checks the same on every pull request, and each exception has its reason (step 15b, docs/how-to-guides/policy.md)"}
+    - {id: C-0201, reason: "Pod Security, per workload: Kyverno checks the same on every pull request, and each exception has its reason (step 15b, docs/how-to-guides/policy.md)"}
+    - {id: C-0210, reason: "Pod Security, per workload: Kyverno checks the same on every pull request, and each exception has its reason (step 15b, docs/how-to-guides/policy.md)"}
+    - {id: C-0211, reason: "Pod Security, per workload: Kyverno checks the same on every pull request, and each exception has its reason (step 15b, docs/how-to-guides/policy.md)"}
+    - {id: C-0193, reason: "Pod Security, per namespace: each managed namespace has its Pod Security Admission level (step 15b), and this reads as if a namespace could only be restricted"}
+    - {id: C-0194, reason: "Pod Security, per namespace: each managed namespace has its Pod Security Admission level (step 15b), and this reads as if a namespace could only be restricted"}
+    - {id: C-0195, reason: "Pod Security, per namespace: each managed namespace has its Pod Security Admission level (step 15b), and this reads as if a namespace could only be restricted"}
+    - {id: C-0196, reason: "Pod Security, per namespace: each managed namespace has its Pod Security Admission level (step 15b), and this reads as if a namespace could only be restricted"}
+    - {id: C-0199, reason: "Pod Security, per namespace: each managed namespace has its Pod Security Admission level (step 15b), and this reads as if a namespace could only be restricted"}
+    - {id: C-0202, reason: "Pod Security, per namespace: each managed namespace has its Pod Security Admission level (step 15b), and this reads as if a namespace could only be restricted"}
+    - {id: C-0203, reason: "Pod Security, per namespace: each managed namespace has its Pod Security Admission level (step 15b), and this reads as if a namespace could only be restricted"}
+    - {id: C-0204, reason: "Pod Security, per namespace: each managed namespace has its Pod Security Admission level (step 15b), and this reads as if a namespace could only be restricted"}
+    - {id: C-0034, reason: "Service account tokens mounted: most pods call nothing with theirs, and each token is limited by its RBAC, which the by-resource controls below read"}
+    - {id: C-0053, reason: "Service account tokens mounted: most pods call nothing with theirs, and each token is limited by its RBAC, which the by-resource controls below read"}
+    - {id: C-0189, reason: "Service account tokens mounted: most pods call nothing with theirs, and each token is limited by its RBAC, which the by-resource controls below read"}
+    - {id: C-0190, reason: "Service account tokens mounted: most pods call nothing with theirs, and each token is limited by its RBAC, which the by-resource controls below read"}
+    - {id: C-0261, reason: "Service account tokens mounted: most pods call nothing with theirs, and each token is limited by its RBAC, which the by-resource controls below read"}
+    - {id: C-0030, reason: "Network policy: the mesh denies by default (AuthorizationPolicy, step 6c) and system/egress does for egress; istio-system and kube-system sit outside on purpose, and this only counts NetworkPolicies"}
+    - {id: C-0049, reason: "Network policy: the mesh denies by default (AuthorizationPolicy, step 6c) and system/egress does for egress; istio-system and kube-system sit outside on purpose, and this only counts NetworkPolicies"}
+    - {id: C-0054, reason: "Network policy: the mesh denies by default (AuthorizationPolicy, step 6c) and system/egress does for egress; istio-system and kube-system sit outside on purpose, and this only counts NetworkPolicies"}
+    - {id: C-0206, reason: "Network policy: the mesh denies by default (AuthorizationPolicy, step 6c) and system/egress does for egress; istio-system and kube-system sit outside on purpose, and this only counts NetworkPolicies"}
+    - {id: C-0260, reason: "Network policy: the mesh denies by default (AuthorizationPolicy, step 6c) and system/egress does for egress; istio-system and kube-system sit outside on purpose, and this only counts NetworkPolicies"}
+    - {id: C-0264, reason: "Disks are not encrypted: a decision (step 15d, stolen machines and thrown-away disks are set aside), on the before-production list"}
+    - {id: C-0266, reason: "Published on the Gateways on purpose; every route is in git and step 15f covers the public surface"}
+    - {id: C-0026, reason: "CronJobs are ordinary here; each is in git"}
+    - {id: C-0212, reason: "Kubernetes and its CA publish to default; nothing of ours runs there"}
+    - {id: C-0293, reason: "forgejo-db-ro has no replica to serve in a one-instance sandbox (CloudNativePG creates it)"}
+    - {id: C-0305, reason: "Recreate is deliberate: one replica on a ReadWriteOnce volume"}
+    - {id: C-0207, reason: "Secrets as environment variables: how the charts take them; a file would not change who can read it inside the pod"}
+    - {id: C-0007, reason: "Roles allowing delete, ConfigMap readers, namespace boundaries and event deletion: ordinary for operators and repeated by the controls below on what matters"}
+    - {id: C-0031, reason: "Roles allowing delete, ConfigMap readers, namespace boundaries and event deletion: ordinary for operators and repeated by the controls below on what matters"}
+    - {id: C-0209, reason: "Roles allowing delete, ConfigMap readers, namespace boundaries and event deletion: ordinary for operators and repeated by the controls below on what matters"}
+    - {id: C-0258, reason: "Roles allowing delete, ConfigMap readers, namespace boundaries and event deletion: ordinary for operators and repeated by the controls below on what matters"}
+    - {id: C-0036, reason: "Webhook configurations: Kyverno, cert-manager, Istio, ESO and CloudNativePG own theirs and each is in git; this lists any webhook"}
+    - {id: C-0039, reason: "Webhook configurations: Kyverno, cert-manager, Istio, ESO and CloudNativePG own theirs and each is in git; this lists any webhook"}
+    - {id: C-0037, reason: "Who may edit CoreDNS: every binding it lists is already read under the wider controls below"}
+    - {id: C-0255, reason: "Workloads with secret access, by mount: readers are read by binding (C-0015, C-0186)"}
+  resources:
+    - ids: [C-0012, C-0259]
+      resources:
+        - argocd/ConfigMap/argocd-cm
+        - forgejo/Deployment/forgejo
+        - woodpecker/StatefulSet/woodpecker-agent
+        - istio-system/ConfigMap/istio-cni-config
+        - monitoring-system/ConfigMap/prometheus-monitoring-system-kube-pro-prometheus-rulefiles-0
+        - openbao/ConfigMap/openbao-config
+        - trivy-operator/ConfigMap/trivy-operator-config
+      reason: >-
+        C-0012 matches key names only. Read 2026-11-05: argocd-cm's application.instanceLabelKey is a label name and its oidc clientSecret a $reference; forgejo's env is GITEA_ADMIN_PASSWORD_MODE (a mode, the password comes from a Secret); woodpecker-agent's is WOODPECKER_BACKEND_K8S_ALLOW_NATIVE_SECRETS (a boolean); istio-cni-config's REPAIR_BROKEN_POD_LABEL_KEY is a label; Prometheus's rule file only talks about secrets; openbao-config's current_key is a file:// reference and its key id no key; trivy-operator-config's keys are switches and an empty list
+    - ids: [C-0002, C-0015, C-0035, C-0063, C-0065, C-0185, C-0186, C-0187, C-0188, C-0191, C-0278, C-0279, C-0280, C-0281, C-0282]
+      resources:
+        - /ClusterRoleBinding/cluster-admin
+        - /ClusterRoleBinding/system:controller:*
+        - /ClusterRoleBinding/system:kube-controller-manager
+        - /ClusterRoleBinding/kube-apiserver-kubelet-admin
+        - kube-system/RoleBinding/system:controller:*
+      reason: >-
+        Kubernetes' and k3s's own bindings
+    - ids: [C-0262]
+      resources:
+        - /ClusterRoleBinding/system:public-info-viewer
+      reason: >-
+        Kubernetes's default: anyone may read /healthz, /livez, /readyz and /version, nothing else
+    - ids: [C-0002, C-0015, C-0035, C-0063, C-0065, C-0186, C-0187, C-0188, C-0191, C-0267, C-0272, C-0278, C-0279, C-0280, C-0281, C-0282]
+      resources:
+        - /ClusterRoleBinding/argocd-application-controller
+        - argocd/RoleBinding/argocd-application-controller
+        - argocd/StatefulSet/argocd-application-controller
+      reason: >-
+        Argo CD applies every component, so its controller holds everything, like the upstream chart; a person reaches it only through Kanidm and its RBAC
+    - ids: [C-0002, C-0015, C-0186, C-0267, C-0279, C-0281]
+      resources:
+        - /ClusterRoleBinding/argocd-server
+        - /ClusterRoleBinding/argocd-notifications-controller
+        - argocd/RoleBinding/argocd-*
+        - argocd/Deployment/argocd-*
+      reason: >-
+        Argo CD's other parts, as the upstream chart gives them: its server lists and deletes what the UI shows, the others read their own namespace's Secrets
+    - ids: [C-0002, C-0015, C-0186, C-0188, C-0267, C-0279, C-0281, C-0282]
+      resources:
+        - /ClusterRoleBinding/cert-manager-*
+        - cert-manager/RoleBinding/cert-manager-*
+        - cert-manager/RoleBinding/trust-manager
+        - cert-manager/Deployment/cert-manager*
+        - cert-manager/Deployment/trust-manager
+        - /ClusterRoleBinding/external-secrets-*
+        - external-secrets/Deployment/external-secrets*
+        - /ClusterRoleBinding/cloudnative-pg
+        - cloudnative-pg/Deployment/cloudnative-pg
+        - /ClusterRoleBinding/kanidm-kaniop
+        - kanidm/RoleBinding/kanidm-kaniop-*
+        - kanidm/Deployment/kanidm-kaniop
+        - /ClusterRoleBinding/monitoring-system-kube-pro-operator
+        - monitoring-system/Deployment/monitoring-system-kube-pro-operator
+        - /ClusterRoleBinding/istiod-clusterrole-istio-system
+        - /ClusterRoleBinding/istio-reader-clusterrole-istio-system
+        - istio-system/RoleBinding/istiod
+        - istio-system/Deployment/istiod
+        - /ClusterRoleBinding/kyverno:admission-controller
+        - kyverno/RoleBinding/kyverno:*
+        - kyverno/Deployment/kyverno-*
+        - /ClusterRoleBinding/trust-manager
+        - /ClusterRoleBinding/trivy-operator
+        - trivy-operator/RoleBinding/trivy-operator
+        - trivy-operator/Deployment/trivy-operator
+      reason: >-
+        An operator's work is to read and write Secrets or create pods in other namespaces, as its upstream chart binds it: cert-manager, ESO (it reads every Secret, which is why no internet token lives there: step 6d-2), CloudNativePG, kaniop, the Prometheus Operator, Istio, Kyverno, trust-manager and the Trivy Operator
+    - ids: [C-0015, C-0186, C-0267]
+      resources:
+        - forgejo/RoleBinding/forgejo-db
+        - forgejo/Pod/forgejo-db-*
+      reason: >-
+        CloudNativePG's instance reads its own namespace's Secrets
+    - ids: [C-0278]
+      resources:
+        - /ClusterRoleBinding/csi-hostpathplugin-provisioner-cluster-role
+        - /ClusterRoleBinding/csi-provisioner-role
+      reason: >-
+        Provisioning volumes is its work; sandbox only (system/csi-hostpath)
+    - ids: [C-0063]
+      resources:
+        - istio-system/RoleBinding/kiali-portforward
+      reason: >-
+        Kiali's read-only role lets it open port-forwards to Istio's pods, as it needs for its debug views; admins only
+    - ids: [C-0188, C-0267]
+      resources:
+        - woodpecker/RoleBinding/woodpecker-agent
+        - woodpecker/StatefulSet/woodpecker-agent
+      reason: >-
+        Woodpecker's agent creates a step's pods in its own namespace, which is how it runs pipelines; those pods are unprivileged (step 10e)
+    - ids: [C-0002]
+      resources:
+        - ntfy/RoleBinding/secrets-rotation
+      reason: >-
+        Rotation restarts ntfy's readers through exec, in its namespace only (step 11b)
+    - ids: [C-0016, C-0045, C-0048, C-0057]
+      resources:
+        - csi-hostpath/StatefulSet/csi-hostpathplugin
+      reason: >-
+        csi-driver-host-path is privileged with a host path by its design; sandbox only (system/csi-hostpath)
+    - ids: [C-0016, C-0045, C-0046, C-0048, C-0057]
+      resources:
+        - istio-system/DaemonSet/istio-cni-node
+        - istio-system/DaemonSet/ztunnel
+      reason: >-
+        istio-cni and ztunnel set up each pod's network from the node: the mesh's design
+    - ids: [C-0016, C-0045, C-0048]
+      resources:
+        - loki/DaemonSet/loki-alloy
+      reason: >-
+        Alloy reads pod and audit logs read-only; only its own /var/lib/alloy is writable, for its read positions (step 9)
+    - ids: [C-0016, C-0038, C-0041, C-0048, C-0275]
+      resources:
+        - monitoring-system/DaemonSet/monitoring-system-prometheus-node-exporter
+      reason: >-
+        node-exporter reads the node's host network, PID space and root: what it measures
+    - ids: [C-0016, C-0044, C-0046]
+      resources:
+        - kube-system/DaemonSet/svclb-*
+      reason: >-
+        ServiceLB's pod needs NET_ADMIN and a host port to serve the Gateway on the node; sandbox only (it is off on the nodes)
+    - ids: [C-0016]
+      resources:
+        - kanidm/StatefulSet/kanidm-default
+      reason: >-
+        kaniop creates the StatefulSet and sets no container securityContext; its PolicyException says why (platform/kanidm)
+    - ids: [C-0016, C-0256]
+      resources:
+        - zot/StatefulSet/zot
+      reason: >-
+        zot's PolicyException says why it lacks the setting (platform/zot), and the registry is meant to be on the Gateway
+    - ids: [C-0256]
+      resources:
+        - istio-system/Deployment/gateway-istio
+      reason: >-
+        The LAN Gateway is what is meant to face outside (Istio serves it)
+    - ids: [C-0278]
+      resources:
+        - /ClusterRoleBinding/velero-server
+      reason: >-
+        Velero's own ClusterRole (system/velero/templates/rbac.yaml, step 15d, instead of cluster-admin): a restore
+        creates claims, never volumes (the CSI provisioner makes them); TestBackupRestore proves it needs no more
+    - ids: [C-0002, C-0015, C-0035, C-0063, C-0065, C-0186, C-0187, C-0188, C-0191, C-0278, C-0279, C-0280, C-0281, C-0282]
+      resources:
+        - velero/RoleBinding/velero-server
+      reason: >-
+        The chart's Role, everything in Velero's own namespace only: its data mover's pods, its credentials and its
+        kinds live there
+    - ids: [C-0267, C-0272]
+      resources:
+        - velero/Deployment/velero
+        - velero/DaemonSet/node-agent
+        - velero/Job/*-kopia-maintain-job-*
+      reason: >-
+        Velero's workloads hold the roles above: they must create pods and volumes to move data
+    - ids: [C-0307]
+      resources:
+        - kyverno/Job/kyverno-migrate-resources
+      reason: >-
+        The chart's post-upgrade hook, which Argo CD runs after a sync: it completes, then its ServiceAccount, a hook
+        too, is deleted, and the finished Job stays

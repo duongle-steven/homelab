@@ -1,0 +1,42 @@
+# Instead of the chart's cluster-admin (kubescape, docs/how-to-guides/cluster-scan.md): Velero here moves only volumes, so
+# it reads and writes claims, volumes and CSI snapshots everywhere. Its own namespace has the chart's Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: velero-volumes
+rules:
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [get, list, watch, create]
+  - apiGroups: [""]
+    resources: [nodes, pods]
+    verbs: [get, list, watch]
+  # No create on volumes: a volume Velero could create (a hostPath one, bound to a claim in its own namespace) would give
+  # its pods the node. Restored claims get theirs from the CSI provisioner
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch, update, patch, delete]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims, persistentvolumeclaims/status]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+  - apiGroups: [snapshot.storage.k8s.io]
+    resources: [volumesnapshots, volumesnapshots/status, volumesnapshotcontents, volumesnapshotcontents/status, volumesnapshotclasses]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses, csidrivers, csinodes, volumeattachments]
+    verbs: [get, list, watch]
+  # Its controllers watch its own kinds at cluster scope, though they live in its namespace: without this a restore
+  # waits for its informers forever
+  - apiGroups: [velero.io]
+    resources: ["*"]
+    verbs: [get, list, watch]
+  # Its ServiceAccount plugin lists these when it starts, whatever a backup holds
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterrolebindings]
+    verbs: [list]
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch]
