@@ -91,7 +91,7 @@ The fourteen warnings outside section 5's manual policy checks (section 5 is wha
 | 3.2.2 audit policy | Read in step 15c (`infra/_modules/metal/flake/audit-policy.yaml`) |
 | 4.2.12 kubelet ciphers | Left: Go's defaults are strong; pinning a list would need updating as Go changes them |
 | 4.2.13 pod PID limit | Fixed: `pod-max-pids=4096`, on the nodes and k3d |
-| 4.2.14 `seccomp-default` | Fixed: `true`, on the nodes and k3d (pods without a profile get `RuntimeDefault`) |
+| 4.2.14 `seccomp-default` | Left: tried, and `TestWoodpecker` failed. Woodpecker's step pods set no profile, and `RuntimeDefault` refuses the `unshare` Buildah needs to build images; they run in user namespaces, and every workload of ours sets `RuntimeDefault` itself (policy). A `Localhost` profile for the step pods would allow both (`deferred-minors.md`) |
 
 **kubescape**: 87 failed controls on the sandbox, about 2,100 control and resource pairs. Fixed:
 

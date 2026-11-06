@@ -366,12 +366,14 @@ func TestScanHardeningFlags(t *testing.T) {
 	for _, flag := range []string{
 		"--kube-apiserver-arg=service-account-extend-token-expiration=false",
 		"--kube-apiserver-arg=audit-log-maxage=30",
-		"--kubelet-arg=seccomp-default=true",
 		"--kubelet-arg=pod-max-pids=4096",
 	} {
 		assert.Contains(t, string(k3d), "- arg: "+flag+"\n", "k3d.yaml")
 		assert.Contains(t, string(nodes), `"`+flag+`"`, "k3s-server.nix")
 	}
+	// RuntimeDefault for pods without a profile refuses the unshare Buildah needs in Woodpecker's step pods
+	assert.NotContains(t, string(k3d), "seccomp-default=true", "k3d.yaml")
+	assert.NotContains(t, string(nodes), "seccomp-default=true", "k3s-server.nix")
 }
 
 // What kubescape found and step 15d narrowed: no component here holds cluster-admin or reads every Secret for nothing

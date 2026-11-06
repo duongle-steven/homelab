@@ -105,9 +105,9 @@ in
       "--kube-apiserver-arg=audit-log-maxage=30"
       "--kube-apiserver-arg=audit-log-truncate-enabled=true"
       "--kube-apiserver-arg=audit-log-truncate-max-event-size=102400"
-      # kube-bench's 1.2.30, 4.2.14 and 4.2.13 (docs/how-to-guides/cluster-scan.md): the same on k3d
+      # kube-bench's 1.2.30 and 4.2.13 (docs/how-to-guides/cluster-scan.md): the same on k3d; not seccomp-default
+      # (4.2.14): it would give Woodpecker's step pods RuntimeDefault, which refuses Buildah's unshare
       "--kube-apiserver-arg=service-account-extend-token-expiration=false"
-      "--kubelet-arg=seccomp-default=true"
       "--kubelet-arg=pod-max-pids=4096"
       "--node-ip=${hostConfig.ip}"
       "--tls-san=${k3s.vip}"
