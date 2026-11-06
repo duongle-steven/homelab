@@ -1,0 +1,68 @@
+# The weekly scan (files/scan.sh): a run that could not see a host, or loaded too few templates, is a failed Job
+# (PublicScanFailed); findings go to Loki (system/loki's PublicScanFinding)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: public-scan
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  timeZone: {{ .Values.global.timezone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      # Throttled under Cloudflare's rate limit, a host takes about an hour (values.yaml rateLimit)
+      activeDeadlineSeconds: 28800
+      template:
+        metadata:
+          annotations:
+            # The script and the targets are in the pod's spec only through this ConfigMap
+            checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: scan
+              image: {{ .Values.image | quote }}
+              command: [sh, /etc/public-scan/scan.sh]
+              env:
+                - {name: HOME, value: /tmp}
+                - {name: PUBLIC_SCAN_TARGETS, value: /etc/public-scan/targets}
+                - {name: PUBLIC_SCAN_DOMAIN, value: {{ .Values.global.baseDomain | quote }}}
+                - {name: PUBLIC_SCAN_TEMPLATES_VERSION, value: {{ .Values.templates.version | quote }}}
+                - {name: PUBLIC_SCAN_TEMPLATES_SHA256, value: {{ .Values.templates.sha256 | quote }}}
+                - {name: PUBLIC_SCAN_RATE, value: {{ .Values.rateLimit | quote }}}
+                - {name: PUBLIC_SCAN_MIN_TEMPLATES, value: {{ .Values.minTemplates | quote }}}
+                {{- if .Values.devCA }}
+                # The sandbox's hosts carry the local CA's certificates (OpenSSL reads this for wget)
+                - {name: SSL_CERT_FILE, value: /etc/homelab-dev-ca/ca.crt}
+                {{- end }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+              resources:
+                requests: {cpu: 50m, memory: 256Mi}
+              volumeMounts:
+                - {name: config, mountPath: /etc/public-scan, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+                {{- if .Values.devCA }}
+                - {name: dev-ca, mountPath: /etc/homelab-dev-ca, readOnly: true}
+                {{- end }}
+          volumes:
+            - name: config
+              configMap: {name: public-scan}
+            - name: tmp
+              emptyDir: {sizeLimit: 1Gi}
+            {{- if .Values.devCA }}
+            - name: dev-ca
+              configMap: {name: homelab-dev-ca, optional: true}
+            {{- end }}

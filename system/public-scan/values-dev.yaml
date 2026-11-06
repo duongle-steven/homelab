@@ -1,0 +1,3 @@
+# The public map's hosts the sandbox serves (blog and matrix do not run here), through the LAN Gateway
+targets: [draw, ntfy]
+devCA: true

@@ -1,0 +1,21 @@
+# nuclei against the public hosts every week, from inside the cluster through public DNS and Cloudflare, as an
+# outsider's requests arrive (docs/how-to-guides/public-surface.md)
+image: docker.io/projectdiscovery/nuclei:v3.11.1@sha256:582d5546902e67052097cb2d07296c642d50a1afc5e44623cb038845df9a32eb
+# nuclei's templates: a release, checked against its sha256 before use (GitHub's tarball of the tag)
+templates:
+  version: v10.5.1
+  sha256: 30fe1cfaced4635f886e4a2673641bba86998dceec28e468274524e789aa56eb
+# Sunday 04:00 in global.timezone
+schedule: "0 4 * * 0"
+# The public map's hosts (system/istio-system/values.yaml public): <label>.<global.baseDomain>, kept equal to it by
+# test/public_scan_test.go
+targets: [www, draw, chat, ntfy]
+# Requests per second: under half of Cloudflare's rate limit (infra/_modules/cloudflare rate_limit_requests per
+# rate_limit_period), so the scan never shares a block with the household: about an hour a host (29 000 requests)
+rateLimit: 8
+# A run that loaded fewer templates did not really run (set from the sandbox's first run)
+minTemplates: 1000
+# Findings decided on: hidden on their host only, each with its reason. {template: <template-id>, host: <label>, reason: ...}
+accepted: []
+# Sandbox only: trust the local CA (the preflight's wget checks certificates)
+devCA: false
