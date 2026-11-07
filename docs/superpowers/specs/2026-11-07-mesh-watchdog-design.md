@@ -16,9 +16,11 @@ the mesh on its node is still stuck:
 
 ## What
 
-1. **A second signal: the symptom.** A node is stuck when a pod on it has been `Pending` for more than
-   `NOT_READY_SECONDS` (180) and a `FailedCreatePodSandBox` event for that pod, seen within the same window, says
-   istio-cni's add failed (`type="istio-cni"` and `failed (add)`). The first signal stays: ztunnel running and not
+1. **A second signal: the symptom.** A node is stuck when a pod on it has had no sandbox for more than
+   `NOT_READY_SECONDS` (180) (`Pending` with `PodReadyToStartContainers` False: not a pod waiting in an init container
+   or an image pull) and a `FailedCreatePodSandBox` event for that pod, seen within the same window, says istio-cni's
+   add failed (`type="istio-cni"` and `failed (add)`). The watchdog lists the events and the `Pending` pods once each,
+   whatever their number: after a power cut there are hundreds, and its Job has 50 s. The first signal stays: ztunnel running and not
    Ready for more than 180 s. Events are read through the API: no log access, and no dependence on ztunnel's log
    wording, which changes between releases. A pod stuck for another reason (image pull, volume) has no such event and is
    left alone.
@@ -28,13 +30,13 @@ the mesh on its node is still stuck:
    restarted and the node is still stuck); the pods' start times are the only state. First built as ztunnel alone: two
    recorded power cuts on the sandbox (2026-11-07) cleared only once both were new (istio-cni then ztunnel, or ztunnel
    then istio-cni), each step costing another 180 s, so the second step restarts both.
-3. **RBAC.** A ClusterRole to list events and get pods in every namespace; deleting stays limited to `istio-system`'s
+3. **RBAC.** A ClusterRole to list events and pods in every namespace; deleting stays limited to `istio-system`'s
    pods (the Role).
 
 ## Proof
 
 - `TestIstioCNIWatchdog` (offline, fake `kubectl`): the new signal, an event outside the window, an event for another
-  plugin, a pod no longer `Pending`, a young pod, and the escalation to ztunnel.
+  plugin, a pod no longer `Pending`, a pod whose sandbox exists, a young pod, a pod of the same name elsewhere, the escalation to both pods, and the number of API calls with hundreds of events (`TestIstioCNIWatchdogFewCalls`).
 - The sandbox: `TestNodeRestart` and `TestNodePowerCut` (they rely on the watchdog), with the time each took.
 
 ## Not in scope

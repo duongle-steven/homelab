@@ -34,6 +34,11 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | mesh restart | `cni-watchdog.sh` logs "no running istio-cni pod" when a rollout briefly shows two istio-cni pods on a node (it skips that minute, which is safe) | any |
 | mesh restart | `TestIstioCNIWatchdog` never exercises the BusyBox `date -D` fallback offline (the host has GNU date; `TestNodeRestart` covers it in the image) | any |
 | mesh restart | The mesh-restart spec's RED bullet says the test "fails at its 12-minute limit" without saying the limit was 12 then | any |
+| mesh watchdog | `cni-watchdog.sh` keeps restarting istio-cni, then istio-cni and ztunnel, every few minutes on a node stuck for another reason (a broken istio-cni after a bump), with no alert of its own: the pods' own alerts fire | any |
+| mesh watchdog | A failed `kubectl delete` (one of the two pods already gone) ends the run under `set -e` and skips the later nodes: `--ignore-not-found` and a logged failure | any |
+| mesh watchdog | A failed `kubectl get events` turns the second signal off without a log line | any |
+| mesh watchdog | Events with only `eventTime` (no `lastTimestamp`, if the kubelet changes recorders) are skipped: fall back to `eventTime` without its fraction (BusyBox `date -D`) | any |
+| mesh watchdog | `TestIstioCNIWatchdog` runs the script with the host's `sh` and GNU `date`, not BusyBox's | any |
 | 14a | `make dev tests=` with a single quote breaks the recipe's `eval` quoting | any |
 | 14a | The test scopes spec's map table still lists `scripts/check-*`, `render-chart` and `cli/**` as Smoke only; `test/scopes.yaml` skips them | any |
 | 14a | `lab test scope --check` covers only `components` globs: top-level files, `test/` non-test files, `metal/` and `cli/` are not checked (a new file there runs the whole suite) | any |

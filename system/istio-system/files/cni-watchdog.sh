@@ -3,7 +3,7 @@
 # snapshot can hold network namespaces of pod sandboxes that were torn down, and ztunnel then retries them forever;
 # a new istio-cni builds its snapshot again. A node is stuck when, for more than NOT_READY_SECONDS:
 # - its ztunnel has been running but not Ready, or
-# - a pod on it has stayed Pending while istio-cni's add keeps failing for it (FailedCreatePodSandBox): ztunnel can
+# - a pod on it has had no sandbox while istio-cni's add keeps failing for it (FailedCreatePodSandBox): ztunnel can
 #   report Ready while still retrying dead network namespaces.
 # The watchdog restarts the node's istio-cni, or both istio-cni and ztunnel when istio-cni was already restarted after
 # ztunnel's start and the node is still stuck (the sandbox's power cuts cleared only once both were new); nothing while
@@ -18,27 +18,36 @@ epoch() {
 	date -u -d "$1" +%s 2>/dev/null || date -u -D '%Y-%m-%dT%H:%M:%SZ' -d "$1" +%s
 }
 
-# Nodes with a pod Pending for more than the limit whose sandbox istio-cni failed to add within the limit
-stuck_nodes=$(
+# Nodes with a pod whose sandbox has not existed for more than the limit (PodReadyToStartContainers False: not a pod
+# Pending in an init container or an image pull) and whose sandbox istio-cni failed to add within the limit. Two list
+# calls, whatever the number of events: after a power cut there are hundreds, and the Job has 50 s
+failed_pods=$(
 	kubectl get events -A --field-selector reason=FailedCreatePodSandBox -o jsonpath='{range .items[*]}{.involvedObject.namespace}/{.involvedObject.name} {.lastTimestamp} {.message}{"\n"}{end}' |
 		while read -r pod seen message; do
 			case "$message" in *'type="istio-cni"'*'failed (add)'*) ;; *) continue ;; esac
 			seen=$(epoch "$seen" 2>/dev/null) || continue
-			[ $((now - seen)) -le "$limit" ] || continue
-			# shellcheck disable=SC2046 # split into the node, the phase and the creation time
-			set -- $(kubectl -n "${pod%%/*}" get pod "${pod#*/}" -o jsonpath='{.spec.nodeName} {.status.phase} {.metadata.creationTimestamp}' 2>/dev/null || true)
-			[ $# -eq 3 ] && [ "$2" = Pending ] || continue
-			created=$(epoch "$3" 2>/dev/null) || continue
-			[ $((now - created)) -gt "$limit" ] && echo "$1"
+			[ $((now - seen)) -le "$limit" ] && echo "$pod"
 		done | sort -u
 )
+stuck_nodes=
+if [ -n "$failed_pods" ]; then
+	stuck_nodes=$(
+		kubectl get pods -A --field-selector status.phase=Pending -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name} {.spec.nodeName} {.metadata.creationTimestamp} {.status.conditions[?(@.type=="PodReadyToStartContainers")].status}{"\n"}{end}' |
+			while read -r pod node created sandbox; do
+				[ "${sandbox:-}" = False ] || continue
+				printf '%s\n' "$failed_pods" | grep -qxF "$pod" || continue
+				created=$(epoch "$created" 2>/dev/null) || continue
+				[ $((now - created)) -gt "$limit" ] && echo "$node"
+			done | sort -u
+	)
+fi
 
 kubectl -n istio-system get pods -l app=ztunnel -o jsonpath='{range .items[*]}{.metadata.name} {.spec.nodeName} {.status.containerStatuses[0].ready} {.status.containerStatuses[0].state.running.startedAt}{"\n"}{end}' |
 	while read -r ztunnel node ready started; do
 		[ -n "${started:-}" ] || continue
 		if [ "$ready" = false ]; then
 			why="ztunnel not Ready"
-		elif printf '%s\n' "$stuck_nodes" | grep -qx "$node"; then
+		elif printf '%s\n' "$stuck_nodes" | grep -qxF "$node"; then
 			why="pods stuck behind istio-cni's add"
 		else
 			continue
