@@ -40,8 +40,8 @@ make dev tests='Logs|Secrets'
 
 `TestNodeRestart` restarts the node, so it always runs alone, after the others (each alone test in its own `go test`,
 with its own hour); name it on its own (`tests='Logs|NodeRestart'`), not through a broader term such as `.`. An alone
-term names whole tests: `NodeRestart` runs `^Test(NodeRestart)$`, not `TestNodeRestartBlockers`, and
-`Rotation/forgejo` the subtests of `TestRotation` starting with `forgejo` (a term starting with `^` is used as given).
+term names whole tests: `NodeRestart` runs `^Test(NodeRestart)$`, not `TestNodeRestartBlockers` (a term starting with
+`^` is used as given).
 
 To see what a branch would run without running it:
 
