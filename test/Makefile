@@ -6,4 +6,4 @@ format=testname
 default: test
 
 test:
-	gotestsum --format ${format} -- -timeout 60m -run "${filter}"
+	gotestsum --format ${format} -- -timeout 60m -run "$(value filter)"

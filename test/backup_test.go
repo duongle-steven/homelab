@@ -183,7 +183,7 @@ func TestBackupRestore(t *testing.T) {
 		lab(t, append([]string{"backup", "restore", "--backup", backup, "--yes"}, env...)...)
 		assert.Equal(t, marker, baoValue(t, "smoke/backup-marker", "value"))
 		var got []struct{ SHA string }
-		require.Equal(t, 200, forgejoAs(t, "", "GET", "/repos/"+owner+"/"+repo+"/commits", nil, &got))
+		require.Equal(t, 200, forgejoRestored(t, "/repos/"+owner+"/"+repo+"/commits", &got))
 		require.NotEmpty(t, got)
 		assert.Equal(t, commit, got[0].SHA)
 		var back struct{ Title string }
@@ -197,17 +197,7 @@ func TestBackupRestore(t *testing.T) {
 		require.Equal(t, 204, forgejoAs(t, "", "DELETE", "/repos/"+owner+"/"+repo, nil, nil))
 		lab(t, append([]string{"backup", "restore", "forgejo", "--yes"}, env...)...)
 		var back struct{ Title string }
-		// lab returns once the new pod is ready; the Gateway learns its endpoint a moment later and answers 503 until
-		// then (an absent repository is 404, never retried)
-		admin, password := secretValue(t, "forgejo", "forgejo-admin", "username"), secretValue(t, "forgejo", "forgejo-admin", "password")
-		target := fmt.Sprintf("https://%s/api/v1/repos/%s/%s/issues/%d", forgejoHost, owner, repo, issue.Number)
-		code := 0
-		require.Eventually(t, func() bool {
-			status, err := getJSONE("GET", target, nil, admin, password, nil, &back)
-			code = status
-			return err == nil && status != 503
-		}, time.Minute, 2*time.Second, "Forgejo still unavailable through the Gateway")
-		require.Equal(t, 200, code)
+		require.Equal(t, 200, forgejoRestored(t, fmt.Sprintf("/repos/%s/%s/issues/%d", owner, repo, issue.Number), &back))
 		assert.Equal(t, "kept by the backup", back.Title)
 	})
 
@@ -220,4 +210,20 @@ func TestBackupRestore(t *testing.T) {
 		out = lab(t, append([]string{"backup", "push", "ntfy", "--yes"}, env...)...)
 		assert.Contains(t, out, "completed")
 	})
+}
+
+// forgejoRestored reads Forgejo's API as its admin right after a restore: lab returns once the new pod is ready, and the
+// Gateway learns its endpoint a moment later, answering 503 until then; after a whole-cluster restore Forgejo may still
+// be starting (an absent repository is 404, never retried)
+func forgejoRestored(t *testing.T, path string, out any) int {
+	t.Helper()
+	admin, password := secretValue(t, "forgejo", "forgejo-admin", "username"), secretValue(t, "forgejo", "forgejo-admin", "password")
+	code := 0
+	var err error
+	up := assert.Eventually(t, func() bool {
+		code, err = getJSONE("GET", "https://"+forgejoHost+"/api/v1"+path, nil, admin, password, nil, out)
+		return err == nil && code != 503
+	}, 5*time.Minute, 2*time.Second)
+	require.True(t, up, "Forgejo still unavailable through the Gateway: %d %v", code, err)
+	return code
 }
