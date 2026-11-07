@@ -121,3 +121,8 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15d | `make testbed` from stopped VMs failed once in `lab cluster enroll` ("Waiting for homelab-2 to join": the API server's `etcd failed` while the VMs were still booting, homelab-3 pending); the rerun passed. Enroll should retry an unhealthy API server while the nodes come up | 12b |
 | 15f | Element web (`chat.`) is public while dendrite's route is on the LAN Gateway only, so Element cannot sign in from outside the house: publish dendrite's client API (and federation) on `public` with its host in the public map, or keep Element on the LAN | any |
 | 15f | `make dev`'s alone run shares go test's one 60-minute timeout (`test/Makefile`): `TestBackupRestore` (11 min), `TestNodeRestart` (16) and `TestNodePowerCut` (18) left `TestRotation` too little and it was cut mid-`scheduled` (it passed alone). Run each alone test in its own `go test`, or give the alone run a longer timeout | any |
+| 15f | `system/public-scan/files/scan.sh` drops nuclei's own `[FTL]`/`[ERR]` lines when nuclei fails: the log says only that it failed | any |
+| 15f | The scan's last line `{"public_scan":"done","templates":N}` reports the last host's template count only | any |
+| 15f | `docs/how-to-guides/public-surface.md` does not say how to import an existing `http_ratelimit` or `http_request_firewall_managed` entry point, if the first apply finds one | the first production apply |
+| 15f | Gateway `public` enforces namespaces only; a route's hostnames are checked only in CI (`TestPublicRoutes`); one listener per host would enforce both | any |
+| 15f | The scan's pod has requests but no memory limit | any |
