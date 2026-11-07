@@ -71,6 +71,7 @@ func TestIstioCNIWatchdog(t *testing.T) {
 		cluster watchdogCluster
 		deleted string
 	}{
+		{"not ready after istio-cni's restart: both", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a false %s\n", ago(600)), cni: cniA}, "-n istio-system delete pod istio-cni-a ztunnel-a --wait=false"},
 		{"stuck node", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a false %s\n", ago(300)), cni: cniA}, deleteCNI},
 		{"ztunnel just started", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a false %s\n", ago(60)), cni: cniA}, ""},
 		{"ztunnel ready", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(300)), cni: cniA}, ""},
@@ -81,7 +82,7 @@ func TestIstioCNIWatchdog(t *testing.T) {
 		{"only the stuck node", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\nztunnel-b node-b false %s\n", ago(300), ago(300)), cni: map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n", "node-b": "istio-cni-b " + ago(300) + "\n"}}, "-n istio-system delete pod istio-cni-b --wait=false"},
 		// ztunnel Ready while pods cannot get their sandbox (12a-3, 15f)
 		{"stuck pods, ztunnel ready", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)), cni: map[string]string{"node-a": "istio-cni-a " + ago(500) + "\n"}, events: "default/web " + ago(30) + " " + failed + "\n", pods: stuck}, deleteCNI},
-		{"stuck pods, istio-cni restarted after ztunnel", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(600)), cni: cniA, events: "default/web " + ago(30) + " " + failed + "\n", pods: stuck}, "-n istio-system delete pod ztunnel-a --wait=false"},
+		{"stuck pods, istio-cni restarted after ztunnel: both", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(600)), cni: cniA, events: "default/web " + ago(30) + " " + failed + "\n", pods: stuck}, "-n istio-system delete pod istio-cni-a ztunnel-a --wait=false"},
 		{"stuck pods, ztunnel just restarted", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(60)), cni: cniA, events: "default/web " + ago(30) + " " + failed + "\n", pods: stuck}, ""},
 		{"old event", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)), cni: cniA, events: "default/web " + ago(600) + " " + failed + "\n", pods: stuck}, ""},
 		{"another plugin", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)), cni: cniA, events: "default/web " + ago(30) + ` plugin type="flannel" name="cbr0" failed (add): no IP addresses available` + "\n", pods: stuck}, ""},

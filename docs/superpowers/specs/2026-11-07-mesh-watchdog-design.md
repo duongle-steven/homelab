@@ -24,8 +24,10 @@ the mesh on its node is still stuck:
    left alone.
 2. **Escalation, without state.** For a stuck node, nothing happens while its istio-cni or its ztunnel started less
    than 180 s ago (a restart is still taking effect). Otherwise the watchdog restarts istio-cni if istio-cni started
-   before ztunnel (as today), and ztunnel if istio-cni started after it (istio-cni was already restarted and the node
-   is still stuck). The two then alternate, each given 180 s; the pods' start times are the only state.
+   before ztunnel (as today), and both istio-cni and ztunnel if istio-cni started after it (istio-cni was already
+   restarted and the node is still stuck); the pods' start times are the only state. First built as ztunnel alone: two
+   recorded power cuts on the sandbox (2026-11-07) cleared only once both were new (istio-cni then ztunnel, or ztunnel
+   then istio-cni), each step costing another 180 s, so the second step restarts both.
 3. **RBAC.** A ClusterRole to list events and get pods in every namespace; deleting stays limited to `istio-system`'s
    pods (the Role).
 

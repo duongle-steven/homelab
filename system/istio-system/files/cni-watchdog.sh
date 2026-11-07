@@ -5,9 +5,10 @@
 # - its ztunnel has been running but not Ready, or
 # - a pod on it has stayed Pending while istio-cni's add keeps failing for it (FailedCreatePodSandBox): ztunnel can
 #   report Ready while still retrying dead network namespaces.
-# The watchdog restarts the node's istio-cni, or its ztunnel when istio-cni was already restarted after ztunnel's start
-# and the node is still stuck; nothing while either started less than NOT_READY_SECONDS ago. The pods' start times are
-# the only state. ztunnel without a start time (waiting, crash-looping) is left alone: its age is unknown.
+# The watchdog restarts the node's istio-cni, or both istio-cni and ztunnel when istio-cni was already restarted after
+# ztunnel's start and the node is still stuck (the sandbox's power cuts cleared only once both were new); nothing while
+# either started less than NOT_READY_SECONDS ago. The pods' start times are the only state. ztunnel without a start
+# time (waiting, crash-looping) is left alone: its age is unknown.
 set -eu
 limit=${NOT_READY_SECONDS:-180}
 now=$(date -u +%s)
@@ -58,8 +59,8 @@ kubectl -n istio-system get pods -l app=ztunnel -o jsonpath='{range .items[*]}{.
 			continue
 		fi
 		if [ "$cni_since" -gt "$since" ]; then
-			echo "$node: $why for more than ${limit}s after istio-cni's restart, restarting ztunnel $ztunnel"
-			kubectl -n istio-system delete pod "$ztunnel" --wait=false
+			echo "$node: $why for more than ${limit}s after istio-cni's restart, restarting istio-cni $1 and ztunnel $ztunnel"
+			kubectl -n istio-system delete pod "$1" "$ztunnel" --wait=false
 		else
 			echo "$node: $why for more than ${limit}s, restarting istio-cni $1"
 			kubectl -n istio-system delete pod "$1" --wait=false
