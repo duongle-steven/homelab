@@ -13,30 +13,49 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeKubectl answers the watchdog's two queries from files and records deletions.
+// fakeKubectl answers the watchdog's queries from files and records deletions.
 const fakeKubectl = `#!/bin/sh
+printf '%s\n' "$*" >> "$FIXTURES/calls"
 case "$*" in
-  *"delete pod"*) echo "$*" >> "$FIXTURES/deleted" ;;
+  *"delete pod"*) printf '%s\n' "$*" >> "$FIXTURES/deleted" ;;
   *app=ztunnel*) cat "$FIXTURES/ztunnel" ;;
   *istio-cni-node*) node=$(echo "$*" | sed -n 's/.*spec.nodeName=\([^ ]*\).*/\1/p'); cat "$FIXTURES/cni-$node" 2>/dev/null ;;
+  *FailedCreatePodSandBox*) cat "$FIXTURES/events" 2>/dev/null ;;
+  *status.phase=Pending*) cat "$FIXTURES/pending" 2>/dev/null ;;
 esac
 `
 
-// runWatchdog runs system/istio-system/files/cni-watchdog.sh against ztunnel lines ("node ready startedAt") and
-// istio-cni lines per node ("pod startedAt"), and returns the kubectl deletions it made.
-func runWatchdog(t *testing.T, ztunnel string, cni map[string]string) string {
+// watchdogCluster is what the fake kubectl serves: ztunnel lines ("name node ready startedAt"), istio-cni lines per
+// node ("name startedAt"), FailedCreatePodSandBox events ("namespace/name lastTimestamp message") and Pending pods
+// ("namespace/name nodeName creationTimestamp PodReadyToStartContainers")
+type watchdogCluster struct {
+	ztunnel string
+	cni     map[string]string
+	events  string
+	pending string
+}
+
+// runWatchdog runs system/istio-system/files/cni-watchdog.sh against the cluster and returns the kubectl deletions it
+// made and the number of kubectl calls.
+func runWatchdog(t *testing.T, c watchdogCluster) (string, int) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "kubectl"), []byte(fakeKubectl), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "ztunnel"), []byte(ztunnel), 0o644))
-	for node, lines := range cni {
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "cni-"+node), []byte(lines), 0o644))
+	write := func(name, content string) {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644))
 	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "kubectl"), []byte(fakeKubectl), 0o755))
+	write("ztunnel", c.ztunnel)
+	write("events", c.events)
+	for node, lines := range c.cni {
+		write("cni-"+node, lines)
+	}
+	write("pending", c.pending)
 	cmd := exec.Command("sh", "../system/istio-system/files/cni-watchdog.sh")
 	cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "FIXTURES="+dir, "NOT_READY_SECONDS=180")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "watchdog failed:\n%s", out)
 	deleted, _ := os.ReadFile(filepath.Join(dir, "deleted"))
-	return strings.TrimSpace(string(deleted))
+	calls, _ := os.ReadFile(filepath.Join(dir, "calls"))
+	return strings.TrimSpace(string(deleted)), strings.Count(string(calls), "\n")
 }
 
 func ago(seconds int) string {
@@ -44,23 +63,60 @@ func ago(seconds int) string {
 }
 
 func TestIstioCNIWatchdog(t *testing.T) {
+	cniA := map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n"}
+	failed := `plugin type="istio-cni" name="istio-cni" failed (add): istio-cni cmdAdd failed to contact node Istio CNI agent`
+	stuck := "default/web node-a " + ago(400) + " False\n"
+	deleteCNI := "-n istio-system delete pod istio-cni-a --wait=false"
 	for _, c := range []struct {
 		name    string
-		ztunnel string
-		cni     map[string]string
+		cluster watchdogCluster
 		deleted string
 	}{
-		{"stuck node", fmt.Sprintf("node-a false %s\n", ago(300)), map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n"}, "-n istio-system delete pod istio-cni-a --wait=false"},
-		{"ztunnel just started", fmt.Sprintf("node-a false %s\n", ago(60)), map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n"}, ""},
-		{"ztunnel ready", fmt.Sprintf("node-a true %s\n", ago(300)), map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n"}, ""},
-		{"istio-cni just restarted", fmt.Sprintf("node-a false %s\n", ago(300)), map[string]string{"node-a": "istio-cni-a " + ago(60) + "\n"}, ""},
-		{"ztunnel not running", "node-a false \n", map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n"}, ""},
-		{"no istio-cni pod", fmt.Sprintf("node-a false %s\nnode-b false %s\n", ago(300), ago(300)), map[string]string{"node-b": "istio-cni-b " + ago(300) + "\n"}, "-n istio-system delete pod istio-cni-b --wait=false"},
-		{"unparsable start time", fmt.Sprintf("node-a false garbage\nnode-b false %s\n", ago(300)), map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n", "node-b": "istio-cni-b " + ago(300) + "\n"}, "-n istio-system delete pod istio-cni-b --wait=false"},
-		{"only the stuck node", fmt.Sprintf("node-a true %s\nnode-b false %s\n", ago(300), ago(300)), map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n", "node-b": "istio-cni-b " + ago(300) + "\n"}, "-n istio-system delete pod istio-cni-b --wait=false"},
+		{"not ready after istio-cni's restart: both", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a false %s\n", ago(600)), cni: cniA}, "-n istio-system delete pod istio-cni-a ztunnel-a --wait=false"},
+		{"stuck node", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a false %s\n", ago(300)), cni: cniA}, deleteCNI},
+		{"ztunnel just started", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a false %s\n", ago(60)), cni: cniA}, ""},
+		{"ztunnel ready", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(300)), cni: cniA}, ""},
+		{"istio-cni just restarted", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a false %s\n", ago(300)), cni: map[string]string{"node-a": "istio-cni-a " + ago(60) + "\n"}}, ""},
+		{"ztunnel not running", watchdogCluster{ztunnel: "ztunnel-a node-a false \n", cni: cniA}, ""},
+		{"no istio-cni pod", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a false %s\nztunnel-b node-b false %s\n", ago(300), ago(300)), cni: map[string]string{"node-b": "istio-cni-b " + ago(300) + "\n"}}, "-n istio-system delete pod istio-cni-b --wait=false"},
+		{"unparsable start time", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a false garbage\nztunnel-b node-b false %s\n", ago(300)), cni: map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n", "node-b": "istio-cni-b " + ago(300) + "\n"}}, "-n istio-system delete pod istio-cni-b --wait=false"},
+		{"only the stuck node", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\nztunnel-b node-b false %s\n", ago(300), ago(300)), cni: map[string]string{"node-a": "istio-cni-a " + ago(300) + "\n", "node-b": "istio-cni-b " + ago(300) + "\n"}}, "-n istio-system delete pod istio-cni-b --wait=false"},
+		// ztunnel Ready while pods cannot get their sandbox (12a-3, 15f)
+		{"stuck pods, ztunnel ready", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)), cni: map[string]string{"node-a": "istio-cni-a " + ago(500) + "\n"}, events: "default/web " + ago(30) + " " + failed + "\n", pending: stuck}, deleteCNI},
+		{"stuck pods, istio-cni restarted after ztunnel: both", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(600)), cni: cniA, events: "default/web " + ago(30) + " " + failed + "\n", pending: stuck}, "-n istio-system delete pod istio-cni-a ztunnel-a --wait=false"},
+		{"stuck pods, ztunnel just restarted", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(60)), cni: cniA, events: "default/web " + ago(30) + " " + failed + "\n", pending: stuck}, ""},
+		{"old event", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)), cni: cniA, events: "default/web " + ago(600) + " " + failed + "\n", pending: stuck}, ""},
+		{"another plugin", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)), cni: cniA, events: "default/web " + ago(30) + ` plugin type="flannel" name="cbr0" failed (add): no IP addresses available` + "\n", pending: stuck}, ""},
+		{"pod running", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)), cni: cniA, events: "default/web " + ago(30) + " " + failed + "\n", pending: ""}, ""},
+		{"young pod", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)), cni: cniA, events: "default/web " + ago(30) + " " + failed + "\n", pending: "default/web node-a " + ago(60) + " False\n"}, ""},
+		{"stuck pods on another node", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)), cni: cniA, events: "default/web " + ago(30) + " " + failed + "\n", pending: "default/web node-b " + ago(400) + " False\n"}, ""},
+		// Its sandbox exists: Pending for an init container or an image pull, after one CNI failure in the window
+		{"sandbox ready, still pending", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)), cni: cniA, events: "default/web " + ago(30) + " " + failed + "\n", pending: "default/web node-a " + ago(400) + " True\n"}, ""},
+		{"same name, another namespace", watchdogCluster{ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)), cni: cniA, events: "other/web " + ago(30) + " " + failed + "\n", pending: stuck}, ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			assert.Equal(t, c.deleted, runWatchdog(t, c.ztunnel, c.cni))
+			deleted, _ := runWatchdog(t, c.cluster)
+			assert.Equal(t, c.deleted, deleted)
 		})
 	}
+}
+
+// After a power cut, hundreds of sandbox events: the watchdog asks the API a fixed number of times, so its Job ends
+// well within its 50 s deadline
+func TestIstioCNIWatchdogFewCalls(t *testing.T) {
+	failed := `plugin type="istio-cni" name="istio-cni" failed (add): istio-cni cmdAdd failed to contact node Istio CNI agent`
+	var events, pending strings.Builder
+	for i := 0; i < 50; i++ {
+		for j := 0; j < 5; j++ {
+			fmt.Fprintf(&events, "default/web-%d %s %s\n", i, ago(30+j), failed)
+		}
+		fmt.Fprintf(&pending, "default/web-%d node-a %s False\n", i, ago(400))
+	}
+	deleted, calls := runWatchdog(t, watchdogCluster{
+		ztunnel: fmt.Sprintf("ztunnel-a node-a true %s\n", ago(400)),
+		cni:     map[string]string{"node-a": "istio-cni-a " + ago(500) + "\n"},
+		events:  events.String(), pending: pending.String(),
+	})
+	assert.Equal(t, "-n istio-system delete pod istio-cni-a --wait=false", deleted)
+	assert.LessOrEqual(t, calls, 5, "one call per query, not per event or pod")
 }

@@ -25,6 +25,32 @@ subjects:
     name: istio-cni-watchdog
     namespace: {{ .Release.Namespace }}
 ---
+# The second signal: pods stuck behind istio-cni's add, in any namespace (files/cni-watchdog.sh)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: istio-cni-watchdog
+rules:
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [list]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: istio-cni-watchdog
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: istio-cni-watchdog
+subjects:
+  - kind: ServiceAccount
+    name: istio-cni-watchdog
+    namespace: {{ .Release.Namespace }}
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
