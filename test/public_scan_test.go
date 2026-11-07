@@ -125,7 +125,7 @@ func TestPublicScanReport(t *testing.T) {
 	script, err := filepath.Abs("../system/public-scan/files/scan.sh")
 	require.NoError(t, err)
 	found := `{"template-id":"git-config","info":{"name":"Git Config","severity":"medium","metadata":{"max-request":1}},"host":"10.0.0.1","matched-at":"https://draw.example.org/.git/config","extracted-results":["secret-value"],"curl-command":"curl -H 'Cookie: secret-value' https://draw.example.org/.git/config","matcher-status":true}`
-	cmd := exec.Command("docker", "run", "--rm", "--entrypoint", "sh", "-e", "PUBLIC_SCAN_DOMAIN=example.org",
+	cmd := exec.Command("docker", "run", "--quiet", "--rm", "--entrypoint", "sh", "-e", "PUBLIC_SCAN_DOMAIN=example.org",
 		"-e", "PUBLIC_SCAN_REPORT=/tmp/found.jsonl", "-e", "FOUND="+found, "-v", script+":/scan.sh:ro", image,
 		"-c", `printf '%s\n' "$FOUND" > /tmp/found.jsonl && sh /scan.sh draw`)
 	out, err := cmd.CombinedOutput()
@@ -165,7 +165,7 @@ func TestPublicScanScript(t *testing.T) {
 			server := httptest.NewServer(c.handler)
 			defer server.Close()
 			target := strings.TrimPrefix(server.URL, "http://")
-			cmd := exec.Command("docker", "run", "--rm", "--network", "host", "--entrypoint", "sh",
+			cmd := exec.Command("docker", "run", "--quiet", "--rm", "--network", "host", "--entrypoint", "sh",
 				"-e", "PUBLIC_SCAN_CHECK_ONLY=1", "-e", "PUBLIC_SCAN_SCHEME=http", "-e", "PUBLIC_SCAN_DOMAIN=",
 				"-e", "PUBLIC_SCAN_TARGETS=/tmp/targets", "-v", script+":/scan.sh:ro", image,
 				"-c", "echo '"+target+" -' > /tmp/targets && sh /scan.sh")
@@ -295,7 +295,7 @@ func TestPublicScanChallengedMidRun(t *testing.T) {
 	target := strings.TrimPrefix(server.URL, "http://")
 	sum := sha256.Sum256(tarball)
 	stub := "#!/bin/sh\nwget -q -O /dev/null http://" + target + "/flip\necho 'Templates loaded for current scan: 20000' >&2\n"
-	out, err := exec.Command("docker", "run", "--rm", "--network", "host", "--entrypoint", "sh",
+	out, err := exec.Command("docker", "run", "--quiet", "--rm", "--network", "host", "--entrypoint", "sh",
 		"-e", "PUBLIC_SCAN_SCHEME=http", "-e", "PUBLIC_SCAN_DOMAIN=", "-e", "PUBLIC_SCAN_TARGETS=/tmp/targets",
 		"-e", "PUBLIC_SCAN_TEMPLATES_URL="+server.URL+"/templates.tar.gz", "-e", "PUBLIC_SCAN_TEMPLATES_VERSION=test",
 		"-e", "PUBLIC_SCAN_TEMPLATES_SHA256="+hex.EncodeToString(sum[:]), "-e", "PUBLIC_SCAN_RATE=1",
@@ -323,7 +323,7 @@ func TestPublicScanReportUnreadable(t *testing.T) {
 	script, err := filepath.Abs("../system/public-scan/files/scan.sh")
 	require.NoError(t, err)
 	found := `{"template-id":"odd id","info":{"severity":"high"},"host":"10.0.0.1"}`
-	out, err := exec.Command("docker", "run", "--rm", "--entrypoint", "sh", "-e", "PUBLIC_SCAN_DOMAIN=example.org",
+	out, err := exec.Command("docker", "run", "--quiet", "--rm", "--entrypoint", "sh", "-e", "PUBLIC_SCAN_DOMAIN=example.org",
 		"-e", "PUBLIC_SCAN_REPORT=/tmp/found.jsonl", "-e", "FOUND="+found, "-v", script+":/scan.sh:ro", image,
 		"-c", `printf '%s\n' "$FOUND" > /tmp/found.jsonl && sh /scan.sh draw`).CombinedOutput()
 	assert.Error(t, err, string(out))
