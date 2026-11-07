@@ -15,9 +15,9 @@ import (
 
 // fakeKubectl answers the watchdog's queries from files and records deletions.
 const fakeKubectl = `#!/bin/sh
-echo "$*" >> "$FIXTURES/calls"
+printf '%s\n' "$*" >> "$FIXTURES/calls"
 case "$*" in
-  *"delete pod"*) echo "$*" >> "$FIXTURES/deleted" ;;
+  *"delete pod"*) printf '%s\n' "$*" >> "$FIXTURES/deleted" ;;
   *app=ztunnel*) cat "$FIXTURES/ztunnel" ;;
   *istio-cni-node*) node=$(echo "$*" | sed -n 's/.*spec.nodeName=\([^ ]*\).*/\1/p'); cat "$FIXTURES/cni-$node" 2>/dev/null ;;
   *FailedCreatePodSandBox*) cat "$FIXTURES/events" 2>/dev/null ;;
