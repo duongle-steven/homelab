@@ -108,16 +108,38 @@ resource "cloudflare_ruleset" "rate_limit" {
   }]
 }
 
-# The WAF's managed rules: the Free plan's Free Managed Ruleset, which Cloudflare manages on the zone itself (its id is
-# not published, and declaring the zone's managed entry point here would replace Cloudflare's). A plan warns when the
-# zone has no managed entry point, so a Free zone that lost it shows
+# The WAF's managed rules: the zone's managed entry point runs the Free plan's Free Managed Ruleset. Cloudflare creates no
+# entry point on a Free zone (the plan of 2026-11-07 found none), and the ruleset's id is not published: it is found by
+# name among the managed rulesets the zone may run
 data "cloudflare_rulesets" "zone" {
   zone_id = data.cloudflare_zone.zone.id
 }
 
-check "managed_rules" {
-  assert {
-    condition     = anytrue([for ruleset in data.cloudflare_rulesets.zone.rulesets : ruleset.kind == "zone" && ruleset.phase == "http_request_firewall_managed"])
-    error_message = "The zone has no WAF managed rules (phase http_request_firewall_managed): check Security > WAF > Managed rules in Cloudflare's dashboard."
+locals {
+  waf_managed_rulesets  = [for ruleset in data.cloudflare_rulesets.zone.rulesets : ruleset if ruleset.kind == "managed" && ruleset.phase == "http_request_firewall_managed"]
+  free_managed_rulesets = [for ruleset in local.waf_managed_rulesets : ruleset if can(regex("(?i)free", ruleset.name))]
+}
+
+resource "cloudflare_ruleset" "managed" {
+  zone_id     = data.cloudflare_zone.zone.id
+  name        = "${var.resource_prefix}-managed"
+  description = "The WAF's managed rules"
+  kind        = "zone"
+  phase       = "http_request_firewall_managed"
+  rules = [{
+    ref         = "free_managed"
+    description = "Run the Free Managed Ruleset"
+    expression  = "true"
+    action      = "execute"
+    action_parameters = {
+      id = one(local.free_managed_rulesets[*].id)
+    }
+  }]
+
+  lifecycle {
+    precondition {
+      condition     = length(local.free_managed_rulesets) == 1
+      error_message = "Expected one managed WAF ruleset named Free, found: ${jsonencode(local.waf_managed_rulesets[*].name)}."
+    }
   }
 }

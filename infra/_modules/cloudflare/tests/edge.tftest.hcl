@@ -17,7 +17,11 @@ mock_provider "cloudflare" {
   }
   override_data {
     target = data.cloudflare_rulesets.zone
-    values = { rulesets = [{ id = "managed", kind = "zone", phase = "http_request_firewall_managed", name = "default", description = "", last_updated = "2026-01-01T00:00:00Z", version = "1" }] }
+    values = { rulesets = [
+      { id = "0000000000000000000000000000f4ee", kind = "managed", phase = "http_request_firewall_managed", name = "Cloudflare Managed Free Ruleset", description = "", last_updated = "2026-01-01T00:00:00Z", version = "1" },
+      { id = "000000000000000000000000000000a5", kind = "managed", phase = "http_request_firewall_managed", name = "Cloudflare OWASP Core Ruleset", description = "", last_updated = "2026-01-01T00:00:00Z", version = "1" },
+      { id = "ddos", kind = "managed", phase = "ddos_l7", name = "DDoS L7 ruleset", description = "", last_updated = "2026-01-01T00:00:00Z", version = "1" },
+    ] }
   }
 }
 
@@ -60,7 +64,24 @@ run "edge" {
   }
 }
 
-run "no_managed_rules" {
+run "managed_rules" {
+  command = plan
+
+  assert {
+    condition     = cloudflare_ruleset.managed.phase == "http_request_firewall_managed" && cloudflare_ruleset.managed.kind == "zone"
+    error_message = "the managed rules are the zone's http_request_firewall_managed entry point"
+  }
+  assert {
+    condition     = length(cloudflare_ruleset.managed.rules) == 1 && cloudflare_ruleset.managed.rules[0].action == "execute"
+    error_message = "the entry point runs one managed ruleset"
+  }
+  assert {
+    condition     = cloudflare_ruleset.managed.rules[0].action_parameters.id == "0000000000000000000000000000f4ee"
+    error_message = "it runs the Free Managed Ruleset, found by name among the zone's managed rulesets"
+  }
+}
+
+run "no_free_managed_ruleset" {
   command = plan
 
   override_data {
@@ -68,5 +89,5 @@ run "no_managed_rules" {
     values = { rulesets = [] }
   }
 
-  expect_failures = [check.managed_rules]
+  expect_failures = [cloudflare_ruleset.managed]
 }

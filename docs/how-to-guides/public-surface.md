@@ -42,10 +42,11 @@ blocking for 10 seconds, whose expression may use only the path: it cannot name 
 host added later outside the Tunnel gets the same rule. Per-account limits stay the apps' own (ntfy's per-visitor
 limits read `CF-Connecting-IP`). The rule also counts cached assets: the Free plan cannot exclude them.
 
-The WAF's managed rules are the Free Managed Ruleset, which Cloudflare runs on Free zones itself: its id is not
-published, and declaring the zone's managed entry point would replace Cloudflare's. The module only checks it: a plan
-warns `The zone has no WAF managed rules` when the zone has no `http_request_firewall_managed` entry point. Then look at
-Security > WAF > Managed rules in Cloudflare's dashboard.
+The WAF's managed rules are the Free Managed Ruleset. Cloudflare creates no entry point for it on a Free zone (a plan
+on 2026-11-07 found none, and the dashboard's WAF page offers only paid add-ons), so the module declares the zone's
+`http_request_firewall_managed` entry point (`cloudflare_ruleset.managed`) running it. Its id is not published: the
+module finds it by name (`Free`) among the managed rulesets the zone may run, and a plan fails, naming those it found,
+when there is not exactly one.
 
 Apply with the rest of production (`make infra env=production`), or the unit alone:
 
