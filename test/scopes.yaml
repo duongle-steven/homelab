@@ -35,6 +35,8 @@ skip:
   - test/renovate_test.go
   - test/cni_watchdog_test.go
   - test/apps_test.go
+  - test/public_surface_test.go
+  - test/cloudflare_test.go
   - scripts/check-*
   - scripts/render-chart
   - scripts/cloudflare-credentials
@@ -54,7 +56,7 @@ skip:
   - cli/internal/cli/cloudflare*.go
 always: Smoke
 alone: [NodeRestart, NodePowerCut, BackupRestore, Rotation]
-full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|Policy|SupplyChain|TrivyOperator|NodeRestart|NodePowerCut|BackupRestore|Rotation
+full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|Policy|SupplyChain|TrivyOperator|PublicScan|NodeRestart|NodePowerCut|BackupRestore|Rotation
 groups:
   - paths:
       - Makefile
@@ -102,6 +104,8 @@ groups:
     tests: Policy|SupplyChain
   - paths: [system/trivy-operator/**]
     tests: TrivyOperator
+  - paths: [system/public-scan/**, system/loki/files/public-scan-rules.yaml, test/public_scan_test.go]
+    tests: PublicScan|GatewayPublicAllowList
   - paths: [system/monitoring-system/**]
     tests: Monitoring|Mesh|Ntfy|Logs
   - paths:

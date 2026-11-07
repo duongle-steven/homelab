@@ -92,6 +92,12 @@ spec:
         mode: Terminate
         certificateRefs:
           - name: wildcard-tls
+      # Only the public map's namespaces (values.yaml public): an admin app's route here stays NotAllowedByListeners
       allowedRoutes:
         namespaces:
-          from: All
+          from: Selector
+          selector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values: {{ keys .Values.public | sortAlpha | toJson }}

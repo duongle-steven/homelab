@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: public-scan
+  namespace: {{ .Release.Namespace }}
+data:
+  scan.sh: |
+{{ .Files.Get "files/scan.sh" | indent 4 }}
+  # One line per host: its label and the template ids accepted on it ("-": none)
+  targets: |
+    {{- range $target := .Values.targets }}
+    {{- $ids := list }}
+    {{- range $.Values.accepted }}
+    {{- if eq .host $target }}{{ $ids = append $ids .template }}{{ end }}
+    {{- end }}
+    {{ $target }} {{ if $ids }}{{ join "," $ids }}{{ else }}-{{ end }}
+    {{- end }}

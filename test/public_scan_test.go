@@ -1,0 +1,332 @@
+package test
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/gruntwork-io/terratest/modules/k8s"
+	"github.com/gruntwork-io/terratest/modules/logger"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+)
+
+// publicScanValues reads system/public-scan's values (values-<env>.yaml over values.yaml, as Helm merges them)
+func publicScanValues(t *testing.T, env string) (targets []string, accepted []map[string]string, rate float64, image string) {
+	t.Helper()
+	files := []string{"../system/public-scan/values.yaml"}
+	if env != "" {
+		files = append(files, "../system/public-scan/values-"+env+".yaml")
+	}
+	out, err := exec.Command("yq", append([]string{"-o=json", "eval-all", ". as $item ireduce ({}; . * $item)"}, files...)...).Output()
+	require.NoError(t, err)
+	var v struct {
+		Targets   []string            `json:"targets"`
+		Accepted  []map[string]string `json:"accepted"`
+		RateLimit float64             `json:"rateLimit"`
+		Image     string              `json:"image"`
+	}
+	require.NoError(t, json.Unmarshal(out, &v))
+	return v.Targets, v.Accepted, v.RateLimit, v.Image
+}
+
+// The scan's targets are the public map's hosts (system/istio-system/values.yaml public): production all of them, the
+// sandbox those it serves
+func TestPublicScanTargets(t *testing.T) {
+	var labels []string
+	for _, hosts := range publicMap(t) {
+		labels = append(labels, hosts...)
+	}
+	sort.Strings(labels)
+	targets, _, _, _ := publicScanValues(t, "")
+	sort.Strings(targets)
+	assert.Equal(t, labels, targets, "system/public-scan's targets differ from the public map")
+	dev, _, _, _ := publicScanValues(t, "dev")
+	require.NotEmpty(t, dev)
+	assert.Subset(t, labels, dev, "the sandbox scans only hosts of the public map")
+}
+
+func TestPublicScanAccepted(t *testing.T) {
+	for _, env := range []string{"", "dev"} {
+		targets, accepted, _, _ := publicScanValues(t, env)
+		for _, a := range accepted {
+			assert.NotEmpty(t, a["template"], "env=%q: an accepted finding names its template: %v", env, a)
+			assert.Contains(t, targets, a["host"], "env=%q: an accepted finding names a scanned host: %v", env, a)
+			assert.NotEmpty(t, strings.TrimSpace(a["reason"]), "env=%q: an accepted finding says why: %v", env, a)
+		}
+	}
+}
+
+// publicScanTargetsFile renders the chart with the given accepted list and returns its targets file
+func publicScanTargetsFile(t *testing.T, accepted string) string {
+	t.Helper()
+	cmd := exec.Command("scripts/render-chart", "system/public-scan", "prod", "--set-json", "accepted="+accepted)
+	cmd.Dir = ".."
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	require.NoError(t, err, stderr.String())
+	yq := exec.Command("yq", "-N", `select(.kind == "ConfigMap" and .metadata.name == "public-scan") | .data.targets`)
+	yq.Stdin = strings.NewReader(string(out))
+	file, err := yq.Output()
+	require.NoError(t, err)
+	return string(file)
+}
+
+// An accepted finding hides its template on its own host only
+func TestPublicScanAcceptedPerHost(t *testing.T) {
+	file := publicScanTargetsFile(t, `[{"template":"x-1","host":"www","reason":"r"},{"template":"x-2","host":"www","reason":"r"}]`)
+	lines := map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(file), "\n") {
+		fields := strings.Fields(line)
+		require.Len(t, fields, 2, line)
+		lines[fields[0]] = fields[1]
+	}
+	assert.Equal(t, "x-1,x-2", lines["www"])
+	assert.Equal(t, "-", lines["draw"], "draw has nothing accepted")
+	assert.Len(t, lines, 4, "one line per target")
+}
+
+// nuclei stays under half of Cloudflare's rate limit (infra/_modules/cloudflare): the household's own requests never
+// share a block with the scan
+func TestPublicScanRateBelowLimit(t *testing.T) {
+	raw, err := os.ReadFile("../infra/_modules/cloudflare/variables.tf")
+	require.NoError(t, err)
+	value := func(name string) float64 {
+		m := regexp.MustCompile(`(?s)variable "` + name + `" \{.*?default\s*=\s*(\d+)`).FindSubmatch(raw)
+		require.NotNil(t, m, name)
+		n, err := strconv.ParseFloat(string(m[1]), 64)
+		require.NoError(t, err)
+		return n
+	}
+	_, _, rate, _ := publicScanValues(t, "")
+	require.Positive(t, rate)
+	assert.LessOrEqual(t, rate*value("rate_limit_period")*2, value("rate_limit_requests"))
+}
+
+// The log gets one short line per finding (template, host, severity): nuclei's own lines hold the request as a curl
+// command and what the template extracted from the response
+func TestPublicScanReport(t *testing.T) {
+	_, _, _, image := publicScanValues(t, "")
+	script, err := filepath.Abs("../system/public-scan/files/scan.sh")
+	require.NoError(t, err)
+	found := `{"template-id":"git-config","info":{"name":"Git Config","severity":"medium","metadata":{"max-request":1}},"host":"10.0.0.1","matched-at":"https://draw.example.org/.git/config","extracted-results":["secret-value"],"curl-command":"curl -H 'Cookie: secret-value' https://draw.example.org/.git/config","matcher-status":true}`
+	cmd := exec.Command("docker", "run", "--quiet", "--rm", "--entrypoint", "sh", "-e", "PUBLIC_SCAN_DOMAIN=example.org",
+		"-e", "PUBLIC_SCAN_REPORT=/tmp/found.jsonl", "-e", "FOUND="+found, "-v", script+":/scan.sh:ro", image,
+		"-c", `printf '%s\n' "$FOUND" > /tmp/found.jsonl && sh /scan.sh draw`)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Equal(t, `{"public_scan":"finding","template":"git-config","host":"draw.example.org","severity":"medium"}`, strings.TrimSpace(string(out)))
+	assert.NotContains(t, string(out), "secret-value")
+}
+
+// The scan's preflight, in the scan's own image: a host must answer normally, or the scan did not really run
+func TestPublicScanScript(t *testing.T) {
+	_, _, _, image := publicScanValues(t, "")
+	script, err := filepath.Abs("../system/public-scan/files/scan.sh")
+	require.NoError(t, err)
+	cases := map[string]struct {
+		handler http.HandlerFunc
+		ok      bool
+	}{
+		"answers": {func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "<title>ntfy</title>") }, true},
+		"redirects": {func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/" {
+				http.Redirect(w, r, "/app", http.StatusFound)
+				return
+			}
+			fmt.Fprint(w, "app")
+		}, true},
+		"5xx": {func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }, false},
+		"challenged": {func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("cf-mitigated", "challenge")
+			w.WriteHeader(http.StatusForbidden)
+		}, false},
+		"challenge page": {func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprint(w, "<html><head><title>Just a moment...</title></head></html>")
+		}, false},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(c.handler)
+			defer server.Close()
+			target := strings.TrimPrefix(server.URL, "http://")
+			cmd := exec.Command("docker", "run", "--quiet", "--rm", "--network", "host", "--entrypoint", "sh",
+				"-e", "PUBLIC_SCAN_CHECK_ONLY=1", "-e", "PUBLIC_SCAN_SCHEME=http", "-e", "PUBLIC_SCAN_DOMAIN=",
+				"-e", "PUBLIC_SCAN_TARGETS=/tmp/targets", "-v", script+":/scan.sh:ro", image,
+				"-c", "echo '"+target+" -' > /tmp/targets && sh /scan.sh")
+			out, err := cmd.CombinedOutput()
+			if c.ok {
+				assert.NoError(t, err, string(out))
+				return
+			}
+			assert.Error(t, err, string(out))
+			assert.Contains(t, string(out), target, "the failure names the host")
+			assert.NotContains(t, string(out), "Just a moment", "no response body in the log")
+		})
+	}
+}
+
+// PublicScanFinding (system/loki/files/public-scan-rules.yaml): Loki's ruler loads it beside the audit rules, and it
+// names only the template and the host
+func TestPublicScanRuleRender(t *testing.T) {
+	rules := renderLoki(t, "", `select(.kind == "ConfigMap" and .metadata.name == "loki-audit-rules") | .data["public-scan-rules.yaml"]`)
+	require.NotContains(t, []string{"", "null"}, rules, "loki-audit-rules has no public-scan-rules.yaml")
+	file := filepath.Join(t.TempDir(), "public-scan-rules.yaml")
+	require.NoError(t, os.WriteFile(file, []byte(rules), 0o600))
+	for _, cmd := range [][]string{{"rules", "lint", file}, {"rules", "check", file}} {
+		out, err := exec.Command("lokitool", cmd...).CombinedOutput()
+		require.NoError(t, err, "lokitool %s: %s", cmd[1], out)
+	}
+	var parsed struct {
+		Groups []struct {
+			Rules []struct {
+				Alert       string            `yaml:"alert"`
+				Expr        string            `yaml:"expr"`
+				Labels      map[string]string `yaml:"labels"`
+				Annotations map[string]string `yaml:"annotations"`
+			} `yaml:"rules"`
+		} `yaml:"groups"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(rules), &parsed))
+	require.Len(t, parsed.Groups, 1)
+	require.Len(t, parsed.Groups[0].Rules, 1)
+	r := parsed.Groups[0].Rules[0]
+	assert.Equal(t, "PublicScanFinding", r.Alert)
+	assert.Contains(t, r.Expr, `namespace="public-scan"`)
+	assert.Contains(t, r.Expr, `sum by (template, host)`)
+	assert.Contains(t, r.Expr, `=~"medium|high|critical"`)
+	assert.Contains(t, r.Expr, `[1h]`)
+	assert.Equal(t, "warning", r.Labels["severity"])
+	labels := regexp.MustCompile(`\$labels\.(\w+)`).FindAllStringSubmatch(r.Annotations["summary"]+r.Annotations["description"], -1)
+	for _, l := range labels {
+		assert.Contains(t, []string{"template", "host"}, l[1], "the alert names only the template and the host")
+	}
+}
+
+// The weekly scan runs in the sandbox against the public apps it serves, through the LAN Gateway: it completes, loads
+// its templates, finds nothing unaccepted at medium or above, and Loki's ruler holds PublicScanFinding
+func TestPublicScan(t *testing.T) {
+	sandboxOnly(t, "system/public-scan runs in the sandbox only")
+	options := k8s.NewKubectlOptions("", "", "public-scan")
+	options.Logger = logger.Discard
+	job := fmt.Sprintf("public-scan-test-%d", time.Now().Unix())
+	_, err := k8s.RunKubectlAndGetOutputE(t, options, "create", "job", job, "--from=cronjob/public-scan")
+	require.NoError(t, err)
+	t.Cleanup(func() { _, _ = k8s.RunKubectlAndGetOutputE(t, options, "delete", "job", job, "--ignore-not-found") })
+
+	var state string
+	require.Eventually(t, func() bool {
+		state, _ = k8s.RunKubectlAndGetOutputE(t, options, "get", "job", job, "--output",
+			`jsonpath={.status.conditions[?(@.status=="True")].type}`)
+		return strings.Contains(state, "Complete") || strings.Contains(state, "Failed")
+	}, 40*time.Minute, 20*time.Second, "the scan did not finish")
+	logs, err := k8s.RunKubectlAndGetOutputE(t, options, "logs", "job/"+job, "--tail=-1")
+	require.NoError(t, err)
+	require.Contains(t, state, "Complete", "the scan failed: %s", scanTail([]byte(logs)))
+
+	lines := strings.Split(strings.TrimSpace(logs), "\n")
+	var done struct {
+		PublicScan string `json:"public_scan"`
+		Templates  int    `json:"templates"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(lines[len(lines)-1]), &done), lines[len(lines)-1])
+	assert.Equal(t, "done", done.PublicScan)
+	out, err := exec.Command("yq", ".minTemplates", "../system/public-scan/values.yaml").Output()
+	require.NoError(t, err)
+	floor, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, done.Templates, floor)
+	t.Logf("templates loaded: %d", done.Templates)
+	for _, line := range lines {
+		var f struct{ PublicScan, Template, Host, Severity string }
+		if json.Unmarshal([]byte(line), &f) != nil || f.PublicScan != "finding" {
+			continue
+		}
+		t.Logf("finding: %s on %s (%s)", f.Template, f.Host, f.Severity)
+		assert.NotContains(t, []string{"medium", "high", "critical"}, f.Severity, "an unaccepted finding: %s on %s", f.Template, f.Host)
+	}
+
+	loki := k8s.NewKubectlOptions("", "", "loki")
+	loki.Logger = logger.Discard
+	require.Eventually(t, func() bool {
+		out, err := k8s.RunKubectlAndGetOutputE(t, loki, "get", "--raw",
+			"/api/v1/namespaces/loki/services/loki:3100/proxy/prometheus/api/v1/rules")
+		return err == nil && strings.Contains(out, `"name":"PublicScanFinding"`)
+	}, 5*time.Minute, 15*time.Second, "Loki's ruler has no PublicScanFinding")
+}
+
+// A host Cloudflare starts challenging while it is scanned fails the run: nuclei alone would report nothing and the
+// run would look clean. A stub nuclei flips the host to a challenge, as the WAF would mid-run
+func TestPublicScanChallengedMidRun(t *testing.T) {
+	_, _, _, image := publicScanValues(t, "")
+	script, err := filepath.Abs("../system/public-scan/files/scan.sh")
+	require.NoError(t, err)
+	tarball := publicScanTarball(t)
+	var challenged atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/templates.tar.gz":
+			_, _ = w.Write(tarball)
+		case r.URL.Path == "/flip":
+			challenged.Store(true)
+		case challenged.Load():
+			w.Header().Set("cf-mitigated", "challenge")
+			w.WriteHeader(http.StatusForbidden)
+		default:
+			fmt.Fprint(w, "app")
+		}
+	}))
+	defer server.Close()
+	target := strings.TrimPrefix(server.URL, "http://")
+	sum := sha256.Sum256(tarball)
+	stub := "#!/bin/sh\nwget -q -O /dev/null http://" + target + "/flip\necho 'Templates loaded for current scan: 20000' >&2\n"
+	out, err := exec.Command("docker", "run", "--quiet", "--rm", "--network", "host", "--entrypoint", "sh",
+		"-e", "PUBLIC_SCAN_SCHEME=http", "-e", "PUBLIC_SCAN_DOMAIN=", "-e", "PUBLIC_SCAN_TARGETS=/tmp/targets",
+		"-e", "PUBLIC_SCAN_TEMPLATES_URL="+server.URL+"/templates.tar.gz", "-e", "PUBLIC_SCAN_TEMPLATES_VERSION=test",
+		"-e", "PUBLIC_SCAN_TEMPLATES_SHA256="+hex.EncodeToString(sum[:]), "-e", "PUBLIC_SCAN_RATE=1",
+		"-e", "PUBLIC_SCAN_MIN_TEMPLATES=1", "-e", "STUB="+stub, "-e", "TARGET="+target, "-v", script+":/scan.sh:ro", image,
+		"-c", `mkdir /tmp/bin && printf '%s' "$STUB" > /tmp/bin/nuclei && chmod +x /tmp/bin/nuclei && echo "$TARGET -" > /tmp/targets && PATH=/tmp/bin:$PATH sh /scan.sh`).CombinedOutput()
+	assert.Error(t, err, string(out))
+	assert.Contains(t, string(out), target+" did not answer normally")
+	assert.NotContains(t, string(out), `"public_scan":"done"`)
+}
+
+// publicScanTarball is a templates tarball with one directory, as GitHub's tag archives have
+func publicScanTarball(t *testing.T) []byte {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "nuclei-templates-test"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "nuclei-templates-test", "t.yaml"), []byte("id: t\n"), 0o644))
+	out, err := exec.Command("tar", "-czf", "-", "-C", dir, "nuclei-templates-test").Output()
+	require.NoError(t, err)
+	return out
+}
+
+// A finding the report cannot read fails the run instead of disappearing from the log
+func TestPublicScanReportUnreadable(t *testing.T) {
+	_, _, _, image := publicScanValues(t, "")
+	script, err := filepath.Abs("../system/public-scan/files/scan.sh")
+	require.NoError(t, err)
+	found := `{"template-id":"odd id","info":{"severity":"high"},"host":"10.0.0.1"}`
+	out, err := exec.Command("docker", "run", "--quiet", "--rm", "--entrypoint", "sh", "-e", "PUBLIC_SCAN_DOMAIN=example.org",
+		"-e", "PUBLIC_SCAN_REPORT=/tmp/found.jsonl", "-e", "FOUND="+found, "-v", script+":/scan.sh:ro", image,
+		"-c", `printf '%s\n' "$FOUND" > /tmp/found.jsonl && sh /scan.sh draw`).CombinedOutput()
+	assert.Error(t, err, string(out))
+	assert.Contains(t, string(out), "could not be read")
+	assert.Contains(t, string(out), "draw.example.org")
+}

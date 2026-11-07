@@ -1,0 +1,38 @@
+# The weekly scan failed (a host it could not see, too few templates, a broken tarball: the Job's log says which), or
+# has not succeeded for eight days (the CronJob cannot start its pod, or every run fails)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: public-scan
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: public-scan
+      rules:
+        - alert: PublicScanFailed
+          expr: |
+            max by (job_name) (kube_job_status_failed{namespace="{{ .Release.Namespace }}"} > 0)
+            and on (job_name) topk by () (1, max by (job_name) (kube_job_created{namespace="{{ .Release.Namespace }}"}))
+          labels:
+            severity: warning
+          annotations:
+            summary: The weekly scan of the public hosts failed
+            description: >-
+              Job {{ "{{" }} $labels.job_name {{ "}}" }} failed: kubectl -n {{ .Release.Namespace }} logs job/{{ "{{" }} $labels.job_name {{ "}}" }}
+              names the host it could not see (docs/how-to-guides/public-surface.md).
+        - alert: PublicScanMissing
+          # Never succeeded counts from the CronJob's creation: a new cluster is not overdue before its first Sunday
+          expr: |
+            (time() - max(kube_cronjob_status_last_successful_time{namespace="{{ .Release.Namespace }}", cronjob="public-scan"}) > 8 * 86400)
+            or (
+              absent(kube_cronjob_status_last_successful_time{namespace="{{ .Release.Namespace }}", cronjob="public-scan"})
+              and on () (time() - max(kube_cronjob_created{namespace="{{ .Release.Namespace }}", cronjob="public-scan"}) > 8 * 86400)
+            )
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: No scan of the public hosts succeeded for eight days
+            description: >-
+              CronJob {{ .Release.Namespace }}/public-scan has not completed a run for eight days: its runs fail, or its pod
+              cannot start (docs/how-to-guides/public-surface.md).

@@ -1,0 +1,15 @@
+# Findings of the weekly scan of the public hosts (system/public-scan, docs/how-to-guides/public-surface.md): one short
+# line per finding, its template, host and severity only. Medium and above alert; info and low stay in the log. [1h]:
+# one notification per finding and run, since a run logs each finding once
+groups:
+  - name: public-scan
+    rules:
+      - alert: PublicScanFinding
+        expr: |
+          sum by (template, host) (count_over_time({job="pods", namespace="public-scan"} |= `"public_scan":"finding"` | json scan="public_scan", template="template", host="host", level="severity" | __error__="" | scan="finding" | level=~"medium|high|critical" [1h])) > 0
+        labels:
+          severity: warning
+          source: public-scan
+        annotations:
+          summary: 'The public scan found {{ $labels.template }} on {{ $labels.host }}'
+          description: 'Fix it, or accept it in system/public-scan/values.yaml with its reason (docs/how-to-guides/public-surface.md). Explore (Loki): {namespace="public-scan"} |= "finding"'

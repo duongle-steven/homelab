@@ -1,4 +1,4 @@
-# Loki's alert rules (files/audit-rules.yaml), mounted for tenant fake (auth_enabled false) at /etc/loki/rules/fake
+# Loki's alert rules (files/*-rules.yaml), mounted for tenant fake (auth_enabled false) at /etc/loki/rules/fake
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,3 +7,5 @@ metadata:
 data:
   audit-rules.yaml: |
 {{ .Files.Get "files/audit-rules.yaml" | indent 4 }}
+  public-scan-rules.yaml: |
+{{ .Files.Get "files/public-scan-rules.yaml" | indent 4 }}

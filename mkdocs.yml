@@ -69,6 +69,7 @@ nav:
     - how-to-guides/policy.md
     - how-to-guides/supply-chain.md
     - how-to-guides/cluster-scan.md
+    - how-to-guides/public-surface.md
     - how-to-guides/sandbox-tests.md
     - how-to-guides/ci.md
     - how-to-guides/deploy-to-forgejo.md
