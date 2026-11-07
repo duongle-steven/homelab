@@ -109,6 +109,8 @@ func TestCommandFullAndManual(t *testing.T) {
 		{[]string{"--full", "--alone"}, "NodeRestart\n"},
 		{[]string{"--tests", "Logs|NodeRestart"}, "Logs\n"},
 		{[]string{"--tests", "Logs|NodeRestart", "--alone"}, "NodeRestart\n"},
+		{[]string{"--full", "--alone", "--each"}, "^Test(NodeRestart)$\n"},
+		{[]string{"--tests", "Logs", "--alone", "--each"}, ""},
 	} {
 		out, err := lab(t, tc.args...)
 		if err != nil || out != tc.want {

@@ -22,7 +22,7 @@ jobs:
   sandbox-retarget:
     if: github.event.changes.base.ref.from != ''
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - name: start the check sandbox
         id: check

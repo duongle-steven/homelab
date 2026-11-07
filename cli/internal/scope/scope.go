@@ -152,6 +152,19 @@ func (c Config) Regex(s Selection, alone bool) string {
 	return strings.Join(out, "|")
 }
 
+// Anchored returns a term as a go test -run regex naming whole top-level tests: ^Test<term>$, the $ before the term's
+// first / so a subtest part still matches by prefix; a term already starting with ^ is kept as it is.
+func Anchored(term string) string {
+	if strings.HasPrefix(term, "^") {
+		return term
+	}
+	top, sub, nested := strings.Cut(strings.TrimPrefix(term, "Test"), "/")
+	if nested {
+		sub = "/" + sub
+	}
+	return "^Test(" + top + ")$" + sub
+}
+
 // SplitTerms splits a regex on its top-level |, keeping parenthesised alternations whole.
 func SplitTerms(regex string) []string {
 	if regex == "" {

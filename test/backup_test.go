@@ -219,10 +219,11 @@ func forgejoRestored(t *testing.T, path string, out any) int {
 	t.Helper()
 	admin, password := secretValue(t, "forgejo", "forgejo-admin", "username"), secretValue(t, "forgejo", "forgejo-admin", "password")
 	code := 0
-	require.Eventually(t, func() bool {
-		status, err := getJSONE("GET", "https://"+forgejoHost+"/api/v1"+path, nil, admin, password, nil, out)
-		code = status
-		return err == nil && status != 503
-	}, 5*time.Minute, 2*time.Second, "Forgejo still unavailable through the Gateway")
+	var err error
+	up := assert.Eventually(t, func() bool {
+		code, err = getJSONE("GET", "https://"+forgejoHost+"/api/v1"+path, nil, admin, password, nil, out)
+		return err == nil && code != 503
+	}, 5*time.Minute, 2*time.Second)
+	require.True(t, up, "Forgejo still unavailable through the Gateway: %d %v", code, err)
 	return code
 }

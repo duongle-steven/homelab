@@ -113,6 +113,21 @@ func TestSplitTerms(t *testing.T) {
 	}
 }
 
+func TestAnchored(t *testing.T) {
+	for term, want := range map[string]string{
+		"Rotation":                 "^Test(Rotation)$",
+		"TestNodeRestart":          "^Test(NodeRestart)$",
+		"Rotation/forgejo":         "^Test(Rotation)$/forgejo",
+		"Rotation/(scheduled|all)": "^Test(Rotation)$/(scheduled|all)",
+		"Node(Restart|PowerCut)":   "^Test(Node(Restart|PowerCut))$",
+		"^TestBackupRestore$":      "^TestBackupRestore$",
+	} {
+		if got := Anchored(term); got != want {
+			t.Errorf("%s: got %q, want %q", term, got, want)
+		}
+	}
+}
+
 func writeFile(t *testing.T, dir, name, body string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)

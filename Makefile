@@ -32,7 +32,8 @@ sandbox-checkout:
 
 # The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on; revision=<sha>
 # syncs that commit instead and pushes nothing (GitHub Actions). Alone tests (TestNodeRestart restarts the node) run
-# after the others, each in its own go test (anchored, so Rotation is not TestStatePassphraseRotation) under its own hour. The image caches are filled before a build and, after the tests, with what the node pulled
+# after the others, each in its own go test with its own hour (lab's --each anchors them: Rotation is not
+# TestStatePassphraseRotation). The image caches are filled before a build and, after the tests, with what the node pulled
 # without them (scripts/warm-image-cache); lab's image for the scheduled rotation is built from the checkout
 # (scripts/build-lab-image)
 dev: sandbox-checkout sandbox-clean
@@ -40,9 +41,9 @@ dev: sandbox-checkout sandbox-clean
 	@if [ -n "$(tests)" ]; then sel="--tests '$(tests)'"; \
 	elif [ "$(scope)" = full ]; then sel=--full; \
 	else git fetch -q origin dev || echo "make dev: git fetch failed, comparing with the local $(base)" >&2; sel="--base $(base)"; fi; \
-	main=$$(eval "$(lab) $$sel") && alone=$$(eval "$(lab) $$sel --alone") || exit 1; \
+	main=$$(eval "$(lab) $$sel") && alone=$$(eval "$(lab) $$sel --alone --each") || exit 1; \
 	if [ -z "$$main$$alone" ]; then echo "make dev: nothing to test in the sandbox (no change outside test/scopes.yaml's skip)"; exit 0; fi; \
-	echo "make dev: main run '$$main', then alone '$$alone'"; \
+	echo "make dev: main run '$$main', then alone '$$(printf "%s" "$$alone" | tr "\n" " ")'"; \
 	opt=$$( { if [ "$(apps)" = none ]; then :; elif [ "$(apps)" = all ]; then echo "$(optional_apps)"; else echo "$(apps)" | tr , ' '; fi; \
 		[ "$(apps)" = none ] || for a in $(optional_apps); do git diff --quiet "$(base)...HEAD" -- "apps/$$a.yaml" 2>/dev/null || echo "$$a"; done; } | \
 		tr ' ' '\n' | sed '/^$$/d' | sort -u | tr '\n' ' '); \
@@ -55,10 +56,10 @@ dev: sandbox-checkout sandbox-clean
 	scripts/build-lab-image && \
 	export HOMELAB_SANDBOX_APPS="$$opt" && \
 	{ if { [ -z "$$main" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$main" sandbox-refresh smoke-test; } && \
-	{ refresh=$$([ -n "$$main" ] || echo sandbox-refresh); failed=0; for t in $$(echo "$$alone" | tr '|' ' '); do \
-		case "$$t" in ^*) f="$$t" ;; *) f="^Test$$t\$$" ;; esac; \
-		$(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$f" $$refresh smoke-test || failed=1; refresh=; \
-	done; [ "$$failed" = 0 ]; }; \
+	{ printf '%s\n' "$$alone" | { refresh=$$([ -n "$$main" ] || echo sandbox-refresh); failed=0; while IFS= read -r f; do \
+		[ -n "$$f" ] || continue; \
+		$(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$f" $$refresh smoke-test </dev/null || failed=1; refresh=; \
+	done; [ "$$failed" = 0 ]; }; }; \
 	then status=0; else status=$$?; fi; scripts/warm-image-cache --node || true; exit $$status; }
 
 # Testbed: three NixOS VMs in WSL (infra/testbed, docs/installation/testbed.md), never beside the sandbox: what needs
@@ -184,7 +185,7 @@ infra:
 	fi
 
 smoke-test:
-	make -C test filter="$(smoke_filter)"
+	make -C test filter="$(value smoke_filter)"
 
 test:
 	make -C test
