@@ -32,7 +32,7 @@ sandbox-checkout:
 
 # The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on; revision=<sha>
 # syncs that commit instead and pushes nothing (GitHub Actions). Alone tests (TestNodeRestart restarts the node) run
-# after the others. The image caches are filled before a build and, after the tests, with what the node pulled
+# after the others, each in its own go test (anchored, so Rotation is not TestStatePassphraseRotation) under its own hour. The image caches are filled before a build and, after the tests, with what the node pulled
 # without them (scripts/warm-image-cache); lab's image for the scheduled rotation is built from the checkout
 # (scripts/build-lab-image)
 dev: sandbox-checkout sandbox-clean
@@ -55,7 +55,10 @@ dev: sandbox-checkout sandbox-clean
 	scripts/build-lab-image && \
 	export HOMELAB_SANDBOX_APPS="$$opt" && \
 	{ if { [ -z "$$main" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$main" sandbox-refresh smoke-test; } && \
-	{ [ -z "$$alone" ] || $(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$alone" $$([ -n "$$main" ] || echo sandbox-refresh) smoke-test; }; \
+	{ refresh=$$([ -n "$$main" ] || echo sandbox-refresh); failed=0; for t in $$(echo "$$alone" | tr '|' ' '); do \
+		case "$$t" in ^*) f="$$t" ;; *) f="^Test$$t\$$" ;; esac; \
+		$(MAKE) env=sandbox ENV=dev INSECURE_SKIP_VERIFY=1 smoke_filter="$$f" $$refresh smoke-test || failed=1; refresh=; \
+	done; [ "$$failed" = 0 ]; }; \
 	then status=0; else status=$$?; fi; scripts/warm-image-cache --node || true; exit $$status; }
 
 # Testbed: three NixOS VMs in WSL (infra/testbed, docs/installation/testbed.md), never beside the sandbox: what needs

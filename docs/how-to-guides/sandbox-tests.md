@@ -38,8 +38,8 @@ For example, the Loki and OpenBao tests only:
 make dev tests='Logs|Secrets'
 ```
 
-`TestNodeRestart` restarts the node, so it always runs alone, after the others; name it on its own
-(`tests='Logs|NodeRestart'`), not through a broader term such as `.`.
+`TestNodeRestart` restarts the node, so it always runs alone, after the others (each alone test in its own `go test`,
+with its own hour); name it on its own (`tests='Logs|NodeRestart'`), not through a broader term such as `.`.
 
 To see what a branch would run without running it:
 

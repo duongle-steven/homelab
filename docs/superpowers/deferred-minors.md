@@ -64,7 +64,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 11c | The "being rotated by" error suggests `lab secrets force-unlock <name> <holder>` without `--env` (the holder check refuses a wrong cluster's lock) | any |
 | 14d | `system/kiali` copies kiali-server 2.33.0's templates by hand: a Renovate bump of Kiali's image does not show changes the chart made to its config, RBAC or probes (compare with the chart's render when bumping) | any |
 | 14d | No test that an anonymous visitor to Kiali is sent to Kanidm (the API without a session answers 401, checked by hand in the review) | any |
-| 14d | `TestBackupRestore`'s whole-cluster restore once read Forgejo right after `lab backup restore` and got 503 (Forgejo not ready yet; a rerun passed): wait for Forgejo before reading | any |
 | 15a | The root `Dockerfile` (upstream's docs image) uses unpinned tags (`python:3.13-slim`, `nginx:1.27-alpine`); nothing here deploys it: pin or remove it | any |
 | 15a | The blog's image in zot (`registry.<domain>/blog`) is private: `images` cannot pull it once its tag is pinned; give the check zot's read credentials or skip that registry | any |
 | 15a | `.trivyignore.yaml`'s 90-day expiry for CVEs is a convention, not checked | any |
@@ -124,7 +123,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15d | `TestBackupRestore`'s "push asks first" failed once right after the sandbox started (`lab backup push`: "ntfy has no mounted volume"): `VolumeBytes` reads the kubelets' stats summary, which has no volume figures for a pod until its first collection; the rerun passed. Retry for a minute, or read the claims' pods instead | any |
 | 15d | `make testbed` from stopped VMs failed once in `lab cluster enroll` ("Waiting for homelab-2 to join": the API server's `etcd failed` while the VMs were still booting, homelab-3 pending); the rerun passed. Enroll should retry an unhealthy API server while the nodes come up | 12b |
 | 15f | Element web (`chat.`) is public while dendrite's route is on the LAN Gateway only, so Element cannot sign in from outside the house: publish dendrite's client API (and federation) on `public` with its host in the public map, or keep Element on the LAN | any |
-| 15f | `make dev`'s alone run shares go test's one 60-minute timeout (`test/Makefile`): `TestBackupRestore` (11 min), `TestNodeRestart` (16) and `TestNodePowerCut` (18) left `TestRotation` too little and it was cut mid-`scheduled` (it passed alone). Run each alone test in its own `go test`, or give the alone run a longer timeout | any |
 | 15f | `system/public-scan/files/scan.sh` drops nuclei's own `[FTL]`/`[ERR]` lines when nuclei fails: the log says only that it failed | any |
 | 15f | The scan's last line `{"public_scan":"done","templates":N}` reports the last host's template count only | any |
 | 15f | `docs/how-to-guides/public-surface.md` does not say how to import an existing `http_ratelimit` or `http_request_firewall_managed` entry point, if the first apply finds one | the first production apply |
