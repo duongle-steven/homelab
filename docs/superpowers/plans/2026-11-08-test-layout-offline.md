@@ -4,7 +4,7 @@
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** the 131 offline tests leave package `test` for `test/offline` and `test/internal/*`, so the basic checks
-run them by package and `test/` holds only the 83 cluster tests (14f-2 converts those to Ginkgo).
+run them by package and `test/` holds only the 84 cluster tests (14f-2 converts those to Ginkgo).
 
 **Architecture:** Go packages under the existing module `github.com/duongle-steven/homelab/test`: `test/offline`
 (package `offline`) for render, script and check tests; `test/internal/<pkg>` for helpers both sides use, each with
@@ -83,7 +83,7 @@ its own offline tests beside it; the root package `test` keeps the cluster tests
 
 - [ ] **Step 1: Record the lists before anything moves** (from `test/`):
   `go test -list . . | grep ^Test | grep -E "$offline_tests|TestRookCephAES256K" | sort > /tmp/…/offline-before`
-  (131 lines) and the rest `> cluster-before` (83 lines), with `$offline_tests` taken from today's `ci-check`.
+  (130 lines, `TestSecurityLogsRulesLoaded` among them through the regex's prefix) and the rest `> cluster-before` (84 lines), with `$offline_tests` taken from today's `ci-check`.
 - [ ] **Step 2: Move.** Rules: a test in `offline-before` moves to `test/offline/` unless it tests a shared helper,
   in which case it moves beside that helper in `test/internal/<pkg>/`; a helper used only by offline tests moves to
   `test/offline/`; one used by both moves to `test/internal/<pkg>` (exported); one used only by cluster tests stays.

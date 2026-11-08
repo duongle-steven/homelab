@@ -2,10 +2,11 @@
 
 ## Intent
 
-`test/` is one Go package of 214 tests: 131 offline (renders, scripts, checks) and 83 that need a cluster
+`test/` is one Go package of 214 tests: 130 offline (renders, scripts, checks) and 84 that need a cluster
 (`TestRookCephAES256K` only renders a chart, but neither `ci-check`'s regex nor any scope selects it: it runs nowhere
-today, the very bug below). Three
-things hurt:
+today, the very bug below; and the regex's prefix `TestSecurityLogsRules` also runs `TestSecurityLogsRulesLoaded`, a
+cluster test that skips offline). 14f-1 leaves 131 offline (with `TestRookCephAES256K` and its own
+`TestRootIsTheRepository`) and 84 cluster tests. Three things hurt:
 
 - `scripts/ci-check` runs the offline tests through a hand-written `-run` regex of 130 names: a new offline test that
   the regex misses never runs anywhere, silently.
@@ -22,14 +23,14 @@ name regexes, `Serial`/`Ordered` for tests that need the cluster alone, a timeou
 the Go norm for unit and render tests, where Ginkgo's DSL adds nothing. A new benchmarks suite measures storage and
 the mesh, to compare the testbed with production's hardware in step 12b.
 
-Decided with the user (2026-11-08): convert all 83 cluster tests (no long-lived mix of two styles); keep the directory
+Decided with the user (2026-11-08): convert all 84 cluster tests (no long-lived mix of two styles); keep the directory
 `test/` (Kubernetes' and Cluster API's `test/e2e`; upstream's `tests/` is only its choice); add the benchmarks suite.
 
 ## Goals
 
 - `test/offline/`: the 131 offline tests, plain `go test` + testify. `scripts/ci-check` runs the package
   (`go test ./offline/...`) with no list of names; a new test there runs in the basic checks by being there.
-- `test/e2e/`: the 83 cluster tests as Ginkgo specs (`Describe`/`It`, Gomega's `Eventually` instead of testify's
+- `test/e2e/`: the 84 cluster tests as Ginkgo specs (`Describe`/`It`, Gomega's `Eventually` instead of testify's
   106 `assert.Eventually`), one suite entry (`TestE2E`). Every spec carries labels naming what it proves (a
   component: `identity`, `sso`, `kiali`, `forgejo`, …), so `test/scopes.yaml` lists labels and `lab test scope` prints
   a Ginkgo label filter.
@@ -73,7 +74,7 @@ Decided with the user (2026-11-08): convert all 83 cluster tests (no long-lived 
   in one pull request (14f-2), converted group by group in its commits, each group proven on the sandbox as it goes.
 - A spec that passes because it ran nothing or skipped silently: an optional app's specs skip only as today (absent
   and not asked for), and fail when the app list names it.
-- Lost coverage: the e2e suite's dry run lists at least the 83 tests' worth of specs, and a check compares the
+- Lost coverage: the e2e suite's dry run lists at least the 84 tests' worth of specs, and a check compares the
   converted list against the old test names (each old test maps to one or more specs).
 - Labels as free text: the label set is fixed in one place (a Go file of constants or `scopes.yaml`), and
   `just cli check` fails on a spec label or a scope label the other does not know.
@@ -82,9 +83,9 @@ Decided with the user (2026-11-08): convert all 83 cluster tests (no long-lived 
 
 1. **14f-1** offline split: move the 131 offline tests and their fixtures to `test/offline/`, shared helpers to
    `test/internal/`; `ci-check` drops its regex; `test/scopes.yaml`'s skip list names `test/offline/**` instead of
-   each file. Proof: `scripts/ci-check all` runs the 130 tests it ran plus `TestRookCephAES256K` (count compared), `just dev --full` once.
+   each file. Proof: `scripts/ci-check all` runs the 129 offline tests it ran plus `TestRookCephAES256K` (count compared), `just dev --full` once.
 2. **14f-2** Ginkgo e2e: the suite, labels, `scopes.yaml` and `lab test scope` on labels, `just dev`/`just test` and
-   the testbed recipes on Ginkgo, reports and the CI artifact; then the 83 tests converted group by group. Proof:
+   the testbed recipes on Ginkgo, reports and the CI artifact; then the 84 tests converted group by group. Proof:
    each group with `just dev --tests '<labels>'` as it lands, `just dev --full` and `just testbed` at the end, and the
    old-name → spec check.
 3. **14f-3** benchmarks: the suite and `just test benchmarks`, run once on the sandbox and on the testbed; the old
