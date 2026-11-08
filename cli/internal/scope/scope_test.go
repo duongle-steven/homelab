@@ -238,3 +238,62 @@ func TestCheckManual(t *testing.T) {
 		}
 	}
 }
+
+// A changed test/internal package selects the tests whose files import it
+func TestFileTestsInternalPackage(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "test/internal/env/env.go", "package env\n\nfunc Name() string { return \"\" }\n")
+	writeFile(t, root, "test/a_test.go", "package test\n\nimport (\n\t\"testing\"\n\n\t\"github.com/duongle-steven/homelab/test/internal/env\"\n)\n\nfunc TestA(t *testing.T) { _ = env.Name() }\n")
+	// TestB names its own Name: only the import counts
+	writeFile(t, root, "test/b_test.go", "package test\n\nimport \"testing\"\n\nfunc Name() string { return \"\" }\n\nfunc TestB(t *testing.T) { _ = Name() }\n")
+	names, err := FileTests(root)("test/internal/env/env.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(names, []string{"TestA"}) {
+		t.Errorf("got %q", names)
+	}
+}
+
+// ... and through another test/internal package that imports it
+func TestFileTestsInternalTransitive(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "test/internal/env/env.go", "package env\n\nfunc Name() string { return \"\" }\n")
+	writeFile(t, root, "test/internal/kube/kube.go", "package kube\n\nimport \"github.com/duongle-steven/homelab/test/internal/env\"\n\nfunc Config() string { return env.Name() }\n")
+	writeFile(t, root, "test/c_test.go", "package test\n\nimport (\n\t\"testing\"\n\n\t\"github.com/duongle-steven/homelab/test/internal/kube\"\n)\n\nfunc TestC(t *testing.T) { _ = kube.Config() }\n")
+	names, err := FileTests(root)("test/internal/env/env.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(names, []string{"TestC"}) {
+		t.Errorf("got %q", names)
+	}
+}
+
+func TestSelectInternalPackage(t *testing.T) {
+	names := func(file string) ([]string, error) {
+		if file != "test/internal/env/env.go" {
+			t.Fatalf("unexpected file %s", file)
+		}
+		return []string{"TestA"}, nil
+	}
+	if main, _ := selectRegex(t, testConfig(), []string{"test/internal/env/env.go"}, names); main != "Smoke|TestA" {
+		t.Errorf("got %q", main)
+	}
+}
+
+// An importer that holds only helpers passes the change on to the tests that use those helpers
+func TestFileTestsInternalThroughHelperFile(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "test/internal/identity/identity.go", "package identity\n\nfunc PKCEPair() string { return \"\" }\n")
+	writeFile(t, root, "test/identity_helpers_test.go", "package test\n\nimport \"github.com/duongle-steven/homelab/test/internal/identity\"\n\nfunc login() string { return identity.PKCEPair() }\n")
+	writeFile(t, root, "test/sso_test.go", "package test\n\nimport \"testing\"\n\nfunc TestSSOGrafana(t *testing.T) { _ = login() }\n")
+	writeFile(t, root, "test/mesh_test.go", "package test\n\nimport \"testing\"\n\nfunc TestMeshEnrolled(t *testing.T) {}\n")
+	names, err := FileTests(root)("test/internal/identity/identity.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(names, []string{"TestSSOGrafana"}) {
+		t.Errorf("got %q", names)
+	}
+}

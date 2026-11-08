@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +45,7 @@ func grafanaStatus(password string) int {
 // most apps): the new value works, the old one is refused,
 // and the readers run again (the sandbox has one replica per app: their short stops are not checked) (step 11b)
 func TestRotation(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 
 	t.Run("app password", func(t *testing.T) {

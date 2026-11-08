@@ -218,7 +218,13 @@ func matchAny(globs []string, file string) bool {
 	return false
 }
 
+// isTestFile: a test file of the cluster tests, or a test/internal package's source, whose importers it selects
 func isTestFile(file string) bool {
 	ok, _ := doublestar.Match("test/*_test.go", file)
-	return ok
+	return ok || isInternalFile(file)
+}
+
+func isInternalFile(file string) bool {
+	ok, _ := doublestar.Match("test/internal/**/*.go", file)
+	return ok && !strings.HasSuffix(file, "_test.go")
 }

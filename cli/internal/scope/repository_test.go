@@ -37,11 +37,14 @@ func TestRepositoryMap(t *testing.T) {
 		{"cli/internal/guard/verify.go", "", ""},
 		{"platform/forgejo/values.yaml", "Forgejo|GatewayForgejoSSH|SSOForgejo|Smoke|Woodpecker", "BackupRestore"},
 		{"platform/woodpecker/values.yaml", "Smoke|Woodpecker", ""},
-		{"test/woodpecker_test.go", "", ""},
+		{"test/offline/woodpecker_test.go", "", ""},
 		{"apps/paperless.yaml", "SSOPaperless|Smoke", ""},
 		{"apps/blog.yaml", "Smoke", ""},
 		{"system/kured/values.yaml", "Smoke", ""},
-		{"test/state_rotation_test.go", "", ""},
+		{"test/offline/state_rotation_test.go", "", ""},
+		// the offline tests and the internal packages' own tests: the basic checks run them
+		{"test/offline/velero_test.go", "", ""},
+		{"test/internal/repo/repo_test.go", "", ""},
 		{"justfile", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
 		{"scripts/something-new", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
 	} {

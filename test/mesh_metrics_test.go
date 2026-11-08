@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duongle-steven/homelab/test/internal/smoke"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -11,8 +12,8 @@ import (
 // HTTP metrics and istiod's pushes. Kiali's graph (system/kiali) and Grafana read them.
 func TestMeshMetrics(t *testing.T) {
 	meshSandboxOnly(t)
-	app := smokeApps("dev")[0]
-	host := routeHost(t, app.namespace, app.name)
+	app := smoke.Apps("dev")[0]
+	host := routeHost(t, app.Namespace, app.Name)
 	for name, query := range map[string]string{
 		"ztunnel":  `istio_tcp_sent_bytes_total{reporter="destination"}`,
 		"gateways": `istio_requests_total{source_workload="gateway-istio"}`,
@@ -20,7 +21,7 @@ func TestMeshMetrics(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Eventually(t, func() bool {
-				appCodes(map[string]string{app.name: host})
+				appCodes(map[string]string{app.Name: host})
 				series, err := prometheusQuery(t, query)
 				return err == nil && len(series) > 0
 			}, 5*time.Minute, 15*time.Second, "no series for %s", query)

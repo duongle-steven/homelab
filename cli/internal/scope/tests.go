@@ -20,6 +20,9 @@ func FileTests(root string) TestNames {
 		if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
+		if isInternalFile(file) {
+			return internalTests(root, filepath.Dir(file))
+		}
 		changed, err := parseTestFile(path)
 		if err != nil {
 			return nil, err
@@ -49,6 +52,92 @@ func FileTests(root string) TestNames {
 		}
 		return names, nil
 	}
+}
+
+// testModule is the import path of test/'s Go module: test/internal/<pkg> is imported as testModule + "/internal/<pkg>"
+const testModule = "github.com/duongle-steven/homelab/test"
+
+// internalTests selects the Test functions of every test/*_test.go that imports the package in dir (test/internal/...),
+// directly or through other test/internal packages
+func internalTests(root, dir string) ([]string, error) {
+	affected := map[string]bool{testModule + strings.TrimPrefix(filepath.ToSlash(dir), "test"): true}
+	imports := map[string][]string{} // a test/internal package's import path → what its files import
+	err := filepath.WalkDir(filepath.Join(root, "test", "internal"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		rel, err := filepath.Rel(filepath.Join(root, "test"), filepath.Dir(path))
+		if err != nil {
+			return err
+		}
+		paths, err := importPaths(path)
+		pkg := testModule + "/" + filepath.ToSlash(rel)
+		imports[pkg] = append(imports[pkg], paths...)
+		return err
+	})
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	for grew := true; grew; {
+		grew = false
+		for pkg, paths := range imports {
+			if !affected[pkg] && anyOf(paths, affected) {
+				affected[pkg], grew = true, true
+			}
+		}
+	}
+	files, err := filepath.Glob(filepath.Join(root, "test", "*_test.go"))
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	seen := map[string]bool{}
+	for _, path := range files {
+		paths, err := importPaths(path)
+		if err != nil {
+			return nil, err
+		}
+		if !anyOf(paths, affected) {
+			continue
+		}
+		// the importer's own tests, and those of every file using its helpers (a helper file has no tests of its own)
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil, err
+		}
+		selected, err := FileTests(root)(filepath.ToSlash(rel))
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range selected {
+			if !seen[name] {
+				seen[name] = true
+				names = append(names, name)
+			}
+		}
+	}
+	return names, nil
+}
+
+func importPaths(path string) ([]string, error) {
+	parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for _, spec := range parsed.Imports {
+		paths = append(paths, strings.Trim(spec.Path.Value, `"`))
+	}
+	return paths, nil
+}
+
+func anyOf(paths []string, set map[string]bool) bool {
+	for _, p := range paths {
+		if set[p] {
+			return true
+		}
+	}
+	return false
 }
 
 // AllTests lists every Test function in test/*_test.go, sorted.
