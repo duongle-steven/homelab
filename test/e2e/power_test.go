@@ -1,9 +1,10 @@
-package test
+package e2e
 
 import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/duongle-steven/homelab/test/internal/repo"
 	"os/exec"
 	"slices"
 	"strings"
@@ -300,7 +301,7 @@ func markerGone(t *testing.T) bool {
 func labCluster(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	cmd := exec.Command("scripts/lab", append([]string{"cluster"}, args...)...)
-	cmd.Dir = ".."
+	cmd.Dir = repo.Root()
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

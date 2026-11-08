@@ -15,7 +15,7 @@ check() {
 				scripts/render-chart "$t" >/dev/null
 				scripts/render-chart "$t" dev >/dev/null
 			done ;;
-		# The offline tests are test/offline and test/internal's packages (test/ itself holds the cluster tests, which go vet
+		# The offline tests are test/offline and test/internal's packages (test/e2e holds the cluster tests, which go vet
 		# compiles). -count=1: the offline tests run scripts and just, whose files go test's cache does not see; -timeout 20m: they take close to go test's default 10 minutes on a busy workstation
 		go) (cd test && unformatted=$(gofmt -l .) && { [ -z "$unformatted" ] || { echo "gofmt: $unformatted" >&2; exit 1; }; } &&
 			go vet ./... && go test -count=1 -timeout 20m ./offline/... ./internal/...) ;;

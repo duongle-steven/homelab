@@ -1,7 +1,8 @@
-package test
+package e2e
 
 import (
 	"fmt"
+	"github.com/duongle-steven/homelab/test/internal/repo"
 	"net/http"
 	"os"
 	"os/exec"
@@ -21,7 +22,7 @@ import (
 func lab(t *testing.T, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("go", append([]string{"run", "./cmd/lab"}, args...)...)
-	cmd.Dir = "../cli"
+	cmd.Dir = filepath.Join(repo.Root(), "cli")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "lab %v:\n%s", args, out)
 	return string(out)

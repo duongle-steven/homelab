@@ -18,4 +18,4 @@ run env="production" $filter="." format="testname":
     sandbox) export ENV=dev INSECURE_SKIP_VERIFY=1 ;;
     testbed) export ENV=testbed INSECURE_SKIP_VERIFY=1 ;;
     esac
-    gotestsum --format {{ format }} -- -timeout 60m -run "$filter"
+    gotestsum --format {{ format }} -- -timeout 60m -run "$filter" ./e2e

@@ -61,12 +61,12 @@ func TestSelect(t *testing.T) {
 
 func TestSelectTestFile(t *testing.T) {
 	names := func(file string) ([]string, error) {
-		if file != "test/logs_test.go" {
+		if file != "test/e2e/logs_test.go" {
 			t.Fatalf("unexpected file %s", file)
 		}
 		return []string{"TestLogsPodLines", "TestLogsEvents"}, nil
 	}
-	main, alone := selectRegex(t, testConfig(), []string{"test/logs_test.go"}, names)
+	main, alone := selectRegex(t, testConfig(), []string{"test/e2e/logs_test.go"}, names)
 	if main != "Smoke|TestLogsEvents|TestLogsPodLines" || alone != "" {
 		t.Errorf("got %q %q", main, alone)
 	}
@@ -74,7 +74,7 @@ func TestSelectTestFile(t *testing.T) {
 
 func TestSelectTestFileAlone(t *testing.T) {
 	names := func(string) ([]string, error) { return []string{"TestNodeRestart", "TestNodeRestartBlockers"}, nil }
-	main, alone := selectRegex(t, testConfig(), []string{"test/node_restart_test.go"}, names)
+	main, alone := selectRegex(t, testConfig(), []string{"test/e2e/node_restart_test.go"}, names)
 	if main != "Smoke" || alone != "TestNodeRestart|TestNodeRestartBlockers" {
 		t.Errorf("got %q %q", main, alone)
 	}
@@ -177,7 +177,7 @@ components: ["system/*/"]
 
 func TestFileTests(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, root, "test/logs_test.go", `package test
+	writeFile(t, root, "test/e2e/logs_test.go", `package test
 
 import "testing"
 
@@ -185,7 +185,7 @@ func TestLogsB(t *testing.T) {}
 func TestLogsA(t *testing.T) {}
 func helper() {}
 `)
-	names, err := FileTests(root)("test/logs_test.go")
+	names, err := FileTests(root)("test/e2e/logs_test.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func helper() {}
 }
 
 func TestFileTestsDeletedFile(t *testing.T) {
-	names, err := FileTests(t.TempDir())("test/gone_test.go")
+	names, err := FileTests(t.TempDir())("test/e2e/gone_test.go")
 	if err != nil || names != nil {
 		t.Errorf("a deleted test file: %q %v", names, err)
 	}
@@ -208,11 +208,11 @@ func TestFileTestsDeletedFile(t *testing.T) {
 // A test file's helpers used by other test files select those files' tests too
 func TestFileTestsIncludesHelperUsers(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, root, "test/sso_test.go", "package test\n\nimport \"testing\"\n\nvar timeout = 1\n\nfunc secretValue() string { return \"\" }\nfunc TestSSOZot(t *testing.T) { _ = secretValue() }\n")
-	writeFile(t, root, "test/ntfy_test.go", "package test\n\nimport \"testing\"\n\nfunc TestNtfyUsers(t *testing.T) { _ = secretValue() }\n")
-	writeFile(t, root, "test/logs_test.go", "package test\n\nimport \"testing\"\n\nfunc TestLogsEvents(t *testing.T) { _ = timeout }\n")
-	writeFile(t, root, "test/mesh_test.go", "package test\n\nimport \"testing\"\n\nfunc TestMeshEnrolled(t *testing.T) {}\n")
-	names, err := FileTests(root)("test/sso_test.go")
+	writeFile(t, root, "test/e2e/sso_test.go", "package test\n\nimport \"testing\"\n\nvar timeout = 1\n\nfunc secretValue() string { return \"\" }\nfunc TestSSOZot(t *testing.T) { _ = secretValue() }\n")
+	writeFile(t, root, "test/e2e/ntfy_test.go", "package test\n\nimport \"testing\"\n\nfunc TestNtfyUsers(t *testing.T) { _ = secretValue() }\n")
+	writeFile(t, root, "test/e2e/logs_test.go", "package test\n\nimport \"testing\"\n\nfunc TestLogsEvents(t *testing.T) { _ = timeout }\n")
+	writeFile(t, root, "test/e2e/mesh_test.go", "package test\n\nimport \"testing\"\n\nfunc TestMeshEnrolled(t *testing.T) {}\n")
+	names, err := FileTests(root)("test/e2e/sso_test.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,9 +243,9 @@ func TestCheckManual(t *testing.T) {
 func TestFileTestsInternalPackage(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "test/internal/env/env.go", "package env\n\nfunc Name() string { return \"\" }\n")
-	writeFile(t, root, "test/a_test.go", "package test\n\nimport (\n\t\"testing\"\n\n\t\"github.com/duongle-steven/homelab/test/internal/env\"\n)\n\nfunc TestA(t *testing.T) { _ = env.Name() }\n")
+	writeFile(t, root, "test/e2e/a_test.go", "package test\n\nimport (\n\t\"testing\"\n\n\t\"github.com/duongle-steven/homelab/test/internal/env\"\n)\n\nfunc TestA(t *testing.T) { _ = env.Name() }\n")
 	// TestB names its own Name: only the import counts
-	writeFile(t, root, "test/b_test.go", "package test\n\nimport \"testing\"\n\nfunc Name() string { return \"\" }\n\nfunc TestB(t *testing.T) { _ = Name() }\n")
+	writeFile(t, root, "test/e2e/b_test.go", "package test\n\nimport \"testing\"\n\nfunc Name() string { return \"\" }\n\nfunc TestB(t *testing.T) { _ = Name() }\n")
 	names, err := FileTests(root)("test/internal/env/env.go")
 	if err != nil {
 		t.Fatal(err)
@@ -260,7 +260,7 @@ func TestFileTestsInternalTransitive(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "test/internal/env/env.go", "package env\n\nfunc Name() string { return \"\" }\n")
 	writeFile(t, root, "test/internal/kube/kube.go", "package kube\n\nimport \"github.com/duongle-steven/homelab/test/internal/env\"\n\nfunc Config() string { return env.Name() }\n")
-	writeFile(t, root, "test/c_test.go", "package test\n\nimport (\n\t\"testing\"\n\n\t\"github.com/duongle-steven/homelab/test/internal/kube\"\n)\n\nfunc TestC(t *testing.T) { _ = kube.Config() }\n")
+	writeFile(t, root, "test/e2e/c_test.go", "package test\n\nimport (\n\t\"testing\"\n\n\t\"github.com/duongle-steven/homelab/test/internal/kube\"\n)\n\nfunc TestC(t *testing.T) { _ = kube.Config() }\n")
 	names, err := FileTests(root)("test/internal/env/env.go")
 	if err != nil {
 		t.Fatal(err)
@@ -286,9 +286,9 @@ func TestSelectInternalPackage(t *testing.T) {
 func TestFileTestsInternalThroughHelperFile(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "test/internal/identity/identity.go", "package identity\n\nfunc PKCEPair() string { return \"\" }\n")
-	writeFile(t, root, "test/identity_helpers_test.go", "package test\n\nimport \"github.com/duongle-steven/homelab/test/internal/identity\"\n\nfunc login() string { return identity.PKCEPair() }\n")
-	writeFile(t, root, "test/sso_test.go", "package test\n\nimport \"testing\"\n\nfunc TestSSOGrafana(t *testing.T) { _ = login() }\n")
-	writeFile(t, root, "test/mesh_test.go", "package test\n\nimport \"testing\"\n\nfunc TestMeshEnrolled(t *testing.T) {}\n")
+	writeFile(t, root, "test/e2e/identity_helpers_test.go", "package test\n\nimport \"github.com/duongle-steven/homelab/test/internal/identity\"\n\nfunc login() string { return identity.PKCEPair() }\n")
+	writeFile(t, root, "test/e2e/sso_test.go", "package test\n\nimport \"testing\"\n\nfunc TestSSOGrafana(t *testing.T) { _ = login() }\n")
+	writeFile(t, root, "test/e2e/mesh_test.go", "package test\n\nimport \"testing\"\n\nfunc TestMeshEnrolled(t *testing.T) {}\n")
 	names, err := FileTests(root)("test/internal/identity/identity.go")
 	if err != nil {
 		t.Fatal(err)

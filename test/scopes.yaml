@@ -18,7 +18,7 @@ skip:
   - .yamllint.yaml
   # Read only by just testbed-scan and just dev-scan, which run by hand
   - .cluster-scan-accepted.yaml
-  - test/scan_test.go
+  - test/e2e/scan_test.go
   - test/kube-bench-cfg/**
   # Offline tests and their scripts: the basic checks run them
   - test/offline/**
@@ -50,7 +50,7 @@ groups:
       - test/scopes.yaml
       - test/go.mod
       - test/go.sum
-      - test/*helpers*_test.go
+      - test/e2e/*helpers*_test.go
       - flake.nix
       - flake.lock
       - nix/**
@@ -77,7 +77,7 @@ groups:
   - paths: [system/cert-manager/**]
     tests: Gateway|Identity|SSO
   # Velero, the hourly snapshots and lab backup (OpenBao's snapshot is in the secrets group)
-  - paths: [system/velero/**, cli/internal/backup/**, cli/internal/cli/backup*.go, test/backup_test.go]
+  - paths: [system/velero/**, cli/internal/backup/**, cli/internal/cli/backup*.go, test/e2e/backup_test.go]
     tests: BackupRestore
   # The catalog changes what rotates: TestRotation, alone after the suite
   - paths: [cli/internal/rotate/**, cli/internal/cli/secrets*.go]
@@ -90,7 +90,7 @@ groups:
     tests: Policy|SupplyChain
   - paths: [system/trivy-operator/**]
     tests: TrivyOperator
-  - paths: [system/public-scan/**, system/loki/files/public-scan-rules.yaml, test/public_scan_test.go]
+  - paths: [system/public-scan/**, system/loki/files/public-scan-rules.yaml, test/e2e/public_scan_test.go]
     tests: PublicScan|GatewayPublicAllowList
   - paths: [system/monitoring-system/**]
     tests: Monitoring|Mesh|Ntfy|Logs

@@ -1,10 +1,11 @@
-package test
+package e2e
 
 import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/duongle-steven/homelab/test/internal/repo"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,7 +33,7 @@ func testbedOnly(t *testing.T) {
 // testbedHosts reads the VMs' names and addresses (infra/testbed/metal/hosts.json), sorted by name
 func testbedHosts(t *testing.T) (names []string, ips map[string]string) {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("..", "infra", "testbed", "metal", "hosts.json"))
+	raw, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "testbed", "metal", "hosts.json"))
 	require.NoError(t, err)
 	var hosts map[string]struct {
 		IP string `json:"ip"`
@@ -89,7 +90,7 @@ func TestTestbedSynced(t *testing.T) {
 	head, err := exec.Command("git", "rev-parse", "HEAD").Output()
 	require.NoError(t, err)
 	commit := strings.TrimSpace(string(head))
-	listed, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[].path`, "../system/argocd/values-testbed.yaml").Output()
+	listed, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[].path`, filepath.Join(repo.Root(), "system/argocd/values-testbed.yaml")).Output()
 	require.NoError(t, err)
 	var want []string
 	for _, path := range strings.Fields(string(listed)) {
@@ -373,7 +374,7 @@ func testbedMeshWorks(t *testing.T) {
 // applyTestbedPostgres creates a namespace in the mesh holding CloudNativePG's Cluster db, three instances on Ceph
 func applyTestbedPostgres(t *testing.T) *k8s.KubectlOptions {
 	t.Helper()
-	out, err := exec.Command("yq", ".database.cnpg.image", "../platform/forgejo/values.yaml").Output()
+	out, err := exec.Command("yq", ".database.cnpg.image", filepath.Join(repo.Root(), "platform/forgejo/values.yaml")).Output()
 	require.NoError(t, err)
 	image := strings.TrimSpace(string(out))
 	ns := fmt.Sprintf("testbed-postgres-%d", time.Now().Unix())
@@ -401,7 +402,7 @@ func applyTestbedPostgres(t *testing.T) *k8s.KubectlOptions {
 // This workstation does not hold that layer (docs/installation/testbed.md): it runs where the list names the operator
 func TestTestbedPostgresFailover(t *testing.T) {
 	testbedOnly(t)
-	listed, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[].path`, "../system/argocd/values-testbed.yaml").Output()
+	listed, err := exec.Command("yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[].path`, filepath.Join(repo.Root(), "system/argocd/values-testbed.yaml")).Output()
 	require.NoError(t, err)
 	if !strings.Contains(string(listed), "platform/cloudnative-pg") {
 		t.Skip("system/argocd/values-testbed.yaml does not list platform/cloudnative-pg")

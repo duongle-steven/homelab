@@ -220,7 +220,7 @@ func matchAny(globs []string, file string) bool {
 
 // isTestFile: a test file of the cluster tests, or a test/internal package's source, whose importers it selects
 func isTestFile(file string) bool {
-	ok, _ := doublestar.Match("test/*_test.go", file)
+	ok, _ := doublestar.Match("test/e2e/*_test.go", file)
 	return ok || isInternalFile(file)
 }
 

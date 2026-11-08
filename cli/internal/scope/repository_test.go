@@ -56,12 +56,12 @@ func TestRepositoryMap(t *testing.T) {
 			t.Errorf("%s: got %q %q, want %q %q", tc.file, main, alone, tc.main, tc.alone)
 		}
 	}
-	s, err := c.Select([]string{"test/logs_test.go"}, FileTests(root))
+	s, err := c.Select([]string{"test/e2e/logs_test.go"}, FileTests(root))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if main := c.Regex(s, false); !strings.Contains(main, "TestLogsPodLines") || !strings.Contains(main, "Smoke") {
-		t.Errorf("test/logs_test.go: %q", main)
+		t.Errorf("test/e2e/logs_test.go: %q", main)
 	}
 }
 

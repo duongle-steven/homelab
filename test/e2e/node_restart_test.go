@@ -1,4 +1,4 @@
-package test
+package e2e
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/duongle-steven/homelab/test/internal/restart"
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -156,8 +157,8 @@ func TestNodeRestart(t *testing.T) {
 	}, 10*time.Minute, 15*time.Second, "the sandbox is not healthy before the restart")
 	t.Logf("before the restart: %v", want)
 
-	out, err := exec.Command("docker", "restart", restart.K3dNode).CombinedOutput()
-	require.NoError(t, err, "docker restart %s: %s", restart.K3dNode, out)
+	out, err := exec.Command("docker", "restart", testenv.K3dNode).CombinedOutput()
+	require.NoError(t, err, "docker restart %s: %s", testenv.K3dNode, out)
 	restarted := time.Now()
 
 	var blockers []string
@@ -211,7 +212,7 @@ func nodeState(t *testing.T) (ready bool, heartbeat time.Time, ok bool) {
 			} `json:"conditions"`
 		} `json:"status"`
 	}
-	if !getResource(t, "default", &node, "node", restart.K3dNode) {
+	if !getResource(t, "default", &node, "node", testenv.K3dNode) {
 		return false, time.Time{}, false
 	}
 	for _, c := range node.Status.Conditions {
@@ -261,11 +262,11 @@ func TestNodePowerCut(t *testing.T) {
 	defer admin(t, "kv", "metadata", "delete", "secret/smoke/power-cut")
 	time.Sleep(5 * time.Second)
 
-	out, err := exec.Command("docker", "kill", restart.K3dNode).CombinedOutput()
-	require.NoError(t, err, "docker kill %s: %s", restart.K3dNode, out)
+	out, err := exec.Command("docker", "kill", testenv.K3dNode).CombinedOutput()
+	require.NoError(t, err, "docker kill %s: %s", testenv.K3dNode, out)
 	cut := time.Now()
-	out, err = exec.Command("docker", "start", restart.K3dNode).CombinedOutput()
-	require.NoError(t, err, "docker start %s: %s", restart.K3dNode, out)
+	out, err = exec.Command("docker", "start", testenv.K3dNode).CombinedOutput()
+	require.NoError(t, err, "docker start %s: %s", testenv.K3dNode, out)
 
 	var blockers []string
 	recovered := assert.Eventually(t, func() bool {

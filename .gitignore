@@ -19,3 +19,4 @@ infra/_modules/metal/flake/hosts.json
 infra/_modules/metal/flake/cluster.json
 infra/_modules/metal/flake/authorized_keys
 infra/sandbox/cluster/registries.yaml
+test/reports/

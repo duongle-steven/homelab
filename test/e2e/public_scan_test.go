@@ -1,9 +1,11 @@
-package test
+package e2e
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/duongle-steven/homelab/test/internal/repo"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -43,7 +45,7 @@ func TestPublicScan(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(lines[len(lines)-1]), &done), lines[len(lines)-1])
 	assert.Equal(t, "done", done.PublicScan)
-	out, err := exec.Command("yq", ".minTemplates", "../system/public-scan/values.yaml").Output()
+	out, err := exec.Command("yq", ".minTemplates", filepath.Join(repo.Root(), "system/public-scan/values.yaml")).Output()
 	require.NoError(t, err)
 	floor, err := strconv.Atoi(strings.TrimSpace(string(out)))
 	require.NoError(t, err)

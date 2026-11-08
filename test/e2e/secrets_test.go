@@ -1,4 +1,4 @@
-package test
+package e2e
 
 import (
 	"crypto/sha256"
@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/duongle-steven/homelab/test/internal/repo"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -255,7 +257,7 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 	// Every destination of every entry holds a value under the entry's key (values.yaml and the extras testbed and the
 	// sandbox share)
 	for _, file := range []string{"values.yaml", "values-local.yaml"} {
-		out, err := exec.Command("yq", "-o=json", "-I=0", "(.secrets // []) + (.extraSecrets // [])", "../platform/generated-secrets/"+file).Output()
+		out, err := exec.Command("yq", "-o=json", "-I=0", "(.secrets // []) + (.extraSecrets // [])", filepath.Join(repo.Root(), "platform/generated-secrets/")+file).Output()
 		require.NoError(t, err, file)
 		var entries []gensecrets.Entry
 		require.NoError(t, json.Unmarshal(out, &entries), file)

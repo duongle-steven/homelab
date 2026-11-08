@@ -4,8 +4,10 @@ package testenv
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/duongle-steven/homelab/test/internal/repo"
@@ -65,3 +67,17 @@ func LogsSandboxOnly(t *testing.T) { SecretsSandboxOnly(t) }
 
 // SecretsSandboxOnly gates the tests that read OpenBao with its admin role: as LocalOnly
 func SecretsSandboxOnly(t *testing.T) { LocalOnly(t) }
+
+// K3dNode is the sandbox's k3s node (infra/_modules/k3d/k3d.yaml). ServiceLB publishes the Gateway on its IP; the tests
+// connect there directly instead of through the localhost socat proxy, whose connects to :443 occasionally
+// stall for ~4.5 s and hang the browser.
+const K3dNode = "k3d-homelab-dev-server-0"
+
+// NodeAddressFromInspect parses docker inspect's IP address output.
+func NodeAddressFromInspect(out string) (string, error) {
+	addr := strings.TrimSpace(out)
+	if net.ParseIP(addr) == nil {
+		return "", fmt.Errorf("no IP address for %s in %q", K3dNode, out)
+	}
+	return addr, nil
+}

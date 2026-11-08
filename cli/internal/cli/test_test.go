@@ -33,7 +33,7 @@ func repo(t *testing.T) string {
 		}
 	}
 	write(t, dir, "test/scopes.yaml", testMap)
-	write(t, dir, "test/logs_test.go", "package test\n\nimport \"testing\"\n\nfunc TestLogsPodLines(t *testing.T) {}\nfunc TestSmoke(t *testing.T) {}\nfunc TestNodeRestart(t *testing.T) {}\n")
+	write(t, dir, "test/e2e/logs_test.go", "package test\n\nimport \"testing\"\n\nfunc TestLogsPodLines(t *testing.T) {}\nfunc TestSmoke(t *testing.T) {}\nfunc TestNodeRestart(t *testing.T) {}\n")
 	write(t, dir, "system/loki/values.yaml", "a: 1\n")
 	run("init", "-q", "-b", "dev")
 	run("add", ".")

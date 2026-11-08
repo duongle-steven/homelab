@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/duongle-steven/homelab/test/internal/restart"
 	"github.com/duongle-steven/homelab/test/internal/routes"
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,11 +32,11 @@ func TestGatewayRouteReady(t *testing.T) {
 }
 
 func TestGatewayNodeAddressFromInspect(t *testing.T) {
-	addr, err := restart.NodeAddressFromInspect("172.18.0.2\n")
+	addr, err := testenv.NodeAddressFromInspect("172.18.0.2\n")
 	require.NoError(t, err)
 	assert.Equal(t, "172.18.0.2", addr)
-	_, err = restart.NodeAddressFromInspect("\n")
+	_, err = testenv.NodeAddressFromInspect("\n")
 	assert.Error(t, err, "no address: the k3d node is not running")
-	_, err = restart.NodeAddressFromInspect("not-an-ip")
+	_, err = testenv.NodeAddressFromInspect("not-an-ip")
 	assert.Error(t, err)
 }

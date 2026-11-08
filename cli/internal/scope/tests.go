@@ -31,7 +31,7 @@ func FileTests(root string) TestNames {
 		if len(changed.defined) == 0 {
 			return names, nil
 		}
-		others, err := filepath.Glob(filepath.Join(root, "test", "*_test.go"))
+		others, err := filepath.Glob(filepath.Join(root, "test", "e2e", "*_test.go"))
 		if err != nil {
 			return nil, err
 		}
@@ -57,7 +57,7 @@ func FileTests(root string) TestNames {
 // testModule is the import path of test/'s Go module: test/internal/<pkg> is imported as testModule + "/internal/<pkg>"
 const testModule = "github.com/duongle-steven/homelab/test"
 
-// internalTests selects the Test functions of every test/*_test.go that imports the package in dir (test/internal/...),
+// internalTests selects the Test functions of every test/e2e/*_test.go that imports the package in dir (test/internal/...),
 // directly or through other test/internal packages
 func internalTests(root, dir string) ([]string, error) {
 	affected := map[string]bool{testModule + strings.TrimPrefix(filepath.ToSlash(dir), "test"): true}
@@ -86,7 +86,7 @@ func internalTests(root, dir string) ([]string, error) {
 			}
 		}
 	}
-	files, err := filepath.Glob(filepath.Join(root, "test", "*_test.go"))
+	files, err := filepath.Glob(filepath.Join(root, "test", "e2e", "*_test.go"))
 	if err != nil {
 		return nil, err
 	}
@@ -140,9 +140,9 @@ func anyOf(paths []string, set map[string]bool) bool {
 	return false
 }
 
-// AllTests lists every Test function in test/*_test.go, sorted.
+// AllTests lists every Test function in test/e2e/*_test.go, sorted.
 func AllTests(root string) ([]string, error) {
-	files, err := filepath.Glob(filepath.Join(root, "test", "*_test.go"))
+	files, err := filepath.Glob(filepath.Join(root, "test", "e2e", "*_test.go"))
 	if err != nil {
 		return nil, err
 	}

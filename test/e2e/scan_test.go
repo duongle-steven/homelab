@@ -1,7 +1,8 @@
-package test
+package e2e
 
 import (
 	"fmt"
+	"github.com/duongle-steven/homelab/test/internal/repo"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,7 +73,7 @@ spec:
 // namespace behind: the next one deletes it first
 func TestScanBench(t *testing.T) {
 	testbedOnly(t)
-	raw, err := os.ReadFile(filepath.Join("..", ".cluster-scan-accepted.yaml"))
+	raw, err := os.ReadFile(filepath.Join(repo.Root(), ".cluster-scan-accepted.yaml"))
 	require.NoError(t, err)
 	accepted, err := clusterscan.LoadScanAccepted(raw)
 	require.NoError(t, err)
@@ -133,7 +134,7 @@ func TestScanKubescape(t *testing.T) {
 	if os.Getenv("ENV") != "dev" {
 		t.Skip("kubescape runs against the sandbox only (just dev-scan)")
 	}
-	raw, err := os.ReadFile(filepath.Join("..", ".cluster-scan-accepted.yaml"))
+	raw, err := os.ReadFile(filepath.Join(repo.Root(), ".cluster-scan-accepted.yaml"))
 	require.NoError(t, err)
 	accepted, err := clusterscan.LoadScanAccepted(raw)
 	require.NoError(t, err)

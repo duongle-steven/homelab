@@ -1,9 +1,11 @@
-package test
+package e2e
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/duongle-steven/homelab/test/internal/repo"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,7 +18,7 @@ import (
 // labE runs lab like lab() but returns its error, for the refusals
 func labE(args ...string) (string, error) {
 	cmd := exec.Command("go", append([]string{"run", "./cmd/lab"}, args...)...)
-	cmd.Dir = "../cli"
+	cmd.Dir = filepath.Join(repo.Root(), "cli")
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

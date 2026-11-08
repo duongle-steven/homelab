@@ -1,4 +1,4 @@
-package test
+package e2e
 
 import (
 	"bytes"
@@ -26,7 +26,7 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 	"github.com/duongle-steven/homelab/test/internal/identity"
-	"github.com/duongle-steven/homelab/test/internal/restart"
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
@@ -59,11 +59,11 @@ var lookupGatewayAddress = sync.OnceValues(func() (string, error) {
 	if os.Getenv("ENV") == "testbed" {
 		return testbedGatewayVIP()
 	}
-	out, err := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", restart.K3dNode).Output()
+	out, err := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", testenv.K3dNode).Output()
 	if err != nil {
-		return "", fmt.Errorf("docker inspect %s: %w (is the sandbox running?)", restart.K3dNode, err)
+		return "", fmt.Errorf("docker inspect %s: %w (is the sandbox running?)", testenv.K3dNode, err)
 	}
-	return restart.NodeAddressFromInspect(string(out))
+	return testenv.NodeAddressFromInspect(string(out))
 })
 
 // gatewayAddress is the address the Gateway listens on, or fails the test.
