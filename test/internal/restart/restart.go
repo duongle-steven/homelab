@@ -1,3 +1,4 @@
+// Package restart decides when a node restart or a power cut has recovered, and finds the sandbox's node
 package restart
 
 import (

@@ -1,3 +1,6 @@
+// Package clusterscan decides a scan's report against .cluster-scan-accepted.yaml: what just testbed-scan and just
+// dev-scan compare a tool's report with (docs/how-to-guides/cluster-scan.md). Reports hold command lines and config:
+// nothing here names more than a check, a control and a resource.
 package clusterscan
 
 import (
@@ -12,9 +15,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 )
-
-// What just testbed-scan and just dev-scan compare a tool's report with (docs/how-to-guides/cluster-scan.md).
-// Reports hold command lines and config: nothing here names more than a check, a control and a resource.
 
 // The scan must have seen the cluster: the spike's sandbox had 1307 resources
 const MinResources = 500

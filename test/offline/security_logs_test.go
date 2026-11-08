@@ -1,7 +1,6 @@
 package offline
 
 import (
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,13 +8,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/duongle-steven/homelab/test/internal/render"
 	"github.com/duongle-steven/homelab/test/internal/repo"
-	"github.com/duongle-steven/homelab/test/internal/testenv"
-	"github.com/gruntwork-io/terratest/modules/k8s"
-	"github.com/gruntwork-io/terratest/modules/logger"
+	"github.com/duongle-steven/homelab/test/internal/securitylogs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -211,20 +207,6 @@ func TestSecurityLogsRetention(t *testing.T) {
 	}
 }
 
-// The alerts from logs (the spec's table) and their severities
-var auditAlerts = map[string]string{
-	"AuditExecByPerson":           "warning",
-	"AuditSecretReadByPerson":     "warning",
-	"AuditClusterAdminBinding":    "critical",
-	"AuditAnonymousAllowed":       "critical",
-	"AuditManyDenied":             "warning",
-	"AuditPolicyExceptionChanged": "warning",
-	"OpenBaoRootToken":            "critical",
-	"OpenBaoManyFailedLogins":     "warning",
-	"OpenBaoConfigChanged":        "critical",
-	"AuditLogsMissing":            "critical",
-}
-
 // Who is not a person: service accounts, nodes and the control plane, k3s's own controllers among them (the sandbox's
 // audit log, 2026-10-29); system:admin, k3s's admin, and anyone signing in are
 var (
@@ -270,7 +252,7 @@ func TestSecurityLogsRules(t *testing.T) {
 	for _, g := range parsed.Groups {
 		for _, r := range g.Rules {
 			seen[r.Alert] = true
-			assert.Equal(t, auditAlerts[r.Alert], r.Labels["severity"], "%s's severity", r.Alert)
+			assert.Equal(t, securitylogs.AuditAlerts[r.Alert], r.Labels["severity"], "%s's severity", r.Alert)
 			assert.Equal(t, "audit", r.Labels["source"], r.Alert)
 			assert.NotEmpty(t, r.Annotations["summary"], r.Alert)
 			switch r.Alert {
@@ -301,7 +283,7 @@ func TestSecurityLogsRules(t *testing.T) {
 			}
 		}
 	}
-	for name := range auditAlerts {
+	for name := range securitylogs.AuditAlerts {
 		assert.True(t, seen[name], "no rule %s", name)
 	}
 	assert.Equal(t, "local /etc/loki/rules http://monitoring-system-kube-pro-alertmanager.monitoring-system:9093 true",
@@ -314,44 +296,4 @@ func TestSecurityLogsRules(t *testing.T) {
 		` | .route.routes[] | select(.matchers[] == "source=\"audit\"") | .receiver + " " + (.group_by | join(",")) + " " + (.matchers | join(","))`))
 	assert.Equal(t, "9093", render.Yq(t, "system/monitoring-system", "",
 		`select(.kind == "AuthorizationPolicy" and .metadata.name == "allow") | .spec.rules[] | select(.from[].source.principals[]? == "cluster.local/ns/loki/sa/loki") | .to[].operation.ports | join(",")`), "Loki's ruler may call Alertmanager")
-}
-
-// Loki's ruler loaded every alert rule, and each evaluates
-func TestSecurityLogsRulesLoaded(t *testing.T) {
-	testenv.LogsSandboxOnly(t)
-	options := k8s.NewKubectlOptions("", "", "loki")
-	options.Logger = logger.Discard
-	require.Eventually(t, func() bool {
-		out, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "--raw",
-			"/api/v1/namespaces/loki/services/loki:3100/proxy/prometheus/api/v1/rules")
-		if err != nil {
-			return false
-		}
-		var res struct {
-			Data struct {
-				Groups []struct {
-					Rules []struct {
-						Name   string `json:"name"`
-						Health string `json:"health"`
-					} `json:"rules"`
-				} `json:"groups"`
-			} `json:"data"`
-		}
-		if json.Unmarshal([]byte(out), &res) != nil {
-			return false
-		}
-		healthy := map[string]bool{}
-		for _, g := range res.Data.Groups {
-			for _, r := range g.Rules {
-				healthy[r.Name] = r.Health == "ok"
-			}
-		}
-		for name := range auditAlerts {
-			if !healthy[name] {
-				t.Logf("%s: not loaded or not ok yet", name)
-				return false
-			}
-		}
-		return true
-	}, 10*time.Minute, 30*time.Second, "Loki's ruler does not evaluate every audit rule")
 }

@@ -281,3 +281,19 @@ func TestSelectInternalPackage(t *testing.T) {
 		t.Errorf("got %q", main)
 	}
 }
+
+// An importer that holds only helpers passes the change on to the tests that use those helpers
+func TestFileTestsInternalThroughHelperFile(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "test/internal/identity/identity.go", "package identity\n\nfunc PKCEPair() string { return \"\" }\n")
+	writeFile(t, root, "test/identity_helpers_test.go", "package test\n\nimport \"github.com/duongle-steven/homelab/test/internal/identity\"\n\nfunc login() string { return identity.PKCEPair() }\n")
+	writeFile(t, root, "test/sso_test.go", "package test\n\nimport \"testing\"\n\nfunc TestSSOGrafana(t *testing.T) { _ = login() }\n")
+	writeFile(t, root, "test/mesh_test.go", "package test\n\nimport \"testing\"\n\nfunc TestMeshEnrolled(t *testing.T) {}\n")
+	names, err := FileTests(root)("test/internal/identity/identity.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(names, []string{"TestSSOGrafana"}) {
+		t.Errorf("got %q", names)
+	}
+}

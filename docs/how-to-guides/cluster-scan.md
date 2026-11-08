@@ -46,7 +46,7 @@ accepted.
     controls (cluster-admin, wildcards, impersonation, bind and escalate, privileged, host path, network and PID,
     capabilities, credentials in configuration) can only be accepted here; the file is refused otherwise. So are
     who may read every Secret, exec, create pods or volumes, port-forward or reach the kubelets' proxy
-    (`scanDangerous` in `test/scan_test.go`), and a name pattern keeps at least three characters of its own.
+    (`Dangerous` in `test/internal/clusterscan/clusterscan.go`), and a name pattern keeps at least three characters of its own.
 
 Sort by what a finding would let someone do, not by the tool's score.
 

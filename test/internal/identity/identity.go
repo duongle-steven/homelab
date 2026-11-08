@@ -1,3 +1,4 @@
+// Package identity: Kanidm logins for the tests (TOTP codes, PKCE pairs)
 package identity
 
 import (
@@ -21,7 +22,9 @@ type Credentials struct {
 	Period     uint   `json:"period"`
 }
 
+// TOTPCode is the TOTP code for c at a time
 func TOTPCode(t *testing.T, c Credentials, at time.Time) string {
+	t.Helper()
 	algorithms := map[string]otp.Algorithm{"sha1": otp.AlgorithmSHA1, "sha256": otp.AlgorithmSHA256, "sha512": otp.AlgorithmSHA512}
 	algorithm, ok := algorithms[c.Algorithm]
 	require.True(t, ok, "unknown TOTP algorithm %q", c.Algorithm)
@@ -42,6 +45,7 @@ type TOTPClock struct {
 }
 
 func (k *TOTPClock) Code(t *testing.T, account string, c Credentials) string {
+	t.Helper()
 	for {
 		now := k.Now()
 		step := uint64(now.Unix()) / uint64(c.Period)

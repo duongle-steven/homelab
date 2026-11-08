@@ -1,3 +1,4 @@
+// Package smoke lists the apps the smoke tests reach in each environment
 package smoke
 
 import (
@@ -5,6 +6,7 @@ import (
 	"slices"
 )
 
+// App is a workload the smoke tests reach: its name and namespace
 type App struct {
 	Name      string
 	Namespace string

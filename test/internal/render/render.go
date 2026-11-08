@@ -1,3 +1,4 @@
+// Package render renders a chart the way Argo CD does (scripts/render-chart) and queries it with yq
 package render
 
 import (
@@ -11,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Renders caches each chart's render by directory and env: the tests below query it many times
+// Renders caches each chart's render by directory and env: the tests query each render many times
 var Renders sync.Map
 
 // Yq renders a chart (scripts/render-chart, once per directory and env) and runs a yq expression on it

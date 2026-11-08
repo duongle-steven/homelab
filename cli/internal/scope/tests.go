@@ -91,17 +91,29 @@ func internalTests(root, dir string) ([]string, error) {
 		return nil, err
 	}
 	var names []string
+	seen := map[string]bool{}
 	for _, path := range files {
 		paths, err := importPaths(path)
 		if err != nil {
 			return nil, err
 		}
-		if anyOf(paths, affected) {
-			parsed, err := parseTestFile(path)
-			if err != nil {
-				return nil, err
+		if !anyOf(paths, affected) {
+			continue
+		}
+		// the importer's own tests, and those of every file using its helpers (a helper file has no tests of its own)
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil, err
+		}
+		selected, err := FileTests(root)(filepath.ToSlash(rel))
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range selected {
+			if !seen[name] {
+				seen[name] = true
+				names = append(names, name)
 			}
-			names = append(names, parsed.tests...)
 		}
 	}
 	return names, nil

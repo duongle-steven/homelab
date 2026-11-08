@@ -1,3 +1,4 @@
+// Package routes reads Gateway API routes' status
 package routes
 
 // Condition is the part of a Kubernetes status condition the tests read.
@@ -32,7 +33,7 @@ type HTTPRoute struct {
 	} `json:"status"`
 }
 
-// ready reports whether the route has a hostname and every parent Gateway accepted it with resolved backends.
+// Ready reports whether the route has a hostname and every parent Gateway accepted it with resolved backends.
 func (r HTTPRoute) Ready() bool {
 	if len(r.Spec.Hostnames) == 0 || len(r.Status.Parents) == 0 {
 		return false

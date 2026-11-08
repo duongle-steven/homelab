@@ -1,3 +1,4 @@
+// Package testenv is the environment under test: ENV, its infra/<env> directory, its domain and the gates on it
 package testenv
 
 import (
@@ -22,6 +23,7 @@ type Config struct {
 	} `json:"service_vips"`
 }
 
+// ReadEnvConfig reads infra/<dir>/cluster/config.json for an ENV value
 func ReadEnvConfig(env string) (Config, error) {
 	var config Config
 	dir, ok := Dirs[env]
@@ -58,6 +60,8 @@ func LocalOnly(t *testing.T) {
 	}
 }
 
+// LogsSandboxOnly gates the logs tests: as SecretsSandboxOnly
 func LogsSandboxOnly(t *testing.T) { SecretsSandboxOnly(t) }
 
+// SecretsSandboxOnly gates the tests that read OpenBao with its admin role: as LocalOnly
 func SecretsSandboxOnly(t *testing.T) { LocalOnly(t) }

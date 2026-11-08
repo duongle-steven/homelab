@@ -44,7 +44,7 @@ func TestRepositoryMap(t *testing.T) {
 		{"test/offline/state_rotation_test.go", "", ""},
 		// the offline tests and the internal packages' own tests: the basic checks run them
 		{"test/offline/velero_test.go", "", ""},
-		{"test/internal/env/env_test.go", "", ""},
+		{"test/internal/repo/repo_test.go", "", ""},
 		{"justfile", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
 		{"scripts/something-new", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
 	} {

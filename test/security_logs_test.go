@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/duongle-steven/homelab/test/internal/render"
+	"github.com/duongle-steven/homelab/test/internal/securitylogs"
 	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
@@ -265,4 +266,44 @@ func TestSecurityLogsLargeChange(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(entries[0].Line), &event))
 	assert.Equal(t, "Request", event.Level)
 	assert.Equal(t, "true", event.Annotations["audit.k8s.io/truncated"], "the event kept its body")
+}
+
+// Loki's ruler loaded every alert rule, and each evaluates
+func TestSecurityLogsRulesLoaded(t *testing.T) {
+	testenv.LogsSandboxOnly(t)
+	options := k8s.NewKubectlOptions("", "", "loki")
+	options.Logger = logger.Discard
+	require.Eventually(t, func() bool {
+		out, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "--raw",
+			"/api/v1/namespaces/loki/services/loki:3100/proxy/prometheus/api/v1/rules")
+		if err != nil {
+			return false
+		}
+		var res struct {
+			Data struct {
+				Groups []struct {
+					Rules []struct {
+						Name   string `json:"name"`
+						Health string `json:"health"`
+					} `json:"rules"`
+				} `json:"groups"`
+			} `json:"data"`
+		}
+		if json.Unmarshal([]byte(out), &res) != nil {
+			return false
+		}
+		healthy := map[string]bool{}
+		for _, g := range res.Data.Groups {
+			for _, r := range g.Rules {
+				healthy[r.Name] = r.Health == "ok"
+			}
+		}
+		for name := range securitylogs.AuditAlerts {
+			if !healthy[name] {
+				t.Logf("%s: not loaded or not ok yet", name)
+				return false
+			}
+		}
+		return true
+	}, 10*time.Minute, 30*time.Second, "Loki's ruler does not evaluate every audit rule")
 }
