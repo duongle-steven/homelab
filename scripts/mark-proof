@@ -7,7 +7,7 @@
 set -eu
 environment=$1
 commit=$(git rev-parse --verify "$2^{commit}")
-description=${3:-"make $environment passed"}
+description=${3:-"just $environment passed"}
 repository=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 gh api --silent "repos/$repository/statuses/$commit" -f state=success -f context="$environment" -f description="$description"
 echo "mark-proof: $environment $commit ($description)"
