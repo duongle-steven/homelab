@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -17,6 +18,7 @@ import (
 	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
+	. "github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,8 +65,8 @@ func waitForUnsealed(t *testing.T) {
 
 // generatedValue is a generated secret as every app reads it, from OpenBao (secret/<path>, admin role), once pushed:
 // it waits up to 20 minutes for the push, and fails at once on a property the path does not hold
-func generatedValue(t *testing.T, path, property string) string {
-	t.Helper()
+func generatedValue(ctx context.Context, path, property string) string {
+	GinkgoHelper()
 	deadline := time.Now().Add(20 * time.Minute)
 	for {
 		value, err := baoValueE(path, property)
@@ -72,9 +74,13 @@ func generatedValue(t *testing.T, path, property string) string {
 			return value
 		}
 		if permanentBaoError(err) || time.Now().After(deadline) {
-			require.FailNowf(t, "generated value not readable", "secret/%s#%s: %v", path, property, err)
+			Fail(fmt.Sprintf("generated value not readable: secret/%s#%s: %v", path, property, err))
 		}
-		time.Sleep(15 * time.Second)
+		select {
+		case <-ctx.Done():
+			Fail(fmt.Sprintf("generated value not readable: secret/%s#%s: %v", path, property, ctx.Err()))
+		case <-time.After(15 * time.Second):
+		}
 	}
 }
 
@@ -169,9 +175,9 @@ func TestSecretsAdmin(t *testing.T) {
 func TestSecretsReachConsumers(t *testing.T) {
 	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
-	generated := generatedValue(t, "grafana/generated/admin", "password")
+	generated := generatedValue(context.TODO(), "grafana/generated/admin", "password")
 	require.Eventually(t, func() bool {
-		return secretValue(t, "grafana", "grafana-admin", "admin-password") == generated
+		return secretValue(context.TODO(), "grafana", "grafana-admin", "admin-password") == generated
 	}, 20*time.Minute, 15*time.Second, "grafana-admin does not hold the generated password")
 }
 
@@ -219,7 +225,7 @@ func TestSecretsInfraRole(t *testing.T) {
 func TestSecretsInfraPush(t *testing.T) {
 	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
-	want := secretValue(t, "infra-secrets", "wireguard.private-key", "private-key")
+	want := secretValue(context.TODO(), "infra-secrets", "wireguard.private-key", "private-key")
 	require.NotEmpty(t, want)
 	// The sandbox has no namespace wireguard (production only): read with the admin role
 	read := func() string {
@@ -251,7 +257,7 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 	assert.Empty(t, strings.TrimSpace(secrets), "a Secret in generated-secrets")
 
 	hash := func(path, property string) string {
-		sum := sha256.Sum256([]byte(generatedValue(t, path, property)))
+		sum := sha256.Sum256([]byte(generatedValue(context.TODO(), path, property)))
 		return hex.EncodeToString(sum[:])
 	}
 	// Every destination of every entry holds a value under the entry's key (values.yaml and the extras testbed and the
@@ -324,7 +330,7 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 func TestSecretsGeneratedValueErrors(t *testing.T) {
 	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
-	generatedValue(t, "grafana/generated/admin", "password") // pushed by now
+	generatedValue(context.TODO(), "grafana/generated/admin", "password") // pushed by now
 	_, err := baoValueE("grafana/generated/admin", "no-such-property")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no-such-property")

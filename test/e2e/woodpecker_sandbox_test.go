@@ -25,11 +25,11 @@ import (
 // woodpeckerLogin signs account in to Forgejo through Kanidm, then to Woodpecker through Forgejo's OAuth (granting
 // the application when Forgejo asks), and returns where the browser ended, its text and Woodpecker's cookies.
 func woodpeckerLogin(t *testing.T, account string) (*url.URL, string, []*http.Cookie) {
-	ctx, cancel := newBrowser(t)
+	ctx, cancel := newBrowser(context.TODO())
 	defer cancel()
-	openLogin(t, ctx, account, "https://"+forgejoHost+"/user/oauth2/Kanidm")
-	c := ensureCredentials(t, account)
-	kanidmLogin(t, ctx, account, c, c.Password)
+	openLogin(ctx, account, "https://"+forgejoHost+"/user/oauth2/Kanidm")
+	c := ensureCredentials(context.TODO(), account)
+	kanidmLogin(ctx, account, c, c.Password)
 	var location string
 	require.Eventually(t, func() bool {
 		if chromedp.Run(ctx, chromedp.Location(&location)) != nil {
@@ -42,7 +42,7 @@ func woodpeckerLogin(t *testing.T, account string) (*url.URL, string, []*http.Co
 		return err == nil && u.Host == forgejoHost && !strings.Contains(u.Path, "/login") && !strings.Contains(u.Path, "/oauth2")
 	}, 30*time.Second, 500*time.Millisecond, "%s did not reach Forgejo; last at %s", account, location)
 
-	browserStep(t, ctx, "woodpecker", account, chromedp.Navigate("https://"+ciHost+"/authorize"))
+	browserStep(ctx, "woodpecker", account, chromedp.Navigate("https://"+ciHost+"/authorize"))
 	var u *url.URL
 	var text string
 	require.Eventually(t, func() bool {
@@ -148,12 +148,12 @@ func woodpeckerToken(t *testing.T, account string) string {
 // forgejoAs calls Forgejo's API as the site admin acting as user (Forgejo's Sudo header; "" acts as the admin)
 func forgejoAs(t *testing.T, user, method, path string, body, out any) int {
 	t.Helper()
-	admin, password := secretValue(t, "forgejo", "forgejo-admin", "username"), secretValue(t, "forgejo", "forgejo-admin", "password")
+	admin, password := secretValue(context.TODO(), "forgejo", "forgejo-admin", "username"), secretValue(context.TODO(), "forgejo", "forgejo-admin", "password")
 	headers := []string{}
 	if user != "" {
 		headers = append(headers, "Sudo", user)
 	}
-	return getJSON(t, method, "https://"+forgejoHost+"/api/v1"+path, nil, admin, password, body, out, headers...)
+	return getJSON(context.TODO(), method, "https://"+forgejoHost+"/api/v1"+path, nil, admin, password, body, out, headers...)
 }
 
 // teamMembers lists the members of org ci's team
@@ -219,10 +219,10 @@ steps:
 
 // TestWoodpecker: docs/superpowers/specs/2026-10-21-woodpecker-design.md (Tests, sandbox)
 func TestWoodpecker(t *testing.T) {
-	skipUnlessSandbox(t)
-	waitForApp(t, "https://"+forgejoHost+"/api/healthz")
+	legacySkipUnlessSandbox(t)
+	waitForApp(context.TODO(), "https://"+forgejoHost+"/api/healthz")
 	lab(t, "infra", "forgejo", "sync", "--env", labEnv)
-	waitForApp(t, "https://"+ciHost+"/healthz")
+	waitForApp(context.TODO(), "https://"+ciHost+"/healthz")
 
 	// Sign-in: only org ci's members (Kanidm homelab-admins → Owners, homelab-editors → developers)
 	u, text, cookies := woodpeckerLogin(t, "dev-viewer")
@@ -382,15 +382,15 @@ func TestWoodpecker(t *testing.T) {
 	require.NotEmpty(t, digest)
 
 	// The probe image removed again: zot's ci cannot delete, an admin's API key can
-	cookies = appLogin(t, "dev-admin", ensureCredentials(t, "dev-admin"), "https://"+registryHost+"/zot/auth/login?provider=oidc&callback_ui=/", registryHost)
+	cookies = appLogin(context.TODO(), "dev-admin", ensureCredentials(context.TODO(), "dev-admin"), "https://"+registryHost+"/zot/auth/login?provider=oidc&callback_ui=/", registryHost)
 	var key struct {
 		APIKey string `json:"apiKey"`
 		UUID   string `json:"uuid"`
 	}
-	require.Equal(t, http.StatusCreated, getJSON(t, "POST", "https://"+registryHost+"/zot/auth/apikey", cookies, "", "",
+	require.Equal(t, http.StatusCreated, getJSON(context.TODO(), "POST", "https://"+registryHost+"/zot/auth/apikey", cookies, "", "",
 		map[string]any{"label": fmt.Sprintf("woodpecker-test-%d", time.Now().UnixNano()), "scopes": []string{}}, &key,
 		"X-ZOT-API-CLIENT", "zot-ui"))
-	defer getJSON(t, "DELETE", "https://"+registryHost+"/zot/auth/apikey?id="+key.UUID, cookies, "", "", nil, nil, "X-ZOT-API-CLIENT", "zot-ui")
-	assert.Equal(t, http.StatusAccepted, getJSON(t, "DELETE", "https://"+registryHost+"/v2/"+name+"/manifests/"+digest, nil,
+	defer getJSON(context.TODO(), "DELETE", "https://"+registryHost+"/zot/auth/apikey?id="+key.UUID, cookies, "", "", nil, nil, "X-ZOT-API-CLIENT", "zot-ui")
+	assert.Equal(t, http.StatusAccepted, getJSON(context.TODO(), "DELETE", "https://"+registryHost+"/v2/"+name+"/manifests/"+digest, nil,
 		"dev-admin", key.APIKey, nil, nil), "the probe's image was not deleted")
 }

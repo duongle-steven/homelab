@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -42,4 +43,10 @@ func sandboxOnly(t *testing.T, why string) {
 	if os.Getenv("ENV") != "dev" {
 		t.Skip("runs against the sandbox only: " + why)
 	}
+}
+
+// legacySkipUnlessSandbox gates the tests not on Ginkgo yet (14f-2 removes it)
+func legacySkipUnlessSandbox(t *testing.T) {
+	testenv.LocalOnly(t)
+	waitForIdentityStack(context.TODO())
 }

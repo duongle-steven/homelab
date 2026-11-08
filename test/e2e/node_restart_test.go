@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os/exec"
@@ -248,7 +249,7 @@ func TestNodePowerCut(t *testing.T) {
 
 	// Markers are test strings, never secrets
 	marker := fmt.Sprint("power-cut-", time.Now().UnixNano())
-	repo := "/repos/" + secretValue(t, "forgejo", "forgejo-admin", "username") + "/power-cut"
+	repo := "/repos/" + secretValue(context.TODO(), "forgejo", "forgejo-admin", "username") + "/power-cut"
 	forgejoAs(t, "", "DELETE", repo, nil, nil)
 	require.Equal(t, http.StatusCreated, forgejoAs(t, "", "POST", "/user/repos", map[string]any{"name": "power-cut"}, nil))
 	defer forgejoAs(t, "", "DELETE", repo, nil, nil)

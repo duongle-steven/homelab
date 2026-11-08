@@ -1,58 +1,66 @@
 package e2e
 
 import (
-	"testing"
+	"time"
 
-	"github.com/duongle-steven/homelab/test/internal/testenv"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func TestIdentityLogin(t *testing.T) {
-	testenv.LocalOnly(t)
-	waitForIdentityStack(t)
-	secret := smokeClientSecret(t)
+// waitForIdentity is the identity and SSO containers' BeforeEach: a fresh sandbox syncs Kanidm and the smoke client
+// late, and these specs run before the smoke specs that would otherwise wait for them
+func waitForIdentity() {
+	BeforeEach(func(ctx SpecContext) { waitForIdentityStack(ctx) }, NodeTimeout(25*time.Minute))
+}
+
+var _ = Describe("IdentityLogin", Label("sandbox", "testbed", "identity"), func() {
+	waitForIdentity()
 
 	for _, account := range testAccounts {
 		if account.group == "" {
 			continue
 		}
-		t.Run(account.name, func(t *testing.T) {
-			c := ensureCredentials(t, account.name)
+		It(account.name, func(ctx SpecContext) {
+			secret := smokeClientSecret(ctx)
+			c := ensureCredentials(ctx, account.name)
 
-			code, page, verifier := browserAuthorize(t, account.name, c, c.Password)
-			require.NotEmpty(t, code, "no authorization code for %s; page:\n%s", account.name, page)
+			code, page, verifier := browserAuthorize(ctx, account.name, c, c.Password)
+			Expect(code).NotTo(BeEmpty(), "no authorization code for %s; page:\n%s", account.name, page)
 
-			claims := exchangeCode(t, code, secret, verifier)
-			t.Logf("homelab_groups claim for %s: %v", account.name, claims["homelab_groups"])
-			assert.Equal(t, account.name+"@example.com", claims["email"])
-			assert.Equal(t, []any{account.group}, claims["homelab_groups"])
-			assert.Equal(t, account.name, claims["preferred_username"])
-		})
+			claims := exchangeCode(ctx, code, secret, verifier)
+			GinkgoWriter.Printf("homelab_groups claim for %s: %v\n", account.name, claims["homelab_groups"])
+			Expect(claims["email"]).To(Equal(account.name + "@example.com"))
+			Expect(claims["homelab_groups"]).To(Equal([]any{account.group}))
+			Expect(claims["preferred_username"]).To(Equal(account.name))
+		}, SpecTimeout(15*time.Minute))
 	}
-}
+})
 
-func TestIdentityDenied(t *testing.T) {
-	testenv.LocalOnly(t)
-	waitForIdentityStack(t)
-	c := ensureCredentials(t, "dev-outsider")
+var _ = Describe("IdentityDenied", Label("sandbox", "testbed", "identity"), func() {
+	waitForIdentity()
 
-	code, page, _ := browserAuthorize(t, "dev-outsider", c, c.Password)
+	It("refuses an account in no homelab group after its login", func(ctx SpecContext) {
+		c := ensureCredentials(ctx, "dev-outsider")
 
-	// Refused after a successful login, not because the login itself failed
-	assert.Empty(t, code, "an account in no homelab group must not get an authorization code")
-	assert.Contains(t, page, "Access Denied")
-	assert.NotContains(t, page, "Login Failed")
-}
+		code, page, _ := browserAuthorize(ctx, "dev-outsider", c, c.Password)
 
-// TestIdentityDeniedNeedsLogin guards TestIdentityDenied: a failed login must not look like a refusal.
-func TestIdentityDeniedNeedsLogin(t *testing.T) {
-	testenv.LocalOnly(t)
-	waitForIdentityStack(t)
-	c := ensureCredentials(t, "dev-outsider")
+		// Refused after a successful login, not because the login itself failed
+		Expect(code).To(BeEmpty(), "an account in no homelab group must not get an authorization code")
+		Expect(page).To(ContainSubstring("Access Denied"))
+		Expect(page).NotTo(ContainSubstring("Login Failed"))
+	}, SpecTimeout(15*time.Minute))
+})
 
-	code, page, _ := browserAuthorize(t, "dev-outsider", c, "wrong-"+c.Password)
+// IdentityDeniedNeedsLogin guards IdentityDenied: a failed login must not look like a refusal.
+var _ = Describe("IdentityDeniedNeedsLogin", Label("sandbox", "testbed", "identity"), func() {
+	waitForIdentity()
 
-	assert.Empty(t, code)
-	assert.NotContains(t, page, "Access Denied")
-}
+	It("does not show a failed login as a refusal", func(ctx SpecContext) {
+		c := ensureCredentials(ctx, "dev-outsider")
+
+		code, page, _ := browserAuthorize(ctx, "dev-outsider", c, "wrong-"+c.Password)
+
+		Expect(code).To(BeEmpty())
+		Expect(page).NotTo(ContainSubstring("Access Denied"))
+	}, SpecTimeout(15*time.Minute))
+})

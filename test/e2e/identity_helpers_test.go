@@ -20,17 +20,15 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 	"github.com/duongle-steven/homelab/test/internal/identity"
+	"github.com/duongle-steven/homelab/test/internal/kube"
 	"github.com/duongle-steven/homelab/test/internal/testenv"
-	"github.com/gruntwork-io/terratest/modules/k8s"
-	"github.com/gruntwork-io/terratest/modules/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var (
@@ -54,22 +52,24 @@ var testAccounts = []testAccount{
 
 // lookupGatewayAddress finds the address the environment's Gateway listens on once: the k3d node's IP in the sandbox,
 // the Gateway's VIP on testbed (config.json's service_vips.gateway). An error fails the tests that need it, not the
-// whole run.
+// whole run. It runs once for the whole suite, so outside any spec's context, with its own minute.
 var lookupGatewayAddress = sync.OnceValues(func() (string, error) {
 	if os.Getenv("ENV") == "testbed" {
 		return testbedGatewayVIP()
 	}
-	out, err := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", testenv.K3dNode).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", testenv.K3dNode).Output()
 	if err != nil {
 		return "", fmt.Errorf("docker inspect %s: %w (is the sandbox running?)", testenv.K3dNode, err)
 	}
 	return testenv.NodeAddressFromInspect(string(out))
 })
 
-// gatewayAddress is the address the Gateway listens on, or fails the test.
-func gatewayAddress(t *testing.T) string {
+// gatewayAddress is the address the Gateway listens on, or fails the spec.
+func gatewayAddress() string {
 	addr, err := lookupGatewayAddress()
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 	return addr
 }
 
@@ -96,60 +96,52 @@ var insecureClient = &http.Client{
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }
 
-func kanidmNamespace() *k8s.KubectlOptions { return k8s.NewKubectlOptions("", "", "kanidm") }
-
-// quietKanidmNamespace is for kubectl calls whose arguments or output carry credentials or reset
-// tokens: terratest logs both by default.
-func quietKanidmNamespace() *k8s.KubectlOptions {
-	options := kanidmNamespace()
-	options.Logger = logger.Discard
-	return options
-}
-
-func randomPassword(t *testing.T) string {
+func randomPassword() string {
 	const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 	var b strings.Builder
 	for i := 0; i < 32; i++ {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
-		require.NoError(t, err)
+		Expect(err).NotTo(HaveOccurred())
 		b.WriteByte(alphabet[n.Int64()])
 	}
 	return b.String()
 }
 
 // ensureCredentials returns stored credentials, or enrols new ones with the reset token kaniop published.
-func ensureCredentials(t *testing.T, account string) identity.Credentials {
-	stored, err := k8s.RunKubectlAndGetOutputE(t, quietKanidmNamespace(),
-		"get", "secret", credentialsSecret, "-o", "jsonpath={.data."+account+"}")
+func ensureCredentials(ctx context.Context, account string) identity.Credentials {
+	stored, err := kube.Kubectl(ctx, "kanidm", "get", "secret", credentialsSecret, "-o", "jsonpath={.data."+account+"}")
 	if err == nil && stored != "" {
 		raw, err := base64.StdEncoding.DecodeString(stored)
-		require.NoError(t, err)
+		Expect(err).NotTo(HaveOccurred())
 		var c identity.Credentials
-		require.NoError(t, json.Unmarshal(raw, &c))
+		Expect(json.Unmarshal(raw, &c)).To(Succeed())
 		return c
 	}
 
-	return enrol(t, account, resetToken(t, account), func(c identity.Credentials) { storeCredentials(t, account, c) })
+	return enrol(ctx, account, resetToken(ctx, account), func(c identity.Credentials) { storeCredentials(ctx, account, c) })
 }
 
-func storeCredentials(t *testing.T, account string, c identity.Credentials) {
+func storeCredentials(ctx context.Context, account string, c identity.Credentials) {
 	encoded, err := json.Marshal(c)
-	require.NoError(t, err)
-	if _, err := k8s.RunKubectlAndGetOutputE(t, kanidmNamespace(), "get", "secret", credentialsSecret); err != nil {
-		k8s.RunKubectl(t, kanidmNamespace(), "create", "secret", "generic", credentialsSecret)
+	Expect(err).NotTo(HaveOccurred())
+	if _, err := kube.Kubectl(ctx, "kanidm", "get", "secret", credentialsSecret); err != nil {
+		_, err := kube.Kubectl(ctx, "kanidm", "create", "secret", "generic", credentialsSecret)
+		Expect(err).NotTo(HaveOccurred())
 	}
 	patch, err := json.Marshal(map[string]any{"stringData": map[string]string{account: string(encoded)}})
-	require.NoError(t, err)
-	k8s.RunKubectl(t, quietKanidmNamespace(), "patch", "secret", credentialsSecret, "--type", "merge", "-p", string(patch))
+	Expect(err).NotTo(HaveOccurred())
+	// The patch carries credentials: an error names the command, not its output
+	_, err = kube.Kubectl(ctx, "kanidm", "patch", "secret", credentialsSecret, "--type", "merge", "-p", string(patch))
+	Expect(err != nil).To(BeFalse(), "kubectl patch secret %s failed", credentialsSecret)
 }
 
 var resetTokenPattern = regexp.MustCompile(`/ui/reset\?token=([A-Za-z0-9_-]+)`)
 
 // resetToken reads the newest credential reset link kaniop published for the account.
-func resetToken(t *testing.T, account string) string {
+func resetToken(ctx context.Context, account string) string {
 	var token string
-	require.Eventually(t, func() bool {
-		out, err := k8s.RunKubectlAndGetOutputE(t, quietKanidmNamespace(), "get", "events",
+	Eventually(ctx, func() bool {
+		out, err := kube.Kubectl(ctx, "kanidm", "get", "events",
 			"--field-selector", "involvedObject.name="+account+",reason=TokenCreated",
 			"--sort-by", ".lastTimestamp", "-o", "jsonpath={range .items[*]}{.message}{\"\\n\"}{end}")
 		if err != nil {
@@ -161,21 +153,24 @@ func resetToken(t *testing.T, account string) string {
 		}
 		token = matches[len(matches)-1][1]
 		return true
-	}, 5*time.Minute, 10*time.Second, "no TokenCreated event for %s", account)
+	}).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(BeTrue(), "no TokenCreated event for %s", account)
 	return token
 }
 
-func kanidmPost(t *testing.T, path string, body any, out any) {
+func kanidmPost(ctx context.Context, path string, body any, out any) {
 	payload, err := json.Marshal(body)
-	require.NoError(t, err)
-	resp, err := insecureClient.Post(kanidmURL+path, "application/json", bytes.NewReader(payload))
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, kanidmURL+path, bytes.NewReader(payload))
+	Expect(err).NotTo(HaveOccurred())
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := insecureClient.Do(req)
+	Expect(err).NotTo(HaveOccurred())
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode, "POST %s: %s", path, raw)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusOK), "POST %s: %s", path, raw)
 	if out != nil {
-		require.NoError(t, json.Unmarshal(raw, out), "POST %s: %s", path, raw)
+		Expect(json.Unmarshal(raw, out)).To(Succeed(), "POST %s: %s", path, raw)
 	}
 }
 
@@ -204,20 +199,20 @@ func (s cuStatus) state() string {
 // enrol sets a password and a TOTP through Kanidm's credential update API (Kanidm requires MFA for persons).
 // store runs before the commit: if storing fails, the account keeps no credentials and kaniop issues a
 // new reset token once this one expires, instead of leaving credentials nobody knows.
-func enrol(t *testing.T, account, token string, store func(identity.Credentials)) identity.Credentials {
+func enrol(ctx context.Context, account, token string, store func(identity.Credentials)) identity.Credentials {
 	var exchanged []json.RawMessage
-	kanidmPost(t, "/v1/credential/_exchange_intent", token, &exchanged)
-	require.Len(t, exchanged, 2)
+	kanidmPost(ctx, "/v1/credential/_exchange_intent", token, &exchanged)
+	Expect(exchanged).To(HaveLen(2))
 	var session cuSession
-	require.NoError(t, json.Unmarshal(exchanged[0], &session))
+	Expect(json.Unmarshal(exchanged[0], &session)).To(Succeed())
 
 	update := func(request any) cuStatus {
 		var status cuStatus
-		kanidmPost(t, "/v1/credential/_update", []any{request, session}, &status)
+		kanidmPost(ctx, "/v1/credential/_update", []any{request, session}, &status)
 		return status
 	}
 
-	c := identity.Credentials{Password: randomPassword(t)}
+	c := identity.Credentials{Password: randomPassword()}
 	update(map[string]string{"password": c.Password})
 
 	generated := update("totpgenerate")
@@ -229,7 +224,7 @@ func enrol(t *testing.T, account, token string, store func(identity.Credentials)
 			Digits int    `json:"digits"`
 		} `json:"TotpCheck"`
 	}
-	require.NoError(t, json.Unmarshal(generated.MfaRegState, &reg), "mfaregstate: %s", generated.MfaRegState)
+	Expect(json.Unmarshal(generated.MfaRegState, &reg)).To(Succeed(), "mfaregstate: %s", generated.MfaRegState)
 	secret := make([]byte, len(reg.TotpCheck.Secret))
 	for i, b := range reg.TotpCheck.Secret {
 		secret[i] = byte(b)
@@ -237,45 +232,46 @@ func enrol(t *testing.T, account, token string, store func(identity.Credentials)
 	c.TOTPSecret = base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret)
 	c.Algorithm, c.Period, c.Digits = reg.TotpCheck.Algo, reg.TotpCheck.Step, reg.TotpCheck.Digits
 
-	code, err := strconv.Atoi(clock.Code(t, account, c))
-	require.NoError(t, err)
+	code, err := strconv.Atoi(clock.Code(GinkgoTB(), account, c))
+	Expect(err).NotTo(HaveOccurred())
 	verified := update(map[string][]any{"totpverify": {code, "smoke-test"}})
 	if verified.state() == "TotpInvalidSha1" {
 		verified = update("totpacceptsha1")
 	}
-	require.Equal(t, "None", verified.state(), "TOTP not accepted: %s", verified.MfaRegState)
+	Expect(verified.state()).To(Equal("None"), "TOTP not accepted: %s", verified.MfaRegState)
 
 	store(c)
-	kanidmPost(t, "/v1/credential/_commit", session, nil)
+	kanidmPost(ctx, "/v1/credential/_commit", session, nil)
 	return c
 }
 
 var clock = &identity.TOTPClock{Now: time.Now, Sleep: time.Sleep, Last: map[string]uint64{}}
 
-// newBrowser starts headless chromium that resolves the environment's hosts to its Gateway.
-func newBrowser(t *testing.T) (context.Context, func()) {
+// newBrowser starts headless chromium, bound to the spec's context, that resolves the environment's hosts to its
+// Gateway.
+func newBrowser(ctx context.Context) (context.Context, func()) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("ignore-certificate-errors", true),
-		chromedp.Flag("host-resolver-rules", "MAP *."+suiteDomain+" "+gatewayAddress(t)),
+		chromedp.Flag("host-resolver-rules", "MAP *."+suiteDomain+" "+gatewayAddress()),
 		// NixOS-WSL exports an LD_LIBRARY_PATH built for a newer glibc than the dev shell's chromium
 		chromedp.Env("LD_LIBRARY_PATH="),
 	)
-	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(), opts...)
-	ctx, cancelBrowser := chromedp.NewContext(allocCtx)
-	ctx, cancelTimeout := context.WithTimeout(ctx, 3*time.Minute)
+	allocCtx, cancelAlloc := chromedp.NewExecAllocator(ctx, opts...)
+	browserCtx, cancelBrowser := chromedp.NewContext(allocCtx)
+	browserCtx, cancelTimeout := context.WithTimeout(browserCtx, 3*time.Minute)
 	// Start the browser on the long-lived context; the first Run owns the browser's lifetime
-	require.NoError(t, chromedp.Run(ctx, network.Enable()))
-	return ctx, func() { cancelTimeout(); cancelBrowser(); cancelAlloc() }
+	Expect(chromedp.Run(browserCtx, network.Enable())).To(Succeed())
+	return browserCtx, func() { cancelTimeout(); cancelBrowser(); cancelAlloc() }
 }
 
 // browserStep runs actions with a 30 s timeout and reports the page on failure.
-func browserStep(t *testing.T, ctx context.Context, name, account string, actions ...chromedp.Action) {
+func browserStep(ctx context.Context, name, account string, actions ...chromedp.Action) {
 	stepCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if err := chromedp.Run(stepCtx, actions...); err != nil {
 		var location, text string
 		_ = chromedp.Run(ctx, chromedp.Location(&location), chromedp.Evaluate(`document.body ? document.body.innerText.slice(0, 500) : ""`, &text))
-		require.NoError(t, err, "login step %q for %s at %s:\n%s", name, account, location, text)
+		Expect(err).NotTo(HaveOccurred(), "login step %q for %s at %s:\n%s", name, account, location, text)
 	}
 }
 
@@ -289,24 +285,28 @@ func sendKeys(selector, keys string) chromedp.ActionFunc {
 			if err == nil || !strings.Contains(err.Error(), "Could not find node with given id") || ctx.Err() != nil {
 				return err
 			}
-			time.Sleep(200 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(200 * time.Millisecond):
+			}
 		}
 	}
 }
 
 // kanidmLogin completes Kanidm's login form, which the browser must already show.
 // Kanidm asks for the TOTP code before the password.
-func kanidmLogin(t *testing.T, ctx context.Context, account string, c identity.Credentials, password string) {
-	browserStep(t, ctx, "username", account, sendKeys(`input#username`, account+"\n"), chromedp.WaitVisible(`input#totp`))
-	browserStep(t, ctx, "totp", account, sendKeys(`input#totp`, clock.Code(t, account, c)+"\n"), chromedp.WaitVisible(`input#password`))
-	browserStep(t, ctx, "password", account, sendKeys(`input#password`, password+"\n"))
+func kanidmLogin(ctx context.Context, account string, c identity.Credentials, password string) {
+	browserStep(ctx, "username", account, sendKeys(`input#username`, account+"\n"), chromedp.WaitVisible(`input#totp`))
+	browserStep(ctx, "totp", account, sendKeys(`input#totp`, clock.Code(GinkgoTB(), account, c)+"\n"), chromedp.WaitVisible(`input#password`))
+	browserStep(ctx, "password", account, sendKeys(`input#password`, password+"\n"))
 }
 
 // browserAuthorize logs in to Kanidm with the given password for the sandbox client smoke. It returns the
 // code sent to the smoke client and the PKCE verifier, or an empty code and the text of the page the browser
 // ended on.
-func browserAuthorize(t *testing.T, account string, c identity.Credentials, password string) (string, string, string) {
-	ctx, cancel := newBrowser(t)
+func browserAuthorize(specCtx context.Context, account string, c identity.Credentials, password string) (string, string, string) {
+	ctx, cancel := newBrowser(specCtx)
 	defer cancel()
 
 	codes := make(chan string, 1)
@@ -331,8 +331,8 @@ func browserAuthorize(t *testing.T, account string, c identity.Credentials, pass
 		"code_challenge":        {challenge},
 		"code_challenge_method": {"S256"},
 	}.Encode()
-	browserStep(t, ctx, "open", account, chromedp.Navigate(authURL), chromedp.WaitVisible(`input#username`))
-	kanidmLogin(t, ctx, account, c, password)
+	browserStep(ctx, "open", account, chromedp.Navigate(authURL), chromedp.WaitVisible(`input#username`))
+	kanidmLogin(ctx, account, c, password)
 
 	// Stop at the code or at Kanidm's refusal or login failure page instead of always waiting 30 s
 	pageText := func() (string, error) {
@@ -347,7 +347,7 @@ func browserAuthorize(t *testing.T, account string, c identity.Credentials, pass
 			return code, "", verifier
 		case <-deadline:
 			text, err := pageText()
-			require.NoError(t, err)
+			Expect(err).NotTo(HaveOccurred())
 			return "", text, verifier
 		case <-time.After(250 * time.Millisecond):
 			// Errors while the page is navigating are expected; try again on the next tick
@@ -360,8 +360,8 @@ func browserAuthorize(t *testing.T, account string, c identity.Credentials, pass
 
 // openLogin opens an app's SSO entry point and waits for Kanidm's login form. Some apps (paperless through
 // django-allauth) first show a confirmation page with a submit button; it is clicked when present.
-func openLogin(t *testing.T, ctx context.Context, account, startURL string) {
-	browserStep(t, ctx, "open", account, chromedp.Navigate(startURL))
+func openLogin(ctx context.Context, account, startURL string) {
+	browserStep(ctx, "open", account, chromedp.Navigate(startURL))
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if chromedp.Run(waitCtx, chromedp.WaitVisible(`input#username`)) == nil {
@@ -369,27 +369,27 @@ func openLogin(t *testing.T, ctx context.Context, account, startURL string) {
 	}
 	// The click navigates without waiting for the load event: a node found before Kanidm's page has loaded
 	// is gone when the document is replaced ("Could not find node with given id"), so wait for the load first
-	browserStep(t, ctx, "confirm", account, chromedp.Click(`button[type=submit]`))
-	require.Eventually(t, func() bool {
+	browserStep(ctx, "confirm", account, chromedp.Click(`button[type=submit]`))
+	Eventually(ctx, func() bool {
 		var loaded bool
 		// Errors while the page is navigating are expected; try again on the next tick
 		err := chromedp.Run(ctx, chromedp.Evaluate(`location.origin === "`+kanidmURL+`" && document.readyState === "complete"`, &loaded))
 		return err == nil && loaded
-	}, 30*time.Second, 100*time.Millisecond, "%s: Kanidm's login page never loaded", account)
-	browserStep(t, ctx, "login form", account, chromedp.WaitVisible(`input#username`))
+	}).WithTimeout(30*time.Second).WithPolling(100*time.Millisecond).Should(BeTrue(), "%s: Kanidm's login page never loaded", account)
+	browserStep(ctx, "login form", account, chromedp.WaitVisible(`input#username`))
 }
 
 // appLogin opens an app's SSO entry point, logs in through Kanidm, waits until the browser is back
 // on appHost (outside any callback or login path) and returns the cookies the app set.
-func appLogin(t *testing.T, account string, c identity.Credentials, startURL, appHost string) []*http.Cookie {
-	ctx, cancel := newBrowser(t)
+func appLogin(specCtx context.Context, account string, c identity.Credentials, startURL, appHost string) []*http.Cookie {
+	ctx, cancel := newBrowser(specCtx)
 	defer cancel()
 
-	openLogin(t, ctx, account, startURL)
-	kanidmLogin(t, ctx, account, c, c.Password)
+	openLogin(ctx, account, startURL)
+	kanidmLogin(ctx, account, c, c.Password)
 
 	var location string
-	returned := assert.Eventually(t, func() bool {
+	Eventually(ctx, func() bool {
 		if chromedp.Run(ctx, chromedp.Location(&location)) != nil {
 			return false
 		}
@@ -398,23 +398,22 @@ func appLogin(t *testing.T, account string, c identity.Credentials, startURL, ap
 		}
 		u, err := url.Parse(location)
 		return err == nil && u.Host == appHost && !strings.Contains(u.Path, "callback") && !strings.Contains(u.Path, "/login")
-	}, 30*time.Second, 500*time.Millisecond)
-	if !returned {
+	}).WithTimeout(30*time.Second).WithPolling(500*time.Millisecond).Should(BeTrue(), func() string {
 		var text string
 		_ = chromedp.Run(ctx, chromedp.Evaluate(`document.body ? document.body.innerText.slice(0, 500) : ""`, &text))
-		require.FailNow(t, "did not return to app", "%s did not return to %s; last at %s:\n%s", account, appHost, location, text)
-	}
+		return fmt.Sprintf("did not return to app: %s did not return to %s; last at %s:\n%s", account, appHost, location, text)
+	})
 
 	var cookies []*http.Cookie
-	require.NoError(t, chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+	Expect(chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
 		// The start URL too: an app under a path (Kiali's /kiali) scopes its cookies to it
 		got, err := network.GetCookies().WithURLs([]string{"https://" + appHost + "/", startURL}).Do(ctx)
 		for _, c := range got {
 			cookies = append(cookies, &http.Cookie{Name: c.Name, Value: c.Value})
 		}
 		return err
-	})))
-	require.NotEmpty(t, cookies, "no session cookies from %s", appHost)
+	}))).To(Succeed())
+	Expect(cookies).NotTo(BeEmpty(), "no session cookies from %s", appHost)
 	return cookies
 }
 
@@ -432,9 +431,9 @@ func acceptConsent(ctx context.Context) bool {
 }
 
 // waitForPage polls the page text until it contains one of the markers (30 s) and returns it.
-func waitForPage(t *testing.T, ctx context.Context, markers ...string) string {
+func waitForPage(ctx context.Context, markers ...string) string {
 	var text string
-	assert.Eventually(t, func() bool {
+	Eventually(ctx, func() bool {
 		if chromedp.Run(ctx, chromedp.Evaluate(`document.body ? document.body.innerText : ""`, &text)) != nil {
 			return false
 		}
@@ -444,24 +443,24 @@ func waitForPage(t *testing.T, ctx context.Context, markers ...string) string {
 			}
 		}
 		return false
-	}, 30*time.Second, 250*time.Millisecond, "page never showed %v", markers)
+	}).WithTimeout(30*time.Second).WithPolling(250*time.Millisecond).Should(BeTrue(), "page never showed %v", markers)
 	return text
 }
 
 // browserDenied opens an app's SSO entry point, logs in to Kanidm and returns the page Kanidm ends on
 // (expected: "Access Denied" for an account outside the app's access group).
-func browserDenied(t *testing.T, account string, c identity.Credentials, startURL string) string {
-	ctx, cancel := newBrowser(t)
+func browserDenied(specCtx context.Context, account string, c identity.Credentials, startURL string) string {
+	ctx, cancel := newBrowser(specCtx)
 	defer cancel()
-	openLogin(t, ctx, account, startURL)
-	kanidmLogin(t, ctx, account, c, c.Password)
-	return waitForPage(t, ctx, "Access Denied", "Login Failed")
+	openLogin(ctx, account, startURL)
+	kanidmLogin(ctx, account, c, c.Password)
+	return waitForPage(ctx, "Access Denied", "Login Failed")
 }
 
 // actualOpenIDLogin follows Actual Budget's OpenID login from the IdP URL that /account/login returned. It
 // returns the Actual session token from the /openid-cb redirect, or an empty token and Kanidm's page.
-func actualOpenIDLogin(t *testing.T, account string, c identity.Credentials, idpURL, appBase string) (string, string) {
-	ctx, cancel := newBrowser(t)
+func actualOpenIDLogin(specCtx context.Context, account string, c identity.Credentials, idpURL, appBase string) (string, string) {
+	ctx, cancel := newBrowser(specCtx)
 	defer cancel()
 	tokens := make(chan string, 1)
 	chromedp.ListenTarget(ctx, func(ev any) {
@@ -474,15 +473,15 @@ func actualOpenIDLogin(t *testing.T, account string, c identity.Credentials, idp
 			}
 		}
 	})
-	openLogin(t, ctx, account, idpURL)
-	kanidmLogin(t, ctx, account, c, c.Password)
+	openLogin(ctx, account, idpURL)
+	kanidmLogin(ctx, account, c, c.Password)
 	deadline := time.After(30 * time.Second)
 	for {
 		select {
 		case token := <-tokens:
 			return token, ""
 		case <-deadline:
-			return "", waitForPage(t, ctx, "")
+			return "", waitForPage(ctx, "")
 		case <-time.After(250 * time.Millisecond):
 			var text string
 			if chromedp.Run(ctx, chromedp.Evaluate(`document.body ? document.body.innerText : ""`, &text)) == nil && strings.Contains(text, "Access Denied") {
@@ -495,8 +494,8 @@ func actualOpenIDLogin(t *testing.T, account string, c identity.Credentials, idp
 // openCloudLogin opens OpenCloud's web UI, logs in through Kanidm (accepting the consent page of the public
 // client) and returns the bearer token the web UI then sends to the Graph API. The web UI keeps its tokens in
 // the browser, so there are no session cookies to reuse.
-func openCloudLogin(t *testing.T, account string, c identity.Credentials, appBase string) string {
-	ctx, cancel := newBrowser(t)
+func openCloudLogin(specCtx context.Context, account string, c identity.Credentials, appBase string) string {
+	ctx, cancel := newBrowser(specCtx)
 	defer cancel()
 	tokens := make(chan string, 1)
 	chromedp.ListenTarget(ctx, func(ev any) {
@@ -514,9 +513,9 @@ func openCloudLogin(t *testing.T, account string, c identity.Credentials, appBas
 		}
 	})
 
-	browserStep(t, ctx, "open", account, chromedp.Navigate(appBase+"/"))
+	browserStep(ctx, "open", account, chromedp.Navigate(appBase+"/"))
 	// The web UI either redirects to Kanidm or first shows its own login button
-	require.Eventually(t, func() bool {
+	Eventually(ctx, func() bool {
 		var ready bool
 		_ = chromedp.Run(ctx, chromedp.Evaluate(`(() => {
 			if (document.querySelector("input#username")) return true;
@@ -525,8 +524,8 @@ func openCloudLogin(t *testing.T, account string, c identity.Credentials, appBas
 			return false;
 		})()`, &ready))
 		return ready
-	}, 60*time.Second, 500*time.Millisecond, "%s: Kanidm's login form never showed", account)
-	kanidmLogin(t, ctx, account, c, c.Password)
+	}).WithTimeout(60*time.Second).WithPolling(500*time.Millisecond).Should(BeTrue(), "%s: Kanidm's login form never showed", account)
+	kanidmLogin(ctx, account, c, c.Password)
 
 	deadline := time.After(60 * time.Second)
 	for {
@@ -536,7 +535,7 @@ func openCloudLogin(t *testing.T, account string, c identity.Credentials, appBas
 		case <-deadline:
 			var location, text string
 			_ = chromedp.Run(ctx, chromedp.Location(&location), chromedp.Evaluate(`document.body ? document.body.innerText.slice(0, 500) : ""`, &text))
-			require.FailNow(t, "no OpenCloud token", "%s: the web UI sent no bearer token to /graph; last at %s:\n%s", account, location, text)
+			Fail(fmt.Sprintf("no OpenCloud token: %s: the web UI sent no bearer token to /graph; last at %s:\n%s", account, location, text))
 		case <-time.After(500 * time.Millisecond):
 			acceptConsent(ctx)
 		}
@@ -560,15 +559,14 @@ func openCloudAuthorizeURL(appBase string) string {
 
 // getJSON sends a request with cookies or basic auth and optional header name/value pairs, decodes a
 // JSON body into out (if not nil) and returns the status.
-func getJSON(t *testing.T, method, target string, cookies []*http.Cookie, user, pass string, body any, out any, headers ...string) int {
-	status, err := getJSONE(method, target, cookies, user, pass, body, out, headers...)
-	require.NoError(t, err)
+func getJSON(ctx context.Context, method, target string, cookies []*http.Cookie, user, pass string, body any, out any, headers ...string) int {
+	status, err := getJSONE(ctx, method, target, cookies, user, pass, body, out, headers...)
+	Expect(err).NotTo(HaveOccurred())
 	return status
 }
 
-// getJSONE is getJSON without require, for conditions inside Eventually (a transport error there must retry, not
-// call FailNow from Eventually's goroutine)
-func getJSONE(method, target string, cookies []*http.Cookie, user, pass string, body any, out any, headers ...string) (int, error) {
+// getJSONE is getJSON returning its error, for conditions inside Eventually (a transport error there must retry)
+func getJSONE(ctx context.Context, method, target string, cookies []*http.Cookie, user, pass string, body any, out any, headers ...string) (int, error) {
 	var reader io.Reader
 	if body != nil {
 		payload, err := json.Marshal(body)
@@ -577,7 +575,7 @@ func getJSONE(method, target string, cookies []*http.Cookie, user, pass string, 
 		}
 		reader = bytes.NewReader(payload)
 	}
-	req, err := http.NewRequest(method, target, reader)
+	req, err := http.NewRequestWithContext(ctx, method, target, reader)
 	if err != nil {
 		return 0, err
 	}
@@ -612,64 +610,51 @@ func getJSONE(method, target string, cookies []*http.Cookie, user, pass string, 
 
 // waitForIdentityStack blocks until a fresh sandbox has synced Kanidm and the smoke client, because the
 // identity tests run before the smoke tests that would otherwise wait for them.
-func waitForIdentityStack(t *testing.T) {
-	ok := func(u string) bool {
-		resp, err := insecureClient.Get(u)
-		if err != nil {
-			return false
-		}
-		resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
-	}
-	require.Eventually(t, func() bool {
-		_, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", "kanidm"), "get", "secret", "smoke-kanidm-oauth2-credentials", "-o", "name")
-		return err == nil && ok(kanidmURL+"/oauth2/openid/smoke/.well-known/openid-configuration")
-	}, 20*time.Minute, 15*time.Second, "Kanidm is not ready")
+func waitForIdentityStack(ctx context.Context) {
+	Eventually(ctx, func() bool {
+		_, err := kube.Kubectl(ctx, "kanidm", "get", "secret", "smoke-kanidm-oauth2-credentials", "-o", "name")
+		return err == nil && getOK(ctx, insecureClient, kanidmURL+"/oauth2/openid/smoke/.well-known/openid-configuration") == nil
+	}).WithTimeout(20*time.Minute).WithPolling(15*time.Second).Should(BeTrue(), "Kanidm is not ready")
 }
 
-func smokeClientSecret(t *testing.T) string {
-	return string(waitForSecret(t, "kanidm", "smoke-kanidm-oauth2-credentials")["CLIENT_SECRET"])
+func smokeClientSecret(ctx context.Context) string {
+	return string(waitForSecret(ctx, "kanidm", "smoke-kanidm-oauth2-credentials")["CLIENT_SECRET"])
 }
 
 // waitForSecret waits for a Secret that an operator creates (kaniop client credentials) and returns its data.
-func waitForSecret(t *testing.T, namespace, name string) map[string][]byte {
-	options := k8s.NewKubectlOptions("", "", namespace)
-	options.Logger = logger.Discard
-	var data map[string][]byte
-	require.Eventually(t, func() bool {
-		secret, err := k8s.GetSecretE(t, options, name)
-		if err != nil {
-			return false
-		}
-		data = secret.Data
-		return true
-	}, 20*time.Minute, 15*time.Second, "Secret %s/%s does not exist", namespace, name)
-	return data
+func waitForSecret(ctx context.Context, namespace, name string) map[string][]byte {
+	var secret struct {
+		Data map[string][]byte `json:"data"`
+	}
+	Eventually(ctx, func() error {
+		return kube.GetJSON(ctx, namespace, &secret, "secret", name)
+	}).WithTimeout(20*time.Minute).WithPolling(15*time.Second).Should(Succeed(), "Secret %s/%s does not exist", namespace, name)
+	return secret.Data
 }
 
 // exchangeCode trades the code for tokens at Kanidm (with the PKCE verifier) and returns the ID token claims.
-func exchangeCode(t *testing.T, code, secret, verifier string) map[string]any {
+func exchangeCode(ctx context.Context, code, secret, verifier string) map[string]any {
 	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {smokeRedirect}, "code_verifier": {verifier}}
-	req, err := http.NewRequest(http.MethodPost, kanidmURL+"/oauth2/token", strings.NewReader(form.Encode()))
-	require.NoError(t, err)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, kanidmURL+"/oauth2/token", strings.NewReader(form.Encode()))
+	Expect(err).NotTo(HaveOccurred())
 	req.SetBasicAuth("smoke", secret)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := insecureClient.Do(req)
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode, "token exchange: %s", raw)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusOK), "token exchange: %s", raw)
 
 	var tokens struct {
 		IDToken string `json:"id_token"`
 	}
-	require.NoError(t, json.Unmarshal(raw, &tokens))
+	Expect(json.Unmarshal(raw, &tokens)).To(Succeed())
 	parts := strings.Split(tokens.IDToken, ".")
-	require.Len(t, parts, 3)
+	Expect(parts).To(HaveLen(3))
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 	var claims map[string]any
-	require.NoError(t, json.Unmarshal(payload, &claims))
+	Expect(json.Unmarshal(payload, &claims)).To(Succeed())
 	return claims
 }

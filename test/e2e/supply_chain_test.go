@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -33,7 +34,7 @@ func cosign(t *testing.T, env []string, stdin string, args ...string) string {
 func TestSupplyChain(t *testing.T) {
 	testenv.SecretsSandboxOnly(t)
 	dir := t.TempDir()
-	password := generatedValue(t, "zot/generated/ci", "password")
+	password := generatedValue(context.TODO(), "zot/generated/ci", "password")
 	env := []string{"DOCKER_CONFIG=" + dir, "COSIGN_PASSWORD=" + fmt.Sprint(time.Now().UnixNano())}
 	// The sandbox CA signs the registry's certificate: --allow-insecure-registry skips verifying it
 	cosign(t, env, password, "login", registryHost, "-u", "ci", "--password-stdin")

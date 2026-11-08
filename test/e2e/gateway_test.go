@@ -3,6 +3,7 @@ package e2e
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -45,7 +46,7 @@ func TestGatewayProgrammed(t *testing.T) {
 			require.NotEmpty(t, gw.Status.Addresses)
 			if name == "gateway" {
 				// ServiceLB publishes it on the node the tests dial
-				assert.Equal(t, gatewayAddress(t), gw.Status.Addresses[0].Value)
+				assert.Equal(t, gatewayAddress(), gw.Status.Addresses[0].Value)
 			}
 		})
 	}
@@ -89,7 +90,7 @@ func TestGatewayNoIngress(t *testing.T) {
 func TestGatewayForgejoSSH(t *testing.T) {
 	gatewaySandboxOnly(t)
 	require.Eventually(t, func() bool {
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(gatewayAddress(t), "22"), 10*time.Second)
+		conn, err := net.DialTimeout("tcp", net.JoinHostPort(gatewayAddress(), "22"), 10*time.Second)
 		if err != nil {
 			return false
 		}
@@ -97,15 +98,15 @@ func TestGatewayForgejoSSH(t *testing.T) {
 		_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		banner, err := bufio.NewReader(conn).ReadString('\n')
 		return err == nil && strings.HasPrefix(banner, "SSH-2.0-")
-	}, 20*time.Minute, 15*time.Second, "no SSH banner from forgejo on %s:22", gatewayAddress(t))
+	}, 20*time.Minute, 15*time.Second, "no SSH banner from forgejo on %s:22", gatewayAddress())
 }
 
 // TestGatewayZotLargePush uploads one 200 MiB blob through the Gateway, as an image push would.
 func TestGatewayZotLargePush(t *testing.T) {
 	gatewaySandboxOnly(t)
 	base := "https://" + registryHost
-	waitForApp(t, base+"/livez")
-	password := generatedValue(t, "zot/generated/ci", "password")
+	waitForApp(context.TODO(), base+"/livez")
+	password := generatedValue(context.TODO(), "zot/generated/ci", "password")
 
 	// Same content every run, so zot stores a single copy
 	blob := make([]byte, 200<<20)

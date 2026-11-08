@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/duongle-steven/homelab/test/internal/repo"
@@ -219,11 +220,11 @@ func TestBackupRestore(t *testing.T) {
 // be starting (an absent repository is 404, never retried)
 func forgejoRestored(t *testing.T, path string, out any) int {
 	t.Helper()
-	admin, password := secretValue(t, "forgejo", "forgejo-admin", "username"), secretValue(t, "forgejo", "forgejo-admin", "password")
+	admin, password := secretValue(context.TODO(), "forgejo", "forgejo-admin", "username"), secretValue(context.TODO(), "forgejo", "forgejo-admin", "password")
 	code := 0
 	var err error
 	up := assert.Eventually(t, func() bool {
-		code, err = getJSONE("GET", "https://"+forgejoHost+"/api/v1"+path, nil, admin, password, nil, out)
+		code, err = getJSONE(context.TODO(), "GET", "https://"+forgejoHost+"/api/v1"+path, nil, admin, password, nil, out)
 		return err == nil && code != 503
 	}, 5*time.Minute, 2*time.Second)
 	require.True(t, up, "Forgejo still unavailable through the Gateway: %d %v", code, err)

@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"github.com/duongle-steven/homelab/test/internal/repo"
 	"net/http"
@@ -33,11 +34,11 @@ func lab(t *testing.T, args ...string) string {
 func forgejoGit(t *testing.T, dir, user, secret string, args ...string) (string, error) {
 	t.Helper()
 	ca := filepath.Join(t.TempDir(), "ca.crt")
-	require.NoError(t, os.WriteFile(ca, []byte(configMapValue(t, "forgejo", "homelab-dev-ca", "ca.crt")), 0o600))
+	require.NoError(t, os.WriteFile(ca, []byte(configMapValue(context.TODO(), "forgejo", "homelab-dev-ca", "ca.crt")), 0o600))
 	askpass := filepath.Join(t.TempDir(), "askpass")
 	require.NoError(t, os.WriteFile(askpass, []byte("#!/bin/sh\ncase \"$1\" in Username*) echo \"$GIT_USER\" ;; *) echo \"$GIT_SECRET\" ;; esac\n"), 0o700))
 	full := append([]string{"-C", dir, "-c", "credential.helper=", "-c", "http.sslCAInfo=" + ca,
-		"-c", "http.curloptResolve=" + forgejoHost + ":443:" + gatewayAddress(t)}, args...)
+		"-c", "http.curloptResolve=" + forgejoHost + ":443:" + gatewayAddress()}, args...)
 	cmd := exec.Command("git", full...)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS="+askpass, "GIT_USER="+user, "GIT_SECRET="+secret,
 		"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
@@ -78,7 +79,7 @@ func permanentBaoError(err error) bool {
 // sandbox's Forgejo, then checks what production relies on.
 func TestForgejoDeploy(t *testing.T) {
 	testenv.LocalOnly(t)
-	waitForApp(t, "https://"+forgejoHost+"/api/healthz")
+	waitForApp(context.TODO(), "https://"+forgejoHost+"/api/healthz")
 	lab(t, "infra", "forgejo", "sync", "--env", labEnv)
 	deploy, argocd := baoValue(t, "forgejo/deploy", "token"), baoValue(t, "argocd/forgejo", "token")
 	require.NotEmpty(t, deploy)
@@ -120,17 +121,17 @@ func TestForgejoDeploy(t *testing.T) {
 	assert.Error(t, err, "deploy deleted master:\n%s", out)
 
 	// The allowlist itself: a write collaborator outside it pushes a branch but not master
-	admin, adminPassword := secretValue(t, "forgejo", "forgejo-admin", "username"), secretValue(t, "forgejo", "forgejo-admin", "password")
+	admin, adminPassword := secretValue(context.TODO(), "forgejo", "forgejo-admin", "username"), secretValue(context.TODO(), "forgejo", "forgejo-admin", "password")
 	api := "https://" + forgejoHost + "/api/v1"
 	probe, probePassword := "allowlist-probe", fmt.Sprintf("Probe-%d-pw", time.Now().UnixNano())
 	never := false
-	require.Equal(t, http.StatusCreated, getJSON(t, "POST", api+"/admin/users", nil, admin, adminPassword, map[string]any{
+	require.Equal(t, http.StatusCreated, getJSON(context.TODO(), "POST", api+"/admin/users", nil, admin, adminPassword, map[string]any{
 		"username": probe, "email": probe + "@noreply.invalid", "password": probePassword, "must_change_password": &never,
 	}, nil))
 	t.Cleanup(func() {
-		getJSON(t, "DELETE", api+"/admin/users/"+probe+"?purge=true", nil, admin, adminPassword, nil, nil)
+		getJSON(context.TODO(), "DELETE", api+"/admin/users/"+probe+"?purge=true", nil, admin, adminPassword, nil, nil)
 	})
-	require.Equal(t, http.StatusNoContent, getJSON(t, "PUT", api+"/repos/ops/homelab/collaborators/"+probe, nil, admin, adminPassword,
+	require.Equal(t, http.StatusNoContent, getJSON(context.TODO(), "PUT", api+"/repos/ops/homelab/collaborators/"+probe, nil, admin, adminPassword,
 		map[string]any{"permission": "write"}, nil))
 	out, err = forgejoGit(t, clone, probe, probePassword, "push", "--quiet", "origin", "HEAD:refs/heads/"+probe)
 	require.NoError(t, err, "a write collaborator could not push a branch:\n%s", out)
@@ -143,9 +144,9 @@ func TestForgejoDeploy(t *testing.T) {
 	assert.Error(t, err, "%s (a site admin) pushed master:\n%s", admin, out)
 
 	// Argo CD's credential reads master with the read-only token
-	repoSecret := waitForSecret(t, "argocd", "argocd-repo-forgejo")
+	repoSecret := waitForSecret(context.TODO(), "argocd", "argocd-repo-forgejo")
 	assert.Equal(t, "argocd", string(repoSecret["username"]))
-	assert.Equal(t, http.StatusOK, getJSON(t, "GET", "https://"+forgejoHost+"/api/v1/repos/ops/homelab/branches/master", nil,
+	assert.Equal(t, http.StatusOK, getJSON(context.TODO(), "GET", "https://"+forgejoHost+"/api/v1/repos/ops/homelab/branches/master", nil,
 		string(repoSecret["username"]), string(repoSecret["password"]), nil, nil))
 }
 
@@ -154,7 +155,7 @@ func TestForgejoDeploy(t *testing.T) {
 // once and stays unproven (docs/superpowers/specs/2026-11-02-testbed-design.md)
 func TestForgejoArgoCDSyncs(t *testing.T) {
 	testenv.LocalOnly(t)
-	waitForApp(t, "https://"+forgejoHost+"/api/healthz")
+	waitForApp(context.TODO(), "https://"+forgejoHost+"/api/healthz")
 	lab(t, "infra", "forgejo", "sync", "--env", labEnv)
 	lab(t, "infra", "forgejo", "push", "--env", labEnv)
 	const name = "forgejo-sync-probe"

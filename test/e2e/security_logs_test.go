@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -217,8 +218,8 @@ func TestSecurityLogsNoSecretValues(t *testing.T) {
 		k8s.WaitUntilSecretAvailable(t, k8s.NewKubectlOptions("", "", ns), ns+"-admin", 60, 10*time.Second)
 	}
 	values := map[string]string{
-		"grafana/grafana-admin": secretValue(t, "grafana", "grafana-admin", "admin-password"),
-		"forgejo/forgejo-admin": secretValue(t, "forgejo", "forgejo-admin", "password"),
+		"grafana/grafana-admin": secretValue(context.TODO(), "grafana", "grafana-admin", "admin-password"),
+		"forgejo/forgejo-admin": secretValue(context.TODO(), "forgejo", "forgejo-admin", "password"),
 		"ntfy alerts token":     ntfyToken(t, "alerts"),
 	}
 	lines := lokiLines(t, `{job=~"audit/.*"}`, 2*time.Hour)

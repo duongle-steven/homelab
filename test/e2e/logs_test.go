@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -57,12 +58,12 @@ func lokiQuery(t *testing.T, query string, since time.Duration) ([]lokiEntry, er
 // Grafana queries Loki through its data source (uid loki), in the sandbox too
 func TestLogsGrafanaDataSource(t *testing.T) {
 	testenv.LogsSandboxOnly(t)
-	password := secretValue(t, "grafana", "grafana-admin", "admin-password")
+	password := secretValue(context.TODO(), "grafana", "grafana-admin", "admin-password")
 	require.Eventually(t, func() bool {
 		var health struct {
 			Status string `json:"status"`
 		}
-		status, err := getJSONE(http.MethodGet, "https://"+grafanaHost+"/api/datasources/uid/loki/health", nil, "admin", password, nil, &health)
+		status, err := getJSONE(context.TODO(), http.MethodGet, "https://"+grafanaHost+"/api/datasources/uid/loki/health", nil, "admin", password, nil, &health)
 		return err == nil && status == http.StatusOK && health.Status == "OK"
 	}, 20*time.Minute, 15*time.Second, "Grafana's Loki data source is not healthy")
 }

@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -42,7 +43,7 @@ func waitForNtfy(t *testing.T) {
 
 // ntfyToken is a user's ntfy token: the generated value in OpenBao with ntfy's tk_ prefix
 func ntfyToken(t *testing.T, user string) string {
-	return "tk_" + generatedValue(t, "ntfy/generated/"+user+"-token", "token")
+	return "tk_" + generatedValue(context.TODO(), "ntfy/generated/"+user+"-token", "token")
 }
 
 // Published through the Tunnel in production: nothing without credentials

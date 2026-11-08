@@ -1,20 +1,19 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
-	"testing"
 	"time"
 
-	"github.com/duongle-steven/homelab/test/internal/testenv"
-	"github.com/gruntwork-io/terratest/modules/k8s"
-	"github.com/gruntwork-io/terratest/modules/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/duongle-steven/homelab/test/internal/kube"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var (
@@ -28,40 +27,48 @@ var (
 	ciHost        = "ci." + suiteDomain
 )
 
-func skipUnlessSandbox(t *testing.T) {
-	testenv.LocalOnly(t)
-	waitForIdentityStack(t)
+// waitForAppBeforeEach is a container's BeforeEach waiting for its app (waitForApp)
+func waitForAppBeforeEach(target string) {
+	BeforeEach(func(ctx SpecContext) { waitForApp(ctx, target) }, NodeTimeout(25*time.Minute))
 }
 
 // waitForApp blocks until the app answers on its sandbox host.
-func waitForApp(t *testing.T, target string) {
-	require.Eventually(t, func() bool {
-		resp, err := insecureClient.Get(target)
+func waitForApp(ctx context.Context, target string) {
+	Eventually(ctx, func() bool {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+		if err != nil {
+			return false
+		}
+		resp, err := insecureClient.Do(req)
 		if err != nil {
 			return false
 		}
 		resp.Body.Close()
 		return resp.StatusCode < 500 && resp.StatusCode != http.StatusNotFound
-	}, 20*time.Minute, 15*time.Second, "%s is not ready", target)
+	}).WithTimeout(20*time.Minute).WithPolling(15*time.Second).Should(BeTrue(), "%s is not ready", target)
 }
 
 // secretValue reads one key of a Secret without logging it.
-func secretValue(t *testing.T, namespace, name, key string) string {
-	options := k8s.NewKubectlOptions("", "", namespace)
-	options.Logger = logger.Discard
-	return string(k8s.GetSecret(t, options, name).Data[key])
+func secretValue(ctx context.Context, namespace, name, key string) string {
+	var secret struct {
+		Data map[string][]byte `json:"data"`
+	}
+	Expect(kube.GetJSON(ctx, namespace, &secret, "secret", name)).To(Succeed())
+	return string(secret.Data[key])
 }
 
-func configMapValue(t *testing.T, namespace, name, key string) string {
-	options := k8s.NewKubectlOptions("", "", namespace)
-	options.Logger = logger.Discard
-	return k8s.GetConfigMap(t, options, name).Data[key]
+func configMapValue(ctx context.Context, namespace, name, key string) string {
+	var configMap struct {
+		Data map[string]string `json:"data"`
+	}
+	Expect(kube.GetJSON(ctx, namespace, &configMap, "configmap", name)).To(Succeed())
+	return configMap.Data[key]
 }
 
-func TestSSOGrafana(t *testing.T) {
-	skipUnlessSandbox(t)
+var _ = Describe("SSOGrafana", Label("sandbox", "testbed", "sso", "grafana"), func() {
 	base := "https://" + grafanaHost
-	waitForApp(t, base+"/api/health")
+	waitForIdentity()
+	waitForAppBeforeEach(base + "/api/health")
 
 	expected := map[string]struct {
 		role         string
@@ -71,37 +78,38 @@ func TestSSOGrafana(t *testing.T) {
 		"dev-editor": {"Editor", false},
 		"dev-viewer": {"Viewer", false},
 	}
-	for account, want := range expected {
-		t.Run(account, func(t *testing.T) {
-			cookies := appLogin(t, account, ensureCredentials(t, account), base+"/login/generic_oauth", grafanaHost)
+	for _, account := range slices.Sorted(maps.Keys(expected)) {
+		want := expected[account]
+		It(account, func(ctx SpecContext) {
+			cookies := appLogin(ctx, account, ensureCredentials(ctx, account), base+"/login/generic_oauth", grafanaHost)
 
 			var user struct {
 				Login          string `json:"login"`
 				IsGrafanaAdmin bool   `json:"isGrafanaAdmin"`
 			}
-			require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/user", cookies, "", "", nil, &user))
-			assert.Equal(t, account, user.Login)
-			assert.Equal(t, want.grafanaAdmin, user.IsGrafanaAdmin)
+			Expect(getJSON(ctx, "GET", base+"/api/user", cookies, "", "", nil, &user)).To(Equal(http.StatusOK))
+			Expect(user.Login).To(Equal(account))
+			Expect(user.IsGrafanaAdmin).To(Equal(want.grafanaAdmin))
 
 			var orgs []struct {
 				Role string `json:"role"`
 			}
-			require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/user/orgs", cookies, "", "", nil, &orgs))
-			require.Len(t, orgs, 1)
-			assert.Equal(t, want.role, orgs[0].Role)
-		})
+			Expect(getJSON(ctx, "GET", base+"/api/user/orgs", cookies, "", "", nil, &orgs)).To(Equal(http.StatusOK))
+			Expect(orgs).To(HaveLen(1))
+			Expect(orgs[0].Role).To(Equal(want.role))
+		}, SpecTimeout(15*time.Minute))
 	}
 
-	t.Run("local-admin", func(t *testing.T) {
-		password := secretValue(t, "grafana", "grafana-admin", "admin-password")
-		assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/user", nil, "admin", password, nil, nil))
-	})
-}
+	It("local-admin", func(ctx SpecContext) {
+		password := secretValue(ctx, "grafana", "grafana-admin", "admin-password")
+		Expect(getJSON(ctx, "GET", base+"/api/user", nil, "admin", password, nil, nil)).To(Equal(http.StatusOK))
+	}, SpecTimeout(5*time.Minute))
+})
 
-func TestSSOArgoCD(t *testing.T) {
-	skipUnlessSandbox(t)
+var _ = Describe("SSOArgoCD", Label("sandbox", "testbed", "sso", "argocd"), func() {
 	base := "https://" + argocdHost
-	waitForApp(t, base+"/api/version")
+	waitForIdentity()
+	waitForAppBeforeEach(base + "/api/version")
 
 	type check struct{ resource, action, object string }
 	sync := check{"applications", "sync", "default/excalidraw"}
@@ -114,211 +122,217 @@ func TestSSOArgoCD(t *testing.T) {
 		"dev-editor": {sync: "yes", del: "no", exec: "yes", execSystem: "no"},
 		"dev-viewer": {sync: "no", del: "no", exec: "no", execSystem: "no"},
 	}
-	for account, checks := range expected {
-		t.Run(account, func(t *testing.T) {
-			cookies := appLogin(t, account, ensureCredentials(t, account), base+"/auth/login", argocdHost)
+	for _, account := range slices.Sorted(maps.Keys(expected)) {
+		checks := expected[account]
+		It(account, func(ctx SpecContext) {
+			cookies := appLogin(ctx, account, ensureCredentials(ctx, account), base+"/auth/login", argocdHost)
 			for c, want := range checks {
 				var answer struct {
 					Value string `json:"value"`
 				}
-				require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/v1/account/can-i/"+c.resource+"/"+c.action+"/"+c.object, cookies, "", "", nil, &answer))
-				assert.Equal(t, want, answer.Value, "%s %s %s", c.resource, c.action, c.object)
+				Expect(getJSON(ctx, "GET", base+"/api/v1/account/can-i/"+c.resource+"/"+c.action+"/"+c.object, cookies, "", "", nil, &answer)).To(Equal(http.StatusOK))
+				Expect(answer.Value).To(Equal(want), "%s %s %s", c.resource, c.action, c.object)
 			}
-		})
+		}, SpecTimeout(15*time.Minute))
 	}
 
-	t.Run("local-admin", func(t *testing.T) {
-		password := secretValue(t, "argocd", "argocd-initial-admin-secret", "password")
+	It("local-admin", func(ctx SpecContext) {
+		password := secretValue(ctx, "argocd", "argocd-initial-admin-secret", "password")
 		var session struct {
 			Token string `json:"token"`
 		}
-		require.Equal(t, http.StatusOK, getJSON(t, "POST", base+"/api/v1/session", nil, "", "", map[string]string{"username": "admin", "password": password}, &session))
-		assert.NotEmpty(t, session.Token)
-	})
-}
+		Expect(getJSON(ctx, "POST", base+"/api/v1/session", nil, "", "", map[string]string{"username": "admin", "password": password}, &session)).To(Equal(http.StatusOK))
+		Expect(session.Token).NotTo(BeEmpty())
+	}, SpecTimeout(5*time.Minute))
+})
 
-func TestSSOZot(t *testing.T) {
-	skipUnlessSandbox(t)
+var _ = Describe("SSOZot", Label("sandbox", "testbed", "sso", "zot"), func() {
 	base := "https://" + registryHost
-	waitForApp(t, base+"/livez")
 	upload := base + "/v2/sso-test/blobs/uploads/"
+	waitForIdentity()
+	waitForAppBeforeEach(base + "/livez")
 
 	expectedUpload := map[string]int{
 		"dev-admin":  http.StatusAccepted,
 		"dev-editor": http.StatusAccepted,
 		"dev-viewer": http.StatusForbidden,
 	}
-	for account, want := range expectedUpload {
-		t.Run(account, func(t *testing.T) {
-			cookies := appLogin(t, account, ensureCredentials(t, account), base+"/zot/auth/login?provider=oidc&callback_ui=/", registryHost)
+	for _, account := range slices.Sorted(maps.Keys(expectedUpload)) {
+		want := expectedUpload[account]
+		It(account, func(ctx SpecContext) {
+			cookies := appLogin(ctx, account, ensureCredentials(ctx, account), base+"/zot/auth/login?provider=oidc&callback_ui=/", registryHost)
 
 			var key struct {
 				APIKey string `json:"apiKey"`
 				UUID   string `json:"uuid"`
 			}
 			label := fmt.Sprintf("sso-test-%d", time.Now().UnixNano())
-			require.Equal(t, http.StatusCreated, getJSON(t, "POST", base+"/zot/auth/apikey", cookies, "", "", map[string]any{"label": label, "scopes": []string{}}, &key,
+			Expect(getJSON(ctx, "POST", base+"/zot/auth/apikey", cookies, "", "", map[string]any{"label": label, "scopes": []string{}}, &key,
 				// zot only accepts its session cookie from its UI client
-				"X-ZOT-API-CLIENT", "zot-ui"))
-			require.NotEmpty(t, key.APIKey)
+				"X-ZOT-API-CLIENT", "zot-ui")).To(Equal(http.StatusCreated))
+			Expect(key.APIKey).NotTo(BeEmpty())
 			// Each run creates a key: remove it so they do not pile up in zot
-			t.Cleanup(func() {
-				assert.Equal(t, http.StatusOK, getJSON(t, "DELETE", base+"/zot/auth/apikey?id="+key.UUID, cookies, "", "", nil, nil,
-					"X-ZOT-API-CLIENT", "zot-ui"))
-			})
+			DeferCleanup(func(ctx SpecContext) {
+				Expect(getJSON(ctx, "DELETE", base+"/zot/auth/apikey?id="+key.UUID, cookies, "", "", nil, nil,
+					"X-ZOT-API-CLIENT", "zot-ui")).To(Equal(http.StatusOK))
+			}, NodeTimeout(time.Minute))
 
-			assert.Equal(t, want, getJSON(t, "POST", upload, nil, account, key.APIKey, nil, nil))
-			assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/v2/_catalog", nil, account, key.APIKey, nil, nil))
-		})
+			Expect(getJSON(ctx, "POST", upload, nil, account, key.APIKey, nil, nil)).To(Equal(want))
+			Expect(getJSON(ctx, "GET", base+"/v2/_catalog", nil, account, key.APIKey, nil, nil)).To(Equal(http.StatusOK))
+		}, SpecTimeout(15*time.Minute))
 	}
 
-	t.Run("ci", func(t *testing.T) {
-		password := generatedValue(t, "zot/generated/ci", "password")
-		assert.Equal(t, http.StatusAccepted, getJSON(t, "POST", upload, nil, "ci", password, nil, nil))
-	})
+	It("ci", func(ctx SpecContext) {
+		password := generatedValue(ctx, "zot/generated/ci", "password")
+		Expect(getJSON(ctx, "POST", upload, nil, "ci", password, nil, nil)).To(Equal(http.StatusAccepted))
+	}, SpecTimeout(25*time.Minute))
 
-	t.Run("anonymous", func(t *testing.T) {
-		assert.Equal(t, http.StatusUnauthorized, getJSON(t, "GET", base+"/v2/_catalog", nil, "", "", nil, nil))
-	})
-}
+	It("anonymous", func(ctx SpecContext) {
+		Expect(getJSON(ctx, "GET", base+"/v2/_catalog", nil, "", "", nil, nil)).To(Equal(http.StatusUnauthorized))
+	}, SpecTimeout(5*time.Minute))
+})
 
-func TestSSOActualBudget(t *testing.T) {
-	skipUnlessSandbox(t)
+// Ordered: dev-admin first, the first OpenID user becomes the server owner
+var _ = Describe("SSOActualBudget", Ordered, Label("sandbox", "testbed", "sso", "actual-budget"), func() {
 	base := "https://" + budgetHost
-	waitForApp(t, base+"/account/login-methods")
+	waitForIdentity()
+	waitForAppBeforeEach(base + "/account/login-methods")
 
-	// dev-admin first: the first OpenID user becomes the server owner
 	for _, c := range []struct {
 		account string
 		allowed bool
 	}{{"dev-admin", true}, {"dev-viewer", true}, {"dev-editor", false}} {
-		t.Run(c.account, func(t *testing.T) {
+		It(c.account, func(ctx SpecContext) {
 			var start struct {
 				Data struct {
 					ReturnURL string `json:"returnUrl"`
 				} `json:"data"`
 			}
-			require.Equal(t, http.StatusOK, getJSON(t, "POST", base+"/account/login", nil, "", "",
-				map[string]any{"loginMethod": "openid", "returnUrl": base}, &start))
-			require.NotEmpty(t, start.Data.ReturnURL)
-			token, page := actualOpenIDLogin(t, c.account, ensureCredentials(t, c.account), start.Data.ReturnURL, base)
+			Expect(getJSON(ctx, "POST", base+"/account/login", nil, "", "",
+				map[string]any{"loginMethod": "openid", "returnUrl": base}, &start)).To(Equal(http.StatusOK))
+			Expect(start.Data.ReturnURL).NotTo(BeEmpty())
+			token, page := actualOpenIDLogin(ctx, c.account, ensureCredentials(ctx, c.account), start.Data.ReturnURL, base)
 			if !c.allowed {
-				assert.Empty(t, token)
-				assert.Contains(t, page, "Access Denied")
+				Expect(token).To(BeEmpty())
+				Expect(page).To(ContainSubstring("Access Denied"))
 				return
 			}
-			require.NotEmpty(t, token, "no Actual token for %s; page:\n%s", c.account, page)
+			Expect(token).NotTo(BeEmpty(), "no Actual token for %s; page:\n%s", c.account, page)
 			var me struct {
 				Data struct {
 					UserName string `json:"userName"`
 				} `json:"data"`
 			}
-			assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/account/validate", nil, "", "", nil, &me, "X-ACTUAL-TOKEN", token))
-			assert.Equal(t, c.account, me.Data.UserName)
-		})
+			Expect(getJSON(ctx, "GET", base+"/account/validate", nil, "", "", nil, &me, "X-ACTUAL-TOKEN", token)).To(Equal(http.StatusOK))
+			Expect(me.Data.UserName).To(Equal(c.account))
+		}, SpecTimeout(15*time.Minute))
 	}
-}
+})
 
-func TestSSOPaperless(t *testing.T) {
-	skipUnlessSandbox(t)
-	legacySkipUnlessDeployed(t, "paperless")
+var _ = Describe("SSOPaperless", Label("sandbox", "testbed", "sso", "paperless"), func() {
 	base := "https://" + paperlessHost
-	waitForApp(t, base+"/accounts/login/")
 	start := base + "/accounts/oidc/kanidm/login/?process=login"
+	waitForIdentity()
+	BeforeEach(func(ctx SpecContext) {
+		skipUnlessDeployed(ctx, "paperless")
+		waitForApp(ctx, base+"/accounts/login/")
+	}, NodeTimeout(25*time.Minute))
 
 	for _, c := range []struct {
 		account   string
 		allowed   bool
 		superuser bool
 	}{{"dev-admin", true, true}, {"dev-editor", true, false}, {"dev-viewer", false, false}} {
-		t.Run(c.account, func(t *testing.T) {
+		It(c.account, func(ctx SpecContext) {
 			if !c.allowed {
-				assert.Contains(t, browserDenied(t, c.account, ensureCredentials(t, c.account), start), "Access Denied")
+				Expect(browserDenied(ctx, c.account, ensureCredentials(ctx, c.account), start)).To(ContainSubstring("Access Denied"))
 				return
 			}
-			cookies := appLogin(t, c.account, ensureCredentials(t, c.account), start, paperlessHost)
+			cookies := appLogin(ctx, c.account, ensureCredentials(ctx, c.account), start, paperlessHost)
 			var settings struct {
 				User struct {
 					Username    string `json:"username"`
 					IsSuperuser bool   `json:"is_superuser"`
 				} `json:"user"`
 			}
-			require.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/ui_settings/", cookies, "", "", nil, &settings))
-			assert.Equal(t, c.account, settings.User.Username)
-			assert.Equal(t, c.superuser, settings.User.IsSuperuser)
+			Expect(getJSON(ctx, "GET", base+"/api/ui_settings/", cookies, "", "", nil, &settings)).To(Equal(http.StatusOK))
+			Expect(settings.User.Username).To(Equal(c.account))
+			Expect(settings.User.IsSuperuser).To(Equal(c.superuser))
 			// Regular users get document permissions from the paperless group homelab-documents
-			assert.Equal(t, http.StatusOK, getJSON(t, "GET", base+"/api/documents/", cookies, "", "", nil, nil))
-		})
+			Expect(getJSON(ctx, "GET", base+"/api/documents/", cookies, "", "", nil, nil)).To(Equal(http.StatusOK))
+		}, SpecTimeout(15*time.Minute))
 	}
-}
+})
 
-func TestSSOForgejo(t *testing.T) {
-	skipUnlessSandbox(t)
+var _ = Describe("SSOForgejo", Label("sandbox", "testbed", "sso", "forgejo"), func() {
 	base := "https://" + forgejoHost
-	waitForApp(t, base+"/api/healthz")
 	start := base + "/user/oauth2/Kanidm"
+	waitForIdentity()
+	waitForAppBeforeEach(base + "/api/healthz")
 
 	for _, c := range []struct {
 		account string
 		allowed bool
 		admin   bool
 	}{{"dev-admin", true, true}, {"dev-editor", true, false}, {"dev-viewer", true, false}, {"dev-outsider", false, false}} {
-		t.Run(c.account, func(t *testing.T) {
+		It(c.account, func(ctx SpecContext) {
 			if !c.allowed {
-				assert.Contains(t, browserDenied(t, c.account, ensureCredentials(t, c.account), start), "Access Denied")
+				Expect(browserDenied(ctx, c.account, ensureCredentials(ctx, c.account), start)).To(ContainSubstring("Access Denied"))
 				return
 			}
 			// Twice: the second login must reuse the account and keep the admin flag
 			for range 2 {
-				cookies := appLogin(t, c.account, ensureCredentials(t, c.account), start, forgejoHost)
+				cookies := appLogin(ctx, c.account, ensureCredentials(ctx, c.account), start, forgejoHost)
 				// The web pages, not the API: Forgejo's API does not accept the session cookie
-				code, path, body := forgejoPage(t, base+"/user/settings", cookies)
-				require.Equal(t, http.StatusOK, code)
-				require.Equal(t, "/user/settings", path, "the session is not signed in")
-				assert.Contains(t, body, `value="`+c.account+`"`)
-				code, _, _ = forgejoPage(t, base+"/admin", cookies)
-				assert.Equal(t, map[bool]int{true: http.StatusOK, false: http.StatusForbidden}[c.admin], code)
+				code, path, body := forgejoPage(ctx, base+"/user/settings", cookies)
+				Expect(code).To(Equal(http.StatusOK))
+				Expect(path).To(Equal("/user/settings"), "the session is not signed in")
+				Expect(body).To(ContainSubstring(`value="` + c.account + `"`))
+				code, _, _ = forgejoPage(ctx, base+"/admin", cookies)
+				Expect(code).To(Equal(map[bool]int{true: http.StatusOK, false: http.StatusForbidden}[c.admin]))
 			}
-		})
+		}, SpecTimeout(20*time.Minute))
 	}
-}
+})
 
 // forgejoPage gets a Forgejo web page with the session cookies and returns the status, the final path
 // (after redirects, for example to /user/login) and the body.
-func forgejoPage(t *testing.T, target string, cookies []*http.Cookie) (int, string, string) {
-	req, err := http.NewRequest("GET", target, nil)
-	require.NoError(t, err)
+func forgejoPage(ctx context.Context, target string, cookies []*http.Cookie) (int, string, string) {
+	req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
+	Expect(err).NotTo(HaveOccurred())
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
 	resp, err := insecureClient.Do(req)
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 	return resp.StatusCode, resp.Request.URL.Path, string(body)
 }
 
-func TestSSOOpenCloud(t *testing.T) {
-	skipUnlessSandbox(t)
-	legacySkipUnlessDeployed(t, "opencloud")
+var _ = Describe("SSOOpenCloud", Label("sandbox", "testbed", "sso", "opencloud"), func() {
 	base := "https://" + opencloudHost
-	waitForApp(t, base+"/")
+	waitForIdentity()
+	BeforeEach(func(ctx SpecContext) {
+		skipUnlessDeployed(ctx, "opencloud")
+		waitForApp(ctx, base+"/")
+	}, NodeTimeout(25*time.Minute))
 
 	for _, c := range []struct {
 		account string
 		role    string // OpenCloud role; empty: Kanidm refuses the account (not in homelab-files)
 	}{{"dev-admin", "Admin"}, {"dev-editor", "User"}, {"dev-viewer", ""}, {"dev-outsider", ""}} {
-		t.Run(c.account, func(t *testing.T) {
+		It(c.account, func(ctx SpecContext) {
 			if c.role == "" {
-				assert.Contains(t, browserDenied(t, c.account, ensureCredentials(t, c.account), openCloudAuthorizeURL(base)), "Access Denied")
+				Expect(browserDenied(ctx, c.account, ensureCredentials(ctx, c.account), openCloudAuthorizeURL(base))).To(ContainSubstring("Access Denied"))
 				return
 			}
 			// Twice: the second login must reuse the account (keyed by Kanidm's sub) and keep the role
 			var ids []string
 			var token string
 			for range 2 {
-				token = openCloudLogin(t, c.account, ensureCredentials(t, c.account), base)
+				token = openCloudLogin(ctx, c.account, ensureCredentials(ctx, c.account), base)
 				auth := []string{"Authorization", "Bearer " + token}
 				var me struct {
 					ID                 string `json:"id"`
@@ -330,13 +344,13 @@ func TestSSOOpenCloud(t *testing.T) {
 				// A first login provisions the account while the browser's own requests race it (OpenCloud may create it
 				// twice and answer 500 until it settles), as a person reloading would see
 				graph := func(path string, out any) {
-					require.Eventually(t, func() bool {
-						status, err := getJSONE("GET", base+path, nil, "", "", nil, out, auth...)
+					Eventually(ctx, func() bool {
+						status, err := getJSONE(ctx, "GET", base+path, nil, "", "", nil, out, auth...)
 						return err == nil && status == http.StatusOK
-					}, time.Minute, 2*time.Second, "%s did not answer 200 for %s", path, c.account)
+					}).WithTimeout(time.Minute).WithPolling(2*time.Second).Should(BeTrue(), "%s did not answer 200 for %s", path, c.account)
 				}
 				graph("/graph/v1.0/me?$expand=appRoleAssignments", &me)
-				assert.Equal(t, c.account, me.DisplayName)
+				Expect(me.DisplayName).To(Equal(c.account))
 				ids = append(ids, me.ID)
 
 				var apps struct {
@@ -361,13 +375,13 @@ func TestSSOOpenCloud(t *testing.T) {
 				// OpenCloud's first login can race and store the same role twice; a wrong, mixed, unknown or missing
 				// role still fails
 				if len(roles) > 1 {
-					t.Logf("%s has %d role assignments %v (OpenCloud's first-login race stores duplicates)", c.account, len(roles), roles)
+					GinkgoWriter.Printf("%s has %d role assignments %v (OpenCloud's first-login race stores duplicates)\n", c.account, len(roles), roles)
 				}
 				slices.Sort(roles)
 				roles = slices.Compact(roles)
-				assert.Equal(t, []string{c.role}, roles)
+				Expect(roles).To(Equal([]string{c.role}))
 			}
-			assert.Equal(t, ids[0], ids[1], "the second login created another account")
+			Expect(ids[1]).To(Equal(ids[0]), "the second login created another account")
 
 			// Files: a WebDAV round trip in the personal drive (with the last login's token), which OpenCloud
 			// creates on first login
@@ -376,9 +390,9 @@ func TestSSOOpenCloud(t *testing.T) {
 					WebDavURL string `json:"webDavUrl"`
 				} `json:"root"`
 			}
-			// Not getJSON: its require calls cannot run inside the condition, and transport errors must retry
-			require.Eventually(t, func() bool {
-				req, err := http.NewRequest(http.MethodGet, base+"/graph/v1.0/me/drive", nil)
+			// Not getJSON: transport errors must retry
+			Eventually(ctx, func() bool {
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/graph/v1.0/me/drive", nil)
 				if err != nil {
 					return false
 				}
@@ -389,34 +403,34 @@ func TestSSOOpenCloud(t *testing.T) {
 				}
 				defer resp.Body.Close()
 				return resp.StatusCode == http.StatusOK && json.NewDecoder(resp.Body).Decode(&drive) == nil && drive.Root.WebDavURL != ""
-			}, time.Minute, 2*time.Second, "no personal drive for %s", c.account)
+			}).WithTimeout(time.Minute).WithPolling(2*time.Second).Should(BeTrue(), "no personal drive for %s", c.account)
 			file := fmt.Sprintf("%s/homelab-test-%d.txt", strings.TrimSuffix(drive.Root.WebDavURL, "/"), time.Now().UnixNano())
 			content := fmt.Sprintf("homelab test %s %d", c.account, time.Now().UnixNano())
-			code, _ := davRequest(t, http.MethodPut, file, token, content)
-			require.Equal(t, http.StatusCreated, code)
+			code, _ := davRequest(ctx, http.MethodPut, file, token, content)
+			Expect(code).To(Equal(http.StatusCreated))
 			// A new file is processed after the upload (asynchronously): until then a read is 425 Too Early
-			code, got := davRequest(t, http.MethodGet, file, token, "")
-			for deadline := time.Now().Add(time.Minute); code == http.StatusTooEarly && time.Now().Before(deadline); {
-				time.Sleep(2 * time.Second)
-				code, got = davRequest(t, http.MethodGet, file, token, "")
-			}
-			require.Equal(t, http.StatusOK, code)
-			assert.Equal(t, content, got)
-			code, _ = davRequest(t, http.MethodDelete, file, token, "")
-			assert.Equal(t, http.StatusNoContent, code)
-		})
+			var got string
+			Eventually(ctx, func() int {
+				code, got = davRequest(ctx, http.MethodGet, file, token, "")
+				return code
+			}).WithTimeout(time.Minute).WithPolling(2 * time.Second).ShouldNot(Equal(http.StatusTooEarly))
+			Expect(code).To(Equal(http.StatusOK))
+			Expect(got).To(Equal(content))
+			code, _ = davRequest(ctx, http.MethodDelete, file, token, "")
+			Expect(code).To(Equal(http.StatusNoContent))
+		}, SpecTimeout(25*time.Minute))
 	}
-}
+})
 
 // davRequest sends a WebDAV request with a bearer token and returns the status and the body.
-func davRequest(t *testing.T, method, target, token, body string) (int, string) {
-	req, err := http.NewRequest(method, target, strings.NewReader(body))
-	require.NoError(t, err)
+func davRequest(ctx context.Context, method, target, token, body string) (int, string) {
+	req, err := http.NewRequestWithContext(ctx, method, target, strings.NewReader(body))
+	Expect(err).NotTo(HaveOccurred())
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := insecureClient.Do(req)
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 	return resp.StatusCode, string(raw)
 }
