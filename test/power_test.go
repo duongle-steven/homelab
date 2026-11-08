@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -208,7 +209,7 @@ func gatewayAnswers(t *testing.T) bool {
 	if err != nil {
 		return false
 	}
-	host := "probe." + testDomain(t)
+	host := "probe." + testenv.SuiteDomain(t)
 	answer, err := exec.Command("curl", "-sk", "-m", "10", "-o", "/dev/null", "-w", "%{http_code}", "--resolve", host+":80:"+vip, "http://"+host+"/").Output()
 	return err == nil && string(answer) == "301"
 }

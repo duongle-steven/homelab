@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duongle-steven/homelab/test/internal/gensecrets"
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func secretsSandboxOnly(t *testing.T) { localOnly(t) }
 
 // bao runs the OpenBao CLI in OpenBao's pod, logged in with a token of service account namespace/account (audience
 // openbao, the only one OpenBao's roles accept) and the given role. The token reaches the pod on stdin and is never
@@ -89,13 +89,13 @@ func grafanaAdmin(t *testing.T) string {
 }
 
 func TestSecretsUnsealed(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 }
 
 // A namespace reads its own branch, not another's, and writes nowhere
 func TestSecretsNamespaceBranches(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 	assert.NotEmpty(t, grafanaAdmin(t))
 
@@ -118,7 +118,7 @@ func admin(t *testing.T, args ...string) string {
 // The writer is generated-secrets' default service account only, and reaches only secret/<namespace>/generated/: it reads
 // and writes nothing else and deletes nothing
 func TestSecretsWriterRole(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 	out, err := bao(t, "writer", "grafana", "default", "kv", "get", "secret/grafana/generated/admin")
 	assert.Error(t, err, "grafana logged in as writer")
@@ -146,7 +146,7 @@ func TestSecretsWriterRole(t *testing.T) {
 // OpenBao refuses tokens issued for the API server (the default audience): a token External Secrets sends cannot be
 // replayed against the API server, and one stolen from a pod does not open OpenBao
 func TestSecretsAudience(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 	out, err := baoAudience(t, "", "apps", "grafana", "default", "kv", "get", "secret/grafana/generated/admin")
 	assert.Error(t, err, "OpenBao accepted a token without audience openbao")
@@ -155,7 +155,7 @@ func TestSecretsAudience(t *testing.T) {
 
 // Emergency access: the admin role, for service account openbao-admin
 func TestSecretsAdmin(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 	out := admin(t, "policy", "list")
 	for _, policy := range []string{"apps", "writer", "admin"} {
@@ -165,7 +165,7 @@ func TestSecretsAdmin(t *testing.T) {
 
 // Grafana's admin Secret comes from OpenBao and equals its generated value there
 func TestSecretsReachConsumers(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 	generated := generatedValue(t, "grafana/generated/admin", "password")
 	require.Eventually(t, func() bool {
@@ -177,7 +177,7 @@ func TestSecretsReachConsumers(t *testing.T) {
 // admin role) is still there. Consumers keep their Secrets meanwhile; External Secrets retries the reads that fail
 // while the pod restarts
 func TestSecretsSurviveRestart(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 	sentinel := fmt.Sprint(time.Now().UnixNano())
 	admin(t, "kv", "put", "secret/smoke/restart", "value="+sentinel)
@@ -190,7 +190,7 @@ func TestSecretsSurviveRestart(t *testing.T) {
 // Role infra (OpenTofu's secrets, platform/infra-secrets) writes every branch except generated/, which it neither
 // reads nor writes
 func TestSecretsInfraRole(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 	grafanaAdmin(t) // pushed by now
 	defer admin(t, "kv", "metadata", "delete", "secret/grafana/infra-probe")
@@ -215,7 +215,7 @@ func TestSecretsInfraRole(t *testing.T) {
 // OpenTofu's WireGuard key (infra/sandbox/secrets) reaches OpenBao through platform/infra-secrets, and comes back after
 // its OpenBao value is lost
 func TestSecretsInfraPush(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 	want := secretValue(t, "infra-secrets", "wireguard.private-key", "private-key")
 	require.NotEmpty(t, want)
@@ -240,7 +240,7 @@ func TestSecretsInfraPush(t *testing.T) {
 // Generated secrets live only in OpenBao: no Secret in generated-secrets, a push again leaves every value as it is,
 // one entry's destinations hold the same value, and a destination deleted (a rotation) is written again
 func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 	options := k8s.NewKubectlOptions("", "", "generated-secrets")
 	options.Logger = logger.Discard
@@ -257,7 +257,7 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 	for _, file := range []string{"values.yaml", "values-local.yaml"} {
 		out, err := exec.Command("yq", "-o=json", "-I=0", "(.secrets // []) + (.extraSecrets // [])", "../platform/generated-secrets/"+file).Output()
 		require.NoError(t, err, file)
-		var entries []generatedEntry
+		var entries []gensecrets.Entry
 		require.NoError(t, json.Unmarshal(out, &entries), file)
 		for _, e := range entries {
 			for _, destination := range e.Destinations {
@@ -320,7 +320,7 @@ func TestSecretsGeneratedOnlyInOpenBao(t *testing.T) {
 
 // A path or property that cannot appear fails at once with OpenBao's message, not after generatedValue's 20 minutes
 func TestSecretsGeneratedValueErrors(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForUnsealed(t)
 	generatedValue(t, "grafana/generated/admin", "password") // pushed by now
 	_, err := baoValueE("grafana/generated/admin", "no-such-property")

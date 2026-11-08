@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base32"
 	"encoding/base64"
@@ -26,10 +25,10 @@ import (
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
+	"github.com/duongle-steven/homelab/test/internal/identity"
+	"github.com/duongle-steven/homelab/test/internal/restart"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,20 +52,6 @@ var testAccounts = []testAccount{
 	{"dev-outsider", ""},
 }
 
-// credentials of a sandbox test account, stored in a Secret so reruns can log in again
-type credentials struct {
-	Password   string `json:"password"`
-	TOTPSecret string `json:"totpSecret"` // base32 without padding
-	Algorithm  string `json:"algorithm"`  // sha1, sha256 or sha512
-	Digits     int    `json:"digits"`
-	Period     uint   `json:"period"`
-}
-
-// k3dNode is the sandbox's k3s node (infra/_modules/k3d/k3d.yaml). ServiceLB publishes the Gateway on its IP; the tests
-// connect there directly instead of through the localhost socat proxy, whose connects to :443 occasionally
-// stall for ~4.5 s and hang the browser.
-const k3dNode = "k3d-homelab-dev-server-0"
-
 // lookupGatewayAddress finds the address the environment's Gateway listens on once: the k3d node's IP in the sandbox,
 // the Gateway's VIP on testbed (config.json's service_vips.gateway). An error fails the tests that need it, not the
 // whole run.
@@ -74,11 +59,11 @@ var lookupGatewayAddress = sync.OnceValues(func() (string, error) {
 	if os.Getenv("ENV") == "testbed" {
 		return testbedGatewayVIP()
 	}
-	out, err := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", k3dNode).Output()
+	out, err := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", restart.K3dNode).Output()
 	if err != nil {
-		return "", fmt.Errorf("docker inspect %s: %w (is the sandbox running?)", k3dNode, err)
+		return "", fmt.Errorf("docker inspect %s: %w (is the sandbox running?)", restart.K3dNode, err)
 	}
-	return nodeAddressFromInspect(string(out))
+	return restart.NodeAddressFromInspect(string(out))
 })
 
 // gatewayAddress is the address the Gateway listens on, or fails the test.
@@ -86,15 +71,6 @@ func gatewayAddress(t *testing.T) string {
 	addr, err := lookupGatewayAddress()
 	require.NoError(t, err)
 	return addr
-}
-
-// nodeAddressFromInspect parses docker inspect's IP address output.
-func nodeAddressFromInspect(out string) (string, error) {
-	addr := strings.TrimSpace(out)
-	if net.ParseIP(addr) == nil {
-		return "", fmt.Errorf("no IP address for %s in %q", k3dNode, out)
-	}
-	return addr, nil
 }
 
 // dialGateway sends the environment's hosts (*.<suiteDomain>) to its Gateway (the sandbox's k3d node instead of the
@@ -142,21 +118,21 @@ func randomPassword(t *testing.T) string {
 }
 
 // ensureCredentials returns stored credentials, or enrols new ones with the reset token kaniop published.
-func ensureCredentials(t *testing.T, account string) credentials {
+func ensureCredentials(t *testing.T, account string) identity.Credentials {
 	stored, err := k8s.RunKubectlAndGetOutputE(t, quietKanidmNamespace(),
 		"get", "secret", credentialsSecret, "-o", "jsonpath={.data."+account+"}")
 	if err == nil && stored != "" {
 		raw, err := base64.StdEncoding.DecodeString(stored)
 		require.NoError(t, err)
-		var c credentials
+		var c identity.Credentials
 		require.NoError(t, json.Unmarshal(raw, &c))
 		return c
 	}
 
-	return enrol(t, account, resetToken(t, account), func(c credentials) { storeCredentials(t, account, c) })
+	return enrol(t, account, resetToken(t, account), func(c identity.Credentials) { storeCredentials(t, account, c) })
 }
 
-func storeCredentials(t *testing.T, account string, c credentials) {
+func storeCredentials(t *testing.T, account string, c identity.Credentials) {
 	encoded, err := json.Marshal(c)
 	require.NoError(t, err)
 	if _, err := k8s.RunKubectlAndGetOutputE(t, kanidmNamespace(), "get", "secret", credentialsSecret); err != nil {
@@ -228,7 +204,7 @@ func (s cuStatus) state() string {
 // enrol sets a password and a TOTP through Kanidm's credential update API (Kanidm requires MFA for persons).
 // store runs before the commit: if storing fails, the account keeps no credentials and kaniop issues a
 // new reset token once this one expires, instead of leaving credentials nobody knows.
-func enrol(t *testing.T, account, token string, store func(credentials)) credentials {
+func enrol(t *testing.T, account, token string, store func(identity.Credentials)) identity.Credentials {
 	var exchanged []json.RawMessage
 	kanidmPost(t, "/v1/credential/_exchange_intent", token, &exchanged)
 	require.Len(t, exchanged, 2)
@@ -241,7 +217,7 @@ func enrol(t *testing.T, account, token string, store func(credentials)) credent
 		return status
 	}
 
-	c := credentials{Password: randomPassword(t)}
+	c := identity.Credentials{Password: randomPassword(t)}
 	update(map[string]string{"password": c.Password})
 
 	generated := update("totpgenerate")
@@ -261,7 +237,7 @@ func enrol(t *testing.T, account, token string, store func(credentials)) credent
 	c.TOTPSecret = base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret)
 	c.Algorithm, c.Period, c.Digits = reg.TotpCheck.Algo, reg.TotpCheck.Step, reg.TotpCheck.Digits
 
-	code, err := strconv.Atoi(clock.code(t, account, c))
+	code, err := strconv.Atoi(clock.Code(t, account, c))
 	require.NoError(t, err)
 	verified := update(map[string][]any{"totpverify": {code, "smoke-test"}})
 	if verified.state() == "TotpInvalidSha1" {
@@ -274,39 +250,7 @@ func enrol(t *testing.T, account, token string, store func(credentials)) credent
 	return c
 }
 
-func totpCode(t *testing.T, c credentials, at time.Time) string {
-	algorithms := map[string]otp.Algorithm{"sha1": otp.AlgorithmSHA1, "sha256": otp.AlgorithmSHA256, "sha512": otp.AlgorithmSHA512}
-	algorithm, ok := algorithms[c.Algorithm]
-	require.True(t, ok, "unknown TOTP algorithm %q", c.Algorithm)
-	digits := otp.DigitsSix
-	if c.Digits == 8 {
-		digits = otp.DigitsEight
-	}
-	code, err := totp.GenerateCodeCustom(c.TOTPSecret, at, totp.ValidateOpts{Period: c.Period, Digits: digits, Algorithm: algorithm})
-	require.NoError(t, err)
-	return code
-}
-
-// totpClock hands out codes from a step not used before, because Kanidm rejects a reused step.
-type totpClock struct {
-	now   func() time.Time
-	sleep func(time.Duration)
-	last  map[string]uint64
-}
-
-var clock = &totpClock{now: time.Now, sleep: time.Sleep, last: map[string]uint64{}}
-
-func (k *totpClock) code(t *testing.T, account string, c credentials) string {
-	for {
-		now := k.now()
-		step := uint64(now.Unix()) / uint64(c.Period)
-		if step > k.last[account] {
-			k.last[account] = step
-			return totpCode(t, c, now)
-		}
-		k.sleep(time.Duration(uint64(c.Period)-uint64(now.Unix())%uint64(c.Period)) * time.Second)
-	}
-}
+var clock = &identity.TOTPClock{Now: time.Now, Sleep: time.Sleep, Last: map[string]uint64{}}
 
 // newBrowser starts headless chromium that resolves the environment's hosts to its Gateway.
 func newBrowser(t *testing.T) (context.Context, func()) {
@@ -352,27 +296,16 @@ func sendKeys(selector, keys string) chromedp.ActionFunc {
 
 // kanidmLogin completes Kanidm's login form, which the browser must already show.
 // Kanidm asks for the TOTP code before the password.
-func kanidmLogin(t *testing.T, ctx context.Context, account string, c credentials, password string) {
+func kanidmLogin(t *testing.T, ctx context.Context, account string, c identity.Credentials, password string) {
 	browserStep(t, ctx, "username", account, sendKeys(`input#username`, account+"\n"), chromedp.WaitVisible(`input#totp`))
-	browserStep(t, ctx, "totp", account, sendKeys(`input#totp`, clock.code(t, account, c)+"\n"), chromedp.WaitVisible(`input#password`))
+	browserStep(t, ctx, "totp", account, sendKeys(`input#totp`, clock.Code(t, account, c)+"\n"), chromedp.WaitVisible(`input#password`))
 	browserStep(t, ctx, "password", account, sendKeys(`input#password`, password+"\n"))
-}
-
-// pkcePair returns a random PKCE verifier and its S256 challenge; Kanidm requires PKCE for every client.
-func pkcePair() (string, string) {
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
-		panic(err)
-	}
-	verifier := base64.RawURLEncoding.EncodeToString(raw)
-	sum := sha256.Sum256([]byte(verifier))
-	return verifier, base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 // browserAuthorize logs in to Kanidm with the given password for the sandbox client smoke. It returns the
 // code sent to the smoke client and the PKCE verifier, or an empty code and the text of the page the browser
 // ended on.
-func browserAuthorize(t *testing.T, account string, c credentials, password string) (string, string, string) {
+func browserAuthorize(t *testing.T, account string, c identity.Credentials, password string) (string, string, string) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -388,7 +321,7 @@ func browserAuthorize(t *testing.T, account string, c credentials, password stri
 		}
 	})
 
-	verifier, challenge := pkcePair()
+	verifier, challenge := identity.PKCEPair()
 	authURL := kanidmURL + "/ui/oauth2?" + url.Values{
 		"client_id":             {"smoke"},
 		"redirect_uri":          {smokeRedirect},
@@ -448,7 +381,7 @@ func openLogin(t *testing.T, ctx context.Context, account, startURL string) {
 
 // appLogin opens an app's SSO entry point, logs in through Kanidm, waits until the browser is back
 // on appHost (outside any callback or login path) and returns the cookies the app set.
-func appLogin(t *testing.T, account string, c credentials, startURL, appHost string) []*http.Cookie {
+func appLogin(t *testing.T, account string, c identity.Credentials, startURL, appHost string) []*http.Cookie {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -517,7 +450,7 @@ func waitForPage(t *testing.T, ctx context.Context, markers ...string) string {
 
 // browserDenied opens an app's SSO entry point, logs in to Kanidm and returns the page Kanidm ends on
 // (expected: "Access Denied" for an account outside the app's access group).
-func browserDenied(t *testing.T, account string, c credentials, startURL string) string {
+func browserDenied(t *testing.T, account string, c identity.Credentials, startURL string) string {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 	openLogin(t, ctx, account, startURL)
@@ -527,7 +460,7 @@ func browserDenied(t *testing.T, account string, c credentials, startURL string)
 
 // actualOpenIDLogin follows Actual Budget's OpenID login from the IdP URL that /account/login returned. It
 // returns the Actual session token from the /openid-cb redirect, or an empty token and Kanidm's page.
-func actualOpenIDLogin(t *testing.T, account string, c credentials, idpURL, appBase string) (string, string) {
+func actualOpenIDLogin(t *testing.T, account string, c identity.Credentials, idpURL, appBase string) (string, string) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 	tokens := make(chan string, 1)
@@ -562,7 +495,7 @@ func actualOpenIDLogin(t *testing.T, account string, c credentials, idpURL, appB
 // openCloudLogin opens OpenCloud's web UI, logs in through Kanidm (accepting the consent page of the public
 // client) and returns the bearer token the web UI then sends to the Graph API. The web UI keeps its tokens in
 // the browser, so there are no session cookies to reuse.
-func openCloudLogin(t *testing.T, account string, c credentials, appBase string) string {
+func openCloudLogin(t *testing.T, account string, c identity.Credentials, appBase string) string {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 	tokens := make(chan string, 1)
@@ -613,7 +546,7 @@ func openCloudLogin(t *testing.T, account string, c credentials, appBase string)
 // openCloudAuthorizeURL is the authorization request OpenCloud's web UI sends to Kanidm, with a throwaway
 // PKCE challenge: Kanidm refuses accounts outside homelab-files before redirecting back.
 func openCloudAuthorizeURL(appBase string) string {
-	_, challenge := pkcePair()
+	_, challenge := identity.PKCEPair()
 	return kanidmURL + "/ui/oauth2?" + url.Values{
 		"client_id":             {"opencloud"},
 		"redirect_uri":          {appBase + "/oidc-callback.html"},

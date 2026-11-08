@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -15,42 +14,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duongle-steven/homelab/test/internal/routes"
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGatewayRouteReady(t *testing.T) {
-	both := `{"type":"Accepted","status":"True"},{"type":"ResolvedRefs","status":"True"}`
-	cases := map[string]struct {
-		route string
-		want  bool
-	}{
-		"accepted with resolved backends": {`{"spec":{"hostnames":["a.example"]},"status":{"parents":[{"conditions":[` + both + `]}]}}`, true},
-		"not reconciled yet":              {`{"spec":{"hostnames":["a.example"]}}`, false},
-		"backend missing":                 {`{"spec":{"hostnames":["a.example"]},"status":{"parents":[{"conditions":[{"type":"Accepted","status":"True"},{"type":"ResolvedRefs","status":"False"}]}]}}`, false},
-		"one parent refused":              {`{"spec":{"hostnames":["a.example"]},"status":{"parents":[{"conditions":[` + both + `]},{"conditions":[{"type":"Accepted","status":"False"},{"type":"ResolvedRefs","status":"True"}]}]}}`, false},
-		"no hostname":                     {`{"status":{"parents":[{"conditions":[` + both + `]}]}}`, false},
-	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			var r httpRoute
-			require.NoError(t, json.Unmarshal([]byte(c.route), &r))
-			assert.Equal(t, c.want, r.ready())
-		})
-	}
-}
-
-func TestGatewayNodeAddressFromInspect(t *testing.T) {
-	addr, err := nodeAddressFromInspect("172.18.0.2\n")
-	require.NoError(t, err)
-	assert.Equal(t, "172.18.0.2", addr)
-	_, err = nodeAddressFromInspect("\n")
-	assert.Error(t, err, "no address: the k3d node is not running")
-	_, err = nodeAddressFromInspect("not-an-ip")
-	assert.Error(t, err)
-}
-
-func gatewaySandboxOnly(t *testing.T) { localOnly(t) }
+func gatewaySandboxOnly(t *testing.T) { testenv.LocalOnly(t) }
 
 // gateway is the part of a Gateway API Gateway the tests read.
 type gateway struct {
@@ -58,7 +28,7 @@ type gateway struct {
 		Addresses []struct {
 			Value string `json:"value"`
 		} `json:"addresses"`
-		Conditions []condition `json:"conditions"`
+		Conditions []routes.Condition `json:"conditions"`
 	} `json:"status"`
 }
 
@@ -70,7 +40,7 @@ func TestGatewayProgrammed(t *testing.T) {
 			var gw gateway
 			require.Eventually(t, func() bool {
 				gw = gateway{}
-				return getResource(t, "istio-system", &gw, "gateway", name) && conditionsMet(gw.Status.Conditions, "Accepted", "Programmed")
+				return getResource(t, "istio-system", &gw, "gateway", name) && routes.ConditionsMet(gw.Status.Conditions, "Accepted", "Programmed")
 			}, 20*time.Minute, 15*time.Second, "Gateway %s is not programmed", name)
 			require.NotEmpty(t, gw.Status.Addresses)
 			if name == "gateway" {
@@ -175,7 +145,7 @@ func TestGatewayZotLargePush(t *testing.T) {
 // admin app's route there must stay refused, a listed one accepted
 func TestGatewayPublicAllowList(t *testing.T) {
 	gatewaySandboxOnly(t)
-	host := "public-allow-probe." + testDomain(t)
+	host := "public-allow-probe." + testenv.SuiteDomain(t)
 	route := func(namespace string) string {
 		return `apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

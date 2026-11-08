@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"text/template"
 	"time"
 
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,7 +47,7 @@ func ntfyToken(t *testing.T, user string) string {
 
 // Published through the Tunnel in production: nothing without credentials
 func TestNtfyDeniesAnonymous(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForNtfy(t)
 	status, _ := ntfyRequest(t, http.MethodPost, "/alerts", "", "anonymous")
 	assert.Equal(t, http.StatusForbidden, status, "anonymous publish")
@@ -59,7 +59,7 @@ func TestNtfyDeniesAnonymous(t *testing.T) {
 
 // phone reads topic alerts and cannot publish; alerts publishes and cannot read
 func TestNtfyUsers(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForNtfy(t)
 	phone, alerts := ntfyToken(t, "phone"), ntfyToken(t, "alerts")
 	status, _ := ntfyRequest(t, http.MethodPost, "/alerts", phone, "from phone")
@@ -108,7 +108,7 @@ func ntfyMessage(t *testing.T, marker string) map[string]any {
 
 // An alert posted to Alertmanager reaches topic alerts through ntfy's alertmanager template
 func TestNtfyAlertmanagerDelivers(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForNtfy(t)
 	name := fmt.Sprint("NtfyTest", time.Now().UnixNano())
 	postAlert(t, name, "warning")
@@ -117,7 +117,7 @@ func TestNtfyAlertmanagerDelivers(t *testing.T) {
 
 // Critical alerts arrive with ntfy's highest priority, so they stand out on phones
 func TestNtfyAlertmanagerCriticalPriority(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForNtfy(t)
 	name := fmt.Sprint("NtfyCritical", time.Now().UnixNano())
 	postAlert(t, name, "critical")
@@ -126,35 +126,11 @@ func TestNtfyAlertmanagerCriticalPriority(t *testing.T) {
 
 // The Watchdog keeps a delayed message scheduled (sequence watchdog): it fires only if heartbeats stop
 func TestNtfyWatchdogScheduled(t *testing.T) {
-	secretsSandboxOnly(t)
+	testenv.SecretsSandboxOnly(t)
 	waitForNtfy(t)
 	phone := ntfyToken(t, "phone")
 	assert.Eventually(t, func() bool {
 		status, body := ntfyRequest(t, http.MethodGet, "/alerts/json?poll=1&sched=1", phone, "")
 		return status == http.StatusOK && strings.Contains(body, "Monitoring heartbeat missing")
 	}, 10*time.Minute, 15*time.Second, "no scheduled watchdog message")
-}
-
-// During a rotation a user's previous token is listed beside the new one (ntfy accepts several tokens per user), so
-// readers still holding the old one keep publishing until it is revoked (step 11b)
-func TestNtfyAcceptsPreviousToken(t *testing.T) {
-	auth := renderVelero(t, "apps/ntfy.yaml", "", `select(.kind == "ExternalSecret" and .metadata.name == "ntfy-auth") | .spec`)
-	tokens := renderVelero(t, "apps/ntfy.yaml", "", `select(.kind == "ExternalSecret" and .metadata.name == "ntfy-auth") | .spec.target.template.data.NTFY_AUTH_TOKENS`)
-	// Each token path is extracted whole, its keys prefixed with the user: previous_token appears only during a rotation
-	for _, user := range []string{"alerts", "phone"} {
-		assert.Contains(t, auth, "key: ntfy/generated/"+user+"-token", user)
-		assert.Contains(t, auth, "target: "+user+"_$1", user)
-	}
-	tmpl, err := template.New("tokens").Parse(tokens)
-	require.NoError(t, err)
-	render := func(data map[string]string) string {
-		var b strings.Builder
-		require.NoError(t, tmpl.Execute(&b, data))
-		return b.String()
-	}
-	assert.Equal(t, "alerts:tk_new,phone:tk_p", render(map[string]string{"alerts_token": "new", "phone_token": "p"}))
-	assert.Equal(t, "alerts:tk_new,alerts:tk_old,phone:tk_p",
-		render(map[string]string{"alerts_token": "new", "alerts_previous_token": "old", "phone_token": "p"}))
-	assert.Equal(t, "alerts:tk_a,phone:tk_new,phone:tk_old",
-		render(map[string]string{"alerts_token": "a", "phone_token": "new", "phone_previous_token": "old"}))
 }

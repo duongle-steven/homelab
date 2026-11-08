@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +44,7 @@ func TestMeshOptOutAllowed(t *testing.T) {
 	assert.False(t, optOutAllowed("excalidraw", "excalidraw"))
 }
 
-func meshSandboxOnly(t *testing.T) { localOnly(t) }
+func meshSandboxOnly(t *testing.T) { testenv.LocalOnly(t) }
 
 type meshPod struct {
 	Metadata struct {

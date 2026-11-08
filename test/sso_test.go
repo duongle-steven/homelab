@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,7 @@ var (
 )
 
 func skipUnlessSandbox(t *testing.T) {
-	localOnly(t)
+	testenv.LocalOnly(t)
 	waitForIdentityStack(t)
 }
 

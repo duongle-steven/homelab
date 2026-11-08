@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
@@ -75,7 +76,7 @@ func permanentBaoError(err error) bool {
 // TestForgejoDeploy runs lab infra forgejo sync twice and push, as just infra deploy production does, against the
 // sandbox's Forgejo, then checks what production relies on.
 func TestForgejoDeploy(t *testing.T) {
-	localOnly(t)
+	testenv.LocalOnly(t)
 	waitForApp(t, "https://"+forgejoHost+"/api/healthz")
 	lab(t, "infra", "forgejo", "sync", "--env", labEnv)
 	deploy, argocd := baoValue(t, "forgejo/deploy", "token"), baoValue(t, "argocd/forgejo", "token")
@@ -151,7 +152,7 @@ func TestForgejoDeploy(t *testing.T) {
 // allow for its repo server. A temporary Application proves that path; the switch of a whole cluster from the seed happens
 // once and stays unproven (docs/superpowers/specs/2026-11-02-testbed-design.md)
 func TestForgejoArgoCDSyncs(t *testing.T) {
-	localOnly(t)
+	testenv.LocalOnly(t)
 	waitForApp(t, "https://"+forgejoHost+"/api/healthz")
 	lab(t, "infra", "forgejo", "sync", "--env", labEnv)
 	lab(t, "infra", "forgejo", "push", "--env", labEnv)

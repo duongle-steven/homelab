@@ -9,13 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func logsSandboxOnly(t *testing.T) { secretsSandboxOnly(t) }
 
 type lokiEntry struct {
 	Labels map[string]string
@@ -57,7 +56,7 @@ func lokiQuery(t *testing.T, query string, since time.Duration) ([]lokiEntry, er
 
 // Grafana queries Loki through its data source (uid loki), in the sandbox too
 func TestLogsGrafanaDataSource(t *testing.T) {
-	logsSandboxOnly(t)
+	testenv.LogsSandboxOnly(t)
 	password := secretValue(t, "grafana", "grafana-admin", "admin-password")
 	require.Eventually(t, func() bool {
 		var health struct {
@@ -70,7 +69,7 @@ func TestLogsGrafanaDataSource(t *testing.T) {
 
 // Prometheus scrapes Loki and Alloy
 func TestLogsTargetsUp(t *testing.T) {
-	logsSandboxOnly(t)
+	testenv.LogsSandboxOnly(t)
 	assert.Eventually(t, func() bool {
 		metrics, err := prometheusQuery(t, `count by (job) (up{namespace="loki"} == 1)`)
 		if err != nil {
@@ -118,7 +117,7 @@ func markerEntries(t *testing.T, pod, marker string) []lokiEntry {
 
 // A pod's line reaches Loki once, with its labels
 func TestLogsPodLines(t *testing.T) {
-	logsSandboxOnly(t)
+	testenv.LogsSandboxOnly(t)
 	options := logPod(t, "lines")
 	marker := fmt.Sprint("logs-marker-", time.Now().UnixNano())
 	printTo(t, options, "lines", marker)
@@ -140,7 +139,7 @@ func TestLogsPodLines(t *testing.T) {
 
 // A restarted Alloy resumes from its positions: no line lost, none repeated
 func TestLogsResumeAfterRestart(t *testing.T) {
-	logsSandboxOnly(t)
+	testenv.LogsSandboxOnly(t)
 	options := logPod(t, "resume")
 	first := fmt.Sprint("logs-first-", time.Now().UnixNano())
 	printTo(t, options, "resume", first)
@@ -159,7 +158,7 @@ func TestLogsResumeAfterRestart(t *testing.T) {
 
 // Kubernetes events land in Loki (kept 30 days instead of the API server's hour)
 func TestLogsEvents(t *testing.T) {
-	logsSandboxOnly(t)
+	testenv.LogsSandboxOnly(t)
 	logPod(t, "events")
 	require.Eventually(t, func() bool {
 		entries, err := lokiQuery(t, fmt.Sprintf(`{job="kubernetes-events", namespace=%q} |= "events"`, logsNamespace), time.Hour)
@@ -178,7 +177,7 @@ func TestLogsEvents(t *testing.T) {
 // Lines read while Loki is unreachable survive a restart of Alloy (its write-ahead log on the host) and arrive once
 // Loki is back
 func TestLogsSurviveLokiOutage(t *testing.T) {
-	logsSandboxOnly(t)
+	testenv.LogsSandboxOnly(t)
 	options := logPod(t, "outage")
 	loki := k8s.NewKubectlOptions("", "", "loki")
 	// Argo CD does not prune what it does not manage: this policy lives only for the test

@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duongle-steven/homelab/test/internal/clusterscan"
+	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
@@ -151,7 +153,7 @@ stringData: {value: %s}
 	raw, err := exec.Command("ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "root@"+ips[names[0]],
 		fmt.Sprintf("etcdctl --endpoints https://127.0.0.1:2379 --cacert %[1]s/server-ca.crt --cert %[1]s/server-client.crt --key %[1]s/server-client.key get /registry/secrets/kube-system/%[2]s --print-value-only", tls, name)).Output()
 	require.NoError(t, err)
-	require.NoError(t, secretIsEncrypted(raw, value))
+	require.NoError(t, clusterscan.SecretIsEncrypted(raw, value))
 }
 
 // Three k3s servers, each an etcd member that sees a leader
@@ -352,7 +354,7 @@ func testbedMeshWorks(t *testing.T) {
 
 	vip, err := testbedGatewayVIP()
 	require.NoError(t, err)
-	host := "probe." + testDomain(t)
+	host := "probe." + testenv.SuiteDomain(t)
 	var answer, issuer []byte
 	if !assert.Eventually(t, func() bool {
 		answer, err = exec.Command("curl", "-sk", "-m", "10", "-o", "/dev/null", "-w", "%{http_code}", "--resolve", host+":80:"+vip, "http://"+host+"/").CombinedOutput()

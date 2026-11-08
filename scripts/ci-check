@@ -4,7 +4,6 @@
 # changed since $BASE (default origin/dev; lab test charts).
 set -eu
 cd "$(git rev-parse --show-toplevel)"
-offline_tests='TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestNodePowerCutBlockers|TestIstioCNIWatchdog|TestState|TestArgoCD(Revision|RootPreservesResources|BackupEndpoint)|TestArgoCDServiceMonitors|TestArgoCDChooseValues|TestJustDevRevision|TestJustInfraDeploy|TestGeneratedSecrets|TestKeptValue|TestRenovate|TestWoodpeckerRender|TestKialiRender|TestSetSandboxApps|TestSandboxWorkflowsAllApps|TestOptionalAppState|TestCheckLeaks|TestCheckIaC|TestCheckImages|TestCheckPolicy|TestWoodpeckerForgejoTeams|TestForgejoDatabaseBeforeForgejo|TestCheckBackupGroups|TestVeleroRender|TestVeleroLocationEndpoint|TestOpenBaoSnapshotJob|TestVeleroPrune|TestVeleroSnapshots|TestArgoCDBackupSync|TestExternalSecretsWebhookIgnoredWhileDown|TestCSIHostPathDataOnNodeDisk|TestNtfyAcceptsPreviousToken|TestSecretsCronJobRender|TestAlertmanagerTelegramProductionOnly|TestAlertmanagerDevReceiversFollowProduction|TestAuditPolicyRender|TestSecurityLogsRetention|TestSecurityLogsRules|TestCheckWorkflows|TestZizmorIgnoresHaveReasons|TestLabImagePolicy|TestTrivyOperatorRender|TestReleasePathsExist|TestValuesLayers|TestWaitNamespaceRetries|TestTestDomain|TestEnvDomainRefusesProduction|TestMetal|TestOldEnvironmentNameGone|TestClusterStartup|TestScan(AcceptedRefused|ReportsRefused|BenchDecided|KubescapeDecided|HardeningFlags|NarrowedRBAC)|TestSecretIsEncrypted|TestPublicRoutes|TestCloudflareEdgeRules|TestPublicScan(Targets|Accepted|AcceptedPerHost|RateBelowLimit|Script|Report|RuleRender|ChallengedMidRun|ReportUnreadable)|TestTestbed(Layers|VMsDefaults|ArgoCDLimitsTheFirstSync|NixieOneAtATime|TrustWaitsForBoot)'
 checks='render go cli infra docs mesh backup-groups rotation-catalog env-config secret-stores lint leaks iac images policy workflows'
 
 check() {
@@ -16,9 +15,10 @@ check() {
 				scripts/render-chart "$t" >/dev/null
 				scripts/render-chart "$t" dev >/dev/null
 			done ;;
-		# -count=1: the offline tests run scripts and just, whose files go test's cache does not see; -timeout 20m: they take close to go test's default 10 minutes on a busy workstation
+		# The offline tests are test/offline and test/internal's packages (test/ itself holds the cluster tests, which go vet
+		# compiles). -count=1: the offline tests run scripts and just, whose files go test's cache does not see; -timeout 20m: they take close to go test's default 10 minutes on a busy workstation
 		go) (cd test && unformatted=$(gofmt -l .) && { [ -z "$unformatted" ] || { echo "gofmt: $unformatted" >&2; exit 1; }; } &&
-			go vet ./... && go test -count=1 -timeout 20m -run "$offline_tests" ./...) ;;
+			go vet ./... && go test -count=1 -timeout 20m ./offline/... ./internal/...) ;;
 		cli) just cli::test cli::check ;;
 		infra) env -u HOMELAB_STATE_PASSPHRASE just infra check ;;
 		docs) mkdocs build --strict ;;
