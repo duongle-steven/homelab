@@ -1,6 +1,6 @@
 #!/bin/sh
 # Mark a commit as proved by an environment: a GitHub commit status named after it, which lab infra forgejo verify looks
-# for when production's config.json names that environment in release_proof (docs/installation/testbed.md). make testbed
+# for when production's config.json names that environment in release_proof (docs/installation/testbed.md). just testbed
 # runs it once every test passed; verify --skip-proof records its reason under <environment>/skipped, which is no proof.
 # Uses gh's own login.
 # Usage: scripts/mark-proof <environment> <commit> [description]

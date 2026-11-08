@@ -3,7 +3,7 @@
 # GitHub Actions workflows; a basic check (scripts/ci-check lint)
 set -eu
 cd "$(git rev-parse --show-toplevel)"
-# Tracked files only: make dev writes git-ignored YAML (kubeconfigs, CRD downloads) that is not ours to lint
+# Tracked files only: just dev writes git-ignored YAML (kubeconfigs, CRD downloads) that is not ours to lint
 git ls-files -z '*.yaml' '*.yml' | xargs -0 yamllint -s
 # Every tracked file whose first line is a sh or bash shebang, NUL-separated so any path works
 # shellcheck disable=SC2016 # the inner script expands its own "$f"

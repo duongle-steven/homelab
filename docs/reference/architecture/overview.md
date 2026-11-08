@@ -32,7 +32,7 @@ Support components:
 
 ## Provisioning flow
 
-Everything is automated, after you edit the configuration files, you just need to run a single `make` command and it will:
+Everything is automated, after you edit the configuration files, you just need to run a single `just infra deploy production` command and it will:
 
 - (1) Apply the `metal` unit (`infra/<env>/metal`):
     - Create an ephemeral, stateless PXE server (`nixie`)
@@ -83,7 +83,7 @@ flowchart TD
     paperless[Paperless]
   end
 
-  make[Run make] -- 1 --> metal -- 2 --> system -. 3 .-> platform -. 4 .-> apps
+  just[Run just infra deploy] -- 1 --> metal -- 2 --> system -. 3 .-> platform -. 4 .-> apps
 ```
 
 Logs: Alloy on every node reads the pods' logs and the cluster's events into Loki (`system/loki`), which Grafana queries

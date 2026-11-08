@@ -42,7 +42,7 @@ func TestRepositoryMap(t *testing.T) {
 		{"apps/blog.yaml", "Smoke", ""},
 		{"system/kured/values.yaml", "Smoke", ""},
 		{"test/state_rotation_test.go", "", ""},
-		{"Makefile", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
+		{"justfile", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
 		{"scripts/something-new", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
 	} {
 		s, err := c.Select([]string{tc.file}, FileTests(root))

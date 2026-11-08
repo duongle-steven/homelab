@@ -39,7 +39,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | mesh watchdog | A failed `kubectl get events` turns the second signal off without a log line | any |
 | mesh watchdog | Events with only `eventTime` (no `lastTimestamp`, if the kubelet changes recorders) are skipped: fall back to `eventTime` without its fraction (BusyBox `date -D`) | any |
 | mesh watchdog | `TestIstioCNIWatchdog` runs the script with the host's `sh` and GNU `date`, not BusyBox's | any |
-| 14a | `just dev --tests ` with a single quote breaks the recipe's `eval` quoting | any |
 | 14a | The test scopes spec's map table still lists `scripts/check-*`, `render-chart` and `cli/**` as Smoke only; `test/scopes.yaml` skips them | any |
 | 14a | `lab test scope --check` covers only `components` globs: top-level files, `test/` non-test files, `metal/` and `cli/` are not checked (a new file there runs the whole suite) | any |
 | 14a | `scope.SplitTerms` ignores escaped parentheses and an alternation sign inside a character class; no term uses them yet | any |
