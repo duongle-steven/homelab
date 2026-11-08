@@ -16,6 +16,10 @@ scripts/ci-check all
 
 `render` renders the charts the branch changes, uncommitted changes included (`cd cli && go run ./cmd/lab test charts` lists them).
 
+`go` vets the whole suite and runs the offline tests: packages `test/offline` (renders, scripts, checks) and
+`test/internal/*` (the helpers both sides use). `test/` itself holds only the tests that need a cluster, which `just dev`
+runs: a test that needs none goes in `test/offline`, and runs in the basic checks by being there.
+
 ## Detection (step 15a)
 
 Four jobs look for what a change brings that should not reach `dev`. Kubernetes manifests (privileged, root, RBAC)
