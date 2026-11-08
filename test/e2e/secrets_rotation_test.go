@@ -18,7 +18,7 @@ import (
 // rotateSecrets runs lab secrets rotate on the sandbox for names (no off-site backup is needed there)
 func rotateSecrets(t *testing.T, names ...string) string {
 	t.Helper()
-	return lab(t, append(append([]string{"secrets", "rotate"}, names...), "--env", labEnv, "--yes", "--skip-backup-check=sandbox test")...)
+	return lab(context.TODO(), append(append([]string{"secrets", "rotate"}, names...), "--env", labEnv, "--yes", "--skip-backup-check=sandbox test")...)
 }
 
 func grafanaStatus(password string) int {
@@ -62,7 +62,7 @@ func TestRotation(t *testing.T) {
 
 	t.Run("forgejo token", func(t *testing.T) {
 		waitForApp(context.TODO(), "https://"+forgejoHost+"/api/healthz")
-		lab(t, "infra", "forgejo", "sync", "--env", labEnv)
+		lab(context.TODO(), "infra", "forgejo", "sync", "--env", labEnv)
 		old := generatedValue(context.TODO(), "argocd/forgejo", "token")
 		rotateSecrets(t, "forgejo.argocd-token")
 		next := generatedValue(context.TODO(), "argocd/forgejo", "token")
@@ -77,7 +77,7 @@ func TestRotation(t *testing.T) {
 		assert.Eventually(t, func() bool { return secretValue(context.TODO(), "argocd", "argocd-repo-forgejo", "password") == next },
 			5*time.Minute, 5*time.Second, "argocd-repo-forgejo still holds the old token")
 		// lab infra forgejo sync keeps it
-		lab(t, "infra", "forgejo", "sync", "--env", labEnv)
+		lab(context.TODO(), "infra", "forgejo", "sync", "--env", labEnv)
 		assert.True(t, next == generatedValue(context.TODO(), "argocd/forgejo", "token"), "sync replaced the rotated token")
 	})
 
@@ -91,7 +91,7 @@ func TestRotation(t *testing.T) {
 	t.Run("woodpecker agent", func(t *testing.T) {
 		// The token lab uses, as a person makes it once (docs/how-to-guides/woodpecker.md); dev-admin is the sandbox's
 		// Woodpecker admin
-		token := woodpeckerToken(t, "dev-admin")
+		token := woodpeckerToken(context.TODO(), "dev-admin")
 		baoPutStdin(context.TODO(), "woodpecker/admin-token", "token", token)
 		// Finishes a rotation an earlier run left interrupted, which already holds its new value
 		rotateSecrets(t, "woodpecker.agent")
@@ -99,7 +99,7 @@ func TestRotation(t *testing.T) {
 		rotateSecrets(t, "woodpecker.agent")
 		require.False(t, old == generatedValue(context.TODO(), "woodpecker/generated/agent", "secret"), "the value did not change")
 		assert.Eventually(t, func() bool {
-			status, raw := woodpeckerRequest(t, http.MethodGet, "/api/agents", token, nil, nil)
+			status, raw := woodpeckerRequest(context.TODO(), http.MethodGet, "/api/agents", token, nil, nil)
 			var agents []map[string]any
 			return status == http.StatusOK && json.Unmarshal(raw, &agents) == nil && len(agents) > 0
 		}, 5*time.Minute, 5*time.Second, "no agent registered with the new secret")
@@ -113,7 +113,7 @@ func TestRotation(t *testing.T) {
 		// production)
 		defer baoPutMeta(t, "rotation/ntfy.phone-token", map[string]string{"rotation-phase": "done", "rotation-method": "ntfy-overlap",
 			"rotated-by": "test", "rotated-at": time.Now().UTC().Format(time.RFC3339)})
-		out := lab(t, "secrets", "rotate", "--all", "--env", labEnv, "--yes", "--skip-backup-check=sandbox test")
+		out := lab(context.TODO(), "secrets", "rotate", "--all", "--env", labEnv, "--yes", "--skip-backup-check=sandbox test")
 		results := out[strings.LastIndex(out, "Results:"):]
 		assert.NotContains(t, results, "failed")
 		assert.NotContains(t, results, "not started")
@@ -206,8 +206,8 @@ func dailyBackup(t *testing.T) {
 	}
 	kubectlJSON(context.TODO(), &schedule, "-n", "velero", "get", "schedules.velero.io", "daily")
 	// A new cluster is read-only until lab backup enable; it is read-only again afterwards, as TestBackupRestore expects
-	lab(t, "backup", "enable", "--yes", "--env", labEnv)
-	defer lab(t, "backup", "disable", "--yes", "--env", labEnv)
+	lab(context.TODO(), "backup", "enable", "--yes", "--env", labEnv)
+	defer lab(context.TODO(), "backup", "disable", "--yes", "--env", labEnv)
 	name := fmt.Sprintf("daily-rotation-%d", time.Now().Unix())
 	manifest, err := json.Marshal(map[string]any{
 		"apiVersion": "velero.io/v1", "kind": "Backup",

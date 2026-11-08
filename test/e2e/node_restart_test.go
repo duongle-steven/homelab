@@ -235,13 +235,13 @@ func TestNodePowerCut(t *testing.T) {
 	// Markers are test strings, never secrets
 	marker := fmt.Sprint("power-cut-", time.Now().UnixNano())
 	repo := "/repos/" + secretValue(context.TODO(), "forgejo", "forgejo-admin", "username") + "/power-cut"
-	forgejoAs(t, "", "DELETE", repo, nil, nil)
-	require.Equal(t, http.StatusCreated, forgejoAs(t, "", "POST", "/user/repos", map[string]any{"name": "power-cut"}, nil))
-	defer forgejoAs(t, "", "DELETE", repo, nil, nil)
+	forgejoAs(context.TODO(), "", "DELETE", repo, nil, nil)
+	require.Equal(t, http.StatusCreated, forgejoAs(context.TODO(), "", "POST", "/user/repos", map[string]any{"name": "power-cut"}, nil))
+	defer forgejoAs(context.TODO(), "", "DELETE", repo, nil, nil)
 	var issue struct {
 		Number int `json:"number"`
 	}
-	require.Equal(t, http.StatusCreated, forgejoAs(t, "", "POST", repo+"/issues", map[string]any{"title": marker}, &issue))
+	require.Equal(t, http.StatusCreated, forgejoAs(context.TODO(), "", "POST", repo+"/issues", map[string]any{"title": marker}, &issue))
 	status, body := ntfyRequest(context.TODO(), http.MethodPost, "/alerts", ntfyToken(context.TODO(), "alerts"), marker)
 	require.Equal(t, http.StatusOK, status, body)
 	admin(context.TODO(), "kv", "put", "secret/smoke/power-cut", "value="+marker)
@@ -273,7 +273,7 @@ func TestNodePowerCut(t *testing.T) {
 	var got struct {
 		Title string `json:"title"`
 	}
-	assert.Equal(t, http.StatusOK, forgejoAs(t, "", "GET", fmt.Sprintf("%s/issues/%d", repo, issue.Number), nil, &got))
+	assert.Equal(t, http.StatusOK, forgejoAs(context.TODO(), "", "GET", fmt.Sprintf("%s/issues/%d", repo, issue.Number), nil, &got))
 	assert.Equal(t, marker, got.Title, "Forgejo's issue")
 	status, body = ntfyRequest(context.TODO(), http.MethodGet, "/alerts/json?poll=1&since=1h", ntfyToken(context.TODO(), "phone"), "")
 	assert.Equal(t, http.StatusOK, status)

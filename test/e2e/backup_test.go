@@ -92,21 +92,21 @@ func TestBackupRestore(t *testing.T) {
 	var created struct {
 		FullName string `json:"full_name"`
 	}
-	require.Equal(t, 201, forgejoAs(t, "", "POST", "/user/repos", map[string]any{"name": repo, "auto_init": true, "private": true}, &created))
+	require.Equal(t, 201, forgejoAs(context.TODO(), "", "POST", "/user/repos", map[string]any{"name": repo, "auto_init": true, "private": true}, &created))
 	owner := strings.Split(created.FullName, "/")[0]
-	t.Cleanup(func() { forgejoAs(t, "", "DELETE", "/repos/"+owner+"/"+repo, nil, nil) })
+	t.Cleanup(func() { forgejoAs(context.TODO(), "", "DELETE", "/repos/"+owner+"/"+repo, nil, nil) })
 	var commits []struct{ SHA string }
-	require.Equal(t, 200, forgejoAs(t, "", "GET", "/repos/"+owner+"/"+repo+"/commits", nil, &commits))
+	require.Equal(t, 200, forgejoAs(context.TODO(), "", "GET", "/repos/"+owner+"/"+repo+"/commits", nil, &commits))
 	require.NotEmpty(t, commits)
 	commit := commits[0].SHA
 	var issue struct{ Number int }
-	require.Equal(t, 201, forgejoAs(t, "", "POST", "/repos/"+owner+"/"+repo+"/issues", map[string]any{"title": "kept by the backup"}, &issue))
+	require.Equal(t, 201, forgejoAs(context.TODO(), "", "POST", "/repos/"+owner+"/"+repo+"/issues", map[string]any{"title": "kept by the backup"}, &issue))
 	marker := fmt.Sprintf("marker-%d", time.Now().UnixNano())
 	baoPut(context.TODO(), "smoke/backup-marker", marker, false)
 	t.Cleanup(func() { baoPut(context.TODO(), "smoke/backup-marker", "", true) })
 
 	// The off-site copy, as the daily schedule takes it (OpenBao's snapshot first), and one round of local snapshots
-	lab(t, append([]string{"backup", "enable", "--yes"}, env...)...)
+	lab(context.TODO(), append([]string{"backup", "enable", "--yes"}, env...)...)
 	runCronJob(t, "openbao", "openbao-snapshot")
 	var schedule struct {
 		Spec struct {
@@ -153,43 +153,43 @@ func TestBackupRestore(t *testing.T) {
 	}
 
 	// Lost: the repository with its issue, and the key
-	require.Equal(t, 204, forgejoAs(t, "", "DELETE", "/repos/"+owner+"/"+repo, nil, nil))
+	require.Equal(t, 204, forgejoAs(context.TODO(), "", "DELETE", "/repos/"+owner+"/"+repo, nil, nil))
 	baoPut(context.TODO(), "smoke/backup-marker", "", true)
 
 	t.Run("a whole-cluster restore brings them back", func(t *testing.T) {
-		lab(t, append([]string{"backup", "disable", "--yes"}, env...)...)
+		lab(context.TODO(), append([]string{"backup", "disable", "--yes"}, env...)...)
 		// Every backup here was taken after this cluster was created, of its own volumes: the default refuses them
 		out, err := labE(append([]string{"backup", "restore", "--yes"}, env...)...)
 		require.Error(t, err, out)
 		assert.Contains(t, out, "--backup")
-		lab(t, append([]string{"backup", "restore", "--backup", backup, "--yes"}, env...)...)
+		lab(context.TODO(), append([]string{"backup", "restore", "--backup", backup, "--yes"}, env...)...)
 		assert.Equal(t, marker, baoValue(context.TODO(), "smoke/backup-marker", "value"))
 		var got []struct{ SHA string }
 		require.Equal(t, 200, forgejoRestored(t, "/repos/"+owner+"/"+repo+"/commits", &got))
 		require.NotEmpty(t, got)
 		assert.Equal(t, commit, got[0].SHA)
 		var back struct{ Title string }
-		require.Equal(t, 200, forgejoAs(t, "", "GET", fmt.Sprintf("/repos/%s/%s/issues/%d", owner, repo, issue.Number), nil, &back))
+		require.Equal(t, 200, forgejoAs(context.TODO(), "", "GET", fmt.Sprintf("/repos/%s/%s/issues/%d", owner, repo, issue.Number), nil, &back))
 		assert.Equal(t, "kept by the backup", back.Title)
 		var bad []string
 		require.Eventually(t, func() bool { bad = allSyncedHealthy(t); return len(bad) == 0 }, 20*time.Minute, 15*time.Second, "after the restore: %v", bad)
 	})
 
 	t.Run("one app from its local snapshot", func(t *testing.T) {
-		require.Equal(t, 204, forgejoAs(t, "", "DELETE", "/repos/"+owner+"/"+repo, nil, nil))
-		lab(t, append([]string{"backup", "restore", "forgejo", "--yes"}, env...)...)
+		require.Equal(t, 204, forgejoAs(context.TODO(), "", "DELETE", "/repos/"+owner+"/"+repo, nil, nil))
+		lab(context.TODO(), append([]string{"backup", "restore", "forgejo", "--yes"}, env...)...)
 		var back struct{ Title string }
 		require.Equal(t, 200, forgejoRestored(t, fmt.Sprintf("/repos/%s/%s/issues/%d", owner, repo, issue.Number), &back))
 		assert.Equal(t, "kept by the backup", back.Title)
 	})
 
 	t.Run("push asks first", func(t *testing.T) {
-		lab(t, append([]string{"backup", "enable", "--yes"}, env...)...)
+		lab(context.TODO(), append([]string{"backup", "enable", "--yes"}, env...)...)
 		out, err := labE(append([]string{"backup", "push", "ntfy"}, env...)...)
 		require.Error(t, err, out)
 		assert.Contains(t, out, "--yes")
 		assert.Contains(t, out, "of 10 GB free")
-		out = lab(t, append([]string{"backup", "push", "ntfy", "--yes"}, env...)...)
+		out = lab(context.TODO(), append([]string{"backup", "push", "ntfy", "--yes"}, env...)...)
 		assert.Contains(t, out, "completed")
 	})
 }
