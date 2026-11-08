@@ -21,6 +21,8 @@ skip:
   - test/scan_test.go
   - test/kube-bench-cfg/**
   # Offline tests and their scripts: the basic checks run them
+  - test/offline/**
+  - test/internal/**/*_test.go
   - test/state_*_test.go
   - test/ci_scripts_test.go
   - test/argocd_revision_test.go
