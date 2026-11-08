@@ -15,21 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// appCodes is each sandbox app's status code through the Gateway (0 when unreachable).
-func appCodes(hosts map[string]string) map[string]int {
-	codes := map[string]int{}
-	for app, host := range hosts {
-		resp, err := insecureClient.Get("https://" + host)
-		if err != nil {
-			codes[app] = 0
-			continue
-		}
-		codes[app] = resp.StatusCode
-		_ = resp.Body.Close()
-	}
-	return codes
-}
-
 // clusterState reads the pods, the meshed namespaces and the ztunnel pods' readiness; ok is false while the API
 // server does not answer.
 func clusterState(t *testing.T) (pods []restart.Pod, meshed map[string]bool, ztunnelReady []bool, ok bool) {
@@ -152,7 +137,7 @@ func TestNodeRestart(t *testing.T) {
 	}
 	var want map[string]int
 	require.Eventually(t, func() bool {
-		want = appCodes(hosts)
+		want = appCodes(context.TODO(), hosts)
 		pods, meshed, ztunnel, ok := clusterState(t)
 		return ok && len(restart.Blockers(pods, meshed, ztunnel, want, want)) == 0 && !hasServerError(want)
 	}, 10*time.Minute, 15*time.Second, "the sandbox is not healthy before the restart")
@@ -175,7 +160,7 @@ func TestNodeRestart(t *testing.T) {
 			blockers = []string{"API server not answering"}
 			return false
 		}
-		blockers = restart.Blockers(pods, meshed, ztunnel, want, appCodes(hosts))
+		blockers = restart.Blockers(pods, meshed, ztunnel, want, appCodes(context.TODO(), hosts))
 		return len(blockers) == 0
 	}, 20*time.Minute, 15*time.Second, "the sandbox did not recover from a node restart")
 	if recovered {
@@ -239,7 +224,7 @@ func TestNodePowerCut(t *testing.T) {
 	// As strict as the recovery below (every pod ready, the node Ready), so a pod already failing is not blamed on the
 	// cut: before it, any start time and heartbeat count
 	require.Eventually(t, func() bool {
-		want = appCodes(hosts)
+		want = appCodes(context.TODO(), hosts)
 		pods, meshed, ztunnel, ok := clusterState(t)
 		ready, heartbeat, nodeOK := nodeState(t)
 		return ok && nodeOK && len(restart.Blockers(pods, meshed, ztunnel, want, want)) == 0 &&
@@ -277,7 +262,7 @@ func TestNodePowerCut(t *testing.T) {
 			blockers = []string{"API server not answering"}
 			return false
 		}
-		blockers = append(restart.PowerCutBlockers(pods, ready, heartbeat, cut), restart.Blockers(pods, meshed, ztunnel, want, appCodes(hosts))...)
+		blockers = append(restart.PowerCutBlockers(pods, ready, heartbeat, cut), restart.Blockers(pods, meshed, ztunnel, want, appCodes(context.TODO(), hosts))...)
 		return len(blockers) == 0
 	}, 20*time.Minute, 15*time.Second, "the sandbox did not recover from a power cut")
 	if !recovered {

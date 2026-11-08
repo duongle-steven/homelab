@@ -72,7 +72,7 @@ func TestLogsGrafanaDataSource(t *testing.T) {
 func TestLogsTargetsUp(t *testing.T) {
 	testenv.LogsSandboxOnly(t)
 	assert.Eventually(t, func() bool {
-		metrics, err := prometheusQuery(t, `count by (job) (up{namespace="loki"} == 1)`)
+		metrics, err := prometheusQuery(context.TODO(), `count by (job) (up{namespace="loki"} == 1)`)
 		if err != nil {
 			return false
 		}

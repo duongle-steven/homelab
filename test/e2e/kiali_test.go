@@ -36,7 +36,7 @@ var _ = Describe("SSOKiali", Label("sandbox", "testbed", "sso", "kiali"), func()
 		app := smoke.Apps("dev")[0]
 		host := routeHost(ctx, app.Namespace, app.Name)
 		Eventually(ctx, func() bool {
-			appCodes(map[string]string{app.Name: host})
+			appCodes(ctx, map[string]string{app.Name: host})
 			var graph struct {
 				Elements struct {
 					Edges []any `json:"edges"`

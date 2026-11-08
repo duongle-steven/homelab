@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -52,7 +53,7 @@ func TestTrivyOperator(t *testing.T) {
 	}
 	fixed, unfixed := alert("ImageCriticalVulnerability"), alert("ImageCriticalVulnerabilityUnfixed")
 	require.Eventually(t, func() bool {
-		found, err := prometheusQuery(t, fixed)
+		found, err := prometheusQuery(context.TODO(), fixed)
 		if err != nil {
 			return false
 		}
@@ -73,7 +74,7 @@ func TestTrivyOperator(t *testing.T) {
 	since := map[string]time.Time{}
 	touched := map[string]bool{}
 	assert.Eventually(t, func() bool {
-		found, err := prometheusQuery(t, missing)
+		found, err := prometheusQuery(context.TODO(), missing)
 		if err != nil {
 			return false
 		}
@@ -116,7 +117,7 @@ func TestTrivyOperator(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		open = nil
 		for _, expr := range []string{fixed, unfixed} {
-			found, err := prometheusQuery(t, expr)
+			found, err := prometheusQuery(context.TODO(), expr)
 			if err != nil {
 				return false
 			}

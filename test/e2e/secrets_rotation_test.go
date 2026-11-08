@@ -170,7 +170,7 @@ func TestRotation(t *testing.T) {
 		k8s.RunKubectl(t, options, "create", "job", failing, "--from=cronjob/secrets-rotation")
 		require.False(t, jobSucceeds(t, options, failing), "a run with an interrupted rotation by command succeeded")
 		assert.Eventually(t, func() bool {
-			alerts, err := prometheusQuery(t, `ALERTS{alertname="SecretRotationFailed", alertstate="firing"}`)
+			alerts, err := prometheusQuery(context.TODO(), `ALERTS{alertname="SecretRotationFailed", alertstate="firing"}`)
 			return err == nil && len(alerts) > 0
 		}, 10*time.Minute, 15*time.Second, "SecretRotationFailed does not fire")
 		// A person finishes it, and the next run succeeds again

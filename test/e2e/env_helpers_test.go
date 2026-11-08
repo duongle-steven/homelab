@@ -50,3 +50,6 @@ func legacySkipUnlessSandbox(t *testing.T) {
 	testenv.LocalOnly(t)
 	waitForIdentityStack(context.TODO())
 }
+
+// meshSandboxOnly gates the tests not on Ginkgo yet (14f-2 removes it)
+func meshSandboxOnly(t *testing.T) { testenv.LocalOnly(t) }

@@ -1,65 +1,65 @@
 package e2e
 
 import (
-	"testing"
+	"context"
 	"time"
 
-	"github.com/gruntwork-io/terratest/modules/k8s"
-	"github.com/gruntwork-io/terratest/modules/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/duongle-steven/homelab/test/internal/kube"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 // egressCurl probes from a new pod after the network policy controller has had time to apply the namespace's
 // policies to it (it does so asynchronously: a pod's first seconds are not yet restricted)
-func egressCurl(t *testing.T, namespace, target string) string {
-	return curlFrom(t, namespace, "egress-probe", target, "", 20)
+func egressCurl(ctx context.Context, namespace, target string) string {
+	return curlFrom(ctx, namespace, "egress-probe", target, "", 20)
 }
 
 // egressBlocked probes a target that the policies must block, up to three times: right after the cluster starts (a
 // restarted sandbox), while every pod restarts, the controller can take longer than the probe's wait to restrict a
 // new pod. A real hole never answers 000
-func egressBlocked(t *testing.T, namespace, target string) string {
+func egressBlocked(ctx context.Context, namespace, target string) string {
 	var status string
 	for range 3 {
-		if status = egressCurl(t, namespace, target); status == "000" {
+		if status = egressCurl(ctx, namespace, target); status == "000" {
 			break
 		}
-		t.Logf("%s reached %s (%s): probing again in case its policies were not applied yet", namespace, target, status)
+		GinkgoWriter.Printf("%s reached %s (%s): probing again in case its policies were not applied yet\n", namespace, target, status)
 	}
 	return status
 }
 
-// waitForEgressPolicies waits until Argo CD has synced system/egress into a namespace: these tests run before the
+// waitForEgressPolicies waits until Argo CD has synced system/egress into a namespace: these specs run before the
 // slower ones, while a fresh sandbox is still syncing
-func waitForEgressPolicies(t *testing.T, namespace string) {
-	options := k8s.NewKubectlOptions("", "", namespace)
-	options.Logger = logger.Discard
-	require.Eventually(t, func() bool {
-		_, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "networkpolicy", "deny-all-egress")
-		return err == nil
-	}, 30*time.Minute, 10*time.Second, "no egress policies in %s", namespace)
+func waitForEgressPolicies(ctx context.Context, namespace string) {
+	Eventually(ctx, func() error {
+		_, err := kube.Kubectl(ctx, namespace, "get", "networkpolicy", "deny-all-egress")
+		return err
+	}).WithTimeout(30*time.Minute).WithPolling(10*time.Second).Should(Succeed(), "no egress policies in %s", namespace)
 }
 
 // A namespace not in system/egress's internet table reaches neither the internet nor the nodes' other ports. The
 // internet probe uses an address, not a name, so a DNS failure cannot pass for a block
-func TestEgressBlocksInternet(t *testing.T) {
-	meshSandboxOnly(t)
-	waitForEgressPolicies(t, "excalidraw")
-	assert.Equal(t, "000", egressBlocked(t, "excalidraw", "https://1.1.1.1"), "excalidraw reached the internet")
-}
+var _ = Describe("EgressBlocksInternet", Label("sandbox", "testbed", "egress"), func() {
+	It("blocks excalidraw from the internet", func(ctx SpecContext) {
+		waitForEgressPolicies(ctx, "excalidraw")
+		Expect(egressBlocked(ctx, "excalidraw", "https://1.1.1.1")).To(Equal("000"), "excalidraw reached the internet")
+	}, SpecTimeout(50*time.Minute))
+})
 
-func TestEgressBlocksNodePorts(t *testing.T) {
-	meshSandboxOnly(t)
-	waitForEgressPolicies(t, "excalidraw")
-	node := gatewayAddress()
-	assert.Equal(t, "000", egressBlocked(t, "excalidraw", "https://"+node+":10250/"), "excalidraw reached the kubelet")
-	assert.NotEqual(t, "000", egressCurl(t, "excalidraw", "https://kubernetes.default.svc/version"), "excalidraw lost the API server")
-}
+var _ = Describe("EgressBlocksNodePorts", Label("sandbox", "testbed", "egress"), func() {
+	It("blocks the kubelet, not the API server", func(ctx SpecContext) {
+		waitForEgressPolicies(ctx, "excalidraw")
+		node := gatewayAddress()
+		Expect(egressBlocked(ctx, "excalidraw", "https://"+node+":10250/")).To(Equal("000"), "excalidraw reached the kubelet")
+		Expect(egressCurl(ctx, "excalidraw", "https://kubernetes.default.svc/version")).NotTo(Equal("000"), "excalidraw lost the API server")
+	}, SpecTimeout(55*time.Minute))
+})
 
 // A namespace in the table reaches the internet on its ports
-func TestEgressAllowsListedNamespaces(t *testing.T) {
-	meshSandboxOnly(t)
-	waitForEgressPolicies(t, "argocd")
-	assert.NotEqual(t, "000", egressCurl(t, "argocd", "https://github.com"), "argocd lost the internet")
-}
+var _ = Describe("EgressAllowsListedNamespaces", Label("sandbox", "testbed", "egress"), func() {
+	It("lets argocd reach the internet", func(ctx SpecContext) {
+		waitForEgressPolicies(ctx, "argocd")
+		Expect(egressCurl(ctx, "argocd", "https://github.com")).NotTo(Equal("000"), "argocd lost the internet")
+	}, SpecTimeout(40*time.Minute))
+})
