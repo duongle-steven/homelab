@@ -1,0 +1,58 @@
+# OpenTofu and Terragrunt: `just infra check` offline, `just infra deploy <env>` for real
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set fallback
+
+root := parent_directory(source_directory())
+lab := env("HOMELAB_LAB", "go -C " + root + "/cli run ./cmd/lab")
+terragrunt := env("HOMELAB_TERRAGRUNT", "terragrunt")
+
+# Offline: HCL is valid and formatted (part of the basic checks); production's credentials are placeholders, no cf login
+[doc("Offline HCL validation and formatting")]
+check:
+    HOMELAB_CLOUDFLARE_OFFLINE=1 {{ terragrunt }} hcl validate
+    tofu fmt -check -recursive .
+    {{ terragrunt }} hcl fmt --check
+
+# Every unit of infra/<env>: Argo CD's bootstrap, OpenBao's key, OpenTofu's secrets (the sandbox's run in just dev).
+# Production deploys in the same command: the guards (origin/master, checks, the merged pull request's sandbox), the
+# infrastructure, Forgejo's org ops, the push of this commit to ops/homelab, then the bootstrap again (the switch to
+# Forgejo on a first install). --force applies the infrastructure only and deploys nothing (a state migration).
+# --break-glass <reason> deploys while GitHub is down: verify checks a clean checkout that fast-forwards Forgejo instead
+# (docs/how-to-guides/deploy-to-forgejo.md); never with --force. --skip-proof <reason> releases what release_proof's
+# environment has not proved (verify's gate), the reason recorded as the commit's status (docs/installation/testbed.md).
+# Building lab first keeps a cold Go build out of credential_process, which the AWS SDK times out after a minute.
+# verify and push name the commit the deploy started from, refusing another (a git pull during the apply). The deploy
+# ends naming the secrets due for rotation from here (OpenTofu's: the cluster holds no Cloudflare credentials; Forgejo's
+# tokens: the CronJob never holds Forgejo's admin password). Renovate's GitHub App key (docs/how-to-guides/renovate.md)
+# comes from HOMELAB_GITHUB_APP_KEY: a relative path names a file where just runs, not in the unit's directory
+# (infra/production/secrets); a quoted ~/ is the home directory
+[arg("break_glass", long="break-glass")]
+[arg("force", long, value="1")]
+[arg("skip_proof", long="skip-proof")]
+[doc("Apply infra/<env>; production deploys (--force, --break-glass, --skip-proof)")]
+deploy env $force="" $break_glass="" $skip_proof="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ root }}"
+    deploy_commit=$(git rev-parse HEAD)
+    if [ -n "$break_glass" ] && { [ -n "$force" ] || [ "{{ env }}" != production ]; }; then
+        echo "--break-glass deploys production and cannot be combined with --force" >&2; exit 1
+    fi
+    case "${HOMELAB_GITHUB_APP_KEY:-}" in
+    "" | /*) ;;
+    "~/"*) export HOMELAB_GITHUB_APP_KEY="$HOME/${HOMELAB_GITHUB_APP_KEY#\~/}" ;;
+    *) export HOMELAB_GITHUB_APP_KEY="{{ invocation_directory() }}/$HOMELAB_GITHUB_APP_KEY" ;;
+    esac
+    export KUBECONFIG="$PWD/infra/{{ env }}/kubeconfig.yaml" KUBE_CONFIG_PATH="$PWD/infra/{{ env }}/kubeconfig.yaml"
+    if [ "{{ env }}" = sandbox ]; then {{ just_executable() }} sandbox-checkout; fi
+    go -C cli build -o /dev/null ./cmd/lab
+    guard=(--commit "$deploy_commit" ${break_glass:+"--break-glass=$break_glass"} ${skip_proof:+"--skip-proof=$skip_proof"})
+    production=$([ "{{ env }}" = production ] && [ -z "$force" ] && echo 1 || true)
+    if [ -n "$production" ]; then {{ lab }} infra forgejo verify "${guard[@]}"; fi
+    (cd "infra/{{ env }}" && {{ terragrunt }} run --all apply --non-interactive -- -auto-approve)
+    if [ -n "$production" ]; then
+        {{ lab }} infra forgejo sync
+        {{ lab }} infra forgejo push "${guard[@]}"
+        (cd infra/production/argocd && {{ terragrunt }} apply --non-interactive -- -auto-approve)
+        {{ lab }} secrets list --due --workstation || echo "warning: could not check the secrets rotated from here" >&2
+    fi

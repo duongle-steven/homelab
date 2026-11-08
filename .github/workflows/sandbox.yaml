@@ -1,4 +1,4 @@
-# A fresh sandbox and the suite on demand (make dev and make dev-fresh test locally; a push to dev runs nothing here).
+# A fresh sandbox and the suite on demand (just dev and just dev-fresh test locally; a push to dev runs nothing here).
 # Pull requests: sandbox-release.yaml (into master, required) and sandbox-label.yaml (others, on the label sandbox).
 name: sandbox
 
@@ -52,11 +52,12 @@ jobs:
           TESTS: ${{ inputs.tests }}
         run: |
           if [ -n "$TESTS" ]; then
-            args="tests=$TESTS apps=all"
+            args="--tests $TESTS --apps all"
           else
-            args="scope=$SCOPE apps=all"
+            args="--apps all"
+            [ "$SCOPE" != full ] || args="--full $args"
           fi
           echo "args=$args" >> "$GITHUB_OUTPUT"
       - uses: ./.github/actions/sandbox
         with:
-          make-args: ${{ steps.scope.outputs.args }}
+          just-args: ${{ steps.scope.outputs.args }}

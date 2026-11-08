@@ -44,7 +44,7 @@ skip:
   - scripts/helm-diff
   - scripts/__pycache__/**
   # lab's offline parts (make -C cli test); its Forgejo deploy runs against the sandbox (the group below)
-  - cli/Makefile
+  - cli/justfile
   - cli/cmd/**
   - cli/internal/scope/**
   - cli/internal/state/**
@@ -59,8 +59,8 @@ alone: [NodeRestart, NodePowerCut, BackupRestore, Rotation]
 full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|Policy|SupplyChain|TrivyOperator|PublicScan|NodeRestart|NodePowerCut|BackupRestore|Rotation
 groups:
   - paths:
-      - Makefile
-      - test/Makefile
+      - justfile
+      - test/justfile
       - test/scopes.yaml
       - test/go.mod
       - test/go.sum
@@ -161,7 +161,7 @@ groups:
       - system/external-dns/**
       - system/kured/**
       - system/rook-ceph/**
-      - infra/Makefile
+      - infra/justfile
       - infra/production/**
       - infra/_modules/cloudflare/**
       - infra/_modules/backup/**

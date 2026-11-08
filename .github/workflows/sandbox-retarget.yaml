@@ -50,7 +50,7 @@ jobs:
       - uses: ./.github/actions/sandbox
         with:
           # The runner has the memory: every optional app too (paperless, opencloud), as production has them
-          make-args: scope=full apps=all
+          just-args: --full --apps all
       - name: finish the check sandbox
         # A run killed before this step leaves the check in progress, which blocks the merge
         if: always() && steps.check.outputs.id != ''

@@ -1,12 +1,12 @@
 # The sandbox on a GitHub-hosted runner (docs/how-to-guides/ci.md), after the caller checked out the commit and installed
-# Nix with its cache: prepare the runner, run make dev revision=<that commit> with the caller's arguments in the dev
+# Nix with its cache: prepare the runner, run just dev --revision <that commit> with the caller's arguments in the dev
 # shell, and keep the cluster's state when it fails.
 # Callers: sandbox.yaml (dev, dispatch), sandbox-release.yaml (pull requests into master), sandbox-label.yaml.
 name: sandbox
-description: A fresh sandbox and make dev against the checked-out commit
+description: A fresh sandbox and just dev against the checked-out commit
 inputs:
-  make-args:
-    description: make dev arguments besides revision (scope=full, base=<sha>, tests=<regex>), space-separated
+  just-args:
+    description: just dev options besides --revision (--full, --base <sha>, --tests <regex>, --apps all), space-separated
     required: true
 runs:
   using: composite
@@ -19,10 +19,10 @@ runs:
         # Ubuntu 24.04's AppArmor forbids unprivileged user namespaces, which Chromium's sandbox (the SSO tests) needs
         sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
         df -h /
-    - name: make dev
+    - name: just dev
       shell: bash
       env:
-        MAKE_ARGS: ${{ inputs.make-args }}
+        JUST_ARGS: ${{ inputs.just-args }}
         # The tests dial the node; the localhost proxy's ports may be taken on the runner
         HOMELAB_SANDBOX_PROXY: "0"
         # A new runner each time: an empty image cache would only add a hop (infra/_modules/k3d)
@@ -31,14 +31,14 @@ runs:
         set -o pipefail
         HOMELAB_STATE_PASSPHRASE=$(head -c 32 /dev/urandom | base64)
         export HOMELAB_STATE_PASSPHRASE
-        # shellcheck disable=SC2086 # MAKE_ARGS is a list of make variables without spaces inside one
-        nix develop --command make dev "revision=$(git rev-parse HEAD)" $MAKE_ARGS 2>&1 | tee make-dev.log
+        # shellcheck disable=SC2086 # JUST_ARGS is a list of options and values without spaces inside one
+        nix develop --command just dev --revision "$(git rev-parse HEAD)" $JUST_ARGS 2>&1 | tee just-dev.log
     - name: collect the cluster's state
       if: failure()
       shell: bash
       run: |
         mkdir -p sandbox-state
-        cp make-dev.log sandbox-state/ 2>/dev/null || true
+        cp just-dev.log sandbox-state/ 2>/dev/null || true
         export KUBECONFIG="$PWD/infra/sandbox/kubeconfig.yaml"
         # shellcheck disable=SC2016 # the inner script expands its own variables
         nix develop --command sh -c '

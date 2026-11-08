@@ -5,14 +5,14 @@ set -eu
 case "${1:?usage: testbed-guard testbed|dev}" in
 	testbed)
 		if [ "$(docker inspect -f '{{.State.Running}}' k3d-homelab-dev-server-0 2>/dev/null)" = true ]; then
-			echo "make testbed: the sandbox runs (k3d-homelab-dev-server-0): stop it first (k3d cluster stop homelab-dev)" >&2
+			echo "just testbed: the sandbox runs (k3d-homelab-dev-server-0): stop it first (k3d cluster stop homelab-dev)" >&2
 			exit 1
 		fi ;;
 	dev)
 		hosts="$(git rev-parse --show-toplevel)/infra/testbed/metal/hosts.json"
 		running=$(virsh -c qemu:///system list --name --state-running 2>/dev/null || true)
 		if [ -n "$running" ] && printf '%s\n' "$running" | grep -qxF "$(jq -r 'keys[]' "$hosts")"; then
-			echo "make dev: testbed's VMs run: stop them first (make testbed-stop)" >&2
+			echo "just dev: testbed's VMs run: stop them first (just testbed-stop)" >&2
 			exit 1
 		fi ;;
 	*) echo "usage: testbed-guard testbed|dev" >&2; exit 2 ;;
