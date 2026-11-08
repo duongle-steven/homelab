@@ -24,20 +24,6 @@ func labE(args ...string) (string, error) {
 	return string(out), err
 }
 
-// baoPut writes secret/<path> value=<value> the documented way (an admin login inside OpenBao's pod); value is a test
-// marker, never a secret
-func baoPut(t *testing.T, path, value string, del bool) {
-	t.Helper()
-	op := "bao kv put secret/" + path + " value=" + value + " >/dev/null"
-	if del {
-		op = "bao kv metadata delete secret/" + path + " >/dev/null"
-	}
-	script := "kubectl -n openbao create token openbao-admin --audience=openbao --duration=10m | kubectl -n openbao exec -i openbao-0 -c openbao -- " +
-		"sh -c 'export BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=admin jwt=-) && " + op + "; s=$?; bao token revoke -self >/dev/null 2>&1; exit $s'"
-	out, err := exec.Command("sh", "-c", script).CombinedOutput()
-	require.NoError(t, err, "secret/%s: %s", path, out)
-}
-
 // runCronJob starts a Job from the CronJob and waits for it to succeed
 func runCronJob(t *testing.T, namespace, cronJob string) {
 	t.Helper()
@@ -116,8 +102,8 @@ func TestBackupRestore(t *testing.T) {
 	var issue struct{ Number int }
 	require.Equal(t, 201, forgejoAs(t, "", "POST", "/repos/"+owner+"/"+repo+"/issues", map[string]any{"title": "kept by the backup"}, &issue))
 	marker := fmt.Sprintf("marker-%d", time.Now().UnixNano())
-	baoPut(t, "smoke/backup-marker", marker, false)
-	t.Cleanup(func() { baoPut(t, "smoke/backup-marker", "", true) })
+	baoPut(context.TODO(), "smoke/backup-marker", marker, false)
+	t.Cleanup(func() { baoPut(context.TODO(), "smoke/backup-marker", "", true) })
 
 	// The off-site copy, as the daily schedule takes it (OpenBao's snapshot first), and one round of local snapshots
 	lab(t, append([]string{"backup", "enable", "--yes"}, env...)...)
@@ -168,7 +154,7 @@ func TestBackupRestore(t *testing.T) {
 
 	// Lost: the repository with its issue, and the key
 	require.Equal(t, 204, forgejoAs(t, "", "DELETE", "/repos/"+owner+"/"+repo, nil, nil))
-	baoPut(t, "smoke/backup-marker", "", true)
+	baoPut(context.TODO(), "smoke/backup-marker", "", true)
 
 	t.Run("a whole-cluster restore brings them back", func(t *testing.T) {
 		lab(t, append([]string{"backup", "disable", "--yes"}, env...)...)

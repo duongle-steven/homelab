@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/duongle-steven/homelab/test/internal/testenv"
 	"github.com/gruntwork-io/terratest/modules/k8s"
-	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,20 +19,6 @@ import (
 func rotateSecrets(t *testing.T, names ...string) string {
 	t.Helper()
 	return lab(t, append(append([]string{"secrets", "rotate"}, names...), "--env", labEnv, "--yes", "--skip-backup-check=sandbox test")...)
-}
-
-// baoPutStdin writes secret/<path> key=<value> with the admin role, the value on stdin (never in a command line)
-func baoPutStdin(t *testing.T, path, key, value string) {
-	t.Helper()
-	options := k8s.NewKubectlOptions("", "", "openbao")
-	options.Logger = logger.Discard
-	token, err := k8s.RunKubectlAndGetOutputE(t, options, "create", "token", "openbao-admin", "--duration=10m", "--audience=openbao")
-	require.NoError(t, err)
-	script := `read -r jwt; read -r v; BAO_TOKEN="$(echo "$jwt" | bao write -field=token auth/kubernetes/login role=admin jwt=-)" && export BAO_TOKEN && printf %s "$v" | bao kv put "$0" "$1=-" >/dev/null`
-	cmd := exec.Command("kubectl", "-n", "openbao", "exec", "-i", "openbao-0", "-c", "openbao", "--", "sh", "-c", script, "secret/"+path, key)
-	cmd.Stdin = strings.NewReader(token + "\n" + value + "\n")
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, string(out))
 }
 
 func grafanaStatus(password string) int {
@@ -108,7 +92,7 @@ func TestRotation(t *testing.T) {
 		// The token lab uses, as a person makes it once (docs/how-to-guides/woodpecker.md); dev-admin is the sandbox's
 		// Woodpecker admin
 		token := woodpeckerToken(t, "dev-admin")
-		baoPutStdin(t, "woodpecker/admin-token", "token", token)
+		baoPutStdin(context.TODO(), "woodpecker/admin-token", "token", token)
 		// Finishes a rotation an earlier run left interrupted, which already holds its new value
 		rotateSecrets(t, "woodpecker.agent")
 		old := generatedValue(context.TODO(), "woodpecker/generated/agent", "secret")

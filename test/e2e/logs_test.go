@@ -7,14 +7,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"testing"
 	"time"
 
-	"github.com/duongle-steven/homelab/test/internal/testenv"
-	"github.com/gruntwork-io/terratest/modules/k8s"
-	"github.com/gruntwork-io/terratest/modules/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/duongle-steven/homelab/test/internal/kube"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 type lokiEntry struct {
@@ -23,14 +20,12 @@ type lokiEntry struct {
 }
 
 // lokiQuery runs a LogQL range query over the last `since` through the API server's service proxy
-func lokiQuery(t *testing.T, query string, since time.Duration) ([]lokiEntry, error) {
-	options := k8s.NewKubectlOptions("", "", "loki")
-	options.Logger = logger.Discard
+func lokiQuery(ctx context.Context, query string, since time.Duration) ([]lokiEntry, error) {
 	params := url.Values{}
 	params.Set("query", query)
 	params.Set("start", fmt.Sprint(time.Now().Add(-since).UnixNano()))
 	params.Set("limit", "1000")
-	out, err := k8s.RunKubectlAndGetOutputE(t, options, "get", "--raw",
+	out, err := kube.Kubectl(ctx, "loki", "get", "--raw",
 		"/api/v1/namespaces/loki/services/loki:3100/proxy/loki/api/v1/query_range?"+params.Encode())
 	if err != nil {
 		return nil, err
@@ -56,133 +51,157 @@ func lokiQuery(t *testing.T, query string, since time.Duration) ([]lokiEntry, er
 }
 
 // Grafana queries Loki through its data source (uid loki), in the sandbox too
-func TestLogsGrafanaDataSource(t *testing.T) {
-	testenv.LogsSandboxOnly(t)
-	password := secretValue(context.TODO(), "grafana", "grafana-admin", "admin-password")
-	require.Eventually(t, func() bool {
-		var health struct {
-			Status string `json:"status"`
-		}
-		status, err := getJSONE(context.TODO(), http.MethodGet, "https://"+grafanaHost+"/api/datasources/uid/loki/health", nil, "admin", password, nil, &health)
-		return err == nil && status == http.StatusOK && health.Status == "OK"
-	}, 20*time.Minute, 15*time.Second, "Grafana's Loki data source is not healthy")
-}
+var _ = Describe("LogsGrafanaDataSource", Label("sandbox", "testbed", "logs"), func() {
+	It("is healthy", func(ctx SpecContext) {
+		password := secretValue(ctx, "grafana", "grafana-admin", "admin-password")
+		Eventually(ctx, func() bool {
+			var health struct {
+				Status string `json:"status"`
+			}
+			status, err := getJSONE(ctx, http.MethodGet, "https://"+grafanaHost+"/api/datasources/uid/loki/health", nil, "admin", password, nil, &health)
+			return err == nil && status == http.StatusOK && health.Status == "OK"
+		}).WithTimeout(20*time.Minute).WithPolling(15*time.Second).Should(BeTrue(), "Grafana's Loki data source is not healthy")
+	}, SpecTimeout(25*time.Minute))
+})
 
 // Prometheus scrapes Loki and Alloy
-func TestLogsTargetsUp(t *testing.T) {
-	testenv.LogsSandboxOnly(t)
-	assert.Eventually(t, func() bool {
-		metrics, err := prometheusQuery(context.TODO(), `count by (job) (up{namespace="loki"} == 1)`)
-		if err != nil {
-			return false
-		}
-		var loki, alloy bool
-		for _, m := range metrics {
-			switch {
-			case strings.Contains(m["job"], "alloy"):
-				alloy = true
-			case strings.Contains(m["job"], "loki"):
-				loki = true
+var _ = Describe("LogsTargetsUp", Label("sandbox", "testbed", "logs"), func() {
+	It("scrapes Loki and Alloy", func(ctx SpecContext) {
+		Eventually(ctx, func() bool {
+			metrics, err := prometheusQuery(ctx, `count by (job) (up{namespace="loki"} == 1)`)
+			if err != nil {
+				return false
 			}
-		}
-		return loki && alloy
-	}, 20*time.Minute, 30*time.Second, "Loki's and Alloy's targets are not up")
-}
+			var loki, alloy bool
+			for _, m := range metrics {
+				switch {
+				case strings.Contains(m["job"], "alloy"):
+					alloy = true
+				case strings.Contains(m["job"], "loki"):
+					loki = true
+				}
+			}
+			return loki && alloy
+		}).WithTimeout(20*time.Minute).WithPolling(30*time.Second).Should(BeTrue(), "Loki's and Alloy's targets are not up")
+	}, SpecTimeout(25*time.Minute))
+})
 
 const logsNamespace = "logs-test"
 
-// logPod starts a pod in logsNamespace that sleeps; the test makes it print with printTo
-func logPod(t *testing.T, name string) *k8s.KubectlOptions {
-	options := k8s.NewKubectlOptions("", "", logsNamespace)
-	_ = k8s.RunKubectlE(t, k8s.NewKubectlOptions("", "", ""), "create", "namespace", logsNamespace)
-	_ = k8s.RunKubectlE(t, options, "delete", "pod", name, "--ignore-not-found", "--wait=true")
-	k8s.RunKubectl(t, options, "run", name, "--image=curlimages/curl:8.23.0", "--restart=Never",
+// logPod starts a pod in logsNamespace that sleeps; the spec makes it print with printTo
+func logPod(ctx context.Context, name string) {
+	GinkgoHelper()
+	_, _ = kube.Kubectl(ctx, "", "create", "namespace", logsNamespace)
+	_, _ = kube.Kubectl(ctx, logsNamespace, "delete", "pod", name, "--ignore-not-found", "--wait=true")
+	out, err := kube.Kubectl(ctx, logsNamespace, "run", name, "--image=curlimages/curl:8.23.0", "--restart=Never",
 		"--labels=app.kubernetes.io/name=logs-test", "--command", "--", "sleep", "3600")
-	k8s.RunKubectl(t, options, "wait", "--for=condition=Ready", "pod/"+name, "--timeout=5m")
-	t.Cleanup(func() { _ = k8s.RunKubectlE(t, options, "delete", "pod", name, "--wait=false") })
-	return options
+	Expect(err).NotTo(HaveOccurred(), out)
+	out, err = kube.Kubectl(ctx, logsNamespace, "wait", "--for=condition=Ready", "pod/"+name, "--timeout=5m")
+	Expect(err).NotTo(HaveOccurred(), out)
+	DeferCleanup(func(ctx SpecContext) {
+		_, _ = kube.Kubectl(ctx, logsNamespace, "delete", "pod", name, "--wait=false")
+	}, NodeTimeout(time.Minute))
 }
 
 // printTo writes a line to the pod's stdout (its container log)
-func printTo(t *testing.T, options *k8s.KubectlOptions, pod, line string) {
-	k8s.RunKubectl(t, options, "exec", pod, "--", "sh", "-c", "echo "+line+" > /proc/1/fd/1")
+func printTo(ctx context.Context, pod, line string) {
+	GinkgoHelper()
+	out, err := kube.Kubectl(ctx, logsNamespace, "exec", pod, "--", "sh", "-c", "echo "+line+" > /proc/1/fd/1")
+	Expect(err).NotTo(HaveOccurred(), out)
 }
 
-func markerEntries(t *testing.T, pod, marker string) []lokiEntry {
-	entries, err := lokiQuery(t, fmt.Sprintf(`{namespace=%q, pod=%q} |= %q`, logsNamespace, pod, marker), time.Hour)
+func markerEntries(ctx context.Context, pod, marker string) []lokiEntry {
+	entries, err := lokiQuery(ctx, fmt.Sprintf(`{namespace=%q, pod=%q} |= %q`, logsNamespace, pod, marker), time.Hour)
 	if err != nil {
 		return nil
 	}
 	return entries
 }
 
-// A pod's line reaches Loki once, with its labels
-func TestLogsPodLines(t *testing.T) {
-	testenv.LogsSandboxOnly(t)
-	options := logPod(t, "lines")
-	marker := fmt.Sprint("logs-marker-", time.Now().UnixNano())
-	printTo(t, options, "lines", marker)
-	var entries []lokiEntry
-	require.Eventually(t, func() bool {
-		entries = markerEntries(t, "lines", marker)
-		return len(entries) > 0
-	}, 10*time.Minute, 10*time.Second, "the marker did not reach Loki")
-	time.Sleep(30 * time.Second) // a second tail of the same file would deliver it again by now
-	entries = markerEntries(t, "lines", marker)
-	require.Len(t, entries, 1, "the marker arrived more than once")
-	labels := entries[0].Labels
-	assert.Equal(t, logsNamespace, labels["namespace"])
-	assert.Equal(t, "lines", labels["pod"])
-	assert.Equal(t, "lines", labels["container"])
-	assert.Equal(t, "logs-test", labels["app"])
-	assert.NotEmpty(t, labels["node"])
+// restartAlloy replaces Alloy's pods and waits for its DaemonSet
+func restartAlloy(ctx context.Context, wait bool) {
+	GinkgoHelper()
+	out, err := kube.Kubectl(ctx, "loki", "delete", "pod", "-l", "app.kubernetes.io/name=alloy", "--wait=true")
+	Expect(err).NotTo(HaveOccurred(), out)
+	if wait {
+		waitForAlloy(ctx)
+	}
 }
+
+func waitForAlloy(ctx context.Context) {
+	GinkgoHelper()
+	out, err := kube.Kubectl(ctx, "loki", "rollout", "status", "daemonset/loki-alloy", "--timeout=5m")
+	Expect(err).NotTo(HaveOccurred(), out)
+}
+
+// A pod's line reaches Loki once, with its labels
+var _ = Describe("LogsPodLines", Label("sandbox", "testbed", "logs"), func() {
+	It("delivers a line once with its labels", func(ctx SpecContext) {
+		logPod(ctx, "lines")
+		marker := fmt.Sprint("logs-marker-", time.Now().UnixNano())
+		printTo(ctx, "lines", marker)
+		var entries []lokiEntry
+		Eventually(ctx, func() bool {
+			entries = markerEntries(ctx, "lines", marker)
+			return len(entries) > 0
+		}).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(BeTrue(), "the marker did not reach Loki")
+		sleep(ctx, 30*time.Second) // a second tail of the same file would deliver it again by now
+		entries = markerEntries(ctx, "lines", marker)
+		Expect(entries).To(HaveLen(1), "the marker arrived more than once")
+		labels := entries[0].Labels
+		Expect(labels["namespace"]).To(Equal(logsNamespace))
+		Expect(labels["pod"]).To(Equal("lines"))
+		Expect(labels["container"]).To(Equal("lines"))
+		Expect(labels["app"]).To(Equal("logs-test"))
+		Expect(labels["node"]).NotTo(BeEmpty())
+	}, SpecTimeout(20*time.Minute))
+})
 
 // A restarted Alloy resumes from its positions: no line lost, none repeated
-func TestLogsResumeAfterRestart(t *testing.T) {
-	testenv.LogsSandboxOnly(t)
-	options := logPod(t, "resume")
-	first := fmt.Sprint("logs-first-", time.Now().UnixNano())
-	printTo(t, options, "resume", first)
-	require.Eventually(t, func() bool { return len(markerEntries(t, "resume", first)) > 0 },
-		10*time.Minute, 10*time.Second, "the first marker did not reach Loki")
+var _ = Describe("LogsResumeAfterRestart", Label("sandbox", "testbed", "logs"), func() {
+	It("resumes from its positions", func(ctx SpecContext) {
+		logPod(ctx, "resume")
+		first := fmt.Sprint("logs-first-", time.Now().UnixNano())
+		printTo(ctx, "resume", first)
+		Eventually(ctx, func() bool { return len(markerEntries(ctx, "resume", first)) > 0 }).
+			WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(BeTrue(), "the first marker did not reach Loki")
 
-	loki := k8s.NewKubectlOptions("", "", "loki")
-	k8s.RunKubectl(t, loki, "delete", "pod", "-l", "app.kubernetes.io/name=alloy", "--wait=true")
-	second := fmt.Sprint("logs-second-", time.Now().UnixNano())
-	printTo(t, options, "resume", second) // written while Alloy restarts
-	k8s.RunKubectl(t, loki, "rollout", "status", "daemonset/loki-alloy", "--timeout=5m")
-	require.Eventually(t, func() bool { return len(markerEntries(t, "resume", second)) > 0 },
-		10*time.Minute, 10*time.Second, "the line written during the restart was lost")
-	assert.Len(t, markerEntries(t, "resume", first), 1, "the restarted Alloy sent the first marker again")
-}
+		restartAlloy(ctx, false)
+		second := fmt.Sprint("logs-second-", time.Now().UnixNano())
+		printTo(ctx, "resume", second) // written while Alloy restarts
+		waitForAlloy(ctx)
+		Eventually(ctx, func() bool { return len(markerEntries(ctx, "resume", second)) > 0 }).
+			WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(BeTrue(), "the line written during the restart was lost")
+		Expect(markerEntries(ctx, "resume", first)).To(HaveLen(1), "the restarted Alloy sent the first marker again")
+	}, SpecTimeout(35*time.Minute))
+})
 
 // Kubernetes events land in Loki (kept 30 days instead of the API server's hour)
-func TestLogsEvents(t *testing.T) {
-	testenv.LogsSandboxOnly(t)
-	logPod(t, "events")
-	require.Eventually(t, func() bool {
-		entries, err := lokiQuery(t, fmt.Sprintf(`{job="kubernetes-events", namespace=%q} |= "events"`, logsNamespace), time.Hour)
-		if err != nil {
-			return false
-		}
-		for _, e := range entries {
-			if strings.Contains(e.Line, "Scheduled") || strings.Contains(e.Line, "Started") {
-				return true
+var _ = Describe("LogsEvents", Label("sandbox", "testbed", "logs"), func() {
+	It("delivers a pod's events", func(ctx SpecContext) {
+		logPod(ctx, "events")
+		Eventually(ctx, func() bool {
+			entries, err := lokiQuery(ctx, fmt.Sprintf(`{job="kubernetes-events", namespace=%q} |= "events"`, logsNamespace), time.Hour)
+			if err != nil {
+				return false
 			}
-		}
-		return false
-	}, 10*time.Minute, 15*time.Second, "the pod's events did not reach Loki")
-}
+			for _, e := range entries {
+				if strings.Contains(e.Line, "Scheduled") || strings.Contains(e.Line, "Started") {
+					return true
+				}
+			}
+			return false
+		}).WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(BeTrue(), "the pod's events did not reach Loki")
+	}, SpecTimeout(20*time.Minute))
+})
 
 // Lines read while Loki is unreachable survive a restart of Alloy (its write-ahead log on the host) and arrive once
 // Loki is back
-func TestLogsSurviveLokiOutage(t *testing.T) {
-	testenv.LogsSandboxOnly(t)
-	options := logPod(t, "outage")
-	loki := k8s.NewKubectlOptions("", "", "loki")
-	// Argo CD does not prune what it does not manage: this policy lives only for the test
-	deny := `apiVersion: security.istio.io/v1
+var _ = Describe("LogsSurviveLokiOutage", Label("sandbox", "testbed", "logs"), func() {
+	It("keeps lines read during an outage", func(ctx SpecContext) {
+		logPod(ctx, "outage")
+		// Argo CD does not prune what it does not manage: this policy lives only for the spec
+		deny := `apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: logs-test-outage
@@ -197,31 +216,28 @@ spec:
         - source:
             principals: ["cluster.local/ns/loki/sa/loki-alloy"]
 `
-	k8s.KubectlApplyFromString(t, loki, deny)
-	removed := false
-	remove := func() {
-		if !removed {
-			k8s.KubectlDeleteFromString(t, loki, deny)
-			removed = true
+		Expect(kube.Apply(ctx, "loki", deny)).To(Succeed())
+		removed := false
+		remove := func(ctx context.Context) {
+			if !removed {
+				Expect(kube.Delete(ctx, "loki", deny)).To(Succeed())
+				removed = true
+			}
 		}
-	}
-	defer remove()
-	time.Sleep(15 * time.Second) // ztunnel picks up the policy
-	// ztunnel checks policies when a connection opens: restart Alloy so its keep-alive connection to Loki is a new,
-	// denied one
-	restartAlloy := func() {
-		k8s.RunKubectl(t, loki, "delete", "pod", "-l", "app.kubernetes.io/name=alloy", "--wait=true")
-		k8s.RunKubectl(t, loki, "rollout", "status", "daemonset/loki-alloy", "--timeout=5m")
-	}
-	restartAlloy()
+		DeferCleanup(func(ctx SpecContext) { remove(ctx) }, NodeTimeout(time.Minute))
+		sleep(ctx, 15*time.Second) // ztunnel picks up the policy
+		// ztunnel checks policies when a connection opens: restart Alloy so its keep-alive connection to Loki is a new,
+		// denied one
+		restartAlloy(ctx, true)
 
-	marker := fmt.Sprint("logs-outage-", time.Now().UnixNano())
-	printTo(t, options, "outage", marker)
-	time.Sleep(30 * time.Second) // Alloy reads the line and moves its positions past it
-	require.Empty(t, markerEntries(t, "outage", marker), "the line reached Loki through the denied connection")
-	restartAlloy()
-	remove()
-	require.Eventually(t, func() bool { return len(markerEntries(t, "outage", marker)) > 0 },
-		10*time.Minute, 15*time.Second, "the line read during Loki's outage was lost")
-	assert.Len(t, markerEntries(t, "outage", marker), 1, "the line arrived more than once")
-}
+		marker := fmt.Sprint("logs-outage-", time.Now().UnixNano())
+		printTo(ctx, "outage", marker)
+		sleep(ctx, 30*time.Second) // Alloy reads the line and moves its positions past it
+		Expect(markerEntries(ctx, "outage", marker)).To(BeEmpty(), "the line reached Loki through the denied connection")
+		restartAlloy(ctx, true)
+		remove(ctx)
+		Eventually(ctx, func() bool { return len(markerEntries(ctx, "outage", marker)) > 0 }).
+			WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(BeTrue(), "the line read during Loki's outage was lost")
+		Expect(markerEntries(ctx, "outage", marker)).To(HaveLen(1), "the line arrived more than once")
+	}, SpecTimeout(30*time.Minute))
+})

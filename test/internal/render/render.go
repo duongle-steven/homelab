@@ -16,7 +16,7 @@ import (
 var Renders sync.Map
 
 // Yq renders a chart (scripts/render-chart, once per directory and env) and runs a yq expression on it
-func Yq(t *testing.T, dir, env, expr string) string {
+func Yq(t testing.TB, dir, env, expr string) string {
 	t.Helper()
 	key := dir + " " + env
 	cached, ok := Renders.Load(key)
@@ -42,4 +42,4 @@ func Yq(t *testing.T, dir, env, expr string) string {
 }
 
 // Loki renders system/loki for env ("" or dev) and runs a yq expression on it
-func Loki(t *testing.T, env, expr string) string { return Yq(t, "system/loki", env, expr) }
+func Loki(t testing.TB, env, expr string) string { return Yq(t, "system/loki", env, expr) }

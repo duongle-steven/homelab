@@ -385,3 +385,29 @@ var _ = Describe("SecretsGeneratedValueErrors", Label("sandbox", "testbed", "sec
 		Expect(permanentBaoError(err)).To(BeFalse(), "a path not pushed yet may still come: %v", err)
 	}, SpecTimeout(55*time.Minute))
 })
+
+// baoPut writes secret/<path> value=<value> the documented way (an admin login inside OpenBao's pod); value is a test
+// marker, never a secret
+func baoPut(ctx context.Context, path, value string, del bool) {
+	GinkgoHelper()
+	op := "bao kv put secret/" + path + " value=" + value + " >/dev/null"
+	if del {
+		op = "bao kv metadata delete secret/" + path + " >/dev/null"
+	}
+	script := "kubectl -n openbao create token openbao-admin --audience=openbao --duration=10m | kubectl -n openbao exec -i openbao-0 -c openbao -- " +
+		"sh -c 'export BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=admin jwt=-) && " + op + "; s=$?; bao token revoke -self >/dev/null 2>&1; exit $s'"
+	out, err := exec.CommandContext(ctx, "sh", "-c", script).CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), "secret/%s: %s", path, out)
+}
+
+// baoPutStdin writes secret/<path> key=<value> with the admin role, the value on stdin (never in a command line)
+func baoPutStdin(ctx context.Context, path, key, value string) {
+	GinkgoHelper()
+	token, err := kube.Kubectl(ctx, "openbao", "create", "token", "openbao-admin", "--duration=10m", "--audience=openbao")
+	Expect(err).NotTo(HaveOccurred(), "kubectl create token openbao/openbao-admin")
+	script := `read -r jwt; read -r v; BAO_TOKEN="$(echo "$jwt" | bao write -field=token auth/kubernetes/login role=admin jwt=-)" && export BAO_TOKEN && printf %s "$v" | bao kv put "$0" "$1=-" >/dev/null`
+	cmd := exec.CommandContext(ctx, "kubectl", "-n", "openbao", "exec", "-i", "openbao-0", "-c", "openbao", "--", "sh", "-c", script, "secret/"+path, key)
+	cmd.Stdin = strings.NewReader(token + "\n" + value + "\n")
+	out, err := cmd.CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), string(out))
+}
