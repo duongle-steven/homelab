@@ -2,17 +2,18 @@ package e2e
 
 import (
 	"fmt"
-	"github.com/duongle-steven/homelab/test/internal/repo"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
-	"testing"
+	"time"
 
 	"github.com/duongle-steven/homelab/test/internal/clusterscan"
-	"github.com/gruntwork-io/terratest/modules/k8s"
-	"github.com/stretchr/testify/require"
+	"github.com/duongle-steven/homelab/test/internal/kube"
+	"github.com/duongle-steven/homelab/test/internal/repo"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -69,87 +70,87 @@ spec:
 %[5]s`, node, scanBenchNamespace, scanBenchImage, volumeMounts.String(), volumes.String())
 }
 
-// TestScanBench runs kube-bench on every testbed node (just testbed-scan). A run stopped midway leaves the privileged
+// ScanBench runs kube-bench on every testbed node (just testbed-scan). A run stopped midway leaves the privileged
 // namespace behind: the next one deletes it first
-func TestScanBench(t *testing.T) {
-	testbedOnly(t)
-	raw, err := os.ReadFile(filepath.Join(repo.Root(), ".cluster-scan-accepted.yaml"))
-	require.NoError(t, err)
-	accepted, err := clusterscan.LoadScanAccepted(raw)
-	require.NoError(t, err)
+var _ = Describe("ScanBench", Label("testbed", "scan"), func() {
+	It("leaves no undecided kube-bench finding", func(ctx SpecContext) {
+		raw, err := os.ReadFile(filepath.Join(repo.Root(), ".cluster-scan-accepted.yaml"))
+		Expect(err).NotTo(HaveOccurred())
+		accepted, err := clusterscan.LoadScanAccepted(raw)
+		Expect(err).NotTo(HaveOccurred())
 
-	cluster, namespaced := testbedKubectl(""), testbedKubectl(scanBenchNamespace)
-	remove := func() {
-		if err := k8s.RunKubectlE(t, cluster, "delete", "namespace", scanBenchNamespace, "--ignore-not-found", "--timeout=5m"); err != nil {
-			t.Errorf("the privileged namespace %s may be left behind: delete it", scanBenchNamespace)
+		remove := func(ctx SpecContext) {
+			_, err := kube.Kubectl(ctx, "", "delete", "namespace", scanBenchNamespace, "--ignore-not-found", "--timeout=5m")
+			Expect(err).NotTo(HaveOccurred(), "the privileged namespace %s may be left behind: delete it", scanBenchNamespace)
 		}
-	}
-	remove()
-	t.Cleanup(remove)
-	require.NoError(t, k8s.KubectlApplyFromStringE(t, cluster, fmt.Sprintf(`apiVersion: v1
+		remove(ctx)
+		DeferCleanup(remove, NodeTimeout(6*time.Minute))
+		Expect(kube.Apply(ctx, "", fmt.Sprintf(`apiVersion: v1
 kind: Namespace
 metadata:
   name: %s
   labels: {pod-security.kubernetes.io/enforce: privileged}
-`, scanBenchNamespace)))
+`, scanBenchNamespace))).To(Succeed())
 
-	cfg := filepath.Join("kube-bench-cfg", "k3s-cis-1.11")
-	args := []string{"create", "configmap", "kube-bench-cfg", "--from-file=config.yaml=" + filepath.Join("kube-bench-cfg", "config.yaml"),
-		"--from-file=benchmark-config.yaml=" + filepath.Join(cfg, "config.yaml")}
-	for _, name := range []string{"controlplane", "etcd", "master", "node", "policies"} {
-		args = append(args, "--from-file="+filepath.Join(cfg, name+".yaml"))
-	}
-	require.NoError(t, k8s.RunKubectlE(t, namespaced, args...))
+		dir := filepath.Join(repo.Root(), "test", "kube-bench-cfg")
+		cfg := filepath.Join(dir, "k3s-cis-1.11")
+		args := []string{"create", "configmap", "kube-bench-cfg", "--from-file=config.yaml=" + filepath.Join(dir, "config.yaml"),
+			"--from-file=benchmark-config.yaml=" + filepath.Join(cfg, "config.yaml")}
+		for _, name := range []string{"controlplane", "etcd", "master", "node", "policies"} {
+			args = append(args, "--from-file="+filepath.Join(cfg, name+".yaml"))
+		}
+		out, err := kube.Kubectl(ctx, scanBenchNamespace, args...)
+		Expect(err).NotTo(HaveOccurred(), out)
 
-	nodes, _ := testbedHosts(t)
-	for _, node := range nodes {
-		require.NoError(t, k8s.KubectlApplyFromStringE(t, namespaced, scanBenchJob(node)))
-	}
-	for _, node := range nodes {
-		job := "job/bench-" + node
-		_ = k8s.RunKubectlE(t, namespaced, "wait", job, "--for=jsonpath={.status.conditions[?(@.status==\"True\")].type}=Complete", "--timeout=5m")
-		if done, err := k8s.RunKubectlAndGetOutputE(t, namespaced, "get", job, "-o", "jsonpath={.status.succeeded}"); err != nil || done != "1" {
-			t.Errorf("%s: kube-bench did not complete", node)
-			continue
+		nodes, _ := testbedHosts()
+		for _, node := range nodes {
+			Expect(kube.Apply(ctx, scanBenchNamespace, scanBenchJob(node))).To(Succeed())
 		}
-		report, err := k8s.RunKubectlAndGetOutputE(t, namespaced, "logs", job)
-		if err != nil {
-			t.Errorf("%s: its report could not be read", node)
-			continue
+		var problems []string
+		for _, node := range nodes {
+			job := "job/bench-" + node
+			_, _ = kube.Kubectl(ctx, scanBenchNamespace, "wait", job, "--for=jsonpath={.status.conditions[?(@.status==\"True\")].type}=Complete", "--timeout=5m")
+			if done, err := kube.Kubectl(ctx, scanBenchNamespace, "get", job, "-o", "jsonpath={.status.succeeded}"); err != nil || done != "1" {
+				problems = append(problems, node+": kube-bench did not complete")
+				continue
+			}
+			report, err := kube.Kubectl(ctx, scanBenchNamespace, "logs", job)
+			if err != nil {
+				problems = append(problems, node+": its report could not be read")
+				continue
+			}
+			undecided, err := clusterscan.UndecidedBench([]byte(report), accepted)
+			if err != nil {
+				problems = append(problems, fmt.Sprintf("%s: %v", node, err))
+				continue
+			}
+			if len(undecided) > 0 {
+				problems = append(problems, fmt.Sprintf("%s: undecided, fix or accept in .cluster-scan-accepted.yaml: %s", node, strings.Join(undecided, " ")))
+			}
 		}
-		undecided, err := clusterscan.UndecidedBench([]byte(report), accepted)
-		if err != nil {
-			t.Errorf("%s: %v", node, err)
-			continue
-		}
-		if len(undecided) > 0 {
-			t.Errorf("%s: undecided, fix or accept in .cluster-scan-accepted.yaml: %s", node, strings.Join(undecided, " "))
-		}
-	}
-}
+		Expect(problems).To(BeEmpty())
+	}, SpecTimeout(30*time.Minute))
+})
 
-// TestScanKubescape runs kubescape on the sandbox (just dev-scan). --keep-local: nothing leaves the workstation. Its
-// exit code stays 0 on findings, as no --compliance-threshold is set, so a non-zero one means the scan did not run
-func TestScanKubescape(t *testing.T) {
-	if os.Getenv("ENV") != "dev" {
-		t.Skip("kubescape runs against the sandbox only (just dev-scan)")
-	}
-	raw, err := os.ReadFile(filepath.Join(repo.Root(), ".cluster-scan-accepted.yaml"))
-	require.NoError(t, err)
-	accepted, err := clusterscan.LoadScanAccepted(raw)
-	require.NoError(t, err)
+// ScanKubescape runs kubescape on the sandbox (just dev-scan). --keep-local: nothing leaves the workstation. Its exit
+// code stays 0 on findings, as no --compliance-threshold is set, so a non-zero one means the scan did not run
+var _ = Describe("ScanKubescape", Label("sandbox", "scan"), func() {
+	It("leaves no undecided kubescape finding", func(ctx SpecContext) {
+		raw, err := os.ReadFile(filepath.Join(repo.Root(), ".cluster-scan-accepted.yaml"))
+		Expect(err).NotTo(HaveOccurred())
+		accepted, err := clusterscan.LoadScanAccepted(raw)
+		Expect(err).NotTo(HaveOccurred())
 
-	file := filepath.Join(t.TempDir(), "report.json")
-	out, err := exec.Command("kubescape", "scan", "framework", "allcontrols", "--keep-local", "--format", "json", "--output", file).CombinedOutput()
-	require.NoError(t, err, "kubescape failed: its last lines: %s", scanTail(out))
-	report, err := os.ReadFile(file)
-	require.NoError(t, err)
-	undecided, err := clusterscan.UndecidedKubescape(report, accepted)
-	require.NoError(t, err)
-	if len(undecided) > 0 {
-		t.Errorf("undecided, fix or accept in .cluster-scan-accepted.yaml:\n%s", strings.Join(undecided, "\n"))
-	}
-}
+		file := filepath.Join(GinkgoT().TempDir(), "report.json")
+		out, err := exec.CommandContext(ctx, "kubescape", "scan", "framework", "allcontrols", "--keep-local", "--format", "json", "--output", file).CombinedOutput()
+		Expect(err).NotTo(HaveOccurred(), "kubescape failed: its last lines: %s", scanTail(out))
+		report, err := os.ReadFile(file)
+		Expect(err).NotTo(HaveOccurred())
+		undecided, err := clusterscan.UndecidedKubescape(report, accepted)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(undecided).To(BeEmpty(), "undecided, fix or accept in .cluster-scan-accepted.yaml")
+	}, SpecTimeout(30*time.Minute))
+})
 
 func scanTail(out []byte) string {
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")

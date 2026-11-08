@@ -7,15 +7,12 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/duongle-steven/homelab/test/internal/kube"
 	"github.com/duongle-steven/homelab/test/internal/smoke"
-	"github.com/gruntwork-io/terratest/modules/k8s"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/stretchr/testify/require"
 )
 
 // optionalApps are deployed in the sandbox only when just dev asks (the justfile's optional_apps,
@@ -61,38 +58,6 @@ func deployedSmokeApps(ctx context.Context, env string) []smoke.App {
 	var apps []smoke.App
 	for _, a := range smoke.Apps(env) {
 		if appDeployed(ctx, a.Namespace) {
-			apps = append(apps, a)
-		}
-	}
-	return apps
-}
-
-// legacyAppDeployed is appDeployed for the tests not on Ginkgo yet (14f-2 removes it).
-func legacyAppDeployed(t *testing.T, app string) bool {
-	if !optionalApps[app] {
-		return true
-	}
-	out, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", "argocd"), "get", "applications.argoproj.io", app,
-		"--ignore-not-found", "-o", "jsonpath={.metadata.name}{.metadata.deletionTimestamp}")
-	skip, failure := smoke.OptionalAppState(app, wantedApps(), err == nil && strings.TrimSpace(out) == app, err)
-	if failure != "" {
-		require.FailNow(t, failure)
-	}
-	return !skip
-}
-
-// legacySkipUnlessDeployed is skipUnlessDeployed for the tests not on Ginkgo yet (14f-2 removes it).
-func legacySkipUnlessDeployed(t *testing.T, app string) {
-	if !legacyAppDeployed(t, app) {
-		t.Skipf("%s is not deployed (optional in the sandbox: just dev --apps %s)", app, app)
-	}
-}
-
-// legacyDeployedSmokeApps is deployedSmokeApps for the tests not on Ginkgo yet (14f-2 removes it).
-func legacyDeployedSmokeApps(t *testing.T, env string) []smoke.App {
-	var apps []smoke.App
-	for _, a := range smoke.Apps(env) {
-		if legacyAppDeployed(t, a.Namespace) {
 			apps = append(apps, a)
 		}
 	}

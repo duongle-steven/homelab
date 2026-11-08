@@ -1,9 +1,7 @@
 package e2e
 
 import (
-	"context"
 	"os"
-	"testing"
 
 	"github.com/duongle-steven/homelab/test/internal/testenv"
 )
@@ -35,21 +33,3 @@ func testbedGatewayVIP() (string, error) {
 	config, err := testenv.ReadEnvConfig("testbed")
 	return config.ServiceVIPs.Gateway, err
 }
-
-// sandboxOnly skips a test outside the sandbox: it needs k3d (docker, the node's address, the localhost proxy) or the
-// hostpath CSI driver
-func sandboxOnly(t *testing.T, why string) {
-	t.Helper()
-	if os.Getenv("ENV") != "dev" {
-		t.Skip("runs against the sandbox only: " + why)
-	}
-}
-
-// legacySkipUnlessSandbox gates the tests not on Ginkgo yet (14f-2 removes it)
-func legacySkipUnlessSandbox(t *testing.T) {
-	testenv.LocalOnly(t)
-	waitForIdentityStack(context.TODO())
-}
-
-// meshSandboxOnly gates the tests not on Ginkgo yet (14f-2 removes it)
-func meshSandboxOnly(t *testing.T) { testenv.LocalOnly(t) }
