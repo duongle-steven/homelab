@@ -112,7 +112,7 @@ func newSecretsCmd() *cobra.Command {
 	list.Flags().String("env", "production", "production, or sandbox")
 	list.Flags().String("kind", "", "only this kind of entry (e.g. opentofu)")
 	list.Flags().Bool("workstation", false, "only the entries a person rotates from here (OpenTofu's, Forgejo's tokens), never the CronJob")
-	list.Flags().Bool("due", false, "only the due entries, one line each with the command that rotates it (make infra env=production)")
+	list.Flags().Bool("due", false, "only the due entries, one line each with the command that rotates it (just infra deploy production)")
 	group.AddCommand(list)
 
 	rotateCmd := &cobra.Command{

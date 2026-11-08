@@ -6,4 +6,4 @@ rules:
       - sandbox-label.yaml:44  # pull_request: the workflow and the checked-out head are the same author's, no more trust
       - sandbox-release.yaml:37  # pull_request into master: same author for the workflow and the head
       - sandbox-retarget.yaml:50  # pull_request edited: same author for the workflow and the head
-      - sandbox.yaml:60  # workflow_dispatch: only writers dispatch, and they choose the revision anyway
+      - sandbox.yaml:61  # workflow_dispatch: only writers dispatch, and they choose the revision anyway

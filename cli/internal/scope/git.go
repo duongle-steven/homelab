@@ -13,10 +13,10 @@ func Root() (string, error) {
 }
 
 // Changed lists the files the commits since base change, old and new paths of renames included. Uncommitted changes
-// do not count: make dev tests the commit at HEAD.
+// do not count: just dev tests the commit at HEAD.
 func Changed(root, base string) ([]string, error) {
 	if _, err := git(root, "rev-parse", "--verify", "--quiet", base+"^{commit}"); err != nil {
-		return nil, fmt.Errorf("base %s does not exist: git fetch origin dev, or make dev scope=full", base)
+		return nil, fmt.Errorf("base %s does not exist: git fetch origin dev, or just dev --full", base)
 	}
 	out, err := git(root, "diff", "--name-only", "--no-renames", base+"...HEAD")
 	return lines(out), err

@@ -129,7 +129,7 @@ func TestRefreshArgoCDCredentialWaitsForTheExternalSecret(t *testing.T) {
 	}
 }
 
-// make infra passes the commit it started from to verify and push: a checkout that moved during the apply (a git
+// just infra deploy passes the commit it started from to verify and push: a checkout that moved during the apply (a git
 // pull) must not deploy a commit other than the one applied
 func TestSameCommit(t *testing.T) {
 	if err := sameCommit("abc", ""); err != nil {
@@ -198,7 +198,7 @@ func TestPushCommitBreakGlass(t *testing.T) {
 		t.Fatalf("the sandbox: %v", err)
 	}
 	if _, err := pushCommit(pushCmd(t, "--break-glass=x", "--commit=0123456789abcdef"), production, verify); err == nil || !strings.Contains(err.Error(), "moved") {
-		t.Fatalf("another commit than make infra's: %v", err)
+		t.Fatalf("another commit than just infra deploy's: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(root, "file"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)

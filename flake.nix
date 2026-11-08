@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    # The nodes' installer (PXE, then nixos-anywhere): make testbed, make infra
+    # The nodes' installer (PXE, then nixos-anywhere): just testbed, just infra deploy
     nixie.url = "github:khuedoan/nixie";
   };
 
@@ -51,7 +51,8 @@
             renovate # renovate-config-validator (scripts/lint)
             shellcheck
             unstable.k3d
-            (callPackage ./nix/kubescape.nix { }) # make dev-scan
+            (callPackage ./nix/just.nix { }) # the justfiles (just --list)
+            (callPackage ./nix/kubescape.nix { }) # just dev-scan
             (callPackage ./nix/cloudflare-cf.nix { }) # cf: Cloudflare's CLI, its OAuth login gives OpenTofu its token
             wireguard-tools
             yamllint

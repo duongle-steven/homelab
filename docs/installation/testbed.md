@@ -19,14 +19,14 @@ It is not like production, and nothing here says it is: a release it proved is p
 - WSL at 13 GB with 4 GB of swap (`.wslconfig`)
 - The testbed's SSH key loaded in the agent; its public key is `infra/testbed/metal/authorized_keys` (the testbed only:
   production's nodes accept only `infra/production/metal/authorized_keys`)
-- The sandbox stopped (`k3d cluster stop homelab-dev`): `make testbed` refuses while the sandbox runs, and `make dev`
-  while the testbed does (`make testbed-stop`)
+- The sandbox stopped (`k3d cluster stop homelab-dev`): `just testbed` refuses while the sandbox runs, and `just dev`
+  while the testbed does (`just testbed-stop`)
 - 30 GB free on `C:` (WSL's virtual disk, where the VMs' disks grow)
 
 ## Build
 
 ```sh
-make testbed
+just testbed
 ```
 
 It force-pushes the commit you are on to GitHub branch `testbed`, which the testbed's Argo CD syncs, and applies
@@ -47,11 +47,11 @@ be healthy) and, when they pass, writes the commit status `testbed` on the commi
 `lab infra forgejo verify` reads.
 
 `nixie` records what it installed in `.state/testbed/metal/nixie-hosts.json` and never installs those machines again;
-`make testbed-fresh` removes the VMs, their disks and that record, then builds from empty disks. `make testbed-clean`
-removes them without building, `make testbed-stop` shuts the VMs down (they keep their disks).
+`just testbed-fresh` removes the VMs, their disks and that record, then builds from empty disks. `just testbed-clean`
+removes them without building, `just testbed-stop` shuts the VMs down (they keep their disks).
 
 The nodes' host keys are trusted on first contact (only on the workstation's own libvirt network);
-`make testbed-clean` forgets them with the disks.
+`just testbed-clean` forgets them with the disks.
 
 !!! warning
 
@@ -70,7 +70,7 @@ error, and WSL keeps at least 2 GB available. `leader failed to send out heartbe
 | 2 | cert-manager, Istio | the ambient mesh across nodes, the Gateway at its VIP | holds, 2 vCPUs |
 | 3 | CloudNativePG, three instances failing over | what otherwise only production runs | does not hold |
 
-Measured from `make testbed-fresh`:
+Measured from `just testbed-fresh`:
 
 | | Layer 1 | Layer 2 | Layer 3, 2 vCPUs | Layer 3, 4 vCPUs |
 | --- | --- | --- | --- | --- |
@@ -99,11 +99,11 @@ units, Forgejo, tests made general for them).
 ## Power
 
 ```sh
-make testbed-power
+just testbed-power
 ```
 
-On a healthy testbed, from the main checkout, alone: it wrecks the cluster's availability, so it is never part of `make testbed` and gives
-no mark. Run it when `lab cluster shutdown|startup`, the node profile or the recovery path change, and before step 12b. `tests=` picks
+On a healthy testbed, from the main checkout, alone: it wrecks the cluster's availability, so it is never part of `just testbed` and gives
+no mark. Run it when `lab cluster shutdown|startup`, the node profile or the recovery path change, and before step 12b. `--tests` picks
 the tests (`PowerCutEveryNode`, `PowerShutdownStartup`, `PowerNodeNotReturning`). A probe on a Ceph volume writes numbered lines, flushing
 each, and every number it reported must be in its file afterwards ([what they cover](../how-to-guides/power.md)).
 
@@ -133,7 +133,7 @@ protection and repeats the cut before real data.
 
 ### CloudNativePG, one measurement
 
-Once, not on the list and not in the mark (`make testbed-power tests=PowerCutPostgres`, the operator rendered and applied by hand with its `PodMonitor`
+Once, not on the list and not in the mark (`just testbed-power --tests PowerCutPostgres`, the operator rendered and applied by hand with its `PodMonitor`
 removed, an instance on each node, 2 vCPUs):
 
 | | |

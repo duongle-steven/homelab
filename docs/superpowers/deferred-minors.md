@@ -7,9 +7,9 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | From | Minor | When |
 |---|---|---|
 | #30 (7a) | `infra/_modules/k3d` destroy ignores a failed `k3d cluster delete` | any |
-| #30 (7a) | `docs/installation/sandbox.md` says `make dev` recreates the proxy; it is recreated only when the node address changes | any |
+| #30 (7a) | `docs/installation/sandbox.md` says `just dev` recreates the proxy; it is recreated only when the node address changes | any |
 | #30 (7a) | `infra/_modules/argocd/bootstrap.sh`: the Forgejo check and its `yq \| kubectl` pipes run without pipefail | any |
-| #30 (7a) | `make -C infra check` does not run `tofu validate` per module | any |
+| #30 (7a) | `just infra check` does not run `tofu validate` per module | any |
 | #30 (7a) | `scripts/get-status`, `argocd-admin-password`, `onboard-user` default to production's kubeconfig | any |
 | #31 (7b) | Argo CD's `argocd-notifications-cm` keeps the chart default `argocdUrl: https://argocd.example.com` | any |
 | #31 (7b) | Forgejo's `[server]` ConfigMap duplicates what the chart derives from the route host | any |
@@ -39,12 +39,11 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | mesh watchdog | A failed `kubectl get events` turns the second signal off without a log line | any |
 | mesh watchdog | Events with only `eventTime` (no `lastTimestamp`, if the kubelet changes recorders) are skipped: fall back to `eventTime` without its fraction (BusyBox `date -D`) | any |
 | mesh watchdog | `TestIstioCNIWatchdog` runs the script with the host's `sh` and GNU `date`, not BusyBox's | any |
-| 14a | `make dev tests=` with a single quote breaks the recipe's `eval` quoting | any |
 | 14a | The test scopes spec's map table still lists `scripts/check-*`, `render-chart` and `cli/**` as Smoke only; `test/scopes.yaml` skips them | any |
 | 14a | `lab test scope --check` covers only `components` globs: top-level files, `test/` non-test files, `metal/` and `cli/` are not checked (a new file there runs the whole suite) | any |
 | 14a | `scope.SplitTerms` ignores escaped parentheses and an alternation sign inside a character class; no term uses them yet | any |
 | dev shell cleanup | `metal/roles/pxe_server/templates/dnsmasq.conf.j2` uses `ansible.netcommon.ipmath`, which nixpkgs' Ansible does not ship (it moved to `ansible.utils`): `metal/` fails before and after the cleanup | 12 (replaces `metal/`) |
-| 8e | `make dev-fresh` on the workstation hits the main run's 60-minute `go test` timeout (the first sync's waits count inside the tests) | any |
+| 8e | `just dev-fresh` on the workstation hits the main run's 60-minute `go test` timeout (the first sync's waits count inside the tests) | any |
 | 8e | Browser SSO tests flake on Kanidm's login page (OpenCloud, Grafana, paperless: "login page never loaded", `chrome-error`); a rerun passes | any |
 | 10e | Woodpecker's server generates a temporary `WOODPECKER_GRPC_SECRET` at each start (agents sign in again with the agent secret; 11b's agent rotation restarts the server anyway) | any |
 | 10e | `TestNodeRestart` once took about 23 minutes (more than its 20): the watchdog had to restart istio-cni three times; a rerun passed in 10 | 12 (nodes) |
@@ -58,7 +57,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 11b | `OpenTofu.Prepare` replaces again if it crashes between the apply and recording it (no overlap: harmless) | any |
 | 11b | lab's image is pinned by hand after a release: a release that changes the catalog and the CronJob's access together runs the old catalog until the digest is set; the GHCR package must be public | 12 (production) |
 | 11b | `TestRotation`'s sub-tests read the "old" value after an earlier interrupted run may already hold the new one (handled for `woodpecker.agent` only) | any |
-| 11c | `make dev-clean` is not idempotent: a second destroy of an already-clean sandbox fails (`argocd` reads `cluster`'s outputs, which no longer exist), so `make dev-fresh` stops there; `make dev scope=full` does the same on an empty sandbox | any |
+| 11c | `just dev-clean` is not idempotent: a second destroy of an already-clean sandbox fails (`argocd` reads `cluster`'s outputs, which no longer exist), so `just dev-fresh` stops there; `just dev --full` does the same on an empty sandbox | any |
 | 11c | The prune ClusterRole may delete any `VolumeSnapshot`, the hourly restore points included (RBAC cannot select by label; a ValidatingAdmissionPolicy limiting it to `velero.io/backup-name` would) | 15 (security) |
 | 11c | A cut after Velero set a snapshot's content to `Retain` may leave the storage snapshot when prune deletes the `VolumeSnapshot` (both classes delete by default; unchecked on Ceph) | 12 (nodes) |
 | 11c | The "being rotated by" error suggests `lab secrets force-unlock <name> <holder>` without `--env` (the holder check refuses a wrong cluster's lock) | any |
@@ -72,7 +71,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15a | `TestBackupRestore`'s one-app restore read (again in 15b's run) the repository back as 404 right after `lab backup restore forgejo` (a rerun passed): find whether Forgejo answered before its restored data was in place | any |
 | 14e | `deployedNamespaces` counts every namespace as present after a failed list without saying so: print one line | any |
 | 14e | `Rotator.Run` still checks `overdue` for an entry skipped as not deployed (harmless while no optional app's entry has a period) | any |
-| 14e | `make dev` counts a failed `git diff` (unknown base, shallow clone) as "changed" and deploys both optional apps silently: warn | any |
+| 14e | `just dev` counts a failed `git diff` (unknown base, shallow clone) as "changed" and deploys both optional apps silently: warn | any |
 | 14e | `TestSetSandboxApps` does not assert the other documents unchanged or that a blank list is a no-op | any |
 | 14e | `infra/_modules/argocd`'s hash covers `system/argocd` only: a change to `set-sandbox-apps.sh` (or `set-revision.sh`) does not re-run the bootstrap | any |
 | 15b | `scripts/check-policy` takes about four minutes (every chart, both environments) on every pull request: limit it to the touched charts once policies are stable | any |
@@ -103,7 +102,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 12a-2 | SSH to a VM once took over 240 s after boot, reachable right after: `scripts/testbed-trust` rides it out, the cause is unknown | any |
 | 12a-2 | `flake.lock` (pins `nixie`) is outside the testbed's gate: a bump every release would otherwise need a run | 12b |
 | 12a-2 | `labEnv` returns `testbed`, which `env.Load` refuses: matters once the list names Forgejo | when it does |
-| 12a-2 | `make infra break_glass= skip_proof=` ignores the skip without recording its reason | any |
+| 12a-2 | `just infra deploy production --break-glass … --skip-proof …` ignores the skip without recording its reason | any |
 | 12a-2 | `scripts/mark-proof` finds its repository with `gh repo view`, `verify` with `seed_repository`: a checkout whose `gh` default is another fork marks there | 16 (portability) |
 | 12a-2 | Comments and docs that still say `values-dev.yaml` for what moved to `values-local.yaml` (`system/velero`, `system/kiali`, `set-backup-endpoint.sh`, `secrets-management.md`, `supply-chain.md`) | any |
 | 12a-3 | `lab cluster upgrade`: a drain that fails leaves the node cordoned with its mon evicted, and the next run waits for a healthy cluster before draining, so it never starts until someone runs `kubectl uncordon` | any |
@@ -121,7 +120,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15d | kubescape's guard proves it saw resources (500, ztunnel), not that its controls ran: also require one known finding (C-0185 on `/ClusterRoleBinding/cluster-admin`) | any |
 | 15d | `service-account-extend-token-expiration=false`: a client caching its projected token past an hour gets 401s; no test failed over the whole suite, but nobody read the audit log for ServiceAccount 401s over a long run | before production |
 | 15d | `TestBackupRestore`'s "push asks first" failed once right after the sandbox started (`lab backup push`: "ntfy has no mounted volume"): `VolumeBytes` reads the kubelets' stats summary, which has no volume figures for a pod until its first collection; the rerun passed. Retry for a minute, or read the claims' pods instead | any |
-| 15d | `make testbed` from stopped VMs failed once in `lab cluster enroll` ("Waiting for homelab-2 to join": the API server's `etcd failed` while the VMs were still booting, homelab-3 pending); the rerun passed. Enroll should retry an unhealthy API server while the nodes come up | 12b |
+| 15d | `just testbed` from stopped VMs failed once in `lab cluster enroll` ("Waiting for homelab-2 to join": the API server's `etcd failed` while the VMs were still booting, homelab-3 pending); the rerun passed. Enroll should retry an unhealthy API server while the nodes come up | 12b |
 | 15f | Element web (`chat.`) is public while dendrite's route is on the LAN Gateway only, so Element cannot sign in from outside the house: publish dendrite's client API (and federation) on `public` with its host in the public map, or keep Element on the LAN | any |
 | 15f | `system/public-scan/files/scan.sh` drops nuclei's own `[FTL]`/`[ERR]` lines when nuclei fails: the log says only that it failed | any |
 | 15f | The scan's last line `{"public_scan":"done","templates":N}` reports the last host's template count only | any |

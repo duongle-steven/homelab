@@ -37,4 +37,4 @@ jobs:
       - uses: ./.github/actions/sandbox
         with:
           # The runner has the memory: every optional app too (paperless, opencloud), as production has them
-          make-args: scope=full apps=all
+          just-args: --full --apps all

@@ -52,7 +52,7 @@ printf '{"authSource":"OAuth token from %s/token.json","accounts":[{"id":"acc-1"
 
 	out, err = runScript(t, append(env, "HOMELAB_CLOUDFLARE_OFFLINE=1"), "cloudflare-credentials", "production")
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"account_id":"offline","token":""}`, out, "make -C infra check never calls cf")
+	assert.JSONEq(t, `{"account_id":"offline","token":""}`, out, "just infra check never calls cf")
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "cf-no-accounts"), nil, 0o644))
 	out, err = runScript(t, env, "cloudflare-credentials", "production")

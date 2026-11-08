@@ -31,7 +31,7 @@ func newInfraForgejoCmd() *cobra.Command {
 		Long:  "Production's Argo CD syncs ops/homelab on Forgejo, which changes only through push. --env sandbox targets the sandbox's Forgejo (the tests) and skips the guards.",
 	}
 	group.PersistentFlags().String("env", "production", "production, or sandbox (the tests)")
-	group.PersistentFlags().String("commit", "", "refuse unless HEAD is this commit (make infra passes the one it applied)")
+	group.PersistentFlags().String("commit", "", "refuse unless HEAD is this commit (just infra deploy passes the one it applied)")
 	verify := &cobra.Command{
 		Use:   "verify",
 		Short: "Check that HEAD may be deployed to production",
@@ -296,7 +296,7 @@ func pushCommit(cmd *cobra.Command, e env.Env, verify func(*cobra.Command, env.E
 }
 
 // verifyBreakGlass is verify while GitHub is down: the clean checkout's HEAD (pushCommit's checks) must fast-forward
-// ops/homelab's master, checked before make infra applies anything.
+// ops/homelab's master, checked before just infra deploy applies anything.
 func verifyBreakGlass(cmd *cobra.Command, e env.Env) error {
 	head, err := pushCommit(cmd, e, nil)
 	if err != nil {
@@ -323,10 +323,10 @@ func verifyBreakGlass(cmd *cobra.Command, e env.Env) error {
 	return err
 }
 
-// sameCommit refuses a HEAD other than expected (when given): the checkout moved since make infra started.
+// sameCommit refuses a HEAD other than expected (when given): the checkout moved since just infra deploy started.
 func sameCommit(head, expected string) error {
 	if expected != "" && head != expected {
-		return fmt.Errorf("the checkout moved from %.12s to %.12s since make infra started: run it again", expected, head)
+		return fmt.Errorf("the checkout moved from %.12s to %.12s since just infra deploy started: run it again", expected, head)
 	}
 	return nil
 }
@@ -389,7 +389,7 @@ func sandboxEndpoint(ctx context.Context, kube kubernetes.Interface, domain stri
 }
 
 // refreshArgoCDCredential makes Argo CD's repository Secret hold token: it force-syncs the ExternalSecret and
-// waits, so the bootstrap that follows (make infra) can already switch to Forgejo.
+// waits, so the bootstrap that follows (just infra deploy) can already switch to Forgejo.
 func refreshArgoCDCredential(ctx context.Context, kube kubernetes.Interface, dyn dynamic.Interface, token string, timeout time.Duration) error {
 	current := func() (bool, error) {
 		secret, err := kube.CoreV1().Secrets("argocd").Get(ctx, "argocd-repo-forgejo", metav1.GetOptions{})

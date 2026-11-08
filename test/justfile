@@ -1,0 +1,21 @@
+# The suite against an environment's cluster (its kubeconfig in infra/<env>/); the root's recipes run it with their
+# environment and filter: `just test run --env sandbox --filter Logs`
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set fallback
+
+root := parent_directory(source_directory())
+
+# --env production (the default), testbed or sandbox; --filter is go test's -run regex
+[arg("env", long)]
+[arg("filter", long)]
+[arg("format", long)]
+[doc("The suite against infra/<env>'s cluster (--env, --filter, --format)")]
+run env="production" $filter="." format="testname":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export KUBECONFIG="{{ root }}/infra/{{ env }}/kubeconfig.yaml" KUBE_CONFIG_PATH="{{ root }}/infra/{{ env }}/kubeconfig.yaml"
+    case "{{ env }}" in
+    sandbox) export ENV=dev INSECURE_SKIP_VERIFY=1 ;;
+    testbed) export ENV=testbed INSECURE_SKIP_VERIFY=1 ;;
+    esac
+    gotestsum --format {{ format }} -- -timeout 60m -run "$filter"

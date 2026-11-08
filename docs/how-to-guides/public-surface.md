@@ -48,7 +48,7 @@ on 2026-11-07 found none, and the dashboard's WAF page offers only paid add-ons)
 module finds it by name (`Free`) among the managed rulesets the zone may run, and a plan fails, naming those it found,
 when there is not exactly one.
 
-Apply with the rest of production (`make infra env=production`), or the unit alone:
+Apply with the rest of production (`just infra deploy production`), or the unit alone:
 
 ```sh
 cf auth login          # Account API Tokens enabled on its consent page

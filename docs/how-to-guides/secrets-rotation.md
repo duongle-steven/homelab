@@ -12,7 +12,7 @@ shortest one it can: a restart of the readers, after waiting for Woodpecker to h
 go -C cli run ./cmd/lab secrets list                 # every secret: its method, class, period, last rotation, next due date
 ```
 
-`make infra env=production` ends by naming the secrets due for rotation from the workstation (`lab secrets list --due
+`just infra deploy production` ends by naming the secrets due for rotation from the workstation (`lab secrets list --due
 --workstation`): OpenTofu's (Cloudflare's tokens, R2's), since the cluster holds no Cloudflare credentials, and
 Forgejo's `deploy` and `argocd` tokens, whose rotation needs Forgejo's admin password, which the CronJob never holds. `lab` shows the unit's plan with the
 replacement and applies it only once you approve: anything else pending in that unit is applied with it.
@@ -49,7 +49,7 @@ a live run (the CronJob's, or someone else's) keeps its lock.
 Some steps need a person, and `lab` stops to give them:
 
 - **Renovate's GitHub App key:** generate a new key in the App's settings (GitHub has no API for it), give it to
-  OpenTofu (`docs/how-to-guides/renovate.md`), run `make infra env=production`, then delete the old key.
+  OpenTofu (`docs/how-to-guides/renovate.md`), run `just infra deploy production`, then delete the old key.
 - **Telegram's bot token:** BotFather's `/revoke`, then write the new one ([Alerts](alerts.md)).
 - **ntfy's phone token and password:** people re-enter them in their apps; the old token stays valid until a person
   confirms they did (`lab secrets rotate ntfy.phone-token` again on a terminal).

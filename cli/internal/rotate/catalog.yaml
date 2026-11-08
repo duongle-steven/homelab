@@ -10,7 +10,7 @@
 #   readers   namespace, ExternalSecrets and workloads to restart; people: true when people re-enter the value
 #   steps     what a person does (manual and script)
 #   idle      what must be idle first
-#   workstation  rotated only from a person's run (make infra env=production names it when due), never the CronJob
+#   workstation  rotated only from a person's run (just infra deploy production names it when due), never the CronJob
 #   envs      the environments that have it (production, sandbox); empty = every one
 #   pending   the task that creates what this entry names; skips the check that the repository has it
 #   settings  method-specific (app, account, OpenTofu unit and resource, kaniop client); a generated secret's key,
@@ -315,7 +315,7 @@
     - {namespace: renovate, externalSecrets: [renovate-github-app]}
   steps: >-
     Generate a new private key in the GitHub App's settings (GitHub has no API for it), give it to OpenTofu
-    (HOMELAB_GITHUB_APP_KEY, docs/how-to-guides/renovate.md), run make infra env=production, then delete the old key.
+    (HOMELAB_GITHUB_APP_KEY, docs/how-to-guides/renovate.md), run just infra deploy production, then delete the old key.
     lab stops and gives these steps, then deletes the old key
 
 - name: forgejo-db

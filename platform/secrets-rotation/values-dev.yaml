@@ -1,3 +1,3 @@
-# Built from the checkout by make dev (scripts/build-lab-image) and imported on the node: no registry
+# Built from the checkout by just dev (scripts/build-lab-image) and imported on the node: no registry
 image: homelab-lab:dev
 env: sandbox

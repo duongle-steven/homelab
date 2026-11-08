@@ -20,10 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Testbed's tests run only against testbed (make testbed: ENV=testbed), its three NixOS VMs
+// Testbed's tests run only against testbed (just testbed: ENV=testbed), its three NixOS VMs
 func testbedOnly(t *testing.T) {
 	if os.Getenv("ENV") != "testbed" {
-		t.Skip("testbed tests run against testbed only (make testbed)")
+		t.Skip("testbed tests run against testbed only (just testbed)")
 	}
 }
 

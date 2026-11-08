@@ -29,7 +29,7 @@ You'll be asked to provide these credentials on first build.
 2. Enable **Zero Trust** (any team name, the Free plan) so the account can create tunnels.
 3. Enable **R2** (R2 Object Storage in the dashboard; it asks for a payment method even on the free tier, which
    OpenTofu's state stays far below).
-4. `terragrunt plan` in `infra/production/cloudflare`, then `terragrunt apply` (`make infra env=production` applies every
+4. `terragrunt plan` in `infra/production/cloudflare`, then `terragrunt apply` (`just infra deploy production` applies every
    production unit).
 
 ### Cloudflare login
@@ -46,7 +46,7 @@ creates the expiring R2 credentials with it. `cf auth whoami` must list `account
 `cf auth login --force` and enable it.
 
 `--no-browser` prints a link and a code (handy under WSL). `CLOUDFLARE_ACCOUNT_ID` picks the account when the login
-sees several. `make -C infra check` needs no login.
+sees several. `just infra check` needs no login.
 
 ### State passphrase
 
@@ -62,7 +62,7 @@ Keep a copy in a password manager. Losing it makes every state unreadable, inclu
 WireGuard private key, and with the unseal key every secret in OpenBao.
 
 A state written before encryption (an older sandbox, or production before step 8c) is refused; run the first command
-once with `HOMELAB_STATE_MIGRATE=1` (for example `HOMELAB_STATE_MIGRATE=1 make dev`), which reads it unencrypted and
+once with `HOMELAB_STATE_MIGRATE=1` (for example `HOMELAB_STATE_MIGRATE=1 just dev`), which reads it unencrypted and
 writes it encrypted.
 
 ### Rotating the passphrase
@@ -80,8 +80,8 @@ on the first `init` by `lab infra state ensure`), one object per unit (`<unit>/t
 (`<unit>/tfstate.json.tflock`) while a command runs. Its credentials last one hour and come from `lab infra state
 credentials` (an account token for that bucket only, created with the `cf` login), so no token is written to disk; `lab`
 keeps the current one in `$XDG_RUNTIME_DIR` (memory-backed, user-only) and reuses it while it lasts 15 more minutes.
-`lab` runs with `go run`: after a fresh clone or a dependency bump, build it once (`go -C cli build ./cmd/lab`; `make
-infra` does) so the first credential is not cut off by a cold build. An interrupted command can leave the lock behind:
+`lab` runs with `go run`: after a fresh clone or a dependency bump, build it once (`go -C cli build ./cmd/lab`; `just infra
+deploy` does) so the first credential is not cut off by a cold build. An interrupted command can leave the lock behind:
 run `terragrunt force-unlock <ID>` in the unit with the ID OpenTofu prints. The sandbox's state stays in
 `.state/sandbox/` (git-ignored, readable by the user only). Both are encrypted.
 

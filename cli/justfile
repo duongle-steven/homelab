@@ -1,0 +1,15 @@
+# lab's checks (part of the basic checks, scripts/ci-check); run from cli/ or as `just cli <recipe>` from the root
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set fallback
+
+# -count=1: the scope tests read test/scopes.yaml through git, which go test's cache does not see
+[doc("go vet and lab's tests")]
+test:
+    go vet ./...
+    go test -race -count=1 ./...
+
+# test/scopes.yaml covers every component and names existing tests
+[doc("test/scopes.yaml and gofmt")]
+check:
+    go run ./cmd/lab test scope --check
+    @unformatted=$(gofmt -l .); if [ -n "$unformatted" ]; then echo "gofmt -w these:" >&2; echo "$unformatted" >&2; exit 1; fi

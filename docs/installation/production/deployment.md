@@ -9,7 +9,7 @@ nix develop
 Build the lab:
 
 ```sh
-make infra env=production
+just infra deploy production
 ```
 
 It installs NixOS on the machines of `infra/production/metal/hosts.json` (`nixie` boots them from the network and
@@ -26,7 +26,7 @@ Yes it's that simple!
 
 !!! note
 
-    `make infra env=production` deploys. It refuses anything but `origin/master` checked out without changes whose
+    `just infra deploy production` deploys. It refuses anything but `origin/master` checked out without changes whose
     check `checks` passed and whose pull request's check `sandbox` passed (`lab infra forgejo verify`), applies
     `infra/production`, provisions Forgejo's org `ops` (`lab infra forgejo sync`: the users `deploy` and `argocd`,
     `master`'s protection, their tokens in OpenBao), pushes the commit to `ops/homelab` (`lab infra forgejo push`),
@@ -36,8 +36,8 @@ Yes it's that simple!
     restarts). `lab infra forgejo push` alone deploys without touching the infrastructure. Only `deploy` can push to
     `master`, and nobody can force-push or delete it, Forgejo's site admins (`forgejo_admin`, `homelab-admins`)
     included; a site admin can still edit or remove the branch protection itself, a deliberate bypass the next
-    `lab infra forgejo sync` (every `make infra env=production`) undoes. Roll back with a revert through a pull
-    request. `force=1` applies the infrastructure only and deploys
+    `lab infra forgejo sync` (every `just infra deploy production`) undoes. Roll back with a revert through a pull
+    request. `--force` applies the infrastructure only and deploys
     nothing (a state migration from another commit).
 
 !!! example

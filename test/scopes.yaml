@@ -1,6 +1,6 @@
 # Which sandbox tests a change runs (inputs of the whole cluster, egress rendered into every namespace: full) (lab test scope, docs/how-to-guides/sandbox-tests.md). Paths are globs (**
 # spans directories) matched against the files a branch changes; a file no entry knows runs the whole suite, and
-# `make -C cli check` fails until its component is added here.
+# `just cli check` fails until its component is added here.
 skip:
   - .github/**
   - scripts/ci-check
@@ -16,7 +16,7 @@ skip:
   - .gitignore
   - .dockerignore
   - .yamllint.yaml
-  # Read only by make testbed-scan and make dev-scan, which run by hand
+  # Read only by just testbed-scan and just dev-scan, which run by hand
   - .cluster-scan-accepted.yaml
   - test/scan_test.go
   - test/kube-bench-cfg/**
@@ -43,8 +43,8 @@ skip:
   - scripts/rotate-state-passphrase
   - scripts/helm-diff
   - scripts/__pycache__/**
-  # lab's offline parts (make -C cli test); its Forgejo deploy runs against the sandbox (the group below)
-  - cli/Makefile
+  # lab's offline parts (just cli test); its Forgejo deploy runs against the sandbox (the group below)
+  - cli/justfile
   - cli/cmd/**
   - cli/internal/scope/**
   - cli/internal/state/**
@@ -59,8 +59,8 @@ alone: [NodeRestart, NodePowerCut, BackupRestore, Rotation]
 full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|Policy|SupplyChain|TrivyOperator|PublicScan|NodeRestart|NodePowerCut|BackupRestore|Rotation
 groups:
   - paths:
-      - Makefile
-      - test/Makefile
+      - justfile
+      - test/justfile
       - test/scopes.yaml
       - test/go.mod
       - test/go.sum
@@ -161,11 +161,11 @@ groups:
       - system/external-dns/**
       - system/kured/**
       - system/rook-ceph/**
-      - infra/Makefile
+      - infra/justfile
       - infra/production/**
       - infra/_modules/cloudflare/**
       - infra/_modules/backup/**
-      # The nodes (testbed and production; make testbed proves them), but for the API server's audit policy, which
+      # The nodes (testbed and production; just testbed proves them), but for the API server's audit policy, which
       # the sandbox's k3d node uses too (a group below)
       - infra/_modules/metal/*.tf
       - infra/_modules/metal/flake/*.nix

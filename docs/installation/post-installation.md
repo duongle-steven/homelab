@@ -38,7 +38,7 @@ Follow the [backup and restore guide](../how-to-guides/backup-and-restore.md) to
 After the homelab has been stabilized, you can run the full test suite to ensure that everything is working properly:
 
 ```sh
-make test
+just test run
 ```
 
 !!! info

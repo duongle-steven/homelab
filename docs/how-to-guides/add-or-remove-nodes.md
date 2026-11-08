@@ -22,7 +22,7 @@ Add its details to the inventory:
 Install the OS (`nixie`) and join the cluster (`lab cluster enroll`):
 
 ```
-make infra env=production
+just infra deploy production
 ```
 
 Then verify the new node:
@@ -75,9 +75,9 @@ Remove it from the inventory:
  }
 ```
 
-Reapply the environment with `make infra env=production`.
+Reapply the environment with `just infra deploy production`.
 Don't replace the initializer with a fresh server in an existing cluster.
 
 Optionally, after Ceph finishes recovering, clean up the removed node's OSD records using the [Rook guide](https://rook.io/docs/rook/latest/Storage-Configuration/Advanced/ceph-osd-mgmt/#remove-an-osd).
 
-Testbed is the same with `infra/testbed/metal/hosts.json` and `make testbed`, which also creates the VM.
+Testbed is the same with `infra/testbed/metal/hosts.json` and `just testbed`, which also creates the VM.

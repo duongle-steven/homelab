@@ -160,7 +160,7 @@ terraform {
     }
   }
 
-  # Parsing works without it (make -C infra check); any command that reads or writes state needs it
+  # Parsing works without it (just infra check); any command that reads or writes state needs it
   before_hook "state_passphrase" {
     commands = local.state_commands
     execute = ["sh", "-c", <<-EOT

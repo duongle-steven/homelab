@@ -2,7 +2,7 @@
 
 ## PXE server logs
 
-View the Nixie output in the terminal running `make infra env=production` (or `make testbed`).
+View the Nixie output in the terminal running `just infra deploy production` (or `just testbed`).
 To retry metal provisioning:
 
 ```sh

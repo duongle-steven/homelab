@@ -5,7 +5,7 @@ import (
 	"regexp"
 )
 
-// CheckManual refuses a make dev tests=... regex that would test nothing or run an alone test with the others: a
+// CheckManual refuses a just dev --tests ... regex that would test nothing or run an alone test with the others: a
 // term must match at least one test, and only an alone term may match an alone test.
 func (c Config) CheckManual(regex string, tests []string) error {
 	for _, term := range SplitTerms(regex) {

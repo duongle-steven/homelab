@@ -1,4 +1,4 @@
-# From its release: nixos-26.05 ships 4.0.8 and nixos-unstable 4.0.16 (make dev-scan). A static Go binary
+# From its release: nixos-26.05 ships 4.0.8 and nixos-unstable 4.0.16 (just dev-scan). A static Go binary
 { lib, stdenv, fetchurl }:
 
 let

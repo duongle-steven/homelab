@@ -29,7 +29,7 @@ terraform {
   }
 
   # Trust each node's host key on first contact (lab cluster checks known_hosts): only on the workstation's own
-  # libvirt network; make testbed-fresh forgets them with the disks. Production's are checked by hand
+  # libvirt network; just testbed-fresh forgets them with the disks. Production's are checked by hand
   after_hook "trust" {
     commands    = ["apply"]
     working_dir = get_repo_root()

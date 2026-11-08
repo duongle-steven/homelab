@@ -1,4 +1,4 @@
-# On request: a pull request into anything but master labelled sandbox runs what make dev would run for it (its base
+# On request: a pull request into anything but master labelled sandbox runs what just dev would run for it (its base
 # to its head). A new commit does not rerun it (remove the label and add it again), except on Renovate's own labelled
 # pull requests (its bot, platform/renovate's gitAuthor), which nobody tests by hand. Not required by any ruleset.
 name: sandbox-label
@@ -43,4 +43,4 @@ jobs:
           save: false  # only runs on dev save (sandbox.yaml, checks.yaml)
       - uses: ./.github/actions/sandbox
         with:
-          make-args: base=${{ github.event.pull_request.base.sha }}
+          just-args: --base ${{ github.event.pull_request.base.sha }}

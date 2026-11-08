@@ -283,7 +283,7 @@ func TestProofGateIgnoresSkip(t *testing.T) {
 	}
 }
 
-// Pull requests merge with a merge commit: the mark make testbed wrote on the branch's tip still counts
+// Pull requests merge with a merge commit: the mark just testbed wrote on the branch's tip still counts
 func TestProofGateAcceptsMarkOnMergedBranch(t *testing.T) {
 	r := newProofRepo(t)
 	deployed := r.git("rev-parse", "HEAD")
@@ -329,7 +329,7 @@ func TestProofGateAsksGitHubSparingly(t *testing.T) {
 	}
 }
 
-// Merged branches' tips, where make testbed leaves its mark, are asked about before the commits around them
+// Merged branches' tips, where just testbed leaves its mark, are asked about before the commits around them
 func TestProofGateFindsAMarkPastTheCap(t *testing.T) {
 	r := newProofRepo(t)
 	deployed := r.git("rev-parse", "HEAD")

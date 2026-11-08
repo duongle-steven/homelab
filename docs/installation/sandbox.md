@@ -14,25 +14,25 @@ The sandbox is a local k3d cluster (one k3s server) for testing changes on the `
 ```sh
 git switch dev
 nix develop
-make dev
+just dev
 ```
 
-`make dev` runs Terragrunt in `infra/sandbox`: the unit `cluster` creates the k3d cluster with k3s's own networking (Flannel, kube-proxy, ServiceLB) and the localhost proxy, the unit `argocd` bootstraps ArgoCD; then it runs the tests. State stays on your machine (`.state/`).
+`just dev` runs Terragrunt in `infra/sandbox`: the unit `cluster` creates the k3d cluster with k3s's own networking (Flannel, kube-proxy, ServiceLB) and the localhost proxy, the unit `argocd` bootstraps ArgoCD; then it runs the tests. State stays on your machine (`.state/`).
 
-The node pulls images through pull-through caches, one per registry (docker.io, ghcr.io, quay.io, registry.k8s.io, code.forgejo.org: `k3d-homelab-cache-*`, each with its own Docker volume). They are k3d registries outside the cluster, so `make dev-clean` and `make dev-fresh` keep them and a rebuilt sandbox downloads only what changed. A cached image expires a week after the cache first fetched it (`registry:3` does not count later pulls), and the next build fetches it again; a new release is another tag, fetched on its first use, so after an upgrade the old one stays at most a week. An image from another registry, or one the cache fails to fetch, comes from its registry directly. Before it builds a cluster, `make dev` fills the caches one image at a time (`scripts/warm-image-cache`: every image the sandbox renders, plus k3s's, the operators' and the tests'; what a cache holds is skipped; `--list` prints them): the node pulls dozens of images at once, and on a slow link the cache's own request to the registry times out after 15 seconds (`registry:3`, not configurable), so the node would pull that image directly and the cache never get it. After the tests, `scripts/warm-image-cache --node` adds what the node holds and the caches miss, so the next build finds it. GitHub Actions runs without caches (`HOMELAB_SANDBOX_CACHE=0`: each runner starts empty). Empty one with `k3d registry delete homelab-cache-docker-io` (and `docker volume rm homelab-cache-docker-io`).
+The node pulls images through pull-through caches, one per registry (docker.io, ghcr.io, quay.io, registry.k8s.io, code.forgejo.org: `k3d-homelab-cache-*`, each with its own Docker volume). They are k3d registries outside the cluster, so `just dev-clean` and `just dev-fresh` keep them and a rebuilt sandbox downloads only what changed. A cached image expires a week after the cache first fetched it (`registry:3` does not count later pulls), and the next build fetches it again; a new release is another tag, fetched on its first use, so after an upgrade the old one stays at most a week. An image from another registry, or one the cache fails to fetch, comes from its registry directly. Before it builds a cluster, `just dev` fills the caches one image at a time (`scripts/warm-image-cache`: every image the sandbox renders, plus k3s's, the operators' and the tests'; what a cache holds is skipped; `--list` prints them): the node pulls dozens of images at once, and on a slow link the cache's own request to the registry times out after 15 seconds (`registry:3`, not configurable), so the node would pull that image directly and the cache never get it. After the tests, `scripts/warm-image-cache --node` adds what the node holds and the caches miss, so the next build finds it. GitHub Actions runs without caches (`HOMELAB_SANDBOX_CACHE=0`: each runner starts empty). Empty one with `k3d registry delete homelab-cache-docker-io` (and `docker volume rm homelab-cache-docker-io`).
 
 !!! note
 
-    The first build takes about 25 minutes. Running `make dev` again on an existing sandbox takes about a minute.
+    The first build takes about 25 minutes. Running `just dev` again on an existing sandbox takes about a minute.
 
 !!! warning
 
-    A sandbox built before step 8e (namespace `global-secrets`) needs `make dev-fresh` once: its OpenBao configured
+    A sandbox built before step 8e (namespace `global-secrets`) needs `just dev-fresh` once: its OpenBao configured
     itself on first start with role `writer` bound to `global-secrets`, so `generated-secrets` cannot push to it.
 
 ## Explore
 
-`make` uses the sandbox kubeconfig automatically. For `kubectl` in your own shell, point it at the same file first:
+`just` uses the sandbox kubeconfig automatically. For `kubectl` in your own shell, point it at the same file first:
 
 ```sh
 export KUBECONFIG=$PWD/infra/sandbox/kubeconfig.yaml  # from the repository root
@@ -43,13 +43,13 @@ export KUBECONFIG=$PWD/infra/sandbox/kubeconfig.yaml  # from the repository root
 - <https://grafana.127-0-0-1.nip.io> ("Sign in with Kanidm", or user `admin` with `kubectl -n grafana get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`)
 - <https://registry.127-0-0-1.nip.io> (zot; log in with Kanidm, then create an API key under your user menu and `docker login registry.127-0-0-1.nip.io -u <username> -p <key>`)
 - <https://git.127-0-0-1.nip.io> (Forgejo; "Sign in with Kanidm", or user `forgejo_admin` with `kubectl -n forgejo get secret forgejo-admin -o jsonpath='{.data.password}' | base64 -d`; `ops/homelab` stays empty until `TestForgejoDeploy` runs `lab infra forgejo sync` and `push`; SSH on `127.0.0.1:22`)
-- <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io> (only with `make dev apps=paperless`: paperless and OpenCloud are optional here, [Sandbox tests](../how-to-guides/sandbox-tests.md#optional-apps)): log in with Kanidm (paperless also has a local `admin`, password in OpenBao `secret/paperless/generated/admin`, property `PAPERLESS_ADMIN_PASSWORD`)
+- <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io> (only with `just dev --apps paperless`: paperless and OpenCloud are optional here, [Sandbox tests](../how-to-guides/sandbox-tests.md#optional-apps)): log in with Kanidm (paperless also has a local `admin`, password in OpenBao `secret/paperless/generated/admin`, property `PAPERLESS_ADMIN_PASSWORD`)
 - <https://drive.127-0-0-1.nip.io> (OpenCloud): log in with Kanidm and accept the consent page once
 - <https://home.127-0-0-1.nip.io>, <https://drop.127-0-0-1.nip.io>, <https://speedtest.127-0-0-1.nip.io>
 
 On Windows with WSL, open these from the Windows browser.
 
-Everything goes through the Gateway `istio-system/gateway` (Istio), which ServiceLB serves on the k3d node; a localhost proxy (`homelab-dev-proxy`, recreated by `make dev`) forwards `127.0.0.1:80/443/22` to it, because Windows cannot reach ports Docker publishes under WSL mirrored networking. The tests connect to the node directly. The Argo CD CLI works through it with `--grpc-web`.
+Everything goes through the Gateway `istio-system/gateway` (Istio), which ServiceLB serves on the k3d node; a localhost proxy (`homelab-dev-proxy`, recreated by `just dev`) forwards `127.0.0.1:80/443/22` to it, because Windows cannot reach ports Docker publishes under WSL mirrored networking. The tests connect to the node directly. The Argo CD CLI works through it with `--grpc-web`.
 
 Certificates are issued by a local CA that is recreated with the cluster. To remove the browser warning, export it and import it into your trust store (on Windows: double-click `homelab-dev-ca.crt` → Install Certificate → Local Machine → Trusted Root Certification Authorities):
 
@@ -113,11 +113,11 @@ scripts/render-chart platform/kanidm dev
 (cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect' ./...)
 mkdocs build --strict
 git commit -am "feat: harness the sun"
-make dev   # pushes this commit to the branch sandbox and runs every sandbox test on it
+just dev   # pushes this commit to the branch sandbox and runs every sandbox test on it
 git push -u origin feat/harness-the-sun   # then open a PR into dev
 ```
 
-ArgoCD in the sandbox syncs the GitHub branch `sandbox`. `make dev` force-pushes the commit you are on to it (so commit first) and runs the smoke, identity, SSO (including OpenCloud), Gateway, Forgejo, mesh, monitoring and egress tests against it, so a branch is tested before its pull request. After the merge, run `make dev` on `dev` once more. `dev` is merged into `master` through periodic pull requests.
+ArgoCD in the sandbox syncs the GitHub branch `sandbox`. `just dev` force-pushes the commit you are on to it (so commit first) and runs the smoke, identity, SSO (including OpenCloud), Gateway, Forgejo, mesh, monitoring and egress tests against it, so a branch is tested before its pull request. After the merge, run `just dev` on `dev` once more. `dev` is merged into `master` through periodic pull requests.
 
 Only the components listed in `system/argocd/values-dev.yaml` are synced: system and platform charts in the `root` ApplicationSet, apps in the `apps` ApplicationSet.
 
@@ -159,17 +159,17 @@ Measured on a fresh k3d sandbox with all components running and every namespace 
 
 ## After a restart
 
-The sandbox survives a WSL or Docker restart: its containers start again (`k3d cluster start homelab-dev` if they do not) and keep their addresses. `make dev` makes each container's address on the k3d network static when it builds the cluster, because Docker otherwise gives a restarted container any free address, and k3s's etcd then refuses to start ("not a member of the etcd cluster": its member address is the old one). A sandbox built before that needs `make dev-fresh` once after such a restart; check with `docker inspect -f '{{json .NetworkSettings.Networks}}' k3d-homelab-dev-server-0` (a static address shows in `IPAMConfig`).
+The sandbox survives a WSL or Docker restart: its containers start again (`k3d cluster start homelab-dev` if they do not) and keep their addresses. `just dev` makes each container's address on the k3d network static when it builds the cluster, because Docker otherwise gives a restarted container any free address, and k3s's etcd then refuses to start ("not a member of the etcd cluster": its member address is the old one). A sandbox built before that needs `just dev-fresh` once after such a restart; check with `docker inspect -f '{{json .NetworkSettings.Networks}}' k3d-homelab-dev-server-0` (a static address shows in `IPAMConfig`).
 
 On WSL, a full `C:` drive crashes the whole VM (kernel panics with SIGBUS, reports in `%LOCALAPPDATA%\Temp\wsl-crashes`): the sandbox's disk grows inside WSL's virtual disk on `C:`, so keep about 30 GB free there during the suite.
 
-Never beside [testbed](testbed.md): `make dev` refuses while testbed's VMs run (`make testbed-stop`), and both refuse
+Never beside [testbed](testbed.md): `just dev` refuses while testbed's VMs run (`just testbed-stop`), and both refuse
 with less than 30 GB free on `C:`.
 
 ## Clean up
 
 ```sh
-make dev-clean  # terragrunt run --all destroy in infra/sandbox: the cluster, the proxy and the kubeconfig (not the image caches)
+just dev-clean  # terragrunt run --all destroy in infra/sandbox: the cluster, the proxy and the kubeconfig (not the image caches)
 ```
 
 ## Differences from production

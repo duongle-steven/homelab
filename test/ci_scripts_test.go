@@ -70,10 +70,10 @@ esac`
 	}
 }
 
-// make dev tests the checkout: with revision=<sha> (GitHub Actions) too, it refuses uncommitted changes and a revision
+// just dev tests the checkout: with --revision <sha> (GitHub Actions) too, it refuses uncommitted changes and a revision
 // other than HEAD, because the tests and their scope come from the checkout
-func TestMakeDevRevision(t *testing.T) {
-	makefile, err := filepath.Abs("../Makefile")
+func TestJustDevRevision(t *testing.T) {
+	justfile, err := filepath.Abs("../justfile")
 	require.NoError(t, err)
 	repo := t.TempDir()
 	git := func(args ...string) string {
@@ -90,7 +90,7 @@ func TestMakeDevRevision(t *testing.T) {
 	git("commit", "-q", "-am", "two")
 	head := git("rev-parse", "HEAD")
 	clean := func(revision string) error {
-		out, err := exec.Command("make", "-s", "-f", makefile, "-C", repo, "sandbox-clean", "revision="+revision).CombinedOutput()
+		out, err := exec.Command("just", "--justfile", justfile, "--working-directory", repo, "sandbox-clean", revision).CombinedOutput()
 		t.Log(string(out))
 		return err
 	}
@@ -104,9 +104,9 @@ func TestMakeDevRevision(t *testing.T) {
 	assert.Error(t, clean(""), "uncommitted change, no revision")
 }
 
-// make infra env=production deploys in one command: the guards, the infrastructure, Forgejo's org ops, the push, then
-// the Argo CD bootstrap again (the switch to Forgejo on a first install); force=1 applies the infrastructure only
-func TestMakeInfraProduction(t *testing.T) {
+// just infra deploy production deploys in one command: the guards, the infrastructure, Forgejo's org ops, the push,
+// then the Argo CD bootstrap again (the switch to Forgejo on a first install); --force applies the infrastructure only
+func TestJustInfraDeploy(t *testing.T) {
 	stubs := map[string]string{
 		"lab":        `echo "lab $*" >> "$FIXTURES/calls"; [ "$3" != verify ] || [ -z "$VERIFY_FAILS" ]`,
 		"terragrunt": `echo "terragrunt $(basename "$PWD") $*${HOMELAB_GITHUB_APP_KEY:+ key=$HOMELAB_GITHUB_APP_KEY}" >> "$FIXTURES/calls"`,
@@ -119,7 +119,7 @@ func TestMakeInfraProduction(t *testing.T) {
 	require.NoError(t, err)
 	for _, c := range []struct {
 		name string
-		vars []string
+		opts []string
 		env  []string
 		want []string
 	}{
@@ -131,13 +131,13 @@ func TestMakeInfraProduction(t *testing.T) {
 			"terragrunt argocd apply --non-interactive -- -auto-approve",
 			"lab secrets list --due --workstation",
 		}},
-		{"force=1", []string{"force=1"}, nil, []string{
+		{"--force", []string{"--force"}, nil, []string{
 			"terragrunt production run --all apply --non-interactive -- -auto-approve",
 		}},
 		{"guards fail", nil, []string{"VERIFY_FAILS=1"}, []string{"lab infra forgejo verify " + commit}},
 		// GitHub is down (docs/how-to-guides/deploy-to-forgejo.md): verify checks Forgejo's master before the apply,
 		// push says why; the reason's quotes stay out of the shell
-		{"break-glass", []string{`break_glass=GitHub "outage"; true`}, nil, []string{
+		{"break-glass", []string{"--break-glass", `GitHub "outage"; true`}, nil, []string{
 			"lab infra forgejo verify " + commit + ` --break-glass=GitHub "outage"; true`,
 			"terragrunt production run --all apply --non-interactive -- -auto-approve",
 			"lab infra forgejo sync",
@@ -145,7 +145,7 @@ func TestMakeInfraProduction(t *testing.T) {
 			"terragrunt argocd apply --non-interactive -- -auto-approve",
 			"lab secrets list --due --workstation",
 		}},
-		{"break-glass reason with a dollar sign", []string{`break_glass=$HOME is down`}, nil, []string{
+		{"break-glass reason with a dollar sign", []string{"--break-glass", `$HOME is down`}, nil, []string{
 			"lab infra forgejo verify " + commit + ` --break-glass=$HOME is down`,
 			"terragrunt production run --all apply --non-interactive -- -auto-approve",
 			"lab infra forgejo sync",
@@ -153,29 +153,26 @@ func TestMakeInfraProduction(t *testing.T) {
 			"terragrunt argocd apply --non-interactive -- -auto-approve",
 			"lab secrets list --due --workstation",
 		}},
-		{"break-glass with force=1", []string{"force=1", "break_glass=outage"}, nil, []string{""}},
-		{"break-glass refused by verify", []string{"break_glass=outage"}, []string{"VERIFY_FAILS=1"}, []string{
+		{"break-glass with --force", []string{"--force", "--break-glass", "outage"}, nil, []string{""}},
+		{"break-glass refused by verify", []string{"--break-glass", "outage"}, []string{"VERIFY_FAILS=1"}, []string{
 			"lab infra forgejo verify " + commit + " --break-glass=outage",
 		}},
-		// A relative key path names a file where make runs, not in the unit's directory
-		{"relative key path", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=keys/app.pem"}, []string{
+		// A relative key path names a file where just runs, not in the unit's directory
+		{"relative key path", []string{"--force"}, []string{"HOMELAB_GITHUB_APP_KEY=keys/app.pem"}, []string{
 			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/keys/app.pem",
 		}},
-		{"relative key path on the command line", []string{"force=1", "HOMELAB_GITHUB_APP_KEY=keys/app.pem"}, nil, []string{
-			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/keys/app.pem",
-		}},
-		{"quoted ~/ key path", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=~/keys/app.pem", "HOME=/home/someone"}, []string{
+		{"quoted ~/ key path", []string{"--force"}, []string{"HOMELAB_GITHUB_APP_KEY=~/keys/app.pem", "HOME=/home/someone"}, []string{
 			"terragrunt production run --all apply --non-interactive -- -auto-approve key=/home/someone/keys/app.pem",
 		}},
-		{"key path with a space", []string{"force=1"}, []string{"HOMELAB_GITHUB_APP_KEY=my keys/app.pem"}, []string{
+		{"key path with a space", []string{"--force"}, []string{"HOMELAB_GITHUB_APP_KEY=my keys/app.pem"}, []string{
 			"terragrunt production run --all apply --non-interactive -- -auto-approve key=" + root + "/my keys/app.pem",
 		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			dir, env := fakeBin(t, stubs)
-			args := append([]string{"-s", "-C", "..", "infra", "env=production", "lab_cli=" + filepath.Join(dir, "lab"), "terragrunt=" + filepath.Join(dir, "terragrunt")}, c.vars...)
-			cmd := exec.Command("make", args...)
-			cmd.Env = append(env, c.env...)
+			cmd := exec.Command("just", append(append([]string{"infra", "deploy"}, c.opts...), "production")...)
+			cmd.Dir = root
+			cmd.Env = append(env, append([]string{"HOMELAB_LAB=" + filepath.Join(dir, "lab"), "HOMELAB_TERRAGRUNT=" + filepath.Join(dir, "terragrunt")}, c.env...)...)
 			out, _ := cmd.CombinedOutput()
 			calls, _ := os.ReadFile(filepath.Join(dir, "calls"))
 			assert.Equal(t, c.want, strings.Split(strings.TrimSpace(string(calls)), "\n"), string(out))
