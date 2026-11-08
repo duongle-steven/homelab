@@ -2,6 +2,7 @@ package scope
 
 import (
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -16,43 +17,49 @@ func TestRepositoryMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	full := "Egress|Forgejo|Gateway|Identity|Logs|Mesh|Monitoring|Ntfy|Policy|PublicScan|SSO|Secrets|Smoke|SupplyChain|TrivyOperator|Woodpecker"
+	specs, err := Specs(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := "(backup-restore || egress || forgejo || gateway || identity || logs || mesh || monitoring || node-power-cut || node-restart || ntfy || policy || public || rotation || secrets || smoke || sso || supply-chain || trivy-operator || woodpecker) && !alone"
+	fullAlone := []string{"backup-restore", "node-power-cut", "node-restart", "rotation"}
 	for _, tc := range []struct {
-		file, main, alone string
+		file, main string
+		alone      []string
 	}{
-		{"docs/index.md", "", ""},
-		{"CLAUDE.md", "", ""},
-		{"system/loki/values.yaml", "Logs|Smoke", ""},
-		{"system/istio-system/values.yaml", "Egress|Gateway|Identity|Mesh|Smoke", "NodePowerCut|NodeRestart"},
-		{"infra/root.hcl", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
-		{"infra/sandbox/cluster/config.json", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
-		{"infra/_modules/k3d/main.tf", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
-		{"scripts/env-values", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
-		{"system/egress/values.yaml", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
-		{"platform/openbao/values.yaml", "Forgejo|Gateway|Identity|Logs|Monitoring|Ntfy|SSO|Secrets|Smoke|Woodpecker", "BackupRestore"},
-		{"platform/kanidm/values.yaml", "ForgejoDeploy|GatewayZotLargePush|Identity|SSO|Smoke|Woodpecker", ""},
+		{"docs/index.md", "", nil},
+		{"CLAUDE.md", "", nil},
+		{"system/loki/values.yaml", "(logs || smoke) && !alone", nil},
+		{"system/istio-system/values.yaml", "(egress || gateway || identity || mesh || node-power-cut || node-restart || smoke) && !alone", []string{"node-power-cut", "node-restart"}},
+		{"infra/root.hcl", full, fullAlone},
+		{"infra/sandbox/cluster/config.json", full, fullAlone},
+		{"infra/_modules/k3d/main.tf", full, fullAlone},
+		{"scripts/env-values", full, fullAlone},
+		{"system/egress/values.yaml", full, fullAlone},
+		{"platform/openbao/values.yaml", "(backup-restore || forgejo || gateway || identity || logs || monitoring || ntfy || secrets || smoke || sso || woodpecker) && !alone", []string{"backup-restore"}},
+		{"platform/kanidm/values.yaml", "((forgejo && deploy) || (gateway && zot) || identity || smoke || sso || woodpecker) && !alone", nil},
 		// lab's Forgejo deploy runs against the sandbox; its offline parts are skipped
-		{"cli/internal/forgejo/sync.go", "Forgejo|Smoke|Woodpecker", ""},
-		{"cli/go.mod", "Forgejo|Smoke|Woodpecker", ""},
-		{"cli/internal/guard/verify.go", "", ""},
-		{"platform/forgejo/values.yaml", "Forgejo|GatewayForgejoSSH|SSOForgejo|Smoke|Woodpecker", "BackupRestore"},
-		{"platform/woodpecker/values.yaml", "Smoke|Woodpecker", ""},
-		{"test/offline/woodpecker_test.go", "", ""},
-		{"apps/paperless.yaml", "SSOPaperless|Smoke", ""},
-		{"apps/blog.yaml", "Smoke", ""},
-		{"system/kured/values.yaml", "Smoke", ""},
-		{"test/offline/state_rotation_test.go", "", ""},
+		{"cli/internal/forgejo/sync.go", "(forgejo || smoke || woodpecker) && !alone", nil},
+		{"cli/go.mod", "(forgejo || smoke || woodpecker) && !alone", nil},
+		{"cli/internal/guard/verify.go", "", nil},
+		{"platform/forgejo/values.yaml", "(backup-restore || forgejo || smoke || woodpecker) && !alone", []string{"backup-restore"}},
+		{"platform/woodpecker/values.yaml", "(smoke || woodpecker) && !alone", nil},
+		{"system/velero/values.yaml", "(backup-restore || smoke) && !alone", []string{"backup-restore"}},
+		{"test/offline/woodpecker_test.go", "", nil},
+		{"apps/paperless.yaml", "(paperless || smoke) && !alone", nil},
+		{"apps/blog.yaml", "smoke && !alone", nil},
+		{"system/kured/values.yaml", "smoke && !alone", nil},
 		// the offline tests and the internal packages' own tests: the basic checks run them
-		{"test/offline/velero_test.go", "", ""},
-		{"test/internal/repo/repo_test.go", "", ""},
-		{"justfile", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
-		{"scripts/something-new", full, "BackupRestore|NodePowerCut|NodeRestart|Rotation"},
+		{"test/offline/velero_test.go", "", nil},
+		{"test/internal/repo/repo_test.go", "", nil},
+		{"justfile", full, fullAlone},
+		{"scripts/something-new", full, fullAlone},
 	} {
 		s, err := c.Select([]string{tc.file}, FileTests(root))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if main, alone := c.Regex(s, false), c.Regex(s, true); main != tc.main || alone != tc.alone {
+		if main, alone := c.Filter(s, specs); main != tc.main || !reflect.DeepEqual(alone, tc.alone) {
 			t.Errorf("%s: got %q %q, want %q %q", tc.file, main, alone, tc.main, tc.alone)
 		}
 	}
@@ -60,8 +67,12 @@ func TestRepositoryMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if main := c.Regex(s, false); !strings.Contains(main, "TestLogsPodLines") || !strings.Contains(main, "Smoke") {
+	if main, _ := c.Filter(s, specs); !strings.Contains(main, "logs") || !strings.Contains(main, "smoke") {
 		t.Errorf("test/e2e/logs_test.go: %q", main)
+	}
+	// The repository's map and specs pass the check
+	if problems := c.Check(nil, specs); len(problems) > 0 {
+		t.Errorf("problems: %q", problems)
 	}
 }
 

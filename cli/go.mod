@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.4
 	github.com/bmatcuk/doublestar/v4 v4.10.3
 	github.com/cloudflare/cloudflare-go v0.119.0
+	github.com/onsi/ginkgo/v2 v2.34.0
 	github.com/openbao/openbao/api/v2 v2.7.1
 	github.com/pkg/sftp v1.13.12
 	github.com/spf13/cobra v1.10.2
@@ -23,6 +24,7 @@ require (
 
 require (
 	github.com/42wim/httpsig v1.2.3 // indirect
+	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.23 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.6 // indirect

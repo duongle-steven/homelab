@@ -1,4 +1,4 @@
-// Package scope picks the sandbox tests a change can affect, from test/scopes.yaml.
+// Package scope picks the sandbox specs a change can affect, from test/scopes.yaml, as Ginkgo label filters.
 package scope
 
 import (
@@ -6,32 +6,45 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/onsi/ginkgo/v2/types"
 	"go.yaml.in/yaml/v3"
 )
 
 // FullKeyword as a group's tests selects the whole suite.
 const FullKeyword = "full"
 
+// AloneLabel marks the specs that run by themselves, after the main run.
+const AloneLabel = "alone"
+
+// sandbox is the environment lab test scope chooses for (just dev)
+const sandbox = "sandbox"
+
+// envLabels name where a spec may run; just test e2e adds the environment to every filter itself
+var envLabels = map[string]bool{"sandbox": true, "testbed": true, "production": true}
+
 // Config is test/scopes.yaml.
 type Config struct {
-	// Changes that run no sandbox test
+	// Changes that run no sandbox spec
 	Skip []string `yaml:"skip"`
-	// Tests added to every non-empty selection
+	// Every label a spec or a filter may name
+	Labels []string `yaml:"labels"`
+	// Specs added to every non-empty selection (a label filter)
 	Always string `yaml:"always"`
-	// Terms whose tests run after the others (they disturb the cluster)
+	// Labels of the specs that run alone, after the others, each in its own run, in this order
 	Alone []string `yaml:"alone"`
-	// The whole suite, alone tests included
+	// The whole suite, alone specs included (a label filter)
 	Full   string  `yaml:"full"`
 	Groups []Group `yaml:"groups"`
 	// Globs of what the map must cover (a trailing slash names directories)
 	Components []string `yaml:"components"`
 }
 
-// Group maps changed paths to tests: a regex of test names, "" (only Always) or FullKeyword.
+// Group maps changed paths to specs: a label filter, "" (only Always) or FullKeyword.
 type Group struct {
 	Paths []string `yaml:"paths"`
 	Tests string   `yaml:"tests"`
@@ -52,15 +65,18 @@ func Load(path string) (Config, error) {
 	if c.Full == "" {
 		return Config{}, fmt.Errorf("%s: full is empty", path)
 	}
+	if len(c.Labels) == 0 {
+		return Config{}, fmt.Errorf("%s: labels is empty", path)
+	}
 	globs := append(append([]string{}, c.Skip...), c.Components...)
-	regexes := append([]string{c.Always, c.Full}, c.Alone...)
+	filters := append([]string{c.Always, c.Full}, c.Alone...)
 	for i, g := range c.Groups {
 		if len(g.Paths) == 0 {
 			return Config{}, fmt.Errorf("%s: group %d has no paths", path, i+1)
 		}
 		globs = append(globs, g.Paths...)
 		if g.Tests != FullKeyword {
-			regexes = append(regexes, g.Tests)
+			filters = append(filters, g.Tests)
 		}
 	}
 	for _, glob := range globs {
@@ -68,9 +84,12 @@ func Load(path string) (Config, error) {
 			return Config{}, fmt.Errorf("%s: invalid glob %q", path, glob)
 		}
 	}
-	for _, r := range regexes {
-		if _, err := regexp.Compile(r); err != nil {
-			return Config{}, fmt.Errorf("%s: invalid regex %q: %w", path, r, err)
+	for _, f := range filters {
+		if f == "" {
+			continue
+		}
+		if _, err := types.ParseLabelFilter(f); err != nil {
+			return Config{}, fmt.Errorf("%s: invalid label filter %q: %w", path, f, err)
 		}
 	}
 	return c, nil
@@ -80,15 +99,17 @@ func Load(path string) (Config, error) {
 // A Manual selection (just dev --tests ...) runs exactly its Terms.
 type Selection struct {
 	Full, Any, Manual bool
-	Terms             []string
+	// Label filters, ORed
+	Terms []string
 }
 
-// TestNames lists the Test functions a changed test file defines (none for a deleted file).
-type TestNames func(file string) ([]string, error)
+// FileFilters gives the label filters a changed test file selects (none for a deleted spec file).
+type FileFilters func(file string) ([]string, error)
 
 // Select maps changed files (relative to the repository root) to a Selection: skipped files add nothing; a file in
-// groups adds their tests; a test file in no group adds the tests it defines; any other file selects the whole suite.
-func (c Config) Select(files []string, names TestNames) (Selection, error) {
+// groups adds their filters; a test file in no group adds the filters of the specs it can affect; any other file selects
+// the whole suite.
+func (c Config) Select(files []string, filters FileFilters) (Selection, error) {
 	var s Selection
 	for _, file := range files {
 		if matchAny(c.Skip, file) {
@@ -104,18 +125,18 @@ func (c Config) Select(files []string, names TestNames) (Selection, error) {
 			if g.Tests == FullKeyword {
 				s.Full = true
 			} else {
-				s.Terms = append(s.Terms, SplitTerms(g.Tests)...)
+				s.Terms = append(s.Terms, splitTerms(g.Tests)...)
 			}
 		}
 		if matched {
 			continue
 		}
 		if isTestFile(file) {
-			defined, err := names(file)
+			selected, err := filters(file)
 			if err != nil {
 				return Selection{}, err
 			}
-			s.Terms = append(s.Terms, defined...)
+			s.Terms = append(s.Terms, selected...)
 			continue
 		}
 		s.Full = true
@@ -123,78 +144,135 @@ func (c Config) Select(files []string, names TestNames) (Selection, error) {
 	return s, nil
 }
 
-// ManualSelection runs exactly the given regex.
-func ManualSelection(regex string) Selection {
-	return Selection{Any: true, Manual: true, Terms: SplitTerms(regex)}
+// ManualSelection runs exactly the given label filter.
+func ManualSelection(filter string) Selection {
+	return Selection{Any: true, Manual: true, Terms: splitTerms(filter)}
 }
 
-// Regex returns the go test -run regex of the main run, or with alone set of the run after it; "" runs nothing.
-func (c Config) Regex(s Selection, alone bool) string {
+// Filter returns the selection's main run, (<its filters ORed>) && !alone, or "" when that selects no sandbox spec, and
+// the alone runs: in alone:'s order, each alone label whose specs the selection reaches. just test e2e adds the
+// environment to each.
+func (c Config) Filter(s Selection, specs []Spec) (main string, alone []string) {
 	var terms []string
 	switch {
 	case s.Full:
-		terms = SplitTerms(c.Full)
+		terms = splitTerms(c.Full)
 	case s.Manual:
 		terms = s.Terms
 	case s.Any:
-		terms = append(append([]string{}, s.Terms...), SplitTerms(c.Always)...)
+		terms = append(append([]string{}, s.Terms...), splitTerms(c.Always)...)
 	}
-	seen := map[string]bool{}
-	var out []string
-	for _, term := range terms {
-		if term == "" || seen[term] || c.isAlone(term) != alone {
-			continue
+	union := joinTerms(terms)
+	if union == "" {
+		return "", nil
+	}
+	selected := types.MustParseLabelFilter(union) // Load and CheckManual validated the terms
+	for _, spec := range specs {
+		if slices.Contains(spec.Labels, sandbox) && !slices.Contains(spec.Labels, AloneLabel) && selected(spec.Labels) {
+			main = enclose(union) + " && !" + AloneLabel
+			break
 		}
-		seen[term] = true
-		out = append(out, term)
 	}
-	sort.Strings(out)
-	return strings.Join(out, "|")
+	for _, label := range c.Alone {
+		for _, spec := range specs {
+			if slices.Contains(spec.Labels, sandbox) && slices.Contains(spec.Labels, AloneLabel) &&
+				slices.Contains(spec.Labels, label) && selected(spec.Labels) {
+				alone = append(alone, label)
+				break
+			}
+		}
+	}
+	return main, alone
 }
 
-// Anchored returns a term as a go test -run regex naming whole top-level tests: ^Test<term>$, the $ before the term's
-// first / so a subtest part still matches by prefix; a term already starting with ^ is kept as it is.
-func Anchored(term string) string {
-	if strings.HasPrefix(term, "^") {
-		return term
+// CheckManual refuses a just dev --tests ... filter that does not parse, names a label outside labels: or selects no
+// sandbox spec
+func (c Config) CheckManual(filter string, specs []Spec) error {
+	parsed, err := types.ParseLabelFilter(filter)
+	if err != nil {
+		return fmt.Errorf("tests: invalid label filter %q: %w", filter, err)
 	}
-	top, sub, nested := strings.Cut(strings.TrimPrefix(term, "Test"), "/")
-	if nested {
-		sub = "/" + sub
+	for _, label := range filterLabels(filter) {
+		if !slices.Contains(c.Labels, label) {
+			return fmt.Errorf("tests: %q is not a label (test/scopes.yaml labels:)", label)
+		}
 	}
-	return "^Test(" + top + ")$" + sub
+	for _, spec := range specs {
+		if slices.Contains(spec.Labels, sandbox) && parsed(spec.Labels) {
+			return nil
+		}
+	}
+	return fmt.Errorf("tests: %q selects no sandbox spec", filter)
 }
 
-// SplitTerms splits a regex on its top-level |, keeping parenthesised alternations whole.
-func SplitTerms(regex string) []string {
-	if regex == "" {
-		return nil
-	}
+// splitTerms splits a filter on its top-level ||, keeping parenthesised expressions whole
+func splitTerms(filter string) []string {
 	var terms []string
 	depth, start := 0, 0
-	for i, r := range regex {
-		switch r {
+	for i := 0; i < len(filter); i++ {
+		switch filter[i] {
 		case '(':
 			depth++
 		case ')':
 			depth--
 		case '|':
-			if depth == 0 {
-				terms = append(terms, regex[start:i])
-				start = i + 1
+			if depth == 0 && i+1 < len(filter) && filter[i+1] == '|' {
+				terms = append(terms, filter[start:i])
+				start = i + 2
+				i++
 			}
 		}
 	}
-	return append(terms, regex[start:])
-}
-
-func (c Config) isAlone(term string) bool {
-	for _, a := range c.Alone {
-		if strings.Contains(term, a) {
-			return true
+	terms = append(terms, filter[start:])
+	var out []string
+	for _, term := range terms {
+		if term = strings.TrimSpace(term); term != "" {
+			out = append(out, term)
 		}
 	}
-	return false
+	return out
+}
+
+// joinTerms ORs the distinct terms, sorted, each compound one in parentheses
+func joinTerms(terms []string) string {
+	seen := map[string]bool{}
+	var out []string
+	for _, term := range terms {
+		if term = enclose(strings.TrimSpace(term)); term != "" && !seen[term] {
+			seen[term] = true
+			out = append(out, term)
+		}
+	}
+	sort.Strings(out)
+	return strings.Join(out, " || ")
+}
+
+// enclose puts a filter with a top-level operator in parentheses
+func enclose(filter string) string {
+	if strings.IndexAny(filter, "&|!,") < 0 && !strings.Contains(filter, " ") {
+		return filter
+	}
+	if strings.HasPrefix(filter, "(") && strings.HasSuffix(filter, ")") {
+		depth := 0
+		for i := 0; i < len(filter); i++ {
+			switch filter[i] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+			}
+			if depth == 0 && i < len(filter)-1 {
+				return "(" + filter + ")"
+			}
+		}
+		return filter
+	}
+	return "(" + filter + ")"
+}
+
+// filterLabels lists the labels a filter names
+func filterLabels(filter string) []string {
+	return regexp.MustCompile(`[^\s&|!(),]+`).FindAllString(filter, -1)
 }
 
 func (c Config) known(file string) bool {
@@ -218,7 +296,7 @@ func matchAny(globs []string, file string) bool {
 	return false
 }
 
-// isTestFile: a test file of the cluster tests, or a test/internal package's source, whose importers it selects
+// isTestFile: a spec file, or a test/internal package's source, whose importers it selects
 func isTestFile(file string) bool {
 	ok, _ := doublestar.Match("test/e2e/*_test.go", file)
 	return ok || isInternalFile(file)
