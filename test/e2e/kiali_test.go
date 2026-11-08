@@ -35,7 +35,7 @@ func TestSSOKiali(t *testing.T) {
 
 		// The graph has edges: ztunnel's metrics (system/istio-system's PodMonitors) reach Kiali through Prometheus
 		app := smoke.Apps("dev")[0]
-		host := routeHost(t, app.Namespace, app.Name)
+		host := legacyRouteHost(t, app.Namespace, app.Name)
 		assert.Eventually(t, func() bool {
 			appCodes(map[string]string{app.Name: host})
 			var graph struct {

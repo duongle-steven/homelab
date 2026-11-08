@@ -136,7 +136,7 @@ func TestRotation(t *testing.T) {
 		assert.Contains(t, results, "cloudflare.cert-manager: skipped: production only")
 		assert.Contains(t, results, "grafana.admin: rotated")
 		// paperless is optional in the sandbox: --all skips its entries when it is not deployed
-		if !appDeployed(t, "paperless") {
+		if !legacyAppDeployed(t, "paperless") {
 			assert.Contains(t, results, "paperless.secret-key: skipped: not deployed here")
 		}
 		waitForApp(t, "https://"+grafanaHost+"/api/health")

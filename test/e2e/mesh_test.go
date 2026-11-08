@@ -73,7 +73,7 @@ func TestMeshEnrolled(t *testing.T) {
 			} `json:"spec"`
 		} `json:"items"`
 	}
-	require.True(t, getResource(t, "argocd", &apps, "applications"))
+	require.True(t, legacyGetResource(t, "argocd", &apps, "applications"))
 	namespaces := map[string]bool{}
 	for _, a := range apps.Items {
 		namespaces[a.Spec.Destination.Namespace] = true
@@ -87,7 +87,7 @@ func TestMeshEnrolled(t *testing.T) {
 					Labels map[string]string `json:"labels"`
 				} `json:"metadata"`
 			}
-			require.True(t, getResource(t, "default", &namespace, "namespace", ns))
+			require.True(t, legacyGetResource(t, "default", &namespace, "namespace", ns))
 			// Outside the mesh: keep in step with the root ApplicationSet's templatePatch and scripts/check-mesh-policies
 			want := map[bool]string{true: "none", false: "ambient"}[ns == "istio-system"]
 			require.Equal(t, want, namespace.Metadata.Labels["istio.io/dataplane-mode"])
@@ -99,7 +99,7 @@ func TestMeshEnrolled(t *testing.T) {
 				var pods struct {
 					Items []meshPod `json:"items"`
 				}
-				if !getResource(t, ns, &pods, "pods") {
+				if !legacyGetResource(t, ns, &pods, "pods") {
 					return false
 				}
 				for _, p := range pods.Items {

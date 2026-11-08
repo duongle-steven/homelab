@@ -221,7 +221,7 @@ func TestSSOActualBudget(t *testing.T) {
 
 func TestSSOPaperless(t *testing.T) {
 	skipUnlessSandbox(t)
-	skipUnlessDeployed(t, "paperless")
+	legacySkipUnlessDeployed(t, "paperless")
 	base := "https://" + paperlessHost
 	waitForApp(t, base+"/accounts/login/")
 	start := base + "/accounts/oidc/kanidm/login/?process=login"
@@ -301,7 +301,7 @@ func forgejoPage(t *testing.T, target string, cookies []*http.Cookie) (int, stri
 
 func TestSSOOpenCloud(t *testing.T) {
 	skipUnlessSandbox(t)
-	skipUnlessDeployed(t, "opencloud")
+	legacySkipUnlessDeployed(t, "opencloud")
 	base := "https://" + opencloudHost
 	waitForApp(t, base+"/")
 

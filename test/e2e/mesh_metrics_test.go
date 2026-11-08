@@ -13,7 +13,7 @@ import (
 func TestMeshMetrics(t *testing.T) {
 	meshSandboxOnly(t)
 	app := smoke.Apps("dev")[0]
-	host := routeHost(t, app.Namespace, app.Name)
+	host := legacyRouteHost(t, app.Namespace, app.Name)
 	for name, query := range map[string]string{
 		"ztunnel":  `istio_tcp_sent_bytes_total{reporter="destination"}`,
 		"gateways": `istio_requests_total{source_workload="gateway-istio"}`,

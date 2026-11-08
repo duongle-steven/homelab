@@ -56,7 +56,7 @@ func clusterState(t *testing.T) (pods []restart.Pod, meshed map[string]bool, ztu
 			} `json:"status"`
 		} `json:"items"`
 	}
-	if !getResource(t, "default", &list, "pods", "--all-namespaces") {
+	if !legacyGetResource(t, "default", &list, "pods", "--all-namespaces") {
 		return nil, nil, nil, false
 	}
 	var namespaces struct {
@@ -66,7 +66,7 @@ func clusterState(t *testing.T) (pods []restart.Pod, meshed map[string]bool, ztu
 			} `json:"metadata"`
 		} `json:"items"`
 	}
-	if !getResource(t, "default", &namespaces, "namespaces", "--selector=istio.io/dataplane-mode=ambient") {
+	if !legacyGetResource(t, "default", &namespaces, "namespaces", "--selector=istio.io/dataplane-mode=ambient") {
 		return nil, nil, nil, false
 	}
 	meshed = map[string]bool{}
@@ -113,7 +113,7 @@ func watchdogJobs(t *testing.T, logged map[string]bool) []restart.WatchdogJob {
 			} `json:"status"`
 		} `json:"items"`
 	}
-	if !getResource(t, "istio-system", &list, "jobs") {
+	if !legacyGetResource(t, "istio-system", &list, "jobs") {
 		return nil
 	}
 	var jobs []restart.WatchdogJob
@@ -146,8 +146,8 @@ func watchdogJobs(t *testing.T, logged map[string]bool) []restart.WatchdogJob {
 func TestNodeRestart(t *testing.T) {
 	sandboxOnly(t, "it restarts or kills the k3d node's container (testbed: TestTestbed* and 12a-3)")
 	hosts := map[string]string{}
-	for _, app := range deployedSmokeApps(t, "dev") {
-		hosts[app.Name] = routeHost(t, app.Namespace, app.Name)
+	for _, app := range legacyDeployedSmokeApps(t, "dev") {
+		hosts[app.Name] = legacyRouteHost(t, app.Namespace, app.Name)
 	}
 	var want map[string]int
 	require.Eventually(t, func() bool {
@@ -212,7 +212,7 @@ func nodeState(t *testing.T) (ready bool, heartbeat time.Time, ok bool) {
 			} `json:"conditions"`
 		} `json:"status"`
 	}
-	if !getResource(t, "default", &node, "node", testenv.K3dNode) {
+	if !legacyGetResource(t, "default", &node, "node", testenv.K3dNode) {
 		return false, time.Time{}, false
 	}
 	for _, c := range node.Status.Conditions {
@@ -231,8 +231,8 @@ func nodeState(t *testing.T) (ready bool, heartbeat time.Time, ok bool) {
 func TestNodePowerCut(t *testing.T) {
 	sandboxOnly(t, "it restarts or kills the k3d node's container (testbed: TestTestbed* and 12a-3)")
 	hosts := map[string]string{}
-	for _, app := range deployedSmokeApps(t, "dev") {
-		hosts[app.Name] = routeHost(t, app.Namespace, app.Name)
+	for _, app := range legacyDeployedSmokeApps(t, "dev") {
+		hosts[app.Name] = legacyRouteHost(t, app.Namespace, app.Name)
 	}
 	var want map[string]int
 	// As strict as the recovery below (every pod ready, the node Ready), so a pod already failing is not blamed on the

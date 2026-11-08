@@ -40,7 +40,7 @@ func TestGatewayProgrammed(t *testing.T) {
 			var gw gateway
 			require.Eventually(t, func() bool {
 				gw = gateway{}
-				return getResource(t, "istio-system", &gw, "gateway", name) && routes.ConditionsMet(gw.Status.Conditions, "Accepted", "Programmed")
+				return legacyGetResource(t, "istio-system", &gw, "gateway", name) && routes.ConditionsMet(gw.Status.Conditions, "Accepted", "Programmed")
 			}, 20*time.Minute, 15*time.Second, "Gateway %s is not programmed", name)
 			require.NotEmpty(t, gw.Status.Addresses)
 			if name == "gateway" {
@@ -53,7 +53,7 @@ func TestGatewayProgrammed(t *testing.T) {
 
 func TestGatewayHTTPSRedirect(t *testing.T) {
 	gatewaySandboxOnly(t)
-	host := routeHost(t, "excalidraw", "excalidraw")
+	host := legacyRouteHost(t, "excalidraw", "excalidraw")
 	resp, err := insecureClient.Get("http://" + host + "/some/path?x=1")
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -80,10 +80,10 @@ func TestGatewayNoIngress(t *testing.T) {
 	}
 	assert.Eventually(t, func() bool {
 		ingresses.Items = nil
-		return getResource(t, "default", &ingresses, "ingress", "--all-namespaces") && len(ingresses.Items) == 0
+		return legacyGetResource(t, "default", &ingresses, "ingress", "--all-namespaces") && len(ingresses.Items) == 0
 	}, 10*time.Minute, 15*time.Second, "every component uses Gateway API routes, left: %+v", ingresses.Items)
 	var namespace struct{}
-	assert.False(t, getResource(t, "default", &namespace, "namespace", "ingress-nginx"), "ingress-nginx must be gone")
+	assert.False(t, legacyGetResource(t, "default", &namespace, "namespace", "ingress-nginx"), "ingress-nginx must be gone")
 }
 
 func TestGatewayForgejoSSH(t *testing.T) {
@@ -176,7 +176,7 @@ spec:
 				} `json:"parents"`
 			} `json:"status"`
 		}
-		if !getResource(t, namespace, &r, "httproute", "public-allow-probe") {
+		if !legacyGetResource(t, namespace, &r, "httproute", "public-allow-probe") {
 			return "", ""
 		}
 		for _, p := range r.Status.Parents {
