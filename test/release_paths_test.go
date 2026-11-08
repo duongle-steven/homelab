@@ -32,7 +32,7 @@ func TestReleasePathsExist(t *testing.T) {
 }
 
 // The testbed's layers (docs/superpowers/specs/2026-11-02-testbed-design.md), through Argo CD, from GitHub branch testbed,
-// which make testbed pushes. Another machine extends the list
+// which just testbed pushes. Another machine extends the list
 func TestTestbedLayers(t *testing.T) {
 	values := "../system/argocd/values-testbed.yaml"
 	yq := func(expr, file string) string {

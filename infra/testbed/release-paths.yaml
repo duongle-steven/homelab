@@ -1,5 +1,5 @@
 # What the testbed proves beyond the components and apps it deploys (lab infra forgejo verify's gate, which adds those
-# from system/argocd/values-testbed.yaml): a release changing any of these needs make testbed's mark
+# from system/argocd/values-testbed.yaml): a release changing any of these needs just testbed's mark
 # (docs/superpowers/specs/2026-11-02-testbed-design.md). Globs, ** spans directories. Argo CD reading Forgejo is proved on
 # the sandbox (TestForgejoArgoCDSyncs), so the deploy path's units are not here.
 paths:

@@ -23,7 +23,7 @@ argocd-apps:
             generators:
               - git:
                   repoURL: &repoURL https://github.com/duongle-steven/homelab
-                  # make dev force-pushes the current commit here, so a branch is tested before its merge
+                  # just dev force-pushes the current commit here, so a branch is tested before its merge
                   revision: &revision sandbox
                   directories:
                     - path: system/argocd-config
@@ -114,7 +114,7 @@ argocd-apps:
                     - path: apps/excalidraw.yaml
                     - path: apps/homepage.yaml
                     - path: apps/ntfy.yaml
-                    # paperless and opencloud are optional here: added by the bootstrap when make dev asks
+                    # paperless and opencloud are optional here: added by the bootstrap when just dev asks
                     # (infra/_modules/argocd/set-sandbox-apps.sh)
                     - path: apps/pairdrop.yaml
                     - path: apps/speedtest.yaml

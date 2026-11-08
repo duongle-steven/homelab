@@ -70,7 +70,7 @@ need is pushed to both branches (`destinations` in `platform/generated-secrets/v
     `infra-secrets/openbao-infra`, `snapshot` for `openbao/openbao-snapshot` (the hourly raft snapshot) and `admin` for `openbao/openbao-admin`. They accept only service account tokens issued for audience `openbao` (the
     `SecretStore`s ask for it), so a token sent to OpenBao never works against the API server.
 - These stanzas run only on an empty storage: editing them later changes nothing on a running OpenBao. Apply the
-  change by hand with the admin role (below), or, in the sandbox, `make dev-clean`.
+  change by hand with the admin role (below), or, in the sandbox, `just dev-clean`.
 - No root token and no recovery keys exist.
 - OpenBao's data is backed up as its hourly raft snapshot (CronJob `openbao/openbao-snapshot`, volume
   `openbao-snapshots`), copied off-site daily ([Backup and restore](../how-to-guides/backup-and-restore.md)). The snapshot
@@ -161,7 +161,7 @@ either changed; restart Woodpecker's server after a replacement ([Woodpecker](..
 ## Secrets from OpenTofu
 
 The unit `infra/<env>/secrets` (`infra/_modules/secrets`) writes one Secret per OpenBao path into namespace
-`infra-secrets` (`<namespace>.<name>`, one key per property) on every `make infra env=…` (the sandbox's in `make dev`).
+`infra-secrets` (`<namespace>.<name>`, one key per property) on every `just infra deploy …` (the sandbox's in `just dev`).
 `platform/infra-secrets` pushes each entry of its `values.yaml` to `secret/<namespace>/<name>` with
 `updatePolicy: Replace`: OpenTofu is the source, a changed value replaces OpenBao's within an hour, a lost one comes
 back.
@@ -178,7 +178,7 @@ never reaches the cluster.
   to `platform/infra-secrets/values.yaml` (and `values-dev.yaml` if the sandbox has it), and read it from its namespace.
   `scripts/check-secret-stores` refuses a push nobody reads.
 - Rotating one: change it in OpenTofu (for a Cloudflare token, `terragrunt apply -replace=cloudflare_account_token.cert_manager`
-  in `infra/production/cloudflare`), run `make infra env=production`, then
+  in `infra/production/cloudflare`), run `just infra deploy production`, then
   `kubectl -n infra-secrets annotate pushsecret <namespace>.<name> force-sync=$(date +%s) --overwrite` or wait an hour,
   and restart the consumer.
 - Removing one: delete its entry, then its OpenBao value with the admin role (`bao kv metadata delete …`).

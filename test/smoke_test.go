@@ -51,11 +51,11 @@ func smokeApps(env string) []smokeApp {
 	}
 }
 
-// optionalApps are deployed in the sandbox only when make dev asks (Makefile's optional_apps,
+// optionalApps are deployed in the sandbox only when just dev asks (the justfile's optional_apps,
 // docs/superpowers/specs/2026-10-28-sandbox-optional-apps-design.md); always in production and the release sandbox
 var optionalApps = map[string]bool{"paperless": true, "opencloud": true}
 
-// wantedApps are the optional apps make dev deployed (HOMELAB_SANDBOX_APPS, space-separated)
+// wantedApps are the optional apps just dev deployed (HOMELAB_SANDBOX_APPS, space-separated)
 func wantedApps() []string { return strings.Fields(os.Getenv("HOMELAB_SANDBOX_APPS")) }
 
 // optionalAppState decides about an optional app: skip it when it was not asked for and is absent, fail when it was
@@ -99,7 +99,7 @@ func appDeployed(t *testing.T, app string) bool {
 // skipUnlessDeployed skips a test of an optional app the sandbox does not run now
 func skipUnlessDeployed(t *testing.T, app string) {
 	if !appDeployed(t, app) {
-		t.Skipf("%s is not deployed (optional in the sandbox: make dev apps=%s)", app, app)
+		t.Skipf("%s is not deployed (optional in the sandbox: just dev --apps %s)", app, app)
 	}
 }
 

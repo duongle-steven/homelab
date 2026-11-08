@@ -11,7 +11,7 @@ terraform {
 # Velero's location needs R2's endpoint, which holds the account id (never in git)
 dependency "backup" {
   config_path = "../backup"
-  # make -C infra check validates without applying
+  # just infra check validates without applying
   mock_outputs                            = { endpoint = "https://account.r2.cloudflarestorage.com" }
   mock_outputs_allowed_terraform_commands = ["validate", "init"]
 }

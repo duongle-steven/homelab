@@ -168,7 +168,7 @@ func TestSecretsList(t *testing.T) {
 	}
 }
 
-// make infra env=production warns about the workstation entries that are due, one line each with the command
+// just infra deploy production warns about the workstation entries that are due, one line each with the command
 func TestSecretsListDueWorkstation(t *testing.T) {
 	recent := time.Now().Add(-24 * time.Hour)
 	fakeRotation(t, memoryRecords{

@@ -243,7 +243,7 @@ func watchdogJobs(t *testing.T, logged map[string]bool) []watchdogJob {
 
 // TestNodeRestart restarts the sandbox's node and waits until the mesh and the apps are back as they were: the
 // istio-cni watchdog (system/istio-system) must break the deadlock described in
-// docs/superpowers/specs/2026-10-18-mesh-node-restart-design.md. make dev runs it alone, after the other tests.
+// docs/superpowers/specs/2026-10-18-mesh-node-restart-design.md. just dev runs it alone, after the other tests.
 func TestNodeRestart(t *testing.T) {
 	sandboxOnly(t, "it restarts or kills the k3d node's container (testbed: TestTestbed* and 12a-3)")
 	hosts := map[string]string{}
@@ -385,7 +385,7 @@ func nodeState(t *testing.T) (ready bool, heartbeat time.Time, ok bool) {
 // TestNodePowerCut cuts the sandbox node's power (docker kill: SIGKILL, nothing flushed, no graceful stop), starts it
 // again, and waits until it is really back: the node Ready after the cut, every pod restarted and ready, the mesh as
 // TestNodeRestart wants it and the apps answering as before. Data acknowledged before the cut must be there: an issue
-// in Forgejo, a message in ntfy, a secret in OpenBao (docs/superpowers/specs/2026-10-25-power-cut-design.md). make
+// in Forgejo, a message in ntfy, a secret in OpenBao (docs/superpowers/specs/2026-10-25-power-cut-design.md). just
 // dev runs it alone, after TestNodeRestart.
 func TestNodePowerCut(t *testing.T) {
 	sandboxOnly(t, "it restarts or kills the k3d node's container (testbed: TestTestbed* and 12a-3)")

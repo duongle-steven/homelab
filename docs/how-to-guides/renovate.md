@@ -29,10 +29,10 @@ App ID, installation ID and bot id are not secrets: they live in `platform/renov
 ## Give the key to production (once, and after a rotation)
 
 ```sh
-HOMELAB_GITHUB_APP_KEY=~/Downloads/<app-name>.<date>.private-key.pem make infra env=production
+HOMELAB_GITHUB_APP_KEY=~/Downloads/<app-name>.<date>.private-key.pem just infra deploy production
 ```
 
-The path may come before `make` or after it, relative (to where `make` runs), absolute or `~/`, spaces included. OpenTofu keeps the key in its encrypted state (`infra/production/secrets`);
+The path comes from the environment, relative (to where `just` runs), absolute or `~/`, spaces included. OpenTofu keeps the key in its encrypted state (`infra/production/secrets`);
 later runs need no file, so delete it.
 If the unit was applied before the key existed, apply once with the key and
 `-replace=module.github_app_key.terraform_data.kept` in `infra/production/secrets`

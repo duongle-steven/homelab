@@ -15,6 +15,6 @@ func TestSandboxWorkflowsAllApps(t *testing.T) {
 	for _, workflow := range []string{"sandbox-release", "sandbox-retarget", "sandbox"} {
 		raw, err := os.ReadFile("../.github/workflows/" + workflow + ".yaml")
 		require.NoError(t, err)
-		assert.True(t, strings.Contains(string(raw), "apps=all"), "%s does not pass apps=all to make dev", workflow)
+		assert.True(t, strings.Contains(string(raw), "--apps all"), "%s does not pass --apps all to just dev", workflow)
 	}
 }

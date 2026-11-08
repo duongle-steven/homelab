@@ -1,5 +1,5 @@
 #!/bin/sh
-# Add the sandbox's optional apps (paperless, opencloud: deployed only when a change or make dev apps= asks,
+# Add the sandbox's optional apps (paperless, opencloud: deployed only when a change or just dev --apps  asks,
 # docs/superpowers/specs/2026-10-28-sandbox-optional-apps-design.md) to the apps ApplicationSet's git generator in
 # rendered Argo CD manifests (stdin, stdout). Names are space-separated; each is added once. None: unchanged.
 set -eu

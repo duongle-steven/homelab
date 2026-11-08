@@ -18,8 +18,8 @@ inputs = {
   values      = "values-dev.yaml"
   environment = "dev"
   cluster_id  = dependency.cluster.outputs.cluster_id
-  # GitHub Actions tests one commit (make dev revision=<sha>) instead of branch sandbox
+  # GitHub Actions tests one commit (just dev --revision <sha>) instead of branch sandbox
   revision = get_env("HOMELAB_SANDBOX_REVISION", "")
-  # The optional apps make dev asks for (space-separated; docs/installation/sandbox.md)
+  # The optional apps just dev asks for (space-separated; docs/installation/sandbox.md)
   optional_apps = compact(split(" ", get_env("HOMELAB_SANDBOX_APPS", "")))
 }

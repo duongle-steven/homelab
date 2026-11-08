@@ -22,7 +22,7 @@ needs the mark. This gate is unit-tested, never run.
 
 ## What you still write
 
-- A target that deploys staging: `make infra` runs `verify`, `sync` and `push` only for production
+- A target that deploys staging: `just infra deploy` runs `verify`, `sync` and `push` only for production
 - `lab`'s environments: `env.Load` refuses `--env staging` today
 - Its state's backend: `infra/root.hcl` gives only production R2
 - A step that writes the mark when its run passes (`scripts/mark-proof staging <commit>`)

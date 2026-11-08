@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// lab runs the CLI from cli/ (as the Makefile does) and returns its combined output.
+// lab runs the CLI from cli/ (as the justfile does) and returns its combined output.
 func lab(t *testing.T, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("go", append([]string{"run", "./cmd/lab"}, args...)...)
@@ -72,7 +72,7 @@ func permanentBaoError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not present in map")
 }
 
-// TestForgejoDeploy runs lab infra forgejo sync twice and push, as make infra env=production does, against the
+// TestForgejoDeploy runs lab infra forgejo sync twice and push, as just infra deploy production does, against the
 // sandbox's Forgejo, then checks what production relies on.
 func TestForgejoDeploy(t *testing.T) {
 	localOnly(t)

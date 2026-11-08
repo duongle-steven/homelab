@@ -107,13 +107,13 @@ After restoring Kanidm, `lab` deletes the Secrets kaniop writes only once (`kani
 
 1. Keep the state passphrase (`~/.config/homelab/state.env`). Without it, OpenTofu's state on R2 cannot be read, and
    with it OpenBao's unseal key, the Kopia password and the R2 credentials.
-2. Build the nodes and run `make infra env=production`, as for a first install. Argo CD builds everything from git.
+2. Build the nodes and run `just infra deploy production`, as for a first install. Argo CD builds everything from git.
    Velero starts read-only and paused, so it syncs the backup list from R2 and touches nothing.
 3. Check what is there: `lab backup list`.
 4. Run `lab backup restore`. It takes the newest scheduled copy that completed before this cluster was created (or
    `--backup <name>`). It restores OpenBao first, from its raft snapshot, then every app with a daily volume, then each
    manual app from its newest push. Finally it refreshes every ExternalSecret and restarts every reader.
-5. Run `make infra env=production` again. The restored Forgejo holds `ops/homelab` as it was at the backup, so Argo CD
+5. Run `just infra deploy production` again. The restored Forgejo holds `ops/homelab` as it was at the backup, so Argo CD
    would otherwise run that older commit; this pushes `master` again.
 6. Check the data:
    - sign in through Kanidm (passwords and passkeys come back);

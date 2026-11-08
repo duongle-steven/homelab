@@ -4,7 +4,7 @@ GitHub is where work happens (pull requests, `checks`, the sandbox). Production'
 Forgejo, which changes only when a commit is deployed:
 
 ```sh
-make infra env=production       # the infrastructure, Forgejo's orgs ops and ci, the push, the Argo CD bootstrap
+just infra deploy production       # the infrastructure, Forgejo's orgs ops and ci, the push, the Argo CD bootstrap
 cd cli && go run ./cmd/lab infra forgejo push   # only the push
 ```
 
@@ -16,16 +16,16 @@ Both refuse anything but `origin/master` checked out without changes (and no unt
 
 `infra/production/cluster/config.json` names the environment that proves a release: `"release_proof": "testbed"` or
 `"staging"`; without the key `verify` refuses. A release changing what that environment runs needs a commit carrying its
-mark, the commit status of that name, written when `make testbed` passes: `infra/testbed/release-paths.yaml`'s paths and the
+mark, the commit status of that name, written when `just testbed` passes: `infra/testbed/release-paths.yaml`'s paths and the
 components `system/argocd/values-testbed.yaml` lists, less `not_run`. A mark on an earlier commit, a merged branch's tip included, counts when those
 paths are the same. `verify` always says how far the testbed goes: "only the testbed proved this: no production-like environment did".
 
-Without the mark `verify` refuses and names the paths; `make infra env=production skip_proof="<reason>"`
+Without the mark `verify` refuses and names the paths; `just infra deploy production --skip-proof "<reason>"`
 (`--skip-proof=<reason>`) releases anyway and records the reason as the commit status `testbed/skipped`, which proves nothing to a later release.
 
 ## What `lab infra forgejo sync` owns
 
-`sync` (part of `make infra env=production`) owns orgs `ops` and `ci` and Woodpecker's OAuth client; nothing
+`sync` (part of `just infra deploy production`) owns orgs `ops` and `ci` and Woodpecker's OAuth client; nothing
 declares other orgs, teams or repositories. Running it again keeps what is right, fixes what is wrong and creates
 what is missing:
 
@@ -55,19 +55,19 @@ GitHub checks, and nothing else:
 ```sh
 direnv exec . scripts/ci-check all             # the checks GitHub would have run, locally
 git switch -c fix/<what> && git commit ...     # a branch: master stays GitHub's
-make infra env=production break_glass="<why>"  # verify without GitHub, the infrastructure, sync, the push, the bootstrap
+just infra deploy production --break-glass "<why>"  # verify without GitHub, the infrastructure, sync, the push, the bootstrap
 ```
 
 Before anything is applied, `verify --break-glass` still refuses uncommitted changes, untracked files under `infra/`
 or `system/argocd/` and a commit that does not descend from what `ops/homelab`'s `master` holds (so production never
-runs infrastructure from a commit the push would then refuse); the push prints the reason. `break_glass` cannot be combined
-with `force=1`. When GitHub is back, push the branch and open a pull request into `dev` that says why, then the
+runs infrastructure from a commit the push would then refuse); the push prints the reason. `--break-glass` cannot be combined
+with `--force`. When GitHub is back, push the branch and open a pull request into `dev` that says why, then the
 release pull request into `master`: merge commits only (never squash or rebase), so `master` contains the deployed
 commit and the next normal deploy fast-forwards.
 
 What still depends on the internet:
 
-- OpenTofu's state is on R2: with no internet `make infra` cannot run. Push alone:
+- OpenTofu's state is on R2: with no internet `just infra deploy` cannot run. Push alone:
   `cd cli && go run ./cmd/lab infra forgejo push --break-glass="<why>"`.
 - Charts served from `*.github.io` (app-template, Argo CD's) and images on `ghcr.io` are GitHub too: Argo CD renders
   only charts its repo server still caches, and a node runs only images it already pulled.

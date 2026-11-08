@@ -20,7 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// What make testbed-scan and make dev-scan compare a tool's report with (docs/how-to-guides/cluster-scan.md).
+// What just testbed-scan and just dev-scan compare a tool's report with (docs/how-to-guides/cluster-scan.md).
 // Reports hold command lines and config: nothing here names more than a check, a control and a resource.
 
 // The scan must have seen the cluster: the spike's sandbox had 1307 resources
@@ -281,7 +281,7 @@ spec:
 %[5]s`, node, scanBenchNamespace, scanBenchImage, volumeMounts.String(), volumes.String())
 }
 
-// TestScanBench runs kube-bench on every testbed node (make testbed-scan). A run stopped midway leaves the privileged
+// TestScanBench runs kube-bench on every testbed node (just testbed-scan). A run stopped midway leaves the privileged
 // namespace behind: the next one deletes it first
 func TestScanBench(t *testing.T) {
 	testbedOnly(t)
@@ -340,11 +340,11 @@ metadata:
 	}
 }
 
-// TestScanKubescape runs kubescape on the sandbox (make dev-scan). --keep-local: nothing leaves the workstation. Its
+// TestScanKubescape runs kubescape on the sandbox (just dev-scan). --keep-local: nothing leaves the workstation. Its
 // exit code stays 0 on findings, as no --compliance-threshold is set, so a non-zero one means the scan did not run
 func TestScanKubescape(t *testing.T) {
 	if os.Getenv("ENV") != "dev" {
-		t.Skip("kubescape runs against the sandbox only (make dev-scan)")
+		t.Skip("kubescape runs against the sandbox only (just dev-scan)")
 	}
 	raw, err := os.ReadFile(filepath.Join("..", ".cluster-scan-accepted.yaml"))
 	require.NoError(t, err)

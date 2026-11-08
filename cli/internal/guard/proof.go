@@ -98,7 +98,7 @@ func GatedPaths(root, proofEnv, commit string) (Gated, error) {
 	return gated, nil
 }
 
-// maxProofChecks bounds the gate's requests: GitHub allows 60 an hour without a token, make infra runs the gate twice
+// maxProofChecks bounds the gate's requests: GitHub allows 60 an hour without a token, just infra deploy runs the gate twice
 // and verify needs some of its own
 const maxProofChecks = 20
 
@@ -159,7 +159,7 @@ func ProofGate(ctx context.Context, root, repository, proofEnv, deployed, releas
 	if capped {
 		found = fmt.Sprintf("has no mark on the %d commits asked about, an older one goes unseen, and has not proved", maxProofChecks)
 	}
-	return fmt.Errorf("%s %s what %.12s changes (%s): run make %s on dev's head, or --skip-proof=<reason> "+
+	return fmt.Errorf("%s %s what %.12s changes (%s): run just %s on dev's head, or --skip-proof=<reason> "+
 		"(docs/installation/testbed.md)", proofEnv, found, release, strings.Join(hits, ", "), proofEnv)
 }
 
@@ -226,7 +226,7 @@ func (g GitHub) CommitStatus(ctx context.Context, repository, sha, context strin
 }
 
 // ProofCandidates are the commits a mark may sit on for a release whose pull request head is head: head, then its history
-// back to deployed (exclusive; the newest 200 when nothing is deployed), merged branches included. make testbed marks a
+// back to deployed (exclusive; the newest 200 when nothing is deployed), merged branches included. just testbed marks a
 // branch's tip or dev's head, so merges and their parents come first: the gate asks about only maxProofChecks of them.
 func ProofCandidates(root, deployed, head string) ([]string, error) {
 	args := []string{"rev-list", "--parents", head}

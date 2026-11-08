@@ -15,7 +15,7 @@ There are 4 main parts:
 To edit and view locally, run:
 
 ```sh
-make docs
+just docs
 ```
 
 Then visit [localhost:8000](http://localhost:8000)

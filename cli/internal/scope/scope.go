@@ -77,7 +77,7 @@ func Load(path string) (Config, error) {
 }
 
 // Selection is what a change runs: the whole suite (Full), or Terms plus Always when Any file was not skipped.
-// A Manual selection (make dev tests=...) runs exactly its Terms.
+// A Manual selection (just dev --tests ...) runs exactly its Terms.
 type Selection struct {
 	Full, Any, Manual bool
 	Terms             []string

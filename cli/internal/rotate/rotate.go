@@ -112,7 +112,7 @@ func (r *Rotator) Plan(ctx context.Context, names []string, o Options) ([]Entry,
 		plan = slices.Clone(r.Entries)
 	case o.Scheduled:
 		// Due entries and interrupted rotations; never manual ones (a person acts) or OpenTofu's (from the
-		// workstation only: make infra env=production warns when one is due)
+		// workstation only: just infra deploy production warns when one is due)
 		for _, e := range r.Entries {
 			if FromWorkstation(e) || slices.Contains([]Kind{KindManual, KindNever, KindAutomatic, KindScript}, e.Kind) {
 				continue

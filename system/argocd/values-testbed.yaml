@@ -1,5 +1,5 @@
 # Testbed: three VMs on the workstation, proving what needs several nodes (docs/superpowers/specs/2026-11-02-testbed-design.md,
-# docs/installation/testbed.md). Argo CD syncs GitHub branch testbed, which make testbed pushes, as the sandbox's syncs
+# docs/installation/testbed.md). Argo CD syncs GitHub branch testbed, which just testbed pushes, as the sandbox's syncs
 # branch sandbox; there is no Forgejo here. Helm replaces lists and anchors do not cross files, so generators and sources
 # are restated.
 #
@@ -34,7 +34,7 @@ argocd-apps:
             generators:
               - git:
                   repoURL: &repoURL https://github.com/duongle-steven/homelab
-                  # make testbed force-pushes the current commit here
+                  # just testbed force-pushes the current commit here
                   revision: &revision testbed
                   directories:
                     # Layer 1

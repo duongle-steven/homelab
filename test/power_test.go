@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Every node losing power, an ordered shutdown, a node not returning (docs/superpowers/specs/2026-11-04-power-design.md). make
+// Every node losing power, an ordered shutdown, a node not returning (docs/superpowers/specs/2026-11-04-power-design.md). just
 // testbed-power runs them one at a time on a healthy testbed. virsh destroy keeps what reached QEMU in WSL's page cache
 // (cache=unsafe): these prove the software recovers, not that a real disk keeps what it acknowledged.
 
@@ -434,7 +434,7 @@ func TestPowerNodeNotReturning(t *testing.T) {
 	assert.False(t, noout, "noout is still set")
 }
 
-// One measurement (docs/installation/testbed.md), not part of make testbed-power: CloudNativePG installed by hand on a stable layer 2
+// One measurement (docs/installation/testbed.md), not part of just testbed-power: CloudNativePG installed by hand on a stable layer 2
 func TestPowerCutPostgres(t *testing.T) {
 	testbedOnly(t)
 	_, err := k8s.RunKubectlAndGetOutputE(t, testbedKubectl(""), "get", "crd", "clusters.postgresql.cnpg.io")

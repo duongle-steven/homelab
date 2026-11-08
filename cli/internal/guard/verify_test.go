@@ -147,7 +147,7 @@ func TestVerifyFailsWhenGitHubFails(t *testing.T) {
 	}
 }
 
-// make infra applies infra/ and renders system/argocd from the working tree: an untracked file there would reach
+// just infra deploy applies infra/ and renders system/argocd from the working tree: an untracked file there would reach
 // production without being in the verified commit (OpenTofu's lock files excepted: they are not committed)
 func TestVerifyRefusesUntrackedInfrastructure(t *testing.T) {
 	// The lock-file case reaches GitHub: answer at once

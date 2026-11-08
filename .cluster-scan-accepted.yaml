@@ -1,4 +1,4 @@
-# Findings make testbed-scan and make dev-scan accept, each with its reason (docs/how-to-guides/cluster-scan.md).
+# Findings just testbed-scan and just dev-scan accept, each with its reason (docs/how-to-guides/cluster-scan.md).
 # kubescape: controls are accepted whole only when they are noise here; what would let someone reach a node, every
 # Secret or everything else is accepted by resource (a pattern only inside the name), so a new one fails the target.
 kubeBench:
