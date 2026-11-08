@@ -11,7 +11,7 @@ on:
         type: choice
         options: [full, auto]
       tests:
-        description: exactly these tests (a go test -run regex); empty for the scope
+        description: exactly these specs (a Ginkgo label filter, e.g. "logs || mesh"); empty for the scope
         default: ""
       revision:
         description: commit to test (default the branch's head)
@@ -51,13 +51,11 @@ jobs:
           SCOPE: ${{ inputs.scope }}
           TESTS: ${{ inputs.tests }}
         run: |
-          if [ -n "$TESTS" ]; then
-            args="--tests $TESTS --apps all"
-          else
-            args="--apps all"
-            [ "$SCOPE" != full ] || args="--full $args"
-          fi
+          # --tests goes to the action on its own: a label filter holds spaces
+          args="--apps all"
+          [ -n "$TESTS" ] || [ "$SCOPE" != full ] || args="--full $args"
           echo "args=$args" >> "$GITHUB_OUTPUT"
       - uses: ./.github/actions/sandbox
         with:
           just-args: ${{ steps.scope.outputs.args }}
+          tests: ${{ inputs.tests }}

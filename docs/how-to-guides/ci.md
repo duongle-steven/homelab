@@ -17,8 +17,10 @@ scripts/ci-check all
 `render` renders the charts the branch changes, uncommitted changes included (`cd cli && go run ./cmd/lab test charts` lists them).
 
 `go` vets the whole suite and runs the offline tests: packages `test/offline` (renders, scripts, checks) and
-`test/internal/*` (the helpers both sides use). `test/` itself holds only the tests that need a cluster, which `just dev`
-runs: a test that needs none goes in `test/offline`, and runs in the basic checks by being there.
+`test/internal/*` (the helpers both sides use). `test/e2e` holds only the specs that need a cluster (Ginkgo, which
+`just dev` runs by label): a test that needs none goes in `test/offline`, and runs in the basic checks by being there.
+`TestE2EKeepsSelection` there checks that every scope group and recipe still selects the specs it selected before the
+move to labels (`test/offline/fixtures/e2e-selection.json`).
 
 ## Detection (step 15a)
 
@@ -95,7 +97,7 @@ random).
 
 | Workflow | Trigger | Runs |
 |---|---|---|
-| `sandbox` | `workflow_dispatch` only (Actions tab, or `gh workflow run sandbox.yaml --ref <branch>`) | `scope` `full` or `auto`, or exactly `tests`; `revision` picks another commit |
+| `sandbox` | `workflow_dispatch` only (Actions tab, or `gh workflow run sandbox.yaml --ref <branch>`) | `scope` `full` or `auto`, or exactly `tests` (a label filter: `gh workflow run sandbox.yaml --ref dev -f tests='logs \|\| mesh'`); `revision` picks another commit |
 | `sandbox-release` | A pull request into `master` (a release): opened, reopened or a new commit | The whole suite; its check `sandbox` is required by the ruleset `protect-master-sandbox` |
 | `sandbox-retarget` | A pull request retargeted to `master` (its base changed) | The whole suite, reported as the check `sandbox` through the checks API |
 | `sandbox-label` | The label `sandbox` on a pull request into anything but `master` | What `just dev` would run for the pull request (its base to its head) |
@@ -119,6 +121,9 @@ the logs and descriptions of the pods that are not ready, and why each unhealthy
 ```sh
 gh run download <run-id> --name sandbox-state
 ```
+
+Every run, passed or failed, also uploads `e2e-reports`: Ginkgo's JUnit and JSON reports of each run of the suite
+(`test/reports/e2e/<env>-<filter>.xml|json`), with each spec's time and failure.
 
 A push to `dev` (a merge) runs only the basic checks: `just dev` already ran the branch's scope locally, and the
 whole suite runs on every `dev` → `master` pull request (and locally with `just dev-fresh`). Run `sandbox` by hand to

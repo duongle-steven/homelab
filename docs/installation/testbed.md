@@ -42,7 +42,7 @@ It force-pushes the commit you are on to GitHub branch `testbed`, which the test
    differs from the flake's, one at a time
 3. `argocd`: Argo CD and its ApplicationSets (`system/argocd` with `values-testbed.yaml`)
 
-Then it runs the testbed's tests (`TestTestbed*`; the first waits for every listed Application to have synced this commit and
+Then it runs the testbed's specs (`just test e2e --env testbed --labels proof`: the `Testbed*` specs; the first waits for every listed Application to have synced this commit and
 be healthy) and, when they pass, writes the commit status `testbed` on the commit it started from, the mark
 `lab infra forgejo verify` reads.
 
@@ -104,7 +104,8 @@ just testbed-power
 
 On a healthy testbed, from the main checkout, alone: it wrecks the cluster's availability, so it is never part of `just testbed` and gives
 no mark. Run it when `lab cluster shutdown|startup`, the node profile or the recovery path change, and before step 12b. `--tests` picks
-the tests (`PowerCutEveryNode`, `PowerShutdownStartup`, `PowerNodeNotReturning`). A probe on a Ceph volume writes numbered lines, flushing
+the specs by label, one run each (`cut-every-node`, `shutdown-startup`, `node-not-returning`: PowerCutEveryNode,
+PowerShutdownStartup, PowerNodeNotReturning). A probe on a Ceph volume writes numbered lines, flushing
 each, and every number it reported must be in its file afterwards ([what they cover](../how-to-guides/power.md)).
 
 Measured at 2 vCPUs from a fresh install, from the moment the VMs start:
@@ -133,7 +134,7 @@ protection and repeats the cut before real data.
 
 ### CloudNativePG, one measurement
 
-Once, not on the list and not in the mark (`just testbed-power --tests PowerCutPostgres`, the operator rendered and applied by hand with its `PodMonitor`
+Once, not on the list and not in the mark (`just testbed-power --tests cut-postgres`, PowerCutPostgres, the operator rendered and applied by hand with its `PodMonitor`
 removed, an instance on each node, 2 vCPUs):
 
 | | |

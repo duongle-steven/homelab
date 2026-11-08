@@ -127,6 +127,3 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15f | `docs/how-to-guides/public-surface.md` does not say how to import an existing `http_ratelimit` or `http_request_firewall_managed` entry point, if the first apply finds one | the first production apply |
 | 15f | Gateway `public` enforces namespaces only; a route's hostnames are checked only in CI (`TestPublicRoutes`); one listener per host would enforce both | any |
 | 15f | The scan's pod has requests but no memory limit | any |
-| 14f-1 | `K3dNode` and `NodeAddressFromInspect` sit in `test/internal/restart` though they describe the environment (`testenv`) | 14f-2 |
-| 14f-1 | Cluster tests still read paths relative to `test/` (`".."`) instead of `repo.Root()` | 14f-2 |
-| 14f-1 | `lab test scope`: a deleted file in a `test/internal` package selects nothing (it parses the files on disk) | 14f-2 |

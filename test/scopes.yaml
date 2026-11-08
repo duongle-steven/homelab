@@ -44,10 +44,47 @@ skip:
 # The fixed set: environments (where a spec may run), alone (runs by itself after the others, Serial), and one family per
 # spec (its old test name's prefix) with extras where a group names one spec or a family reaches across (a spec carries
 # them only on its top-level container; `just cli check` fails on a label outside this list or one no spec carries)
-labels: [sandbox, testbed, production, alone, smoke, argocd, identity, sso, gateway, forgejo, mesh, monitoring, egress,
-  secrets, ntfy, logs, security-logs, woodpecker, policy, supply-chain, trivy-operator, public, node-restart,
-  node-power-cut, backup-restore, rotation, proof, power, scan, kiali, grafana, zot, actual-budget, paperless,
-  opencloud, deploy, cut-every-node, shutdown-startup, node-not-returning, cut-postgres]
+labels:
+  - sandbox
+  - testbed
+  - production
+  - alone
+  - smoke
+  - argocd
+  - identity
+  - sso
+  - gateway
+  - forgejo
+  - mesh
+  - monitoring
+  - egress
+  - secrets
+  - ntfy
+  - logs
+  - security-logs
+  - woodpecker
+  - policy
+  - supply-chain
+  - trivy-operator
+  - public
+  - node-restart
+  - node-power-cut
+  - backup-restore
+  - rotation
+  - proof
+  - power
+  - scan
+  - kiali
+  - grafana
+  - zot
+  - actual-budget
+  - paperless
+  - opencloud
+  - deploy
+  - cut-every-node
+  - shutdown-startup
+  - node-not-returning
+  - cut-postgres
 always: smoke
 # Each runs by itself after the main run, in this order (#78)
 alone: [backup-restore, node-power-cut, node-restart, rotation]

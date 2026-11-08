@@ -1,21 +1,34 @@
-# The suite against an environment's cluster (its kubeconfig in infra/<env>/); the root's recipes run it with their
-# environment and filter: `just test run --env sandbox --filter Logs`
+# The e2e suite against an environment's cluster (its kubeconfig in infra/<env>/); the root's recipes run it with their
+# environment and label filter: `just test e2e --env sandbox --labels logs`
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set fallback
 
 root := parent_directory(source_directory())
 
-# --env production (the default), testbed or sandbox; --filter is go test's -run regex
+# --env is required (sandbox, testbed or production: never a default); --labels is a Ginkgo label filter, to which the
+# environment is added (`(<labels>) && <env>`: a spec labelled for another environment never runs); --focus a regex on
+# the specs' text. Reports go to test/reports/e2e/, named after the environment and the filter
 [arg("env", long)]
-[arg("filter", long)]
-[arg("format", long)]
-[doc("The suite against infra/<env>'s cluster (--env, --filter, --format)")]
-run env="production" $filter="." format="testname":
+[arg("labels", long)]
+[arg("focus", long)]
+[arg("verbose", long, value="1")]
+[doc("The e2e suite against infra/<env>'s cluster (--env, --labels, --focus, --verbose)")]
+e2e env="" $labels="" $focus="" $verbose="":
     #!/usr/bin/env bash
     set -euo pipefail
-    export KUBECONFIG="{{ root }}/infra/{{ env }}/kubeconfig.yaml" KUBE_CONFIG_PATH="{{ root }}/infra/{{ env }}/kubeconfig.yaml"
     case "{{ env }}" in
     sandbox) export ENV=dev INSECURE_SKIP_VERIFY=1 ;;
     testbed) export ENV=testbed INSECURE_SKIP_VERIFY=1 ;;
+    production) ;;
+    *) echo "just test e2e: --env sandbox, testbed or production" >&2; exit 1 ;;
     esac
-    gotestsum --format {{ format }} -- -timeout 60m -run "$filter" ./e2e
+    export KUBECONFIG="{{ root }}/infra/{{ env }}/kubeconfig.yaml" KUBE_CONFIG_PATH="{{ root }}/infra/{{ env }}/kubeconfig.yaml"
+    filter="{{ env }}" slug=all
+    if [ -n "$labels" ]; then filter="($labels) && {{ env }}" slug=$(printf '%s' "$labels" | tr -c 'a-z0-9-' '_'); fi
+    args=(--label-filter "$filter" --fail-on-empty --timeout 2h --poll-progress-after 60s --poll-progress-interval 30s
+        --output-dir reports/e2e --junit-report "{{ env }}-$slug.xml" --json-report "{{ env }}-$slug.json")
+    if [ -n "$focus" ]; then args+=(--focus "$focus"); fi
+    if [ -n "$verbose" ]; then args+=(-v); fi
+    cd "{{ root }}/test"
+    mkdir -p reports/e2e
+    go tool ginkgo run "${args[@]}" ./e2e
