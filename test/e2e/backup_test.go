@@ -38,13 +38,6 @@ func baoPut(t *testing.T, path, value string, del bool) {
 	require.NoError(t, err, "secret/%s: %s", path, out)
 }
 
-func kubectlJSON(t *testing.T, out any, args ...string) {
-	t.Helper()
-	raw, err := k8s.RunKubectlAndGetOutputE(t, k8s.NewKubectlOptions("", "", ""), append(args, "-o", "json")...)
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal([]byte(raw), out))
-}
-
 // runCronJob starts a Job from the CronJob and waits for it to succeed
 func runCronJob(t *testing.T, namespace, cronJob string) {
 	t.Helper()
@@ -60,7 +53,7 @@ func waitBackup(t *testing.T, name string) {
 		var b struct {
 			Status struct{ Phase string } `json:"status"`
 		}
-		kubectlJSON(t, &b, "-n", "velero", "get", "backups.velero.io", name)
+		kubectlJSON(context.TODO(), &b, "-n", "velero", "get", "backups.velero.io", name)
 		require.NotContains(t, []string{"Failed", "PartiallyFailed", "FailedValidation"}, b.Status.Phase, "backup %s", name)
 		return b.Status.Phase == "Completed"
 	}, 20*time.Minute, 10*time.Second, "backup %s did not complete", name)
@@ -77,7 +70,7 @@ func allSyncedHealthy(t *testing.T) []string {
 			} `json:"status"`
 		} `json:"items"`
 	}
-	kubectlJSON(t, &apps, "-n", "argocd", "get", "applications.argoproj.io")
+	kubectlJSON(context.TODO(), &apps, "-n", "argocd", "get", "applications.argoproj.io")
 	var bad []string
 	for _, a := range apps.Items {
 		if a.Status.Sync.Status != "Synced" || a.Status.Health.Status != "Healthy" {
@@ -134,7 +127,7 @@ func TestBackupRestore(t *testing.T) {
 			Template map[string]any `json:"template"`
 		} `json:"spec"`
 	}
-	kubectlJSON(t, &schedule, "-n", "velero", "get", "schedules.velero.io", "daily")
+	kubectlJSON(context.TODO(), &schedule, "-n", "velero", "get", "schedules.velero.io", "daily")
 	backup := fmt.Sprintf("daily-test-%d", time.Now().Unix())
 	manifest, err := json.Marshal(map[string]any{
 		"apiVersion": "velero.io/v1", "kind": "Backup",
@@ -184,7 +177,7 @@ func TestBackupRestore(t *testing.T) {
 		require.Error(t, err, out)
 		assert.Contains(t, out, "--backup")
 		lab(t, append([]string{"backup", "restore", "--backup", backup, "--yes"}, env...)...)
-		assert.Equal(t, marker, baoValue(t, "smoke/backup-marker", "value"))
+		assert.Equal(t, marker, baoValue(context.TODO(), "smoke/backup-marker", "value"))
 		var got []struct{ SHA string }
 		require.Equal(t, 200, forgejoRestored(t, "/repos/"+owner+"/"+repo+"/commits", &got))
 		require.NotEmpty(t, got)

@@ -60,7 +60,7 @@ func TestSecurityLogsOpenBao(t *testing.T) {
 	value := fmt.Sprint("audit-value-", time.Now().UnixNano())
 	baoPutStdin(t, "smoke/audit-marker", "value", value)
 	t.Cleanup(func() { baoPut(t, "smoke/audit-marker", "", true) })
-	got, err := bao(t, "admin", "openbao", "openbao-admin", "kv", "get", "-field=value", "secret/smoke/audit-marker")
+	got, err := bao(context.TODO(), "admin", "openbao", "openbao-admin", "kv", "get", "-field=value", "secret/smoke/audit-marker")
 	require.NoError(t, err)
 	require.Equal(t, value, got)
 
@@ -220,7 +220,7 @@ func TestSecurityLogsNoSecretValues(t *testing.T) {
 	values := map[string]string{
 		"grafana/grafana-admin": secretValue(context.TODO(), "grafana", "grafana-admin", "admin-password"),
 		"forgejo/forgejo-admin": secretValue(context.TODO(), "forgejo", "forgejo-admin", "password"),
-		"ntfy alerts token":     ntfyToken(t, "alerts"),
+		"ntfy alerts token":     ntfyToken(context.TODO(), "alerts"),
 	}
 	lines := lokiLines(t, `{job=~"audit/.*"}`, 2*time.Hour)
 	require.NotEmpty(t, lines, "no audit line in the last 2 hours")

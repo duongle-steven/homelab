@@ -6,13 +6,11 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
-	"testing"
 	"time"
 
-	"github.com/duongle-steven/homelab/test/internal/testenv"
-	"github.com/gruntwork-io/terratest/modules/k8s"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/duongle-steven/homelab/test/internal/kube"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 // privilegedNamespaces are labelled pod-security.kubernetes.io/enforce=privileged (system/argocd/values.yaml's
@@ -22,14 +20,14 @@ var privilegedNamespaces = []string{"istio-system", "rook-ceph", "kured", "loki"
 // In the sandbox: Kyverno audits (an unreachable Kyverno blocks nothing), its reports show no repository workload
 // failing, a pod breaking restricted is admitted and reported, and Pod Security Admission refuses privileged pods
 // outside the namespaces that need them
-func TestPolicy(t *testing.T) {
-	testenv.SecretsSandboxOnly(t)
-	kyverno := k8s.NewKubectlOptions("", "", "kyverno")
-	k8s.WaitUntilDeploymentAvailable(t, kyverno, "kyverno-admission-controller", 60, 10*time.Second)
+var _ = Describe("Policy", Label("sandbox", "testbed", "policy"), func() {
+	BeforeEach(func(ctx SpecContext) {
+		waitForDeployment(ctx, "kyverno", "kyverno-admission-controller")
+	}, NodeTimeout(15*time.Minute))
 
 	// The webhooks that judge ordinary resources (workloads) ignore an unreachable Kyverno; those for Kyverno's own
 	// kinds (policies, exceptions) and for what it generates (an objectSelector on its labels) may refuse
-	t.Run("audit only", func(t *testing.T) {
+	It("audit only", func(ctx SpecContext) {
 		var configs struct {
 			Items []struct {
 				Metadata struct {
@@ -42,7 +40,7 @@ func TestPolicy(t *testing.T) {
 				} `json:"webhooks"`
 			} `json:"items"`
 		}
-		kubectlJSON(t, &configs, "get", "validatingwebhookconfigurations,mutatingwebhookconfigurations", "-l", "webhook.kyverno.io/managed-by=kyverno")
+		kubectlJSON(ctx, &configs, "get", "validatingwebhookconfigurations,mutatingwebhookconfigurations", "-l", "webhook.kyverno.io/managed-by=kyverno")
 		checked := 0
 		for _, c := range configs.Items {
 			if !strings.Contains(c.Metadata.Name, "resource") {
@@ -53,59 +51,59 @@ func TestPolicy(t *testing.T) {
 					continue
 				}
 				checked++
-				assert.Equal(t, "Ignore", w.FailurePolicy, "%s/%s", c.Metadata.Name, w.Name)
+				Expect(w.FailurePolicy).To(Equal("Ignore"), "%s/%s", c.Metadata.Name, w.Name)
 			}
 		}
-		assert.NotZero(t, checked, "no Kyverno webhook for ordinary resources")
-	})
+		Expect(checked).NotTo(BeZero(), "no Kyverno webhook for ordinary resources")
+	}, SpecTimeout(5*time.Minute))
 
-	t.Run("pod security admission", func(t *testing.T) {
+	It("pod security admission", func(ctx SpecContext) {
 		for _, ns := range []string{"excalidraw", "istio-system", "csi-hostpath"} {
 			want := "baseline"
 			if slices.Contains(privilegedNamespaces, ns) {
 				want = "privileged"
 			}
-			label, err := k8s.RunKubectlAndGetOutputE(t, kyverno, "get", "namespace", ns, "-o",
+			label, err := kube.Kubectl(ctx, "kyverno", "get", "namespace", ns, "-o",
 				`jsonpath={.metadata.labels.pod-security\.kubernetes\.io/enforce}`)
-			require.NoError(t, err)
-			assert.Equal(t, want, label, ns)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(label).To(Equal(want), ns)
 		}
 		privileged := `{"apiVersion":"v1","kind":"Pod","metadata":{"name":"privileged","namespace":"excalidraw"},` +
 			`"spec":{"containers":[{"name":"c","image":"docker.io/library/busybox:1.37.0","securityContext":{"privileged":true}}]}}`
-		cmd := exec.Command("kubectl", "create", "--dry-run=server", "-f", "-")
+		cmd := exec.CommandContext(ctx, "kubectl", "create", "--dry-run=server", "-f", "-")
 		cmd.Stdin = strings.NewReader(privileged)
 		out, err := cmd.CombinedOutput()
-		assert.Error(t, err, "a privileged pod was admitted in excalidraw:\n%s", out)
-		assert.Contains(t, string(out), "violates PodSecurity")
-	})
+		Expect(err).To(HaveOccurred(), "a privileged pod was admitted in excalidraw:\n%s", out)
+		Expect(string(out)).To(ContainSubstring("violates PodSecurity"))
+	}, SpecTimeout(5*time.Minute))
 
 	// The reports controller keeps its leader Lease: at its memory limit it stalled, missed the Lease renewal and
 	// exited, again and again, and reports came late or never (system/kyverno/values.yaml)
-	t.Run("reports controller stays up", func(t *testing.T) {
+	It("reports controller stays up", func(ctx SpecContext) {
 		pod := `jsonpath={.items[0].status.containerStatuses[0].restartCount} {.items[0].status.containerStatuses[0].ready}`
 		state := func() string {
-			out, err := k8s.RunKubectlAndGetOutputE(t, kyverno, "get", "pod", "-l", "app.kubernetes.io/component=reports-controller", "-o", pod)
-			require.NoError(t, err)
+			out, err := kube.Kubectl(ctx, "kyverno", "get", "pod", "-l", "app.kubernetes.io/component=reports-controller", "-o", pod)
+			Expect(err).NotTo(HaveOccurred())
 			return out
 		}
 		before := state()
-		assert.True(t, strings.HasSuffix(before, " true"), "the reports controller is not ready: %s", before)
-		time.Sleep(2 * time.Minute)
-		assert.Equal(t, before, state(), "the reports controller restarted (restart count, ready)")
-	})
+		Expect(strings.HasSuffix(before, " true")).To(BeTrue(), "the reports controller is not ready: %s", before)
+		sleep(ctx, 2*time.Minute)
+		Expect(state()).To(Equal(before), "the reports controller restarted (restart count, ready)")
+	}, SpecTimeout(10*time.Minute))
 
-	t.Run("reports", func(t *testing.T) {
+	It("reports", func(ctx SpecContext) {
 		// A pod breaking restricted is admitted (Audit) and reported
 		namespace := fmt.Sprint("policy-test-", time.Now().Unix())
-		opts := k8s.NewKubectlOptions("", "", namespace)
-		k8s.CreateNamespace(t, opts, namespace)
-		defer k8s.DeleteNamespace(t, opts, namespace)
-		k8s.RunKubectl(t, opts, "run", "bare", "--image=docker.io/library/busybox:1.37.0", "--restart=Never", "--", "sleep", "300")
-		require.Eventually(t, func() bool {
-			out, err := k8s.RunKubectlAndGetOutputE(t, opts, "get", "policyreports.wgpolicyk8s.io",
+		Expect(kube.CreateNamespace(ctx, namespace)).To(Succeed())
+		DeferCleanup(func(ctx SpecContext) { Expect(kube.DeleteNamespace(ctx, namespace)).To(Succeed()) }, NodeTimeout(5*time.Minute))
+		out, err := kube.Kubectl(ctx, namespace, "run", "bare", "--image=docker.io/library/busybox:1.37.0", "--restart=Never", "--", "sleep", "300")
+		Expect(err).NotTo(HaveOccurred(), out)
+		Eventually(ctx, func() bool {
+			out, err := kube.Kubectl(ctx, namespace, "get", "policyreports.wgpolicyk8s.io",
 				"-o", `jsonpath={range .items[*].results[?(@.result=="fail")]}{.policy}{"\n"}{end}`)
 			return err == nil && strings.Contains(out, "require-run-as-nonroot")
-		}, 5*time.Minute, 10*time.Second, "no report of the bare pod's failure")
+		}).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(BeTrue(), "no report of the bare pod's failure")
 
 		// No repository workload fails: Enforce (15b-2) can follow. Only pods created once every PolicyException
 		// existed in its current form (created or last changed) count: a pod (and its Deployment's report) admitted while Kyverno had not yet cached the
@@ -124,8 +122,8 @@ func TestPolicy(t *testing.T) {
 				Metadata meta `json:"metadata"`
 			} `json:"items"`
 		}
-		kubectlJSON(t, &exceptions, "get", "policyexceptions.policies.kyverno.io", "-A", "--show-managed-fields")
-		require.NotEmpty(t, exceptions.Items, "no PolicyException in the sandbox")
+		kubectlJSON(ctx, &exceptions, "get", "policyexceptions.policies.kyverno.io", "-A", "--show-managed-fields")
+		Expect(exceptions.Items).NotTo(BeEmpty(), "no PolicyException in the sandbox")
 		var newest time.Time
 		for _, e := range exceptions.Items {
 			if e.Metadata.CreationTimestamp.After(newest) {
@@ -137,15 +135,15 @@ func TestPolicy(t *testing.T) {
 				}
 			}
 		}
-		// k3s's own pods (kube-system) are not the repository's, nor the tests' fixtures (TestTrivyOperator's old
-		// alpine, left by a run cut by go test's timeout, until that test deletes it); passes leave no report, so the
+		// k3s's own pods (kube-system) are not the repository's, nor the specs' fixtures (TrivyOperator's old alpine,
+		// left by a run cut by a timeout, until that spec deletes it); passes leave no report, so the
 		// pods judged are counted from the pods themselves
 		outside := func(namespace string) bool {
 			return namespace == "kube-system" || strings.HasPrefix(namespace, "policy-test-") ||
 				strings.HasPrefix(namespace, "trivy-test-")
 		}
 		cutoff := newest.Add(time.Minute) // for Kyverno to cache the newest exception
-		kubectlJSON(t, &pods, "get", "pods", "-A")
+		kubectlJSON(ctx, &pods, "get", "pods", "-A")
 		fresh := map[string]bool{}
 		for _, p := range pods.Items {
 			if !outside(p.Metadata.Namespace) && p.Metadata.CreationTimestamp.After(cutoff) {
@@ -166,7 +164,7 @@ func TestPolicy(t *testing.T) {
 				} `json:"results"`
 			} `json:"items"`
 		}
-		kubectlJSON(t, &reports, "get", "policyreports.wgpolicyk8s.io", "-A")
+		kubectlJSON(ctx, &reports, "get", "policyreports.wgpolicyk8s.io", "-A")
 		var failing []string
 		for _, r := range reports.Items {
 			if r.Scope.Kind != "Pod" || !fresh[r.Scope.UID] {
@@ -179,7 +177,7 @@ func TestPolicy(t *testing.T) {
 			}
 		}
 		// On a fresh cluster few pods start that late; the renders are judged in full by scripts/ci-check policy
-		t.Logf("judged %d of %d pods: those created after the newest PolicyException change (%s)", len(fresh), len(pods.Items), newest)
-		assert.Empty(t, failing, "workloads failing Kyverno's policies (a fix or a PolicyException is missing)")
-	})
-}
+		GinkgoWriter.Printf("judged %d of %d pods: those created after the newest PolicyException change (%s)\n", len(fresh), len(pods.Items), newest)
+		Expect(failing).To(BeEmpty(), "workloads failing Kyverno's policies (a fix or a PolicyException is missing)")
+	}, SpecTimeout(15*time.Minute))
+})

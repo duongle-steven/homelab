@@ -46,54 +46,25 @@ func forgejoGit(t *testing.T, dir, user, secret string, args ...string) (string,
 	return string(out), err
 }
 
-func baoValue(t *testing.T, path, property string) string {
-	t.Helper()
-	value, err := baoValueE(path, property)
-	require.NoError(t, err)
-	require.NotEmpty(t, value, "secret/%s#%s", path, property)
-	return value
-}
-
-// baoValueE reads OpenBao the documented way: an admin login inside OpenBao's pod, the token never printed. Its error
-// carries OpenBao's message (never a value): the in-pod script exits with bao kv get's status, revoking the token
-// either way
-func baoValueE(path, property string) (string, error) {
-	script := "kubectl -n openbao create token openbao-admin --audience=openbao --duration=10m | kubectl -n openbao exec -i openbao-0 -c openbao -- " +
-		"sh -c 'export BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=admin jwt=-) && bao kv get -field=" + property + " secret/" + path + "; s=$?; bao token revoke -self >/dev/null 2>&1; exit $s'"
-	var stdout, stderr strings.Builder
-	cmd := exec.Command("sh", "-c", script)
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("secret/%s#%s: %w: %s", path, property, err, strings.TrimSpace(stderr.String()))
-	}
-	return strings.TrimSpace(stdout.String()), nil
-}
-
-// permanentBaoError tells a read that cannot succeed later (the path exists without that property) from one that may
-// (not pushed yet, OpenBao restarting)
-func permanentBaoError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "not present in map")
-}
-
 // TestForgejoDeploy runs lab infra forgejo sync twice and push, as just infra deploy production does, against the
 // sandbox's Forgejo, then checks what production relies on.
 func TestForgejoDeploy(t *testing.T) {
 	testenv.LocalOnly(t)
 	waitForApp(context.TODO(), "https://"+forgejoHost+"/api/healthz")
 	lab(t, "infra", "forgejo", "sync", "--env", labEnv)
-	deploy, argocd := baoValue(t, "forgejo/deploy", "token"), baoValue(t, "argocd/forgejo", "token")
+	deploy, argocd := baoValue(context.TODO(), "forgejo/deploy", "token"), baoValue(context.TODO(), "argocd/forgejo", "token")
 	require.NotEmpty(t, deploy)
 	require.NotEmpty(t, argocd)
 	// Woodpecker's OAuth client (docs/superpowers/specs/2026-10-21-woodpecker-design.md, decision 2)
-	clientID, clientSecret := baoValue(t, "woodpecker/forgejo", "client_id"), baoValue(t, "woodpecker/forgejo", "client_secret")
+	clientID, clientSecret := baoValue(context.TODO(), "woodpecker/forgejo", "client_id"), baoValue(context.TODO(), "woodpecker/forgejo", "client_secret")
 	require.NotEmpty(t, clientID)
 	require.NotEmpty(t, clientSecret)
-	assert.Equal(t, "https://"+ciHost+"/authorize", baoValue(t, "woodpecker/forgejo", "redirect_uri"))
+	assert.Equal(t, "https://"+ciHost+"/authorize", baoValue(context.TODO(), "woodpecker/forgejo", "redirect_uri"))
 	lab(t, "infra", "forgejo", "sync", "--env", labEnv)
-	assert.Equal(t, deploy, baoValue(t, "forgejo/deploy", "token"), "a second sync replaced deploy's token")
-	assert.Equal(t, argocd, baoValue(t, "argocd/forgejo", "token"), "a second sync replaced argocd's token")
-	assert.Equal(t, clientID, baoValue(t, "woodpecker/forgejo", "client_id"), "a second sync replaced Woodpecker's client")
-	assert.True(t, clientSecret == baoValue(t, "woodpecker/forgejo", "client_secret"), "a second sync replaced Woodpecker's client secret")
+	assert.Equal(t, deploy, baoValue(context.TODO(), "forgejo/deploy", "token"), "a second sync replaced deploy's token")
+	assert.Equal(t, argocd, baoValue(context.TODO(), "argocd/forgejo", "token"), "a second sync replaced argocd's token")
+	assert.Equal(t, clientID, baoValue(context.TODO(), "woodpecker/forgejo", "client_id"), "a second sync replaced Woodpecker's client")
+	assert.True(t, clientSecret == baoValue(context.TODO(), "woodpecker/forgejo", "client_secret"), "a second sync replaced Woodpecker's client secret")
 
 	lab(t, "infra", "forgejo", "push", "--env", labEnv)
 	assert.Contains(t, lab(t, "infra", "forgejo", "push", "--env", labEnv), "nothing to push")
@@ -187,7 +158,7 @@ spec:
     syncOptions: [CreateNamespace=true]
 `, name))
 	clone := t.TempDir()
-	out, err := forgejoGit(t, clone, "argocd", baoValue(t, "argocd/forgejo", "token"), "ls-remote", "https://"+forgejoHost+"/ops/homelab.git", "refs/heads/master")
+	out, err := forgejoGit(t, clone, "argocd", baoValue(context.TODO(), "argocd/forgejo", "token"), "ls-remote", "https://"+forgejoHost+"/ops/homelab.git", "refs/heads/master")
 	require.NoError(t, err, out)
 	master := strings.Fields(out)[0]
 	var status string

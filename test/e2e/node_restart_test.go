@@ -242,10 +242,10 @@ func TestNodePowerCut(t *testing.T) {
 		Number int `json:"number"`
 	}
 	require.Equal(t, http.StatusCreated, forgejoAs(t, "", "POST", repo+"/issues", map[string]any{"title": marker}, &issue))
-	status, body := ntfyRequest(t, http.MethodPost, "/alerts", ntfyToken(t, "alerts"), marker)
+	status, body := ntfyRequest(context.TODO(), http.MethodPost, "/alerts", ntfyToken(context.TODO(), "alerts"), marker)
 	require.Equal(t, http.StatusOK, status, body)
-	admin(t, "kv", "put", "secret/smoke/power-cut", "value="+marker)
-	defer admin(t, "kv", "metadata", "delete", "secret/smoke/power-cut")
+	admin(context.TODO(), "kv", "put", "secret/smoke/power-cut", "value="+marker)
+	defer admin(context.TODO(), "kv", "metadata", "delete", "secret/smoke/power-cut")
 	time.Sleep(5 * time.Second)
 
 	out, err := exec.Command("docker", "kill", testenv.K3dNode).CombinedOutput()
@@ -275,9 +275,9 @@ func TestNodePowerCut(t *testing.T) {
 	}
 	assert.Equal(t, http.StatusOK, forgejoAs(t, "", "GET", fmt.Sprintf("%s/issues/%d", repo, issue.Number), nil, &got))
 	assert.Equal(t, marker, got.Title, "Forgejo's issue")
-	status, body = ntfyRequest(t, http.MethodGet, "/alerts/json?poll=1&since=1h", ntfyToken(t, "phone"), "")
+	status, body = ntfyRequest(context.TODO(), http.MethodGet, "/alerts/json?poll=1&since=1h", ntfyToken(context.TODO(), "phone"), "")
 	assert.Equal(t, http.StatusOK, status)
 	assert.Contains(t, body, marker, "ntfy's message")
-	waitForUnsealed(t)
-	assert.Equal(t, marker, admin(t, "kv", "get", "-field=value", "secret/smoke/power-cut"), "OpenBao's secret")
+	waitForUnsealed(context.TODO())
+	assert.Equal(t, marker, admin(context.TODO(), "kv", "get", "-field=value", "secret/smoke/power-cut"), "OpenBao's secret")
 }

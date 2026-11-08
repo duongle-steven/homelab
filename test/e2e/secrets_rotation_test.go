@@ -47,7 +47,7 @@ func grafanaStatus(password string) int {
 // and the readers run again (the sandbox has one replica per app: their short stops are not checked) (step 11b)
 func TestRotation(t *testing.T) {
 	testenv.SecretsSandboxOnly(t)
-	waitForUnsealed(t)
+	waitForUnsealed(context.TODO())
 
 	t.Run("app password", func(t *testing.T) {
 		waitForApp(context.TODO(), "https://"+grafanaHost+"/api/health")
@@ -61,17 +61,17 @@ func TestRotation(t *testing.T) {
 	})
 
 	t.Run("overlap", func(t *testing.T) {
-		waitForNtfy(t)
-		old := ntfyToken(t, "alerts")
+		ntfyUp(context.TODO())
+		old := ntfyToken(context.TODO(), "alerts")
 		rotateSecrets(t, "ntfy.alerts-token")
-		next := ntfyToken(t, "alerts")
+		next := ntfyToken(context.TODO(), "alerts")
 		require.False(t, old == next, "the value did not change")
 		assert.True(t, next == "tk_"+generatedValue(context.TODO(), "monitoring-system/generated/ntfy", "token"), "Alertmanager's copy differs")
 		assert.Eventually(t, func() bool {
-			status, _ := ntfyRequest(t, http.MethodGet, "/v1/account", next, "")
+			status, _ := ntfyRequest(context.TODO(), http.MethodGet, "/v1/account", next, "")
 			return status == http.StatusOK
 		}, 5*time.Minute, 5*time.Second, "the new token is refused")
-		status, _ := ntfyRequest(t, http.MethodGet, "/v1/account", old, "")
+		status, _ := ntfyRequest(context.TODO(), http.MethodGet, "/v1/account", old, "")
 		assert.Equal(t, http.StatusUnauthorized, status, "the old token still works after the rotation")
 		assert.Empty(t, baoValueOrEmpty("ntfy/generated/alerts-token", "previous_token"), "previous_token outlived the rotation")
 	})
@@ -151,17 +151,17 @@ func TestRotation(t *testing.T) {
 		dailyBackup(t)
 		baoPutMeta(t, "rotation/ntfy.alerts-token", map[string]string{"rotation-phase": "done", "rotation-method": "ntfy-overlap",
 			"rotated-by": "test", "rotated-at": time.Now().Add(-100 * 24 * time.Hour).UTC().Format(time.RFC3339)})
-		old := ntfyToken(t, "alerts")
+		old := ntfyToken(context.TODO(), "alerts")
 		job := "rotation-test-" + time.Now().Format("150405")
 		k8s.RunKubectl(t, options, "create", "job", job, "--from=cronjob/secrets-rotation")
 		if !jobSucceeds(t, options, job) {
 			logs, _ := k8s.RunKubectlAndGetOutputE(t, options, "logs", "job/"+job)
 			require.FailNow(t, "the scheduled run failed", logs)
 		}
-		next := ntfyToken(t, "alerts")
+		next := ntfyToken(context.TODO(), "alerts")
 		require.False(t, old == next, "the scheduled run did not rotate the due token")
 		assert.Eventually(t, func() bool {
-			status, _ := ntfyRequest(t, http.MethodGet, "/v1/account", next, "")
+			status, _ := ntfyRequest(context.TODO(), http.MethodGet, "/v1/account", next, "")
 			return status == http.StatusOK
 		}, 5*time.Minute, 5*time.Second, "the token the CronJob made is refused")
 		// An interrupted rotation by command cannot be finished by the CronJob: the run fails, which alerts
@@ -181,7 +181,7 @@ func TestRotation(t *testing.T) {
 
 // baoValueOrEmpty is secret/<path>#<property>, or "" when it is not there
 func baoValueOrEmpty(path, property string) string {
-	value, err := baoValueE(path, property)
+	value, err := baoValueE(context.TODO(), path, property)
 	if err != nil {
 		return ""
 	}
@@ -195,7 +195,7 @@ func baoPutMeta(t *testing.T, path string, meta map[string]string) {
 	for k, v := range meta {
 		args = append(args, "-custom-metadata="+k+"="+v)
 	}
-	admin(t, append(args, "secret/"+path)...)
+	admin(context.TODO(), append(args, "secret/"+path)...)
 }
 
 // jobSucceeds waits up to 5 minutes for job to finish and reports whether it succeeded
@@ -220,7 +220,7 @@ func dailyBackup(t *testing.T) {
 			Template map[string]any `json:"template"`
 		} `json:"spec"`
 	}
-	kubectlJSON(t, &schedule, "-n", "velero", "get", "schedules.velero.io", "daily")
+	kubectlJSON(context.TODO(), &schedule, "-n", "velero", "get", "schedules.velero.io", "daily")
 	// A new cluster is read-only until lab backup enable; it is read-only again afterwards, as TestBackupRestore expects
 	lab(t, "backup", "enable", "--yes", "--env", labEnv)
 	defer lab(t, "backup", "disable", "--yes", "--env", labEnv)

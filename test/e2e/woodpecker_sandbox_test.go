@@ -263,7 +263,7 @@ func TestWoodpecker(t *testing.T) {
 	require.Equal(t, http.StatusOK, status, string(raw))
 	require.NoError(t, json.Unmarshal(raw, &org))
 	require.Equal(t, "ci", org.Name)
-	for name, value := range map[string]string{"registry_username": "ci", "registry_password": baoValue(t, "zot/generated/ci", "password")} {
+	for name, value := range map[string]string{"registry_username": "ci", "registry_password": baoValue(context.TODO(), "zot/generated/ci", "password")} {
 		path := fmt.Sprintf("/api/orgs/%d/secrets", org.ID)
 		woodpeckerRequest(t, http.MethodDelete, path+"/"+name, admin, nil, nil)
 		status, _ := woodpeckerRequest(t, http.MethodPost, path, admin, nil, map[string]any{"name": name, "value": value, "events": []string{"push"}})
@@ -372,7 +372,7 @@ func TestWoodpecker(t *testing.T) {
 	// zot serves the image
 	req, err := http.NewRequest(http.MethodHead, "https://"+registryHost+"/v2/"+name+"/manifests/"+commit.Commit.SHA, nil)
 	require.NoError(t, err)
-	req.SetBasicAuth("ci", baoValue(t, "zot/generated/ci", "password"))
+	req.SetBasicAuth("ci", baoValue(context.TODO(), "zot/generated/ci", "password"))
 	req.Header.Set("Accept", "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json")
 	resp, err := insecureClient.Do(req)
 	require.NoError(t, err)

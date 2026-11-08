@@ -9,6 +9,7 @@ import (
 
 	"github.com/duongle-steven/homelab/test/internal/kube"
 	"github.com/duongle-steven/homelab/test/internal/routes"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 )
@@ -49,4 +50,29 @@ func legacyRouteHost(t *testing.T, namespace, name string) string {
 		return legacyGetResource(t, namespace, &route, "httproute", name) && route.Ready()
 	}, 30*time.Minute, 30*time.Second, "HTTPRoute %s/%s is not accepted with resolved backends", namespace, name)
 	return route.Spec.Hostnames[0]
+}
+
+// kubectlJSON decodes `kubectl <args> -o json` (any namespace in args) into out, or fails the spec
+func kubectlJSON(ctx context.Context, out any, args ...string) {
+	GinkgoHelper()
+	raw, err := kube.Kubectl(ctx, "", append(args, "-o", "json")...)
+	Expect(err).NotTo(HaveOccurred(), raw)
+	Expect(json.Unmarshal([]byte(raw), out)).To(Succeed())
+}
+
+// waitForDeployment waits up to 10 minutes until the Deployment reports Available, as terratest's
+// WaitUntilDeploymentAvailable did with 60 tries 10 s apart
+func waitForDeployment(ctx context.Context, namespace, name string) {
+	GinkgoHelper()
+	Eventually(ctx, func() (string, error) {
+		return kube.Kubectl(ctx, namespace, "get", "deployment", name, "-o", `jsonpath={.status.conditions[?(@.type=="Available")].status}`)
+	}).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Equal("True"), "Deployment %s/%s is not available", namespace, name)
+}
+
+// sleep waits d or until the spec's context ends
+func sleep(ctx context.Context, d time.Duration) {
+	select {
+	case <-ctx.Done():
+	case <-time.After(d):
+	}
 }
