@@ -25,9 +25,9 @@ func grafanaStatus(ctx context.Context, password string) int {
 }
 
 // Rotation runs lab secrets rotate on the sandbox, one entry per kind of method, alone after the suite (it restarts
-// most apps): the new value works, the old one is refused,
+// most apps): the new value works, the old one is refused, each method checked even when another failed,
 // and the readers run again (the sandbox has one replica per app: their short stops are not checked) (step 11b)
-var _ = Describe("Rotation", Ordered, Serial, Label("sandbox", "testbed", "rotation", "alone"), func() {
+var _ = Describe("Rotation", Ordered, ContinueOnFailure, Serial, Label("sandbox", "testbed", "rotation", "alone"), func() {
 	BeforeAll(func(ctx SpecContext) { waitForUnsealed(ctx) }, NodeTimeout(35*time.Minute))
 
 	It("app password", func(ctx SpecContext) {

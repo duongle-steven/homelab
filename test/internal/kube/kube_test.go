@@ -65,7 +65,7 @@ func TestNamespaces(t *testing.T) {
 	require.NoError(t, CreateNamespace(context.Background(), "a"))
 	assert.Equal(t, "create\nnamespace\na\n", read(t, filepath.Join(dir, "args")))
 	require.NoError(t, DeleteNamespace(context.Background(), "a"))
-	assert.Equal(t, "delete\nnamespace\na\n", read(t, filepath.Join(dir, "args")))
+	assert.Equal(t, "delete\nnamespace\na\n--wait=false\n", read(t, filepath.Join(dir, "args")))
 }
 
 func TestGetJSONIgnoresStderr(t *testing.T) {

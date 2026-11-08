@@ -52,6 +52,9 @@ func TestRepositoryMap(t *testing.T) {
 		// the offline tests and the internal packages' own tests: the basic checks run them
 		{"test/offline/velero_test.go", "", nil},
 		{"test/internal/repo/repo_test.go", "", nil},
+		// the suite's entry and what it waits on before any spec: every run
+		{"test/e2e/e2e_suite_test.go", full, fullAlone},
+		{"test/internal/argocd/argocd.go", full, fullAlone},
 		{"justfile", full, fullAlone},
 		{"scripts/something-new", full, fullAlone},
 	} {

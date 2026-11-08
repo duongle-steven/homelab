@@ -97,6 +97,9 @@ groups:
       - test/go.mod
       - test/go.sum
       - test/e2e/*helpers*_test.go
+      # The suite's entry, and what it waits on before every run (Argo CD settled)
+      - test/e2e/e2e_suite_test.go
+      - test/internal/argocd/*.go
       - flake.nix
       - flake.lock
       - nix/**

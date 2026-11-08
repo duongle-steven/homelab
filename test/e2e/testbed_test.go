@@ -172,9 +172,12 @@ var _ = Describe("TestbedNodes", Label("testbed", "proof"), func() {
 // The API's VIP moves: with the node holding it shut down, the API still answers through the VIP from another node
 var _ = Describe("TestbedVIPMoves", Label("testbed", "proof"), func() {
 	It("moves the API's VIP off a shut-down node", func(ctx SpecContext) {
-		holder, err := kube.Kubectl(ctx, "kube-system", "get", "lease", "plndr-cp-lock", "-o", "jsonpath={.spec.holderIdentity}")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(holder).NotTo(BeEmpty(), "no kube-vip leader for the control plane")
+		// The specs run in any order: on a fresh install kube-vip may not hold the lease yet
+		var holder string
+		Eventually(ctx, func() string {
+			holder, _ = kube.Kubectl(ctx, "kube-system", "get", "lease", "plndr-cp-lock", "-o", "jsonpath={.spec.holderIdentity}")
+			return holder
+		}).WithTimeout(5*time.Minute).WithPolling(10*time.Second).ShouldNot(BeEmpty(), "no kube-vip leader for the control plane")
 		bootID := func(ctx context.Context) string {
 			id, _ := kube.Kubectl(ctx, "", "get", "node", holder, "-o", "jsonpath={.status.nodeInfo.bootID}")
 			return id
@@ -201,7 +204,7 @@ var _ = Describe("TestbedVIPMoves", Label("testbed", "proof"), func() {
 		next, err := kube.Kubectl(ctx, "kube-system", "get", "lease", "plndr-cp-lock", "-o", "jsonpath={.spec.holderIdentity}")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(next).NotTo(Equal(holder), "the VIP did not move")
-	}, SpecTimeout(15*time.Minute))
+	}, SpecTimeout(20*time.Minute))
 })
 
 // Ceph on three nodes: healthy, an OSD on each node, and a volume written on one node read back from another

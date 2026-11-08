@@ -259,3 +259,72 @@ func TestE2EOneContainerPerOldTest(t *testing.T) {
 	assert.Equal(t, want, names)
 	assert.Equal(t, strings.Join(names, " "), strings.Join(slices.Compact(slices.Clone(names)), " "), "a container name twice")
 }
+
+// An Ordered container stops at its first failed step unless it carries ContinueOnFailure: only one whose steps build
+// on each other may stop (BackupRestore: its restores need its backup), or a failed step would hide independent checks
+func TestE2EOrderedContainersContinue(t *testing.T) {
+	stopping := map[string]bool{"BackupRestore": true}
+	files, err := filepath.Glob(filepath.Join(repo.Root(), "test", "e2e", "*_test.go"))
+	require.NoError(t, err)
+	for _, path := range files {
+		parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
+		require.NoError(t, err)
+		for _, decl := range parsed.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value, ok := spec.(*ast.ValueSpec)
+				if !ok || len(value.Values) != 1 {
+					continue
+				}
+				call, ok := value.Values[0].(*ast.CallExpr)
+				if !ok {
+					continue
+				}
+				if id, ok := call.Fun.(*ast.Ident); !ok || id.Name != "Describe" {
+					continue
+				}
+				name, _ := strconv.Unquote(call.Args[0].(*ast.BasicLit).Value)
+				decorators := map[string]bool{}
+				for _, arg := range call.Args[1:] {
+					if id, ok := arg.(*ast.Ident); ok {
+						decorators[id.Name] = true
+					}
+				}
+				if decorators["Ordered"] && !stopping[name] {
+					assert.True(t, decorators["ContinueOnFailure"], "%s is Ordered without ContinueOnFailure", name)
+				}
+			}
+		}
+	}
+}
+
+// reportName runs just test report-name, the name just test e2e gives a run's JUnit and JSON reports
+func reportName(t *testing.T, env, labels string) string {
+	t.Helper()
+	cmd := exec.Command("just", "test", "report-name", env, labels)
+	cmd.Dir = repo.Root()
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "%s", out)
+	return strings.TrimSpace(string(out))
+}
+
+// A report's name fits a file name (255 bytes, with Ginkgo's own e2e_ prefix and .json) for the longest filter a run
+// gets, the whole suite's, and tells two filters apart
+func TestE2EReportNames(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(repo.Root(), "test", "scopes.yaml"))
+	require.NoError(t, err)
+	var scopes struct {
+		Full string `yaml:"full"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &scopes))
+	full := reportName(t, "sandbox", "("+scopes.Full+") && !alone")
+	assert.LessOrEqual(t, len(full), 100, full)
+	assert.Regexp(t, `^sandbox-[a-z0-9_-]+$`, full)
+	assert.Equal(t, full, reportName(t, "sandbox", "("+scopes.Full+") && !alone"), "the same filter, the same name")
+	assert.NotEqual(t, full, reportName(t, "sandbox", "("+scopes.Full+") && !alone && !smoke"), "two filters, one name")
+	assert.Equal(t, "sandbox-logs", reportName(t, "sandbox", "logs"), "a short filter keeps its readable name")
+	assert.Equal(t, "testbed-all", reportName(t, "testbed", ""))
+}

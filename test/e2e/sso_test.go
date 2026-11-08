@@ -192,8 +192,8 @@ var _ = Describe("SSOZot", Label("sandbox", "testbed", "sso", "zot"), func() {
 	}, SpecTimeout(5*time.Minute))
 })
 
-// Ordered: dev-admin first, the first OpenID user becomes the server owner
-var _ = Describe("SSOActualBudget", Ordered, Label("sandbox", "testbed", "sso", "actual-budget"), func() {
+// Ordered: dev-admin first, the first OpenID user becomes the server owner; each account is checked even when one fails
+var _ = Describe("SSOActualBudget", Ordered, ContinueOnFailure, Label("sandbox", "testbed", "sso", "actual-budget"), func() {
 	base := "https://" + budgetHost
 	waitForIdentity()
 	waitForAppBeforeEach(base + "/account/login-methods")

@@ -47,9 +47,10 @@ func CreateNamespace(ctx context.Context, name string) error {
 	return err
 }
 
-// DeleteNamespace deletes a namespace and waits for it to go (kubectl's default).
+// DeleteNamespace deletes a namespace without waiting for it to go, as terratest did: a namespace holding volumes can
+// take longer than a cleanup's timeout, and a caller that needs it gone waits itself
 func DeleteNamespace(ctx context.Context, name string) error {
-	_, err := run(ctx, "", "", "delete", "namespace", name)
+	_, err := run(ctx, "", "", "delete", "namespace", name, "--wait=false")
 	return err
 }
 

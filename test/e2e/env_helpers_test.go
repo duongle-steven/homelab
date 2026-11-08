@@ -33,3 +33,6 @@ func testbedGatewayVIP() (string, error) {
 	config, err := testenv.ReadEnvConfig("testbed")
 	return config.ServiceVIPs.Gateway, err
 }
+
+// suiteEnv is ENV as just test e2e sets it: dev (the sandbox), testbed, or empty (production)
+func suiteEnv() string { return os.Getenv("ENV") }
