@@ -1,6 +1,7 @@
-# Which sandbox tests a change runs (inputs of the whole cluster, egress rendered into every namespace: full) (lab test scope, docs/how-to-guides/sandbox-tests.md). Paths are globs (**
+# Which sandbox specs a change runs (inputs of the whole cluster, egress rendered into every namespace: full) (lab test scope, docs/how-to-guides/sandbox-tests.md). Paths are globs (**
 # spans directories) matched against the files a branch changes; a file no entry knows runs the whole suite, and
-# `just cli check` fails until its component is added here.
+# `just cli check` fails until its component is added here. Tests are Ginkgo label filters over the specs' labels in
+# test/e2e (on their top-level Describe only); `just test e2e` adds the environment (`&& sandbox`) itself.
 skip:
   - .github/**
   - scripts/ci-check
@@ -18,7 +19,7 @@ skip:
   - .yamllint.yaml
   # Read only by just testbed-scan and just dev-scan, which run by hand
   - .cluster-scan-accepted.yaml
-  - test/scan_test.go
+  - test/e2e/scan_test.go
   - test/kube-bench-cfg/**
   # Offline tests and their scripts: the basic checks run them
   - test/offline/**
@@ -40,9 +41,54 @@ skip:
   - cli/internal/cli/test*.go
   - cli/internal/cli/infra_state*.go
   - cli/internal/cli/cloudflare*.go
-always: Smoke
-alone: [NodeRestart, NodePowerCut, BackupRestore, Rotation]
-full: Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs|Woodpecker|Policy|SupplyChain|TrivyOperator|PublicScan|NodeRestart|NodePowerCut|BackupRestore|Rotation
+# The fixed set: environments (where a spec may run), alone (runs by itself after the others, Serial), and one family per
+# spec (its old test name's prefix) with extras where a group names one spec or a family reaches across (a spec carries
+# them only on its top-level container; `just cli check` fails on a label outside this list or one no spec carries)
+labels:
+  - sandbox
+  - testbed
+  - production
+  - alone
+  - smoke
+  - argocd
+  - identity
+  - sso
+  - gateway
+  - forgejo
+  - mesh
+  - monitoring
+  - egress
+  - secrets
+  - ntfy
+  - logs
+  - security-logs
+  - woodpecker
+  - policy
+  - supply-chain
+  - trivy-operator
+  - public
+  - node-restart
+  - node-power-cut
+  - backup-restore
+  - rotation
+  - proof
+  - power
+  - scan
+  - kiali
+  - grafana
+  - zot
+  - actual-budget
+  - paperless
+  - opencloud
+  - deploy
+  - cut-every-node
+  - shutdown-startup
+  - node-not-returning
+  - cut-postgres
+always: smoke
+# Each runs by itself after the main run, in this order (#78)
+alone: [backup-restore, node-power-cut, node-restart, rotation]
+full: smoke || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || woodpecker || policy || supply-chain || trivy-operator || public || node-restart || node-power-cut || backup-restore || rotation
 groups:
   - paths:
       - justfile
@@ -50,7 +96,10 @@ groups:
       - test/scopes.yaml
       - test/go.mod
       - test/go.sum
-      - test/*helpers*_test.go
+      - test/e2e/*helpers*_test.go
+      # The suite's entry, and what it waits on before every run (Argo CD settled)
+      - test/e2e/e2e_suite_test.go
+      - test/internal/argocd/*.go
       - flake.nix
       - flake.lock
       - nix/**
@@ -73,27 +122,27 @@ groups:
       - system/csi-hostpath/**
     tests: full
   - paths: [system/istio-system/**]
-    tests: Mesh|Gateway|Egress|Identity|NodeRestart|NodePowerCut
+    tests: mesh || gateway || egress || identity || node-restart || node-power-cut
   - paths: [system/cert-manager/**]
-    tests: Gateway|Identity|SSO
+    tests: gateway || identity || sso
   # Velero, the hourly snapshots and lab backup (OpenBao's snapshot is in the secrets group)
-  - paths: [system/velero/**, cli/internal/backup/**, cli/internal/cli/backup*.go, test/backup_test.go]
-    tests: BackupRestore
-  # The catalog changes what rotates: TestRotation, alone after the suite
+  - paths: [system/velero/**, cli/internal/backup/**, cli/internal/cli/backup*.go, test/e2e/backup_test.go]
+    tests: backup-restore
+  # The catalog changes what rotates: Rotation, alone after the suite
   - paths: [cli/internal/rotate/**, cli/internal/cli/secrets*.go]
-    tests: Rotation
+    tests: rotation
   - paths: [system/loki/**]
-    tests: Logs
+    tests: logs
   - paths: [system/kiali/**]
-    tests: SSOKiali
+    tests: kiali
   - paths: [system/kyverno/**]
-    tests: Policy|SupplyChain
+    tests: policy || supply-chain
   - paths: [system/trivy-operator/**]
-    tests: TrivyOperator
-  - paths: [system/public-scan/**, system/loki/files/public-scan-rules.yaml, test/public_scan_test.go]
-    tests: PublicScan|GatewayPublicAllowList
+    tests: trivy-operator
+  - paths: [system/public-scan/**, system/loki/files/public-scan-rules.yaml, test/e2e/public_scan_test.go]
+    tests: public
   - paths: [system/monitoring-system/**]
-    tests: Monitoring|Mesh|Ntfy|Logs
+    tests: monitoring || mesh || ntfy || logs
   - paths:
       - system/secret-store/**
       - platform/openbao/**
@@ -106,31 +155,31 @@ groups:
       - infra/sandbox/openbao/**
       - infra/sandbox/secrets/**
     # Every component that reads a secret through ESO
-    tests: Secrets|Identity|SSO|Ntfy|Forgejo|Logs|Gateway|Monitoring|Woodpecker|BackupRestore
+    tests: secrets || identity || sso || ntfy || forgejo || logs || gateway || monitoring || woodpecker || backup-restore
   # Forgejo and zot need Kanidm's discovery document at start
   - paths: [platform/kanidm/**, scripts/onboard-user]
-    tests: Identity|SSO|ForgejoDeploy|GatewayZotLargePush|Woodpecker
+    tests: identity || sso || (forgejo && deploy) || (gateway && zot) || woodpecker
   - paths: [platform/grafana/**]
-    tests: SSOGrafana|Logs|Monitoring
+    tests: grafana || logs || monitoring
   - paths: [platform/forgejo/**, platform/cloudnative-pg/**]
-    tests: Forgejo|SSOForgejo|GatewayForgejoSSH|Woodpecker|BackupRestore
-  # lab infra forgejo sync and push (TestForgejoDeploy); go.mod pins their SDKs
+    tests: forgejo || woodpecker || backup-restore
+  # lab infra forgejo sync and push (ForgejoDeploy); go.mod pins their SDKs
   - paths: [cli/internal/forgejo/**, cli/internal/secrets/**, cli/internal/cli/infra_forgejo*.go, cli/go.mod, cli/go.sum]
-    tests: Forgejo|Woodpecker
+    tests: forgejo || woodpecker
   - paths: [platform/zot/**]
-    tests: SSOZot|GatewayZotLargePush|Woodpecker
+    tests: zot || woodpecker
   - paths: [platform/woodpecker/**]
-    tests: Woodpecker
+    tests: woodpecker
   - paths: [platform/secrets-rotation/**, scripts/build-lab-image, cli/Dockerfile]
-    tests: Rotation
+    tests: rotation
   - paths: [apps/actualbudget.yaml]
-    tests: SSOActualBudget
+    tests: actual-budget
   - paths: [apps/paperless.yaml]
-    tests: SSOPaperless
+    tests: paperless
   - paths: [apps/opencloud.yaml]
-    tests: SSOOpenCloud
+    tests: opencloud
   - paths: [apps/ntfy.yaml]
-    tests: Ntfy
+    tests: ntfy
   # Smoke only: apps without their own tests, components the sandbox does not run, and tools for production
   - paths:
       - apps/blog.yaml

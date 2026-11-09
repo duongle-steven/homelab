@@ -109,8 +109,8 @@ git switch -c feat/harness-the-sun
 # ...edit, then for every changed chart or app file:
 scripts/render-chart platform/kanidm
 scripts/render-chart platform/kanidm dev
-# offline unit tests (the other tests need a cluster)
-(cd test && go vet ./... && go test -run 'TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect' ./...)
+# the basic checks: the offline tests among them (test/e2e's specs need a cluster)
+direnv exec . scripts/ci-check all
 mkdocs build --strict
 git commit -am "feat: harness the sun"
 just dev   # pushes this commit to the branch sandbox and runs every sandbox test on it

@@ -14,21 +14,20 @@ terragrunt_apply := terragrunt + " run --all apply --non-interactive -- -auto-ap
 # their file since --base (--apps none: never, even then): docs/how-to-guides/sandbox-tests.md
 optional_apps := "paperless opencloud"
 testbed_kubeconfig := justfile_directory() / "infra/testbed/kubeconfig.yaml"
-# The power tests, on a healthy testbed, one at a time since each takes the whole cluster down and go test's hour
-# applies to each (docs/how-to-guides/power.md): --tests runs others. They do not count towards the mark
-power_tests := "PowerCutEveryNode PowerShutdownStartup PowerNodeNotReturning"
+# The power specs' labels, on a healthy testbed, one run each since each takes the whole cluster down
+# (docs/how-to-guides/power.md): --tests runs others (cut-postgres). They do not count towards the mark
+power_tests := "cut-every-node shutdown-startup node-not-returning"
 
 [private]
 default:
     @{{ just }} --list
 
-# The sandbox: the tests the branch's changes can affect (test/scopes.yaml), --full for all, --tests for some. The
-# sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on; --revision <sha>
-# syncs that commit instead and pushes nothing (GitHub Actions). Alone tests (TestNodeRestart restarts the node) run
-# after the others, each in its own go test with its own hour (lab's --each anchors them: Rotation is not
-# TestStatePassphraseRotation). The image caches are filled before a build and, after the tests, with what the node
-# pulled without them (scripts/warm-image-cache); lab's image for the scheduled rotation is built from the checkout
-# (scripts/build-lab-image)
+# The sandbox: the specs the branch's changes can affect (test/scopes.yaml), --full for all, --tests '<label filter>'
+# for some. The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on;
+# --revision <sha> syncs that commit instead and pushes nothing (GitHub Actions). Alone specs (label alone: NodeRestart
+# restarts the node) run after the others, each in its own Ginkgo run (lab test scope --alone --each). The image caches
+# are filled before a build and, after the specs, with what the node pulled without them (scripts/warm-image-cache);
+# lab's image for the scheduled rotation is built from the checkout (scripts/build-lab-image)
 [arg("apps", long)]
 [arg("base", long)]
 [arg("full", long, value="1")]
@@ -59,13 +58,13 @@ dev $full="" $tests="" $apps="" $revision="" $base="origin/dev": sandbox-checkou
     scripts/build-lab-image
     export HOMELAB_SANDBOX_APPS="$opt"
     status=0
-    if [ -n "$main" ]; then {{ just }} sandbox-refresh && {{ just }} test run --env sandbox --filter "$main" || status=$?; fi
+    if [ -n "$main" ]; then {{ just }} sandbox-refresh && {{ just }} test e2e --env sandbox --labels "$main" || status=$?; fi
     if [ "$status" = 0 ] && [ -n "$alone" ]; then
         refresh=$([ -n "$main" ] || echo 1)
         while IFS= read -r f; do
             [ -n "$f" ] || continue
             if [ -n "$refresh" ]; then {{ just }} sandbox-refresh; refresh=; fi
-            {{ just }} test run --env sandbox --filter "$f" </dev/null || status=1
+            {{ just }} test e2e --env sandbox --labels "$f" </dev/null || status=1
         done <<<"$alone"
     fi
     scripts/warm-image-cache --node || true
@@ -87,7 +86,7 @@ dev-clean: sandbox-checkout
 [doc("kubescape on the running sandbox")]
 dev-scan: sandbox-checkout
     scripts/testbed-guard dev
-    {{ just }} test run --env sandbox --filter ScanKubescape --format standard-verbose
+    {{ just }} test e2e --env sandbox --labels scan --verbose
 
 # The sandbox's OpenTofu state is .state/ in this checkout (git-ignored): a git worktree has none, and running the
 # sandbox from it would put a new OpenBao key over the running cluster's
@@ -141,7 +140,7 @@ testbed: sandbox-checkout sandbox-clean
     (cd infra/testbed && {{ terragrunt_apply }})
     kubectl --kubeconfig {{ testbed_kubeconfig }} -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1 || true
     kubectl --kubeconfig {{ testbed_kubeconfig }} -n argocd annotate applications --all argocd.argoproj.io/refresh=normal --overwrite >/dev/null 2>&1 || true
-    {{ just }} test run --env testbed --filter Testbed
+    {{ just }} test e2e --env testbed --labels proof
     test "$(git rev-parse HEAD)" = "$proof_commit" || { echo "just testbed: HEAD moved from $proof_commit during the run: no mark" >&2; exit 1; }
     scripts/mark-proof testbed "$proof_commit"
 
@@ -163,13 +162,13 @@ testbed-clean: sandbox-checkout
     for ip in $(jq -r '.[].ip' infra/testbed/metal/hosts.json); do ssh-keygen -R "$ip" >/dev/null 2>&1 || true; done
 
 [arg("tests", long)]
-[doc("The power tests on the testbed, one at a time (--tests)")]
+[doc("The power specs on the testbed, one run each (--tests: labels, space-separated)")]
 testbed-power $tests="": sandbox-checkout
     #!/usr/bin/env bash
     set -euo pipefail
     scripts/testbed-guard testbed
     for t in ${tests:-{{ power_tests }}}; do
-        {{ just }} test run --env testbed --filter "$t" --format standard-verbose
+        {{ just }} test e2e --env testbed --labels "$t" --verbose
     done
 
 # kube-bench on every node, against .cluster-scan-accepted.yaml, by hand (docs/how-to-guides/cluster-scan.md): not part
@@ -177,7 +176,7 @@ testbed-power $tests="": sandbox-checkout
 [doc("kube-bench on the testbed's nodes")]
 testbed-scan: sandbox-checkout
     scripts/testbed-guard testbed
-    {{ just }} test run --env testbed --filter ScanBench --format standard-verbose
+    {{ just }} test e2e --env testbed --labels scan --verbose
 
 # Shuts the VMs down (they keep their disks: just testbed starts them again), to run the sandbox
 [doc("Shut the testbed's VMs down")]

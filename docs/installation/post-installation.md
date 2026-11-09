@@ -35,10 +35,11 @@ Follow the [backup and restore guide](../how-to-guides/backup-and-restore.md) to
 
 ## Run the full test suite
 
-After the homelab has been stabilized, you can run the full test suite to ensure that everything is working properly:
+After the homelab has been stabilized, you can run the specs that run against production (those labelled
+`production`: the smoke checks and Argo CD's) to ensure that everything is working properly:
 
 ```sh
-just test run
+just test e2e --env production
 ```
 
 !!! info

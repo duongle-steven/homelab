@@ -2,16 +2,18 @@ package scope
 
 import (
 	"fmt"
-	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/onsi/ginkgo/v2/types"
 )
 
 // Check lists what the map misses: components with a tracked file that no group or skip knows (it would run the
-// whole suite), regexes that match no test, and main-run terms that would also pick an alone test.
-func (c Config) Check(tracked, tests []string) []string {
+// whole suite), labels outside labels: (in a filter or on a spec) or on no spec, filters that select no spec, and alone
+// labels or alone specs that do not meet.
+func (c Config) Check(tracked []string, specs []Spec) []string {
 	var problems []string
 	uncovered := map[string]bool{}
 	for _, file := range tracked {
@@ -24,44 +26,57 @@ func (c Config) Check(tracked, tests []string) []string {
 	}
 	sort.Strings(problems)
 
-	var aloneTests []string
-	for _, test := range tests {
-		if c.isAlone(test) {
-			aloneTests = append(aloneTests, test)
-		}
-	}
-	check := func(where, term string) {
-		re := regexp.MustCompile(term) // Load validated it
-		if !matchesAny(re, tests) {
-			problems = append(problems, fmt.Sprintf("%s: %q matches no test", where, term))
-			return
-		}
-		if c.isAlone(term) {
-			return
-		}
-		for _, test := range aloneTests {
-			if re.MatchString(test) {
-				problems = append(problems, fmt.Sprintf("%s: %q would run alone test %s with the others", where, term, test))
-				return
+	used := map[string]bool{}
+	for _, spec := range specs {
+		for _, label := range spec.Labels {
+			used[label] = true
+			if !slices.Contains(c.Labels, label) {
+				problems = append(problems, fmt.Sprintf("%s (%s): label %q is not in labels:", spec.Name, spec.File, label))
 			}
 		}
+		if slices.Contains(spec.Labels, AloneLabel) && !slices.ContainsFunc(c.Alone, func(a string) bool { return slices.Contains(spec.Labels, a) }) {
+			problems = append(problems, fmt.Sprintf("%s (%s): labelled alone, but alone: lists none of its labels", spec.Name, spec.File))
+		}
 	}
-	for _, term := range SplitTerms(c.Always) {
-		check("always", term)
+	for _, label := range c.Labels {
+		if !used[label] {
+			problems = append(problems, fmt.Sprintf("labels: %q labels no spec", label))
+		}
 	}
-	for _, term := range SplitTerms(c.Full) {
-		check("full", term)
+
+	check := func(where, filter string) {
+		unknown := false
+		for _, label := range filterLabels(filter) {
+			if !slices.Contains(c.Labels, label) {
+				problems = append(problems, fmt.Sprintf("%s: %q is not in labels:", where, label))
+				unknown = true
+			}
+		}
+		if unknown {
+			return
+		}
+		selected := types.MustParseLabelFilter(filter) // Load validated it
+		if !slices.ContainsFunc(specs, func(s Spec) bool { return selected(s.Labels) }) {
+			problems = append(problems, fmt.Sprintf("%s: %q selects no spec", where, filter))
+		}
 	}
-	for _, term := range c.Alone {
-		check("alone", term)
+	if c.Always != "" {
+		check("always", c.Always)
+	}
+	check("full", c.Full)
+	for _, label := range c.Alone {
+		check("alone", label)
+		if !slices.ContainsFunc(specs, func(s Spec) bool {
+			return slices.Contains(s.Labels, label) && slices.Contains(s.Labels, AloneLabel)
+		}) {
+			problems = append(problems, fmt.Sprintf("alone: %q labels no spec labelled alone", label))
+		}
 	}
 	for i, g := range c.Groups {
-		if g.Tests == FullKeyword {
+		if g.Tests == FullKeyword || g.Tests == "" {
 			continue
 		}
-		for _, term := range SplitTerms(g.Tests) {
-			check(fmt.Sprintf("group %d", i+1), term)
-		}
+		check(fmt.Sprintf("group %d", i+1), g.Tests)
 	}
 	return problems
 }
@@ -88,13 +103,4 @@ func (c Config) component(file string) string {
 		}
 	}
 	return ""
-}
-
-func matchesAny(re *regexp.Regexp, names []string) bool {
-	for _, name := range names {
-		if re.MatchString(name) {
-			return true
-		}
-	}
-	return false
 }

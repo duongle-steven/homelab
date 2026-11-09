@@ -10,14 +10,20 @@ import (
 )
 
 const testMap = `skip: ["docs/**"]
-always: Smoke
-alone: [NodeRestart]
-full: Smoke|Logs|NodeRestart
+labels: [sandbox, alone, smoke, logs, node-restart]
+always: smoke
+alone: [node-restart]
+full: smoke || logs || node-restart
 groups:
   - paths: ["system/loki/**"]
-    tests: Logs
+    tests: logs
 components: ["system/*/"]
 `
+
+const testSpecs = "package e2e\n\n" +
+	"var _ = Describe(\"LogsPodLines\", Label(\"sandbox\", \"logs\"), func() {})\n" +
+	"var _ = Describe(\"Smoke\", Label(\"sandbox\", \"smoke\"), func() {})\n" +
+	"var _ = Describe(\"NodeRestart\", Serial, Label(\"sandbox\", \"node-restart\", \"alone\"), func() {})\n"
 
 // repo makes a git repository with test/scopes.yaml and a test file on branch dev, then a branch feature.
 func repo(t *testing.T) string {
@@ -33,7 +39,7 @@ func repo(t *testing.T) string {
 		}
 	}
 	write(t, dir, "test/scopes.yaml", testMap)
-	write(t, dir, "test/logs_test.go", "package test\n\nimport \"testing\"\n\nfunc TestLogsPodLines(t *testing.T) {}\nfunc TestSmoke(t *testing.T) {}\nfunc TestNodeRestart(t *testing.T) {}\n")
+	write(t, dir, "test/e2e/logs_test.go", testSpecs)
 	write(t, dir, "system/loki/values.yaml", "a: 1\n")
 	run("init", "-q", "-b", "dev")
 	run("add", ".")
@@ -82,7 +88,7 @@ func TestCommandSelects(t *testing.T) {
 	write(t, dir, "system/loki/values.yaml", "a: 2\n")
 	commit(t, dir)
 	out, err := lab(t, "--base", "dev")
-	if err != nil || out != "Logs|Smoke\n" {
+	if err != nil || out != "(logs || smoke) && !alone\n" {
 		t.Errorf("got %q %v", out, err)
 	}
 	out, err = lab(t, "--base", "dev", "--alone")
@@ -105,12 +111,14 @@ func TestCommandFullAndManual(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"--full"}, "Logs|Smoke\n"},
-		{[]string{"--full", "--alone"}, "NodeRestart\n"},
-		{[]string{"--tests", "Logs|NodeRestart"}, "Logs\n"},
-		{[]string{"--tests", "Logs|NodeRestart", "--alone"}, "NodeRestart\n"},
-		{[]string{"--full", "--alone", "--each"}, "^Test(NodeRestart)$\n"},
-		{[]string{"--tests", "Logs", "--alone", "--each"}, ""},
+		{[]string{"--full"}, "(logs || node-restart || smoke) && !alone\n"},
+		{[]string{"--full", "--alone"}, "node-restart\n"},
+		{[]string{"--tests", "logs || node-restart"}, "(logs || node-restart) && !alone\n"},
+		{[]string{"--tests", "logs || node-restart", "--alone"}, "node-restart\n"},
+		{[]string{"--full", "--alone", "--each"}, "node-restart\n"},
+		{[]string{"--tests", "logs", "--alone", "--each"}, ""},
+		// Only alone specs: the main run prints nothing (a filter selecting nothing fails --fail-on-empty)
+		{[]string{"--tests", "node-restart"}, "\n"},
 	} {
 		out, err := lab(t, tc.args...)
 		if err != nil || out != tc.want {
@@ -134,12 +142,12 @@ func TestCommandRenameCountsBothPaths(t *testing.T) {
 	}
 	commit(t, dir)
 	out, err := lab(t, "--base", "dev")
-	// system/logs is unknown (full), system/loki is the Logs group: the union is the whole suite
-	if err != nil || out != "Logs|Smoke\n" {
+	// system/logs is unknown (full), system/loki is the logs group: the union is the whole suite
+	if err != nil || out != "(logs || node-restart || smoke) && !alone\n" {
 		t.Errorf("got %q %v", out, err)
 	}
 	out, _ = lab(t, "--base", "dev", "--alone")
-	if out != "NodeRestart\n" {
+	if out != "node-restart\n" {
 		t.Errorf("alone: got %q, a rename into an unknown path runs everything", out)
 	}
 }
@@ -168,18 +176,18 @@ func TestCommandCheck(t *testing.T) {
 
 func TestCommandInvalidMap(t *testing.T) {
 	dir := repo(t)
-	write(t, dir, "test/scopes.yaml", "full: Smoke\nunknown: 1\n")
+	write(t, dir, "test/scopes.yaml", "labels: [smoke]\nfull: smoke\nunknown: 1\n")
 	commit(t, dir)
 	if out, err := lab(t, "--base", "dev"); err == nil {
 		t.Errorf("an invalid map loaded: %q", out)
 	}
 }
 
-func TestCommandManualRefusesUselessRegex(t *testing.T) {
+func TestCommandManualRefusesUselessFilter(t *testing.T) {
 	repo(t)
-	for _, regex := range []string{`Logs\|Smoke`, "Nothing", "."} {
-		if out, err := lab(t, "--tests", regex); err == nil {
-			t.Errorf("%q accepted: %q", regex, out)
+	for _, filter := range []string{"logs ||", "nothing", "Logs|Smoke"} {
+		if out, err := lab(t, "--tests", filter); err == nil {
+			t.Errorf("%q accepted: %q", filter, out)
 		}
 	}
 }

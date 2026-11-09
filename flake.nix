@@ -29,7 +29,6 @@
             gitleaks # scripts/check-leaks
             glibcLocales
             go
-            gotestsum
             jq
             k9s
             kanidm_1_11

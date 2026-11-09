@@ -1,0 +1,38 @@
+package e2e
+
+import (
+	"os"
+
+	"github.com/duongle-steven/homelab/test/internal/testenv"
+)
+
+// suiteDomain is the domain of the environment under test, read once; the offline tests (no ENV) get the sandbox's,
+// which they never dial
+var suiteDomain = func() string {
+	env := os.Getenv("ENV")
+	if _, ok := testenv.Dirs[env]; !ok {
+		env = "dev"
+	}
+	domain, err := testenv.Domain(env)
+	if err != nil {
+		panic(err)
+	}
+	return domain
+}()
+
+// labEnv is the environment's name for lab's --env (sandbox or testbed)
+var labEnv = func() string {
+	if dir, ok := testenv.Dirs[os.Getenv("ENV")]; ok {
+		return dir
+	}
+	return "sandbox"
+}()
+
+// testbedGatewayVIP is the address kube-vip gives testbed's Gateway (config.json's service_vips.gateway)
+func testbedGatewayVIP() (string, error) {
+	config, err := testenv.ReadEnvConfig("testbed")
+	return config.ServiceVIPs.Gateway, err
+}
+
+// suiteEnv is ENV as just test e2e sets it: dev (the sandbox), testbed, or empty (production)
+func suiteEnv() string { return os.Getenv("ENV") }

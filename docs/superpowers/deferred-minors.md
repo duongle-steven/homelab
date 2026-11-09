@@ -127,6 +127,9 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15f | `docs/how-to-guides/public-surface.md` does not say how to import an existing `http_ratelimit` or `http_request_firewall_managed` entry point, if the first apply finds one | the first production apply |
 | 15f | Gateway `public` enforces namespaces only; a route's hostnames are checked only in CI (`TestPublicRoutes`); one listener per host would enforce both | any |
 | 15f | The scan's pod has requests but no memory limit | any |
-| 14f-1 | `K3dNode` and `NodeAddressFromInspect` sit in `test/internal/restart` though they describe the environment (`testenv`) | 14f-2 |
-| 14f-1 | Cluster tests still read paths relative to `test/` (`".."`) instead of `repo.Root()` | 14f-2 |
-| 14f-1 | `lab test scope`: a deleted file in a `test/internal` package selects nothing (it parses the files on disk) | 14f-2 |
+| 14f-2 | `lab`/`labE`, `baoValueE`/`baoPut` (`sh -c`), `ssh`, `virsh` and `docker` set no `cmd.WaitDelay` nor a process group: a spec timeout kills `go run` but not its child (as before the move) | any |
+| 14f-2 | `PowerCutPostgres`'s `SpecTimeout` (120m) equals `just test e2e`'s suite `--timeout 2h`: the suite's preempts it | any |
+| 14f-2 | `lab test scope --check` accepts a group filter that selects only testbed or production specs (on the sandbox it runs only `smoke`) | any |
+| 14f-2 | `TestE2EKeepsSelection` rebuilds each group's filter itself instead of feeding `lab test scope`'s main and alone output | any |
+| 14f-2 | `PublicScan` and `MeshEnrolled` stop at their first finding where the old `assert`s reported all of them | any |
+| 14f-2 | A global `Expect` inside an `Eventually` body (`gatewayAddress`, `kubectlJSON`, `woodpeckerRequest`, `bao`, …) fails at once instead of retrying a transient error (as `require` did) | any |

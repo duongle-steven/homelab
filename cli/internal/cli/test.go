@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -20,11 +21,12 @@ func newTestScopeCmd() *cobra.Command {
 	var alone, each, full, check bool
 	cmd := &cobra.Command{
 		Use:   "scope",
-		Short: "Print the go test -run regex of the sandbox tests a change can affect",
-		Long: "Reads test/scopes.yaml and the files changed since --base, and prints one line: the regex of the main run, " +
-			"or with --alone of the tests that run after it; nothing when every change is skipped. --each prints one " +
-			"anchored regex per line instead, each its own go test (the alone run). --check verifies " +
-			"that the map covers every component and names existing tests.",
+		Short: "Print the Ginkgo label filter of the sandbox specs a change can affect",
+		Long: "Reads test/scopes.yaml, the specs' labels in test/e2e and the files changed since --base, and prints one " +
+			"line: the label filter of the main run, or with --alone the labels of the specs that run alone after it " +
+			"(ORed); nothing when every change is skipped or the main run would select no sandbox spec. --alone --each " +
+			"prints one alone label per line, each its own run. --check verifies that the map covers every component and " +
+			"that its labels and the specs' agree.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, err := scope.Root()
@@ -38,16 +40,16 @@ func newTestScopeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			specs, err := scope.Specs(root)
+			if err != nil {
+				return err
+			}
 			if check {
 				tracked, err := scope.Tracked(root)
 				if err != nil {
 					return err
 				}
-				names, err := scope.AllTests(root)
-				if err != nil {
-					return err
-				}
-				problems := c.Check(tracked, names)
+				problems := c.Check(tracked, specs)
 				for _, p := range problems {
 					fmt.Fprintln(cmd.ErrOrStderr(), p)
 				}
@@ -59,11 +61,7 @@ func newTestScopeCmd() *cobra.Command {
 			var s scope.Selection
 			switch {
 			case tests != "":
-				names, err := scope.AllTests(root)
-				if err != nil {
-					return err
-				}
-				if err := c.CheckManual(tests, names); err != nil {
+				if err := c.CheckManual(tests, specs); err != nil {
 					return err
 				}
 				s = scope.ManualSelection(tests)
@@ -78,23 +76,26 @@ func newTestScopeCmd() *cobra.Command {
 					return err
 				}
 			}
-			regex := c.Regex(s, alone)
-			if !each {
-				fmt.Fprintln(cmd.OutOrStdout(), regex)
-				return nil
-			}
-			for _, term := range scope.SplitTerms(regex) {
-				fmt.Fprintln(cmd.OutOrStdout(), scope.Anchored(term))
+			main, aloneLabels := c.Filter(s, specs)
+			switch {
+			case !alone:
+				fmt.Fprintln(cmd.OutOrStdout(), main)
+			case each:
+				for _, label := range aloneLabels {
+					fmt.Fprintln(cmd.OutOrStdout(), label)
+				}
+			default:
+				fmt.Fprintln(cmd.OutOrStdout(), strings.Join(aloneLabels, " || "))
 			}
 			return nil
 		},
 	}
 	flags := cmd.Flags()
 	flags.StringVar(&base, "base", "origin/dev", "compare HEAD with this ref (merge base)")
-	flags.BoolVar(&alone, "alone", false, "print the tests that run alone, after the main run")
-	flags.BoolVar(&each, "each", false, "print one anchored regex per line, each its own go test")
+	flags.BoolVar(&alone, "alone", false, "print the labels of the specs that run alone, after the main run")
+	flags.BoolVar(&each, "each", false, "with --alone, one label per line, each its own run")
 	flags.BoolVar(&full, "full", false, "the whole suite")
-	flags.StringVar(&tests, "tests", "", "exactly these tests (a go test -run regex)")
+	flags.StringVar(&tests, "tests", "", "exactly these specs (a Ginkgo label filter)")
 	flags.BoolVar(&check, "check", false, "verify the map instead of printing a selection")
 	flags.StringVar(&config, "config", "test/scopes.yaml", "the map, relative to the repository root")
 	cmd.MarkFlagsMutuallyExclusive("full", "tests", "check")
