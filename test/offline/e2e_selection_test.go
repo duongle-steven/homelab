@@ -250,13 +250,12 @@ func TestE2ELabelsOnlyOnContainers(t *testing.T) {
 	assert.Empty(t, stray, "Label outside a top-level Describe")
 }
 
-// Each of the 84 cluster tests is one top-level container named after it, once
+// Each of the 84 cluster tests is one top-level container named after it, and no name comes twice
 func TestE2EOneContainerPerOldTest(t *testing.T) {
 	names, _ := topLevelContainers(t)
 	sort.Strings(names)
-	want := slices.Clone(loadE2ESelection(t).Tests)
-	sort.Strings(want)
-	assert.Equal(t, want, names)
+	// Specs added after the move (ArgoCDClusterSecret, step 14g) come on top of the old tests
+	assert.Subset(t, names, loadE2ESelection(t).Tests)
 	assert.Equal(t, strings.Join(names, " "), strings.Join(slices.Compact(slices.Clone(names)), " "), "a container name twice")
 }
 
