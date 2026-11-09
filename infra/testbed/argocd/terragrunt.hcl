@@ -16,4 +16,7 @@ inputs = {
   chart       = "${get_repo_root()}/system/argocd"
   values      = "values-testbed.yaml"
   environment = "testbed"
+  # config.json's seed_repository: the GitHub repository, its branch testbed pushed by just testbed
+  repository = jsondecode(file("${get_terragrunt_dir()}/../cluster/config.json")).seed_repository
+  branch     = "testbed"
 }

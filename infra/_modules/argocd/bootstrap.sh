@@ -3,9 +3,14 @@
 # itself. The field manager stays Argo CD's, which managed it before step 10b.
 # Env: KUBECONFIG, CHART (system/argocd), VALUES (file name in CHART, chosen by choose-values.sh: the seed on
 # production's first install), REVISION (optional: the commit every homelab source syncs, set-revision.sh),
-# ENVIRONMENT (prod, testbed, dev or seed, for scripts/env-values: the chart gets the same global values Argo CD passes it)
+# ENVIRONMENT (prod, testbed, dev or seed, for scripts/env-values: the chart gets the same global values Argo CD passes it),
+# and cluster-secret.sh's REPOSITORY, BRANCH, BACKUP_S3_URL and OPTIONAL_APPS
 set -eu
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+# Objects without a namespace belong to argocd, as when Argo CD syncs this chart
+apply() { kubectl apply --namespace argocd --server-side --field-manager argocd-controller --force-conflicts -f -; }
+# The cluster Secret the ApplicationSets read goes first: until it exists their generators match nothing
+sh "$(dirname "$0")/cluster-secret.sh" | apply
 # shellcheck disable=SC2153 # VALUES and ENVIRONMENT come from OpenTofu (set -u fails when one is missing)
 values="$VALUES"
 # shellcheck disable=SC2153
@@ -50,8 +55,6 @@ mv "$manifests.rev" "$manifests"
 if kubectl -n argocd get application argocd >/dev/null 2>&1; then
   kubectl -n argocd patch application argocd --type merge -p '{"metadata":{"finalizers":null}}' >/dev/null
 fi
-# Objects without a namespace belong to argocd, as when Argo CD syncs this chart
-apply() { kubectl apply --namespace argocd --server-side --field-manager argocd-controller --force-conflicts -f -; }
 # The ApplicationSets need Argo CD's CRDs established first
 yq 'select(.kind == "CustomResourceDefinition")' "$manifests" | apply
 kubectl wait --for condition=Established crd --all --timeout=120s >/dev/null

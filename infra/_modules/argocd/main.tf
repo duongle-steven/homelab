@@ -23,6 +23,16 @@ variable "environment" {
   description = "prod, testbed or dev: which ApplicationSet values scripts/env-values reads (production's seed file switches to seed)"
 }
 
+variable "repository" {
+  type        = string
+  description = "The homelab repository Argo CD syncs (production's ops/homelab on Forgejo, the seed until it switches)"
+}
+
+variable "branch" {
+  type        = string
+  description = "The branch every homelab source and generator syncs, unless revision overrides it"
+}
+
 variable "seed" {
   type        = string
   default     = ""
@@ -64,12 +74,12 @@ variable "backup_s3_url" {
 data "external" "values" {
   program = ["sh", "${path.module}/choose-values.sh"]
   query = {
-    values      = var.values
-    environment = var.environment
-    seed        = var.seed
-    kubeconfig  = var.kubeconfig
-    # Where Argo CD reads once switched: the root ApplicationSet's repository in the values file
-    forgejo_repository = try(yamldecode(file("${var.chart}/${var.values}"))["argocd-apps"]["applicationsets"]["root"]["generators"][0]["matrix"]["generators"][0]["git"]["repoURL"], "")
+    values          = var.values
+    environment     = var.environment
+    seed            = var.seed
+    kubeconfig      = var.kubeconfig
+    repository      = var.repository
+    seed_repository = var.seed_repository
   }
 }
 
@@ -86,13 +96,15 @@ locals {
     REVISION        = var.revision
     BACKUP_S3_URL   = var.backup_s3_url
     OPTIONAL_APPS   = join(" ", var.optional_apps)
+    REPOSITORY      = data.external.values.result.repository
+    BRANCH          = var.branch
   }
   command = "sh ${abspath("${path.module}/bootstrap.sh")}"
 }
 
 # It has no destroy-time action: destroying it leaves Argo CD running
 resource "terraform_data" "bootstrap" {
-  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, var.revision, var.backup_s3_url, var.optional_apps]
+  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, data.external.values.result.repository, var.branch, var.revision, var.backup_s3_url, var.optional_apps]
 
   lifecycle {
     precondition {
