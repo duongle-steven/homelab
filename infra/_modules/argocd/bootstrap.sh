@@ -7,10 +7,6 @@
 # what is not in git or known only now reaches the ApplicationSets through the cluster Secret, not a rewrite of the render
 set -eu
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-# Objects without a namespace belong to argocd, as when Argo CD syncs this chart
-apply() { kubectl apply --namespace argocd --server-side --field-manager argocd-controller --force-conflicts -f -; }
-# The cluster Secret the ApplicationSets read goes first: until it exists their generators match nothing
-sh "$(dirname "$0")/cluster-secret.sh" | apply
 # shellcheck disable=SC2153 # VALUES and ENVIRONMENT come from OpenTofu (set -u fails when one is missing)
 values="$VALUES"
 # shellcheck disable=SC2153
@@ -37,6 +33,13 @@ helm template argocd "$CHART" --namespace argocd --include-crds -f "$CHART/$valu
 if kubectl -n argocd get application argocd >/dev/null 2>&1; then
   kubectl -n argocd patch application argocd --type merge -p '{"metadata":{"finalizers":null}}' >/dev/null
 fi
+# Objects without a namespace belong to argocd, as when Argo CD syncs this chart
+apply() { kubectl apply --namespace argocd --server-side --field-manager argocd-controller --force-conflicts -f -; }
+# The cluster Secret the ApplicationSets read goes before them (until it exists their generators match nothing), and
+# after the render, so a failed render leaves it as it was. Its labels change at once: rename the selector label in
+# three releases (add the new label, switch the selectors, drop the old one), or every ApplicationSet deletes its
+# Applications while it matches nothing
+sh "$(dirname "$0")/cluster-secret.sh" | apply
 # The ApplicationSets need Argo CD's CRDs established first
 yq 'select(.kind == "CustomResourceDefinition")' "$manifests" | apply
 kubectl wait --for condition=Established crd --all --timeout=120s >/dev/null

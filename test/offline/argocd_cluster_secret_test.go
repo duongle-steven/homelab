@@ -231,3 +231,23 @@ func asList(v any) []any {
 	list, _ := v.([]any)
 	return list
 }
+
+// The bootstrap renders before it touches the cluster Secret: a failed render leaves the Secret as it was, and a
+// changed Secret waits only for the CRDs, not the render, before the ApplicationSets that match it
+func TestArgoCDBootstrapRendersBeforeSecret(t *testing.T) {
+	dir, env := fakeBin(t, map[string]string{"kubectl": `case "$*" in
+  *"create namespace"*) printf 'apiVersion: v1\nkind: Namespace\nmetadata: {name: argocd}\n' ;;
+  *wait*) ;;
+  *apply*) yq -N '.kind + "/" + .metadata.name' >> "$FIXTURES/applied" ;;
+  *) exit 1 ;;
+esac`})
+	root, err := filepath.Abs(repo.Root())
+	require.NoError(t, err)
+	cmd := exec.Command("sh", root+"/infra/_modules/argocd/bootstrap.sh")
+	cmd.Env = append(env, "CHART="+root+"/system/argocd", "VALUES=values-missing.yaml", "ENVIRONMENT=dev",
+		"REPOSITORY=https://github.com/example/homelab", "BRANCH=sandbox", "KUBECONFIG=/dev/null")
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err, string(out))
+	applied, _ := os.ReadFile(filepath.Join(dir, "applied"))
+	assert.NotContains(t, string(applied), "Secret/in-cluster", "the Secret changed although the render failed")
+}
