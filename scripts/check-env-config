@@ -42,6 +42,13 @@ EGRESS = "system/egress"
 SHARED = ("system/egress", "system/secret-store")
 
 
+def nested(generator):
+    """generator and every generator inside its matrices, at any depth"""
+    yield generator
+    for inner in generator.get("matrix", {}).get("generators", []):
+        yield from nested(inner)
+
+
 def domains():
     """Each environment's domain, from its config.json: they never appear literally in a chart or app file."""
     out = {}
@@ -168,10 +175,15 @@ def main():
             if doc.get("kind") != "ApplicationSet":
                 continue
             spec = doc["spec"]
-            generators = spec["generators"][0].get("matrix", {}).get("generators", [{}, {}])
-            files = generators[-1].get("git", {})
-            if [f.get("path") for f in files.get("files", [])] != [path] or files.get("pathParamPrefix") != "config":
-                failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not read {path}")
+            # Each generator (the sandbox's optional apps add some) reads config.json through a git generator at
+            # any matrix depth (step 14g wraps each matrix in a clusters generator)
+            gits = []
+            for generator in spec["generators"]:
+                found = [g["git"] for g in nested(generator) if "git" in g]
+                gits += found
+                if not any([f.get("path") for f in g.get("files", [])] == [path] and g.get("pathParamPrefix") == "config"
+                           for g in found):
+                    failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not read {path}")
             source = spec["template"]["spec"].get("source") or spec["template"]["spec"]["sources"][0]
             if "addresses" not in source.get("helm", {}).get("valuesObject", {}).get("global", {}):
                 failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not pass global.addresses")
@@ -184,7 +196,7 @@ def main():
                 elif "addresses" not in found[0].get("helm", {}).get("valuesObject", {}).get("global", {}):
                     failures.append(f"system/argocd ({env}): ApplicationSet/{doc['metadata']['name']} does not pass global.addresses to {shared}")
                 if doc["metadata"]["name"] == "root":
-                    dirs = generators[0].get("git", {}).get("directories", [])
+                    dirs = [d for g in gits for d in g.get("directories", [])]
                     if any(d.get("path") in ("system/*", shared) for d in dirs) and not any(
                             d.get("path") == shared and d.get("exclude") for d in dirs):
                         failures.append(f"system/argocd ({env}): the root generator would deploy {shared} on its own")

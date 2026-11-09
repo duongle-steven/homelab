@@ -71,7 +71,7 @@ func waitNodeReady(ctx context.Context, node string, wait time.Duration) {
 // testbedList is the root ApplicationSet's directory list for the testbed
 func testbedList(ctx context.Context) []string {
 	GinkgoHelper()
-	listed, err := exec.CommandContext(ctx, "yq", `.argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git.directories[].path`,
+	listed, err := exec.CommandContext(ctx, "yq", `.argocd-apps.applicationsets.root.generators | .. | select(has("directories")) | .directories[].path`,
 		filepath.Join(repo.Root(), "system/argocd/values-testbed.yaml")).Output()
 	Expect(err).NotTo(HaveOccurred())
 	return strings.Fields(string(listed))
