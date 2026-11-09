@@ -22,7 +22,7 @@ case "$appset" in
   apps) object="$base.template.spec.sources[0].helm.valuesObject" ;;
 esac
 pick "$object" | yq '.. | select(tag == "!!str") | (path | join(".")) + "=" + .' | while IFS='=' read -r name value; do
-  field=$(printf '%s' "$value" | sed -n 's/^{{ *\(\.[A-Za-z_.]*\) *}}$/\1/p')
+  field=$(printf '%s' "$value" | sed -n 's/^{{ *\(\.[A-Za-z0-9_.]*\) *}}$/\1/p')
   case "$field" in
     # The cluster Secret's annotations (infra/_modules/argocd/cluster-secret.sh): offline, only the backup endpoint
     .metadata.annotations.backupS3Url) value=${BACKUP_S3_URL:-} ;;

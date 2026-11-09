@@ -26,15 +26,16 @@ func renderVelero(t *testing.T, target, env, expr string, helmArgs ...string) st
 }
 
 // Velero's data mover (Kopia) takes the endpoint only from the location's s3Url, and without it dials AWS: the sandbox's
-// S3 server is in its values, production's R2 endpoint (with the account id) only comes from the bootstrap
+// S3 server is in its values, production's R2 endpoint (with the account id) only comes from the bootstrap, through the
+// cluster Secret's backupS3Url (BACKUP_S3_URL for scripts/env-values offline)
 func TestVeleroLocationEndpoint(t *testing.T) {
 	s3Url := `select(.kind == "BackupStorageLocation" and .metadata.name == "default") | .spec.config.s3Url`
 	assert.Equal(t, "http://s3.velero:7070", renderVelero(t, "system/velero", "dev", s3Url))
 	assert.Equal(t, "null", renderVelero(t, "system/velero", "prod", s3Url), "an endpoint in git")
-	assert.Equal(t, "https://account.r2.cloudflarestorage.com",
-		renderVelero(t, "system/velero", "prod", s3Url, "--set-string", "global.backupS3Url=https://account.r2.cloudflarestorage.com"))
 	// The chart's own location is off: one location, the wrapper's
 	assert.Equal(t, "default", renderVelero(t, "system/velero", "prod", `select(.kind == "BackupStorageLocation") | .metadata.name`))
+	t.Setenv("BACKUP_S3_URL", "https://account.r2.cloudflarestorage.com")
+	assert.Equal(t, "https://account.r2.cloudflarestorage.com", renderVelero(t, "system/velero", "prod", s3Url))
 }
 
 // docs/superpowers/specs/2026-10-22-backups-design.md, decisions 2, 3, 6, 8 and 9

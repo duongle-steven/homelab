@@ -104,35 +104,44 @@ argocd-apps:
       goTemplateOptions:
         - missingkey=error
       generators:
-        # Every component, crossed with the environment's addresses (infra/<env>/cluster/config.json, upstream's
-        # format; OpenTofu reads the same file in step 7)
+        # The cluster Secret the bootstrap writes (infra/_modules/argocd/cluster-secret.sh: the repository, the
+        # revision, the backup endpoint), crossed with every component and the environment's addresses
+        # (infra/<env>/cluster/config.json, upstream's format; OpenTofu reads the same file in step 7). Its annotations
+        # are read with dot access: with missingkey=error a missing one fails instead of rendering empty. Never rename
+        # the label on one side only: an ApplicationSet whose generator matches nothing deletes every Application
         - matrix:
             generators:
-              - git:
-                  repoURL: &repoURL http://forgejo-http.forgejo:3000/ops/homelab
-                  revision: &revision master
-                  directories:
-                    - path: system/*
-                    # Applied by infra/_modules/argocd: Argo CD does not manage itself
-                    - path: system/argocd
-                      exclude: true
-                    # Rendered into every namespace by each Application (template below), not on its own
-                    - path: system/egress
-                      exclude: true
-                    - path: system/secret-store
-                      exclude: true
-                    # The sandbox's storage (Ceph in production)
-                    - path: system/csi-hostpath
-                      exclude: true
-                    - path: platform/*
-                    - path: apps/*
-              - git:
-                  repoURL: *repoURL
-                  revision: *revision
-                  files:
-                    - path: infra/production/cluster/config.json
-                  # Its own .path would replace the directory's
-                  pathParamPrefix: config
+              - clusters: &cluster
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: &repoURL '{{ .metadata.annotations.repository }}'
+                        revision: &revision '{{ .metadata.annotations.revision }}'
+                        directories:
+                          - path: system/*
+                          # Applied by infra/_modules/argocd: Argo CD does not manage itself
+                          - path: system/argocd
+                            exclude: true
+                          # Rendered into every namespace by each Application (template below), not on its own
+                          - path: system/egress
+                            exclude: true
+                          - path: system/secret-store
+                            exclude: true
+                          # The sandbox's storage (Ceph in production)
+                          - path: system/csi-hostpath
+                            exclude: true
+                          - path: platform/*
+                          - path: apps/*
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: infra/production/cluster/config.json
+                        # Its own .path would replace the directory's
+                        pathParamPrefix: config
       template:
         metadata:
           name: '{{ .path.basename }}'
@@ -152,6 +161,8 @@ argocd-apps:
                     baseDomain: '{{ .domain }}'
                     timezone: '{{ .timezone }}'
                     seedRepository: '{{ .seed_repository }}'
+                    # Production's R2 endpoint, which holds the account id (never in git); empty elsewhere
+                    backupS3Url: '{{ .metadata.annotations.backupS3Url }}'
                     addresses: &addresses
                       apiVIP: '{{ .vip }}'
                       router: '{{ .network.gateway }}'
@@ -254,17 +265,20 @@ argocd-apps:
       generators:
         - matrix:
             generators:
-              - git:
-                  repoURL: *repoURL
-                  revision: *revision
-                  files:
-                    - path: apps/*.yaml
-              - git:
-                  repoURL: *repoURL
-                  revision: *revision
-                  files:
-                    - path: infra/production/cluster/config.json
-                  pathParamPrefix: config
+              - clusters: *cluster
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/*.yaml
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: infra/production/cluster/config.json
+                        pathParamPrefix: config
       template:
         metadata:
           name: '{{ .path.filename | trimSuffix ".yaml" }}'
