@@ -109,7 +109,8 @@ metadata:
 		var problems []string
 		for _, node := range nodes {
 			job := "job/bench-" + node
-			_, _ = kube.Kubectl(ctx, scanBenchNamespace, "wait", job, "--for=jsonpath={.status.conditions[?(@.status==\"True\")].type}=Complete", "--timeout=5m")
+			// Its checks read the k3s journal once each: on a testbed up for a day a Job took over 4 minutes
+			_, _ = kube.Kubectl(ctx, scanBenchNamespace, "wait", job, "--for=jsonpath={.status.conditions[?(@.status==\"True\")].type}=Complete", "--timeout=10m")
 			if done, err := kube.Kubectl(ctx, scanBenchNamespace, "get", job, "-o", "jsonpath={.status.succeeded}"); err != nil || done != "1" {
 				problems = append(problems, node+": kube-bench did not complete")
 				continue
