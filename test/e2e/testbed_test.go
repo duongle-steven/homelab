@@ -346,8 +346,7 @@ func testbedMeshWorks(ctx context.Context) {
 	Expect(curl(meshed, "neighbour")).To(Equal("200"), "a meshed pod on another node, in the allowed namespace")
 	Expect(curl(stranger, "stranger")).To(Equal("000"), "a meshed pod no policy allows")
 	Expect(curl(outside, "plaintext")).To(Equal("000"), "a pod outside the mesh, in plaintext")
-	logs, err := kube.Kubectl(ctx, "istio-system", "logs", "--selector=app=ztunnel", "--prefix", "--since-time="+since, "--tail=-1")
-	Expect(err).NotTo(HaveOccurred())
+	logs := ztunnelLogsSince(ctx, since)
 	source := func(namespace string) string {
 		return fmt.Sprintf(`src.identity="spiffe://cluster.local/ns/%s/sa/default"`, namespace)
 	}

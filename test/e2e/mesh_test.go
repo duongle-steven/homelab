@@ -146,6 +146,19 @@ func curlFrom(ctx context.Context, namespace, name, target string, labels string
 	return status
 }
 
+// ztunnelLogsSince reads every node's ztunnel log since a time (a selector alone keeps only 10 lines), retrying for 2
+// minutes: a node just back from a cut answered pods/log NotFound for its running ztunnel
+func ztunnelLogsSince(ctx context.Context, since string) string {
+	GinkgoHelper()
+	var logs string
+	Eventually(ctx, func() error {
+		var err error
+		logs, err = kube.Kubectl(ctx, "istio-system", "logs", "--selector=app=ztunnel", "--prefix", "--since-time="+since, "--tail=-1")
+		return err
+	}).WithTimeout(2*time.Minute).WithPolling(10*time.Second).Should(Succeed(), "ztunnel's logs could not be read")
+	return logs
+}
+
 // MeshRejectsPlaintext proves strict mTLS and the default deny: a pod outside the mesh is refused, and so is a pod
 // in the mesh that no allow policy names, after ztunnel authenticated it.
 var _ = Describe("MeshRejectsPlaintext", Label("sandbox", "testbed", "mesh"), func() {
@@ -157,9 +170,8 @@ var _ = Describe("MeshRejectsPlaintext", Label("sandbox", "testbed", "mesh"), fu
 		// In the mesh but not allowed into excalidraw (default deny): refused after the mTLS handshake
 		Expect(meshCurlIn(ctx, "default", "mesh-member", target, "istio.io/dataplane-mode=ambient")).To(Equal("000"))
 
-		// Every node's ztunnel (the connections may have gone through any of them); a selector alone keeps only 10 lines
-		logs, err := kube.Kubectl(ctx, "istio-system", "logs", "--selector=app=ztunnel", "--prefix", "--since-time="+since, "--tail=-1")
-		Expect(err).NotTo(HaveOccurred())
+		// Every node's ztunnel: the connections may have gone through any of them
+		logs := ztunnelLogsSince(ctx, since)
 		Expect(logs).To(ContainSubstring("policy rejection"), "ztunnel did not log the refused plaintext connection")
 		Expect(logs).To(ContainSubstring(`src.identity="spiffe://cluster.local/ns/default/sa/default"`),
 			"ztunnel did not authenticate the meshed pod (mTLS)")
