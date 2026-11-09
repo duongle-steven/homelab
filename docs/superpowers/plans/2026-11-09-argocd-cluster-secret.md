@@ -282,7 +282,8 @@
 
 - [ ] **Step 4: Prove the testbed.**
   - Stop the sandbox (`k3d cluster stop homelab-dev`).
-  - Run `just testbed`. Expected: the proof specs pass, `ArgoCDClusterSecret` among them, and the mark `testbed` is written.
+  - Run `just testbed`. Expected: the proof specs pass, and the mark `testbed` is written.
+  - Run `just test e2e --env testbed --labels argocd`. Expected: `ArgoCDClusterSecret` passes. It is not labelled `proof`, so `just testbed` does not run it.
   - Then run `just testbed-stop`.
 
 - [ ] **Step 5: Record the runs** for the PR description: commands, counts and durations.
