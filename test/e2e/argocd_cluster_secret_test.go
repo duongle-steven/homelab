@@ -23,7 +23,7 @@ var _ = Describe("ArgoCDClusterSecret", Label("sandbox", "testbed", "argocd"), f
 				Annotations map[string]string `json:"annotations"`
 			} `json:"metadata"`
 		}
-		Expect(kube.GetJSON(ctx, "argocd", &secret, "get", "secret", "in-cluster")).To(Succeed())
+		Expect(kube.GetJSON(ctx, "argocd", &secret, "secret", "in-cluster")).To(Succeed())
 		Expect(secret.Metadata.Labels).To(HaveKeyWithValue("argocd.argoproj.io/secret-type", "cluster"))
 		Expect(secret.Metadata.Labels).To(HaveKeyWithValue("homelab/bootstrap", "true"))
 		annotations = secret.Metadata.Annotations
@@ -53,7 +53,7 @@ var _ = Describe("ArgoCDClusterSecret", Label("sandbox", "testbed", "argocd"), f
 				} `json:"spec"`
 			} `json:"items"`
 		}
-		Expect(kube.GetJSON(ctx, "argocd", &apps, "get", "applications")).To(Succeed())
+		Expect(kube.GetJSON(ctx, "argocd", &apps, "applications")).To(Succeed())
 		Expect(apps.Items).NotTo(BeEmpty())
 		var wrong []string
 		for _, app := range apps.Items {
