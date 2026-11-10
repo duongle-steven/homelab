@@ -14,12 +14,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// The rule Falco's stable ruleset raises for a binary that was not in the image (Critical)
-const falcoDropRule = "Drop and execute new binary in container"
+// The rule Falco's stable ruleset raises for a binary that was not in the image (Critical), and the vendored miner rule
+// (system/falco/files/miners.yaml, Critical)
+const (
+	falcoDropRule  = "Drop and execute new binary in container"
+	falcoMinerRule = "Detect crypto miners using the Stratum protocol"
+)
 
 // falcoProbe runs busybox in a namespace of its own and triggers two events in it: a read of /etc/shadow (a sensitive
-// file, Warning) and a copied binary executed (Critical; busybox picks its applet by name, so the copy is named true).
-// It returns the namespace
+// file, Warning), a copied binary executed (Critical; busybox picks its applet by name, so the copy is named true) and a
+// command line naming a Stratum pool (Critical; nothing is contacted). It returns the namespace
 func falcoProbe(ctx context.Context) string {
 	GinkgoHelper()
 	namespace := fmt.Sprint("falco-test-", time.Now().Unix())
@@ -32,6 +36,8 @@ func falcoProbe(ctx context.Context) string {
 	out, err = kube.Kubectl(ctx, namespace, "exec", "probe", "--", "cat", "/etc/shadow")
 	Expect(err).NotTo(HaveOccurred(), out)
 	out, err = kube.Kubectl(ctx, namespace, "exec", "probe", "--", "sh", "-c", "cp /bin/busybox /tmp/true && /tmp/true")
+	Expect(err).NotTo(HaveOccurred(), out)
+	out, err = kube.Kubectl(ctx, namespace, "exec", "probe", "--", "sh", "-c", "true stratum+tcp://pool.invalid:3333")
 	Expect(err).NotTo(HaveOccurred(), out)
 	return namespace
 }
@@ -69,10 +75,23 @@ func lokiInstant(ctx context.Context, query string) ([]map[string]string, error)
 	return series, nil
 }
 
-// Falco (system/falco) sees a sensitive read and a dropped binary in a pod, Loki keeps both with their rules, and the
-// deployed alert expression selects the critical one in the pod's namespace
+// Falco (system/falco) sees a sensitive read, a dropped binary and a miner's command line in a pod, Loki keeps them with
+// their rules, the deployed alert expression selects the critical ones in the pod's namespace, and Prometheus has the
+// metrics FalcoStalled and FalcoEventsDropped read
 var _ = Describe("Falco", Label("sandbox", "falco"), func() {
-	It("reports a read of /etc/shadow and a dropped binary", func(ctx SpecContext) {
+	It("reports a read of /etc/shadow, a dropped binary and a miner", func(ctx SpecContext) {
+		// A renamed metric would leave FalcoStalled's counter arm and FalcoEventsDropped silent
+		for _, query := range []string{
+			`up{namespace="falco", job="falco-metrics"} == 1`,
+			`falcosecurity_scap_n_evts_total{namespace="falco", job="falco-metrics"} > 0`,
+			`falcosecurity_scap_n_drops_total{namespace="falco", job="falco-metrics"}`,
+		} {
+			Eventually(ctx, func() int {
+				series, _ := prometheusQuery(ctx, query)
+				return len(series)
+			}).WithTimeout(5*time.Minute).WithPolling(15*time.Second).Should(BeNumerically(">", 0), "Prometheus has no %s", query)
+		}
+
 		namespace := falcoProbe(ctx)
 		query := fmt.Sprintf(`{job="pods", namespace="falco"} |= %q`, namespace)
 		var rules map[string]string
@@ -88,7 +107,7 @@ var _ = Describe("Falco", Label("sandbox", "falco"), func() {
 					rules[event.Rule] = event.Priority
 				}
 			}
-			return rules[falcoDropRule] == "Critical" && strings.Contains(fmt.Sprint(rules), "sensitive file")
+			return rules[falcoDropRule] == "Critical" && rules[falcoMinerRule] == "Critical" && strings.Contains(fmt.Sprint(rules), "sensitive file")
 		}).WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(BeTrue(), "Falco's events for %s: %v", namespace, rules)
 
 		// The deployed expression, as Loki's ruler evaluates it
@@ -119,13 +138,14 @@ var _ = Describe("Falco", Label("sandbox", "falco"), func() {
 			if err != nil {
 				return false
 			}
+			found := map[string]bool{}
 			for _, s := range series {
-				if s["namespace"] == namespace && s["rule"] == falcoDropRule {
-					return true
+				if s["namespace"] == namespace {
+					found[s["rule"]] = true
 				}
 			}
-			return false
-		}).WithTimeout(5*time.Minute).WithPolling(15*time.Second).Should(BeTrue(), "FalcoCriticalEvent's expression does not select %s", namespace)
+			return found[falcoDropRule] && found[falcoMinerRule]
+		}).WithTimeout(5*time.Minute).WithPolling(15*time.Second).Should(BeTrue(), "FalcoCriticalEvent's expression does not select %s's drop and miner events", namespace)
 	}, SpecTimeout(15*time.Minute))
 })
 
