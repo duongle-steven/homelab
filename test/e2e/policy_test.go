@@ -15,7 +15,7 @@ import (
 
 // privilegedNamespaces are labelled pod-security.kubernetes.io/enforce=privileged (system/argocd/values.yaml's
 // templatePatch); every other managed namespace is baseline
-var privilegedNamespaces = []string{"istio-system", "rook-ceph", "kured", "loki", "monitoring-system", "csi-hostpath", "tailscale", "wireguard"}
+var privilegedNamespaces = []string{"istio-system", "rook-ceph", "kured", "loki", "monitoring-system", "csi-hostpath", "falco", "tailscale", "wireguard"}
 
 // In the sandbox: Kyverno audits (an unreachable Kyverno blocks nothing), its reports show no repository workload
 // failing, a pod breaking restricted is admitted and reported, and Pod Security Admission refuses privileged pods

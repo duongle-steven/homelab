@@ -1,0 +1,42 @@
+# Runtime detection (docs/superpowers/specs/2026-11-10-runtime-detection-design.md, docs/how-to-guides/runtime-detection.md):
+# Falco watches every node's syscalls and only detects; its JSON events reach Loki through Alloy, and
+# system/loki/files/falco-rules.yaml alerts on them. Blocking is step 15g-2.
+falco:
+  # CO-RE eBPF: no kernel module or headers (WSL's kernel and the NixOS nodes' have BTF)
+  driver:
+    kind: modern_ebpf
+  # No download at runtime: the image's stable rules plus files/ (pinned like every other version, no egress)
+  falcoctl:
+    artifact:
+      install:
+        enabled: false
+      follow:
+        enabled: false
+  falco:
+    json_output: true
+    # warning and above reach Loki; error and above alert (system/loki/files/falco-rules.yaml)
+    priority: warning
+  # Falco's own counters (events, drops) for FalcoStalled and FalcoEventsDropped (templates/prometheus-rule.yaml)
+  metrics:
+    enabled: true
+  serviceMonitor:
+    create: true
+  # The vendored rules and the accepted events (templates/accepted-rules.yaml), loaded from rules.d after the image's
+  mounts:
+    volumes:
+      - name: falco-accepted-rules
+        configMap:
+          name: falco-accepted-rules
+    volumeMounts:
+      - name: falco-accepted-rules
+        mountPath: /etc/falco/rules.d
+        readOnly: true
+
+# Events accepted as expected, each narrowing its rule with an exception (never disabling it), with its reason:
+# {rule, name, fields, comps, values, reason} (Falco's rule exceptions). Workstation processes seen only by the
+# sandbox go in values-dev.yaml
+accepted: []
+
+# Off on the testbed: their kinds come from Kyverno and the monitoring operator, which it does not run
+policyExceptions: true
+prometheusRules: true

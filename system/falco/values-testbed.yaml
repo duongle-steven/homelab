@@ -1,0 +1,6 @@
+# The testbed runs no Kyverno or monitoring: Argo CD refuses a whole sync holding a kind whose CRD is missing
+policyExceptions: false
+prometheusRules: false
+falco:
+  serviceMonitor:
+    create: false

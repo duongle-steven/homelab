@@ -1,0 +1,9 @@
+# The sandbox's and the testbed's small nodes (measured in docs/how-to-guides/runtime-detection.md)
+falco:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
