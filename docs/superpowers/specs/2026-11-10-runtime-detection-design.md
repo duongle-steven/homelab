@@ -88,10 +88,10 @@ detection), before the first production deploy.
   - `json_output`, with `priority: warning`;
   - `base_syscalls` set if the measured CPU calls for it.
 - **Kubernetes plumbing:**
-  - The namespace is `privileged` in Argo CD's `templatePatch` and outside the mesh (`istio.io/dataplane-mode: none`).
+  - The namespace is `privileged` in Argo CD's `templatePatch`. It stays in the mesh like Loki's (Alloy) and kured's:
+    Falco takes no webhook call and needs no host network, so only Prometheus's scrape needs its `allow`.
   - A `PolicyException` with `homelab/reason` (privileged, hostPID, host mounts).
-  - A NetworkPolicy opening only the metrics port to Prometheus, with HBONE where the checks need it
-    (`scripts/check-mesh-policies`).
+  - An `AuthorizationPolicy` `allow` for Prometheus on the metrics port (`scripts/check-mesh-policies`).
   - Egress: none beyond the default.
 - `system/loki/files/falco-rules.yaml`: the alert rules above, from Falco's JSON fields (`priority`, `rule`,
   `output_fields`: container, pod, namespace). Grouped by rule and namespace, so one noisy rule is one notification.
