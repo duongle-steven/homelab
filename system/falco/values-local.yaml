@@ -1,9 +1,10 @@
-# The sandbox's and the testbed's small nodes (measured in docs/how-to-guides/runtime-detection.md)
+# The sandbox's and the testbed's small nodes: requests near the median, limits about twice the peak measured during a
+# fresh sandbox's full suite (docs/how-to-guides/runtime-detection.md)
 falco:
   resources:
     requests:
-      cpu: 100m
-      memory: 128Mi
+      cpu: 40m
+      memory: 160Mi
     limits:
-      cpu: "1"
-      memory: 512Mi
+      cpu: 200m
+      memory: 384Mi

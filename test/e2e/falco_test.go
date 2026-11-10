@@ -18,7 +18,8 @@ import (
 const falcoDropRule = "Drop and execute new binary in container"
 
 // falcoProbe runs busybox in a namespace of its own and triggers two events in it: a read of /etc/shadow (a sensitive
-// file, Warning) and a copied binary executed (Critical). It returns the namespace
+// file, Warning) and a copied binary executed (Critical; busybox picks its applet by name, so the copy is named true).
+// It returns the namespace
 func falcoProbe(ctx context.Context) string {
 	GinkgoHelper()
 	namespace := fmt.Sprint("falco-test-", time.Now().Unix())
@@ -30,7 +31,7 @@ func falcoProbe(ctx context.Context) string {
 	Expect(err).NotTo(HaveOccurred(), out)
 	out, err = kube.Kubectl(ctx, namespace, "exec", "probe", "--", "cat", "/etc/shadow")
 	Expect(err).NotTo(HaveOccurred(), out)
-	out, err = kube.Kubectl(ctx, namespace, "exec", "probe", "--", "sh", "-c", "cp /bin/busybox /tmp/dropped && /tmp/dropped true")
+	out, err = kube.Kubectl(ctx, namespace, "exec", "probe", "--", "sh", "-c", "cp /bin/busybox /tmp/true && /tmp/true")
 	Expect(err).NotTo(HaveOccurred(), out)
 	return namespace
 }

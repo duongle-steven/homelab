@@ -65,13 +65,17 @@ match. A process seen only on the workstation goes in `values-dev.yaml`, never i
 
 ## What it costs
 
-In the sandbox, Falco's pod was measured during a full suite on a fresh sandbox (`just dev-fresh`). Its limits in
-`values-local.yaml` are about twice the peak.
+In the sandbox, Falco's pod was measured during a full suite on a fresh sandbox (`just dev-fresh`). Its requests in
+`values-local.yaml` are near the median and its limits about twice the peak (production keeps the chart's: 100m and
+512Mi requested, 1 core and 1Gi at most).
 
-| | Median | Peak | Limit |
-|---|---|---|---|
-| Memory | measured in step 15g | | 512Mi |
-| CPU | | | 1 core |
+| | Median | Peak | Request | Limit |
+|---|---|---|---|---|
+| Memory | 145Mi | 165Mi | 160Mi | 384Mi |
+| CPU | 0.036 core | 0.095 core | 40m | 200m |
+
+No event was dropped during that run, so `base_syscalls` stays at Falco's default. If `FalcoEventsDropped` fires on a
+busy node, raise the CPU limit first.
 
 ## What is proven where
 
