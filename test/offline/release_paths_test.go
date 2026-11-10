@@ -43,7 +43,7 @@ func TestTestbedLayers(t *testing.T) {
 		return strings.TrimSpace(string(out))
 	}
 	const git = `[.argocd-apps.applicationsets.root.generators | .. | select(has("directories"))][0]`
-	assert.Equal(t, "system/rook-ceph\nsystem/cert-manager\nsystem/istio-system\nsystem/falco", yq(git+`.directories[] | select(.exclude != true) | .path`, values))
+	assert.Equal(t, "system/rook-ceph\nsystem/cert-manager\nsystem/istio-system", yq(git+`.directories[] | select(.exclude != true) | .path`, values))
 	// The repository and the branch come from the cluster Secret the testbed's unit writes
 	assert.Equal(t, "{{ .metadata.annotations.revision }}", yq(git+".revision", values))
 	assert.Equal(t, "{{ .metadata.annotations.repository }}", yq(git+".repoURL", values))

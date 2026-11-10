@@ -48,8 +48,6 @@ argocd-apps:
                           # Layer 2
                           - path: system/cert-manager
                           - path: system/istio-system
-                          # Layer: runtime detection (the modern eBPF driver on NixOS's kernel)
-                          - path: system/falco
                     - git:
                         repoURL: *repoURL
                         revision: *revision
