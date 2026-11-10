@@ -22,6 +22,8 @@ not_run:
   - system/istio-system/templates/policy-exception.yaml
   - system/istio-system/templates/pod-monitors.yaml
   - system/rook-ceph/templates/policy-exception.yaml
+  - system/falco/templates/policy-exception.yaml
+  - system/falco/templates/prometheus-rule.yaml
   # Off on the testbed, or read only by another environment
   - system/cert-manager/templates/cloudflare-secret.yaml
   - system/istio-system/templates/coredns-custom.yaml
