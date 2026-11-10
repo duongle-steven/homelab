@@ -340,8 +340,8 @@ var _ = Describe("SecretsGeneratedOnlyInOpenBao", Label("sandbox", "testbed", "s
 		}
 
 		// A rotation as docs/concepts/secrets-management.md does it: the destination deleted, the next push writes a new
-		// value, the readers' ExternalSecrets refreshed and the readers restarted. Woodpecker's agent secret needs
-		// nothing but a restart; its server and agents must agree on it again (Woodpecker may run after this)
+		// value, the readers' ExternalSecrets refreshed and the readers restarted; its server and agents must agree on it
+		// again (Woodpecker may run after this)
 		probe := hash("woodpecker/generated/agent", "secret")
 		admin(ctx, "kv", "metadata", "delete", "secret/woodpecker/generated/agent")
 		forceSync("woodpecker.agent")
@@ -360,10 +360,25 @@ var _ = Describe("SecretsGeneratedOnlyInOpenBao", Label("sandbox", "testbed", "s
 				return err == nil && hex.EncodeToString(sum[:]) == rotated
 			}).WithTimeout(2*time.Minute).WithPolling(2*time.Second).Should(BeTrue(), "Secret woodpecker/%s does not hold the rotated value", name)
 		}
-		for _, workload := range []string{"statefulset/woodpecker-server", "statefulset/woodpecker-agent"} {
-			_, err := kube.Kubectl(ctx, "woodpecker", "rollout", "restart", workload)
-			Expect(err).NotTo(HaveOccurred())
-		}
+		out, err := kube.Kubectl(ctx, "woodpecker", "rollout", "restart", "statefulset/woodpecker-server")
+		Expect(err).NotTo(HaveOccurred(), out)
+		// The agent starts again on a new claim, as lab's rotation does (workload.ResetClaims): the id on its old one is
+		// unknown to the server once the agent secret changed ("AgentID not found in database")
+		const claim = "agent-config-woodpecker-agent-0"
+		uid, err := kube.Kubectl(ctx, "woodpecker", "get", "pvc", claim, "-o", "jsonpath={.metadata.uid}")
+		Expect(err).NotTo(HaveOccurred(), uid)
+		out, err = kube.Kubectl(ctx, "woodpecker", "delete", "pvc", claim, "--wait=false")
+		Expect(err).NotTo(HaveOccurred(), out)
+		Eventually(ctx, func() bool {
+			if _, err := kube.Kubectl(ctx, "woodpecker", "delete", "pod", "woodpecker-agent-0", "--ignore-not-found", "--wait=false"); err != nil {
+				return false
+			}
+			current, err := kube.Kubectl(ctx, "woodpecker", "get", "pvc", claim, "--ignore-not-found", "-o", "jsonpath={.metadata.uid}")
+			return err == nil && current != uid
+		}).WithTimeout(5*time.Minute).WithPolling(5*time.Second).Should(BeTrue(), "claim %s was not replaced", claim)
+		// A pod created while the old claim was terminating may still hold it
+		out, err = kube.Kubectl(ctx, "woodpecker", "delete", "pod", "woodpecker-agent-0", "--ignore-not-found")
+		Expect(err).NotTo(HaveOccurred(), out)
 		for _, workload := range []string{"statefulset/woodpecker-server", "statefulset/woodpecker-agent"} {
 			out, err := kube.Kubectl(ctx, "woodpecker", "rollout", "status", workload, "--timeout=5m")
 			Expect(err).NotTo(HaveOccurred(), out)
