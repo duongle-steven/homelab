@@ -131,7 +131,7 @@ var _ = Describe("Falco", Label("sandbox", "falco"), func() {
 
 // On the testbed's three NixOS nodes: Falco runs on each with the modern eBPF probe, and a dropped binary is reported
 // (the testbed has no Loki: the pods' logs are read directly)
-var _ = Describe("TestbedFalco", Label("testbed", "falco"), func() {
+var _ = Describe("TestbedFalco", Label("testbed", "falco", "proof"), func() {
 	It("watches every node", func(ctx SpecContext) {
 		var ds struct {
 			Status struct {
