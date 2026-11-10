@@ -88,7 +88,7 @@ labels:
 always: smoke
 # Each runs by itself after the main run, in this order (#78)
 alone: [backup-restore, node-power-cut, node-restart, rotation]
-full: smoke || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || woodpecker || policy || supply-chain || trivy-operator || public || node-restart || node-power-cut || backup-restore || rotation
+full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || woodpecker || policy || supply-chain || trivy-operator || public || node-restart || node-power-cut || backup-restore || rotation
 groups:
   - paths:
       - justfile

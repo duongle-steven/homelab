@@ -171,17 +171,36 @@ func TestE2EKeepsSelection(t *testing.T) {
 		runs[g.Paths[0]] = run{group(g.Tests), "sandbox"}
 	}
 	specs := e2eDryRun(t)
+	// Specs added since 14f-2 are not in the record (TestE2EFullSelectsEverySandboxSpec covers them)
+	old := map[string]bool{}
+	for _, name := range record.Tests {
+		old[name] = true
+	}
 	for key, want := range record.Selection {
 		r, ok := runs[key]
 		if !assert.True(t, ok, "%s: no filter for it", key) {
 			continue
 		}
-		assert.Equal(t, want, selectContainers(t, specs, r.filter, r.env), "%s: (%s) && %s", key, r.filter, r.env)
+		got := slices.DeleteFunc(selectContainers(t, specs, r.filter, r.env), func(name string) bool { return !old[name] })
+		assert.Equal(t, want, got, "%s: (%s) && %s", key, r.filter, r.env)
 	}
 	for key := range runs {
 		_, ok := record.Selection[key]
 		assert.True(t, ok, "%s: not in the record", key)
 	}
+}
+
+// Every sandbox spec is in test/scopes.yaml's full, which just dev --full, just dev-fresh and the release's sandbox run,
+// but the scan, which runs by hand (just dev-scan): a spec whose labels full leaves out would never run
+func TestE2EFullSelectsEverySandboxSpec(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(repo.Root(), "test", "scopes.yaml"))
+	require.NoError(t, err)
+	var scopes struct {
+		Full string `yaml:"full"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &scopes))
+	specs := e2eDryRun(t)
+	assert.Equal(t, selectContainers(t, specs, "!scan", "sandbox"), selectContainers(t, specs, scopes.Full, "sandbox"))
 }
 
 // topLevelContainers parses test/e2e: the top-level `var _ = Describe(...)` calls, with each one's text, and every
