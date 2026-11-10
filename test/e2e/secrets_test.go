@@ -362,8 +362,11 @@ var _ = Describe("SecretsGeneratedOnlyInOpenBao", Label("sandbox", "testbed", "s
 		}
 		out, err := kube.Kubectl(ctx, "woodpecker", "rollout", "restart", "statefulset/woodpecker-server")
 		Expect(err).NotTo(HaveOccurred(), out)
-		// The agent starts again on a new claim, as lab's rotation does (workload.ResetClaims): the id on its old one is
-		// unknown to the server once the agent secret changed ("AgentID not found in database")
+		out, err = kube.Kubectl(ctx, "woodpecker", "rollout", "status", "statefulset/woodpecker-server", "--timeout=5m")
+		Expect(err).NotTo(HaveOccurred(), out)
+		// Then the agent starts again on a new claim, as lab's rotation does (workload.ResetClaims): the id on its old one
+		// is unknown to the server once the agent secret changed, and an agent registering while the server restarts
+		// keeps an id the new server does not know ("AgentID not found in database")
 		const claim = "agent-config-woodpecker-agent-0"
 		uid, err := kube.Kubectl(ctx, "woodpecker", "get", "pvc", claim, "-o", "jsonpath={.metadata.uid}")
 		Expect(err).NotTo(HaveOccurred(), uid)
@@ -379,10 +382,8 @@ var _ = Describe("SecretsGeneratedOnlyInOpenBao", Label("sandbox", "testbed", "s
 		// A pod created while the old claim was terminating may still hold it
 		out, err = kube.Kubectl(ctx, "woodpecker", "delete", "pod", "woodpecker-agent-0", "--ignore-not-found")
 		Expect(err).NotTo(HaveOccurred(), out)
-		for _, workload := range []string{"statefulset/woodpecker-server", "statefulset/woodpecker-agent"} {
-			out, err := kube.Kubectl(ctx, "woodpecker", "rollout", "status", workload, "--timeout=5m")
-			Expect(err).NotTo(HaveOccurred(), out)
-		}
+		out, err = kube.Kubectl(ctx, "woodpecker", "rollout", "status", "statefulset/woodpecker-agent", "--timeout=5m")
+		Expect(err).NotTo(HaveOccurred(), out)
 	}, SpecTimeout(60*time.Minute))
 })
 
