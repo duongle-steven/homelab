@@ -9,3 +9,5 @@ data:
 {{ .Files.Get "files/audit-rules.yaml" | indent 4 }}
   public-scan-rules.yaml: |
 {{ .Files.Get "files/public-scan-rules.yaml" | indent 4 }}
+  falco-rules.yaml: |
+{{ .Files.Get "files/falco-rules.yaml" | indent 4 }}

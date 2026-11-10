@@ -1,0 +1,42 @@
+{{- if .Values.prometheusRules }}
+# A detector that stops without anyone knowing is the failure this guards (docs/how-to-guides/runtime-detection.md):
+# a node without a ready Falco, a Falco Prometheus cannot scrape or whose syscall counter stands still, and dropped
+# events (a busy node's ring buffer overflowing). The counters come from Falco's /metrics (falcosecurity_scap_*)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: falco
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: falco
+      rules:
+        - alert: FalcoNotRunning
+          expr: |
+            kube_daemonset_status_number_ready{namespace="{{ .Release.Namespace }}", daemonset="falco"}
+              < kube_daemonset_status_desired_number_scheduled{namespace="{{ .Release.Namespace }}", daemonset="falco"}
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: 'Falco is not running on every node'
+            description: 'A node runs unwatched: kubectl -n {{ .Release.Namespace }} get pods -o wide (docs/how-to-guides/runtime-detection.md)'
+        - alert: FalcoStalled
+          expr: |
+            up{namespace="{{ .Release.Namespace }}", job="falco-metrics"} == 0
+              or increase(falcosecurity_scap_n_evts_total{namespace="{{ .Release.Namespace }}"}[10m]) == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: 'Falco on {{ "{{" }} $labels.pod {{ "}}" }} sees no syscall or cannot be scraped'
+            description: 'Its probe may have stopped: check its log (docs/how-to-guides/runtime-detection.md)'
+        - alert: FalcoEventsDropped
+          expr: |
+            increase(falcosecurity_scap_n_drops_total{namespace="{{ .Release.Namespace }}"}[15m]) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: 'Falco on {{ "{{" }} $labels.pod {{ "}}" }} dropped syscall events'
+            description: 'Rules may have missed what happened in them: raise its buffer or its CPU (docs/how-to-guides/runtime-detection.md)'
+{{- end }}
