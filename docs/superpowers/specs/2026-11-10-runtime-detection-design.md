@@ -63,11 +63,13 @@ detection), before the first production deploy.
     NixOS is one recorded run by hand (`TestbedFalco` alone on a fresh testbed), and "Before the first production
     deploy" in CLAUDE.md says so (my call: the bar protects this workstation, and the driver's load is what needs NixOS).
 - **The sandbox's node shares WSL's kernel** with the workstation and every Docker container, and the probe sees all of
-  them. Falco's metadata knows only the k3d node's containerd, so events from other processes come with no Kubernetes
-  metadata.
-  - In the sandbox only (`values-dev.yaml` and the sandbox's alert expressions), events without a Kubernetes namespace
-    are logged but not alerted, and the clean baseline counts only events with one.
-  - Production keeps every event, host events included: its nodes run nothing but the cluster (my call).
+  them, never Windows (WSL 2 is a VM of its own). The sandbox keeps every event and alert as production does: what the
+  workstation's own processes trigger stays in the sandbox's Loki. Falco's metadata knows only the k3d node's
+  containerd, so those events carry no Kubernetes namespace.
+  - Only the clean-baseline check counts events with a Kubernetes namespace, so the workstation's activity during a run
+    cannot fail it.
+  - A workstation process that turns out noisy is accepted in `values-dev.yaml` with its reason, never in
+    `values.yaml`.
 - **Production alerts from the first deploy.** Its workloads that the sandbox never runs (cloudflared, wireguard,
   tailscale, Matrix, jellyfin, Ceph's daemons, kube-vip, Renovate's initContainer) may fire rules the sandbox never saw.
   - Alerts are grouped by rule and namespace, so one noisy rule is one notification.
