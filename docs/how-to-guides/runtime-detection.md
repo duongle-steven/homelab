@@ -51,6 +51,7 @@ An accepted event narrows its rule with a Falco exception; it never disables the
 
 ```yaml
 accepted:
+  # ...the entries already there
   - rule: Read sensitive file untrusted
     name: backup-reads-shadow
     fields: [k8s.ns.name, proc.name]
@@ -60,7 +61,8 @@ accepted:
 ```
 
 `fields` and `comps` are Falco's field names and comparisons (`=`, `in`, `startswith`…), and `values` holds one row per
-match. A process seen only on the workstation goes in `values-dev.yaml`, never in `values.yaml`. Every entry needs
+match (a value under `in` is a list). A process seen only on the workstation goes in `acceptedWorkstation` in
+`values-dev.yaml`, never in `values.yaml` (Helm would replace `accepted` itself). Every entry needs
 `rule`, `name` and `reason` (`TestFalcoAccepted`).
 
 ## What it costs

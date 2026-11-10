@@ -102,10 +102,11 @@ func TestFalcoAccepted(t *testing.T) {
 		}
 		require.NoError(t, err)
 		var values struct {
-			Accepted []map[string]any `yaml:"accepted"`
+			Accepted            []map[string]any `yaml:"accepted"`
+			AcceptedWorkstation []map[string]any `yaml:"acceptedWorkstation"`
 		}
 		require.NoError(t, yaml.Unmarshal(raw, &values))
-		for i, entry := range values.Accepted {
+		for i, entry := range append(values.Accepted, values.AcceptedWorkstation...) {
 			for _, key := range []string{"rule", "name", "reason"} {
 				assert.NotEmpty(t, entry[key], "%s: accepted[%d] has no %s", file, i, key)
 			}

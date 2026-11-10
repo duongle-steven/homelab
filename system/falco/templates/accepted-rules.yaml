@@ -1,5 +1,5 @@
 # Loaded from /etc/falco/rules.d after the image's stable rules, in file-name order: the vendored rules (files/), then
-# the accepted events (values.yaml accepted), each appending an exception to its rule with its reason
+# the accepted events (accepted, then the sandbox's acceptedWorkstation), each appending an exception to its rule with its reason
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,7 +11,7 @@ data:
 {{ $.Files.Get $path | indent 4 }}
 {{- end }}
   zz-accepted.yaml: |
-{{- range .Values.accepted }}
+{{- range concat (.Values.accepted | default list) (.Values.acceptedWorkstation | default list) }}
     # {{ required "accepted: every entry needs its reason" .reason }}
     - rule: {{ required "accepted: every entry names its rule" .rule | quote }}
       exceptions:
