@@ -141,3 +141,4 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 14g | `infra/_modules/argocd`'s `triggers_replace` takes `optional_apps` unsorted: the same apps in another order run the bootstrap again | any |
 | 14g | `TrivyOperator`'s first wait (a report for excalidraw, 45 minutes) lacks the touch-once its later wait has: the operator dropping excalidraw at start failed `just dev-fresh` | any |
 | 14g | The `SSO*` specs carry label `testbed`, whose layers run no Kanidm: `just test e2e --env testbed --labels argocd` (or `sso`) times out on them | any |
+| 14f-2 | The `BeforeSuite` waits only for Argo CD to settle: after a sandbox restart Argo CD can report Healthy while the mesh is still deadlocked (the watchdog clears it in 5 to 14 minutes), so the specs through the mesh fail; it could also wait for ztunnel and every managed pod Ready, as `NodeRestart` does | any |
