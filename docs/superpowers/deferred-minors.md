@@ -15,7 +15,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | #31 (7b) | Forgejo's `[server]` ConfigMap duplicates what the chart derives from the route host | any |
 | #31 (7b) | `global.timezone` is read by no chart | any |
 | #31 (7b) | The tests hard-code `*.127-0-0-1.nip.io` | any (`testDomain` reads the environment where the testbed needs it) |
-| #31 (7b) | The seed `sed` breaks on `&` or `\|` in `seed_repository`; `SEED_REPOSITORY` duplicates `global.seedRepository` | any |
 | #31 (7b) | woodpecker's and zot's config changes do not roll their pods (the woodpecker chart passes `podAnnotations` without `tpl`; Secrets ESO refreshes never would); 11b's rotations restart them explicitly, other changes still need a restart by hand | any (Reloader) |
 | #31 (7b) | `scripts/check-env-config`'s untemplated-global check knows only four keys | any |
 | #32 (7c) | `.direnv/` and `site/` are not git-ignored | any |
@@ -133,3 +132,12 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 14f-2 | `TestE2EKeepsSelection` rebuilds each group's filter itself instead of feeding `lab test scope`'s main and alone output | any |
 | 14f-2 | `PublicScan` and `MeshEnrolled` stop at their first finding where the old `assert`s reported all of them | any |
 | 14f-2 | A global `Expect` inside an `Eventually` body (`gatewayAddress`, `kubectlJSON`, `woodpeckerRequest`, `bao`, …) fails at once instead of retrying a transient error (as `require` did) | any |
+| 14g | `ArgoCDClusterSecret` checks every Application in `argocd`: one a failed run left behind (`forgejo-sync-probe`) fails it; narrow it to those the ApplicationSets own | any |
+| 14g | No offline test proves server-side apply dropping a `homelab/app-*` label or the `revision` returning to the branch (the sandbox proved both by hand) | any |
+| 14g | Forgejo's URL is in `infra/production/argocd/terragrunt.hcl` and `system/argocd-config/templates/forgejo-repository.yaml`, with no test that they agree | any |
+| 14g | A production `config.json` without `seed_repository` fails as "REPOSITORY is required" (a precondition in `main.tf` would name it) | any |
+| 14g | `backupS3Url` sits in the shared `&values`, so R2's endpoint reaches every Application's `system/egress` and `system/secret-store` sources, not only the component's | any |
+| 14g | `cluster-secret.sh` splits `OPTIONAL_APPS` unquoted without `set -f` | any |
+| 14g | `infra/_modules/argocd`'s `triggers_replace` takes `optional_apps` unsorted: the same apps in another order run the bootstrap again | any |
+| 14g | `TrivyOperator`'s first wait (a report for excalidraw, 45 minutes) lacks the touch-once its later wait has: the operator dropping excalidraw at start failed `just dev-fresh` | any |
+| 14g | The `SSO*` specs carry label `testbed`, whose layers run no Kanidm: `just test e2e --env testbed --labels argocd` (or `sso`) times out on them | any |
