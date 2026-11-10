@@ -42,10 +42,15 @@ func TestTestbedLayers(t *testing.T) {
 		require.NoError(t, err, expr)
 		return strings.TrimSpace(string(out))
 	}
-	const git = ".argocd-apps.applicationsets.root.generators[0].matrix.generators[0].git"
+	const git = `[.argocd-apps.applicationsets.root.generators | .. | select(has("directories"))][0]`
 	assert.Equal(t, "system/rook-ceph\nsystem/cert-manager\nsystem/istio-system", yq(git+`.directories[] | select(.exclude != true) | .path`, values))
-	assert.Equal(t, "testbed", yq(git+".revision", values))
-	assert.Equal(t, strings.Trim(yq(".seed_repository", repo.Root()+"/infra/testbed/cluster/config.json"), `"`), yq(git+".repoURL", values))
+	// The repository and the branch come from the cluster Secret the testbed's unit writes
+	assert.Equal(t, "{{ .metadata.annotations.revision }}", yq(git+".revision", values))
+	assert.Equal(t, "{{ .metadata.annotations.repository }}", yq(git+".repoURL", values))
+	unit, err := os.ReadFile(repo.Root() + "/infra/testbed/argocd/terragrunt.hcl")
+	require.NoError(t, err)
+	assert.Regexp(t, `branch\s+= "testbed"`, string(unit))
+	assert.Contains(t, string(unit), `"${get_terragrunt_dir()}/../cluster/config.json")).seed_repository`)
 	assert.Empty(t, render.Yq(t, "system/rook-ceph", "testbed", `select(.kind == "PolicyException") | .metadata.name`), "Kyverno is not in this layer")
 	assert.NotEmpty(t, render.Yq(t, "system/rook-ceph", "", `select(.kind == "PolicyException") | .metadata.name`))
 	// Layer 2 needs neither Kyverno nor the monitoring operator: their kinds are switched off, and only here

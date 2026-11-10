@@ -17,10 +17,13 @@ dependency "backup" {
 }
 
 inputs = {
-  chart           = "${get_repo_root()}/system/argocd"
-  values          = "values.yaml"
-  environment     = "prod"
-  seed            = "values-seed.yaml"
+  chart       = "${get_repo_root()}/system/argocd"
+  values      = "values.yaml"
+  environment = "prod"
+  seed        = "values-seed.yaml"
+  # ops/homelab on Forgejo once Argo CD reads it; choose-values.sh keeps seed_repository until then
+  repository      = "http://forgejo-http.forgejo:3000/ops/homelab"
+  branch          = "master"
   seed_repository = jsondecode(file("${get_terragrunt_dir()}/../cluster/config.json")).seed_repository
   backup_s3_url   = dependency.backup.outputs.endpoint
 }

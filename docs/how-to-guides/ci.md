@@ -90,8 +90,8 @@ Add a case to `scripts/ci-check` and its name to the `checks` list there and to 
 ## The sandbox
 
 Four workflows build a fresh sandbox on a GitHub-hosted runner and run the suite with `just dev --revision <sha>`
-(their steps are the composite action `.github/actions/sandbox`): Argo CD syncs that commit (the bootstrap rewrites
-the homelab repository's revisions, `infra/_modules/argocd/set-revision.sh`), so nothing is pushed to branch `sandbox`
+(their steps are the composite action `.github/actions/sandbox`): Argo CD syncs that commit (the bootstrap writes it
+as the `revision` of Argo CD's cluster Secret, `infra/_modules/argocd/cluster-secret.sh`), so nothing is pushed to branch `sandbox`
 and a local sandbox is not disturbed. A run takes about 30 minutes; it needs no secret (the state passphrase is
 random).
 

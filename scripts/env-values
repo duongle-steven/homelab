@@ -15,16 +15,21 @@ pick() {
   fi
 }
 base=".argocd-apps.applicationsets.$appset"
-config=$(pick "$base.generators[0].matrix.generators[1].git.files[0].path")
+# The git generator reading config.json, at any matrix depth (step 14g wraps each matrix in a clusters generator)
+config=$(pick "[$base.generators[0] | .. | select(has(\"pathParamPrefix\")) | .files[0].path][0]")
 case "$appset" in
   root) object="$base.template.spec.sources[0].helm.valuesObject" ;;
   apps) object="$base.template.spec.sources[0].helm.valuesObject" ;;
 esac
 pick "$object" | yq '.. | select(tag == "!!str") | (path | join(".")) + "=" + .' | while IFS='=' read -r name value; do
-  field=$(printf '%s' "$value" | sed -n 's/^{{ *\(\.[A-Za-z_.]*\) *}}$/\1/p')
-  if [ -n "$field" ]; then
-    value=$(yq -p json -o yaml "$field" "$config")
-    [ "$value" != null ] || { echo "$config has no $field" >&2; exit 1; }
-  fi
+  field=$(printf '%s' "$value" | sed -n 's/^{{ *\(\.[A-Za-z0-9_.]*\) *}}$/\1/p')
+  case "$field" in
+    # The cluster Secret's annotations (infra/_modules/argocd/cluster-secret.sh): offline, only the backup endpoint
+    .metadata.annotations.backupS3Url) value=${BACKUP_S3_URL:-} ;;
+    .metadata.annotations.*) echo "${field#.metadata.annotations.} is not an annotation env-values knows" >&2; exit 1 ;;
+    ?*)
+      value=$(yq -p json -o yaml "$field" "$config")
+      [ "$value" != null ] || { echo "$config has no $field" >&2; exit 1; } ;;
+  esac
   printf '%s=%s\n' "$name" "$value"
 done

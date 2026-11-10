@@ -1,4 +1,4 @@
-# Sandbox: sync an allowlist from GitHub instead of in-cluster Forgejo.
+# Sandbox: sync an allowlist from GitHub (the cluster Secret's repository and branch sandbox) instead of in-cluster Forgejo.
 # Helm replaces lists and anchors do not cross files, so generator and source are restated in full.
 argo-cd:
   server:
@@ -19,41 +19,48 @@ argocd-apps:
   applicationsets:
     root:
       generators:
+        # The cluster Secret (system/argocd/values.yaml): just dev force-pushes the current commit to branch sandbox, so
+        # a branch is tested before its merge; just dev --revision pins one commit there
         - matrix:
             generators:
-              - git:
-                  repoURL: &repoURL https://github.com/duongle-steven/homelab
-                  # just dev force-pushes the current commit here, so a branch is tested before its merge
-                  revision: &revision sandbox
-                  directories:
-                    - path: system/argocd-config
-                    - path: system/istio-system
-                    - path: system/csi-hostpath
-                    - path: system/velero
-                    - path: system/cert-manager
-                    - path: system/monitoring-system
-                    - path: system/loki
-                    - path: system/kiali
-                    - path: system/kyverno
-                    - path: system/trivy-operator
-                    - path: system/public-scan
-                    - path: platform/external-secrets
-                    - path: platform/openbao
-                    - path: platform/generated-secrets
-                    - path: platform/infra-secrets
-                    - path: platform/kanidm
-                    - path: platform/grafana
-                    - path: platform/zot
-                    - path: platform/cloudnative-pg
-                    - path: platform/forgejo
-                    - path: platform/woodpecker
-                    - path: platform/secrets-rotation
-              - git: &config
-                  repoURL: *repoURL
-                  revision: *revision
-                  files:
-                    - path: infra/sandbox/cluster/config.json
-                  pathParamPrefix: config
+              - clusters: &cluster
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: &repoURL '{{ .metadata.annotations.repository }}'
+                        revision: &revision '{{ .metadata.annotations.revision }}'
+                        directories:
+                          - path: system/argocd-config
+                          - path: system/istio-system
+                          - path: system/csi-hostpath
+                          - path: system/velero
+                          - path: system/cert-manager
+                          - path: system/monitoring-system
+                          - path: system/loki
+                          - path: system/kiali
+                          - path: system/kyverno
+                          - path: system/trivy-operator
+                          - path: system/public-scan
+                          - path: platform/external-secrets
+                          - path: platform/openbao
+                          - path: platform/generated-secrets
+                          - path: platform/infra-secrets
+                          - path: platform/kanidm
+                          - path: platform/grafana
+                          - path: platform/zot
+                          - path: platform/cloudnative-pg
+                          - path: platform/forgejo
+                          - path: platform/woodpecker
+                          - path: platform/secrets-rotation
+                    - git: &config
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: infra/sandbox/cluster/config.json
+                        pathParamPrefix: config
       template:
         spec:
           # A fresh sandbox syncs while the CRDs and webhooks its apps wait for appear: retry soon, so an app follows
@@ -82,6 +89,8 @@ argocd-apps:
                     baseDomain: '{{ .domain }}'
                     timezone: '{{ .timezone }}'
                     seedRepository: '{{ .seed_repository }}'
+                    # Empty in the sandbox: Velero's location keeps values-dev.yaml's endpoint
+                    backupS3Url: '{{ .metadata.annotations.backupS3Url }}'
                     addresses: &addresses
                       apiVIP: '{{ .vip }}'
                       router: '{{ .network.gateway }}'
@@ -106,19 +115,52 @@ argocd-apps:
       generators:
         - matrix:
             generators:
-              - git:
-                  repoURL: *repoURL
-                  revision: *revision
-                  files:
-                    - path: apps/actualbudget.yaml
-                    - path: apps/excalidraw.yaml
-                    - path: apps/homepage.yaml
-                    - path: apps/ntfy.yaml
-                    # paperless and opencloud are optional here: added by the bootstrap when just dev asks
-                    # (infra/_modules/argocd/set-sandbox-apps.sh)
-                    - path: apps/pairdrop.yaml
-                    - path: apps/speedtest.yaml
-              - git: *config
+              - clusters: *cluster
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/actualbudget.yaml
+                          - path: apps/excalidraw.yaml
+                          - path: apps/homepage.yaml
+                          - path: apps/ntfy.yaml
+                          - path: apps/pairdrop.yaml
+                          - path: apps/speedtest.yaml
+                    - git: *config
+        # Optional apps (about 900 MB): only when the cluster Secret carries homelab/app-<name>, which the bootstrap
+        # writes for what just dev --apps asks (or the branch changes)
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/app-paperless: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/paperless.yaml
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/app-opencloud: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/opencloud.yaml
+                    - git: *config
       template:
         spec:
           syncPolicy: *retry

@@ -30,24 +30,30 @@ argocd-apps:
   applicationsets:
     root:
       generators:
+        # The cluster Secret (system/argocd/values.yaml): just testbed force-pushes the current commit to branch testbed
         - matrix:
             generators:
-              - git:
-                  repoURL: &repoURL https://github.com/duongle-steven/homelab
-                  # just testbed force-pushes the current commit here
-                  revision: &revision testbed
-                  directories:
-                    # Layer 1
-                    - path: system/rook-ceph
-                    # Layer 2
-                    - path: system/cert-manager
-                    - path: system/istio-system
-              - git:
-                  repoURL: *repoURL
-                  revision: *revision
-                  files:
-                    - path: infra/testbed/cluster/config.json
-                  pathParamPrefix: config
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: &repoURL '{{ .metadata.annotations.repository }}'
+                        revision: &revision '{{ .metadata.annotations.revision }}'
+                        directories:
+                          # Layer 1
+                          - path: system/rook-ceph
+                          # Layer 2
+                          - path: system/cert-manager
+                          - path: system/istio-system
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: infra/testbed/cluster/config.json
+                        pathParamPrefix: config
       template:
         spec:
           # A fresh testbed syncs while what its apps wait for appears, as the sandbox does
@@ -75,6 +81,7 @@ argocd-apps:
                     baseDomain: '{{ .domain }}'
                     timezone: '{{ .timezone }}'
                     seedRepository: '{{ .seed_repository }}'
+                    backupS3Url: '{{ .metadata.annotations.backupS3Url }}'
                     addresses:
                       apiVIP: '{{ .vip }}'
                       router: '{{ .network.gateway }}'

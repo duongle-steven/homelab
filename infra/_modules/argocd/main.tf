@@ -23,6 +23,16 @@ variable "environment" {
   description = "prod, testbed or dev: which ApplicationSet values scripts/env-values reads (production's seed file switches to seed)"
 }
 
+variable "repository" {
+  type        = string
+  description = "The homelab repository Argo CD syncs (production's ops/homelab on Forgejo, the seed until it switches)"
+}
+
+variable "branch" {
+  type        = string
+  description = "The branch every homelab source and generator syncs, unless revision overrides it"
+}
+
 variable "seed" {
   type        = string
   default     = ""
@@ -38,25 +48,25 @@ variable "cluster_id" {
 variable "seed_repository" {
   type        = string
   default     = ""
-  description = "Repository the seed syncs from (config.json's seed_repository)"
+  description = "Repository the seed syncs from (config.json's seed_repository), until choose-values.sh switches to repository"
 }
 
 variable "optional_apps" {
   type        = list(string)
   default     = []
-  description = "The sandbox's optional apps to deploy (set-sandbox-apps.sh): paperless, opencloud"
+  description = "The sandbox's optional apps to deploy (a label each on the cluster Secret): paperless, opencloud"
 }
 
 variable "revision" {
   type        = string
   default     = ""
-  description = "Commit or branch every homelab source and generator syncs (set-revision.sh); empty keeps the values file's"
+  description = "Commit every homelab source and generator syncs (the cluster Secret's revision); empty keeps branch"
 }
 
 variable "backup_s3_url" {
   type        = string
   default     = ""
-  description = "S3 endpoint of the off-site backups (production's R2, which holds the account id: never in git), passed to the components as global.backupS3Url (set-backup-endpoint.sh); required in production"
+  description = "S3 endpoint of the off-site backups (production's R2, which holds the account id: never in git), passed to the components as global.backupS3Url (the cluster Secret's backupS3Url); required in production"
 }
 
 # The values file to apply: the seed on production's first install while Forgejo does not run, never again once Argo
@@ -64,12 +74,12 @@ variable "backup_s3_url" {
 data "external" "values" {
   program = ["sh", "${path.module}/choose-values.sh"]
   query = {
-    values      = var.values
-    environment = var.environment
-    seed        = var.seed
-    kubeconfig  = var.kubeconfig
-    # Where Argo CD reads once switched: the root ApplicationSet's repository in the values file
-    forgejo_repository = try(yamldecode(file("${var.chart}/${var.values}"))["argocd-apps"]["applicationsets"]["root"]["generators"][0]["matrix"]["generators"][0]["git"]["repoURL"], "")
+    values          = var.values
+    environment     = var.environment
+    seed            = var.seed
+    kubeconfig      = var.kubeconfig
+    repository      = var.repository
+    seed_repository = var.seed_repository
   }
 }
 
@@ -78,21 +88,22 @@ locals {
   files = sort(setunion(fileset(var.chart, "*.yaml"), fileset(var.chart, "templates/**")))
   hash  = sha1(join("", [for f in local.files : filesha1("${var.chart}/${f}")]))
   environment = {
-    KUBECONFIG      = var.kubeconfig
-    CHART           = var.chart
-    VALUES          = data.external.values.result.values
-    ENVIRONMENT     = data.external.values.result.environment
-    SEED_REPOSITORY = var.seed_repository
-    REVISION        = var.revision
-    BACKUP_S3_URL   = var.backup_s3_url
-    OPTIONAL_APPS   = join(" ", var.optional_apps)
+    KUBECONFIG    = var.kubeconfig
+    CHART         = var.chart
+    VALUES        = data.external.values.result.values
+    ENVIRONMENT   = data.external.values.result.environment
+    REVISION      = var.revision
+    BACKUP_S3_URL = var.backup_s3_url
+    OPTIONAL_APPS = join(" ", var.optional_apps)
+    REPOSITORY    = data.external.values.result.repository
+    BRANCH        = var.branch
   }
   command = "sh ${abspath("${path.module}/bootstrap.sh")}"
 }
 
 # It has no destroy-time action: destroying it leaves Argo CD running
 resource "terraform_data" "bootstrap" {
-  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, var.revision, var.backup_s3_url, var.optional_apps]
+  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, data.external.values.result.repository, var.branch, var.revision, var.backup_s3_url, var.optional_apps]
 
   lifecycle {
     precondition {

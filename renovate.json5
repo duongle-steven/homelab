@@ -18,7 +18,7 @@
   },
   customManagers: [
     {
-      // The app-template chart pinned in the apps ApplicationSet (restated in values-dev.yaml and values-seed.yaml)
+      // The app-template chart pinned in the apps ApplicationSet (restated in values-dev.yaml)
       customType: 'regex',
       managerFilePatterns: ['/^system/argocd/values(-[a-z]+)?\\.yaml$/'],
       matchStrings: ['repoURL: (?<registryUrl>https://\\S+)\\s+chart: (?<depName>\\S+)\\s+targetRevision: (?<currentValue>\\d\\S*)'],

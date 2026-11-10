@@ -171,17 +171,36 @@ func TestE2EKeepsSelection(t *testing.T) {
 		runs[g.Paths[0]] = run{group(g.Tests), "sandbox"}
 	}
 	specs := e2eDryRun(t)
+	// Specs added since 14f-2 are not in the record (TestE2EFullSelectsEverySandboxSpec covers them)
+	old := map[string]bool{}
+	for _, name := range record.Tests {
+		old[name] = true
+	}
 	for key, want := range record.Selection {
 		r, ok := runs[key]
 		if !assert.True(t, ok, "%s: no filter for it", key) {
 			continue
 		}
-		assert.Equal(t, want, selectContainers(t, specs, r.filter, r.env), "%s: (%s) && %s", key, r.filter, r.env)
+		got := slices.DeleteFunc(selectContainers(t, specs, r.filter, r.env), func(name string) bool { return !old[name] })
+		assert.Equal(t, want, got, "%s: (%s) && %s", key, r.filter, r.env)
 	}
 	for key := range runs {
 		_, ok := record.Selection[key]
 		assert.True(t, ok, "%s: not in the record", key)
 	}
+}
+
+// Every sandbox spec is in test/scopes.yaml's full, which just dev --full, just dev-fresh and the release's sandbox run,
+// but the scan, which runs by hand (just dev-scan): a spec whose labels full leaves out would never run
+func TestE2EFullSelectsEverySandboxSpec(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(repo.Root(), "test", "scopes.yaml"))
+	require.NoError(t, err)
+	var scopes struct {
+		Full string `yaml:"full"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &scopes))
+	specs := e2eDryRun(t)
+	assert.Equal(t, selectContainers(t, specs, "!scan", "sandbox"), selectContainers(t, specs, scopes.Full, "sandbox"))
 }
 
 // topLevelContainers parses test/e2e: the top-level `var _ = Describe(...)` calls, with each one's text, and every
@@ -250,13 +269,12 @@ func TestE2ELabelsOnlyOnContainers(t *testing.T) {
 	assert.Empty(t, stray, "Label outside a top-level Describe")
 }
 
-// Each of the 84 cluster tests is one top-level container named after it, once
+// Each of the 84 cluster tests is one top-level container named after it, and no name comes twice
 func TestE2EOneContainerPerOldTest(t *testing.T) {
 	names, _ := topLevelContainers(t)
 	sort.Strings(names)
-	want := slices.Clone(loadE2ESelection(t).Tests)
-	sort.Strings(want)
-	assert.Equal(t, want, names)
+	// Specs added after the move (ArgoCDClusterSecret, step 14g) come on top of the old tests
+	assert.Subset(t, names, loadE2ESelection(t).Tests)
 	assert.Equal(t, strings.Join(names, " "), strings.Join(slices.Compact(slices.Clone(names)), " "), "a container name twice")
 }
 

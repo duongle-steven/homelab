@@ -145,7 +145,7 @@ func TestRenovateManagers(t *testing.T) {
 			assert.Contains(t, deps[file], image, "%s: image %s is not managed", file, image)
 		}
 	}
-	for _, file := range []string{"system/argocd/values.yaml", "system/argocd/values-dev.yaml", "system/argocd/values-seed.yaml"} {
+	for _, file := range []string{"system/argocd/values.yaml", "system/argocd/values-dev.yaml"} {
 		assert.Contains(t, deps[file], "app-template", "%s: the app-template pin is not managed", file)
 	}
 	assert.True(t, managers["nix"], "flake.lock is not managed")

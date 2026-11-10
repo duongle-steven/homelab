@@ -389,3 +389,55 @@ func TestProofGateSeesAMoveOut(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+// The ApplicationSets wrap their matrix in a clusters generator (step 14g): the git generators sit a level deeper, and
+// the gated set stays the same
+func TestGatedPathsNestedMatrix(t *testing.T) {
+	r := newProofRepo(t)
+	flat, err := GatedPaths(r.dir, "testbed", r.git("rev-parse", "HEAD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nested := r.write(map[string]string{"system/argocd/values-testbed.yaml": `argocd-apps:
+  applicationsets:
+    root:
+      generators:
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        directories:
+                          - path: system/*
+                          - path: system/argocd
+                            exclude: true
+                          - path: platform/*
+                          - path: apps/*
+                          - path: system/kiali
+                            exclude: true
+                    - git:
+                        files:
+                          - path: infra/testbed/cluster/config.json
+    apps:
+      generators:
+        - matrix:
+            generators:
+              - clusters: {}
+              - matrix:
+                  generators:
+                    - git:
+                        files:
+                          - path: apps/actualbudget.yaml
+`})
+	got, err := GatedPaths(r.dir, "testbed", nested)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(got.Paths, " ") != strings.Join(flat.Paths, " ") {
+		t.Fatalf("nested: %v, flat: %v", got.Paths, flat.Paths)
+	}
+}

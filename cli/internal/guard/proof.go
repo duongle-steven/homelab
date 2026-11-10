@@ -11,25 +11,38 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+// generator is an ApplicationSet generator: a git generator, or a matrix of generators at any depth (step 14g wraps
+// each matrix in a clusters generator)
+type generator struct {
+	Matrix struct {
+		Generators []generator `yaml:"generators"`
+	} `yaml:"matrix"`
+	Git struct {
+		Directories []struct {
+			Path    string `yaml:"path"`
+			Exclude bool   `yaml:"exclude"`
+		} `yaml:"directories"`
+		Files []struct {
+			Path string `yaml:"path"`
+		} `yaml:"files"`
+	} `yaml:"git"`
+}
+
+// gits returns generators and every generator nested in their matrices, at any depth
+func gits(generators []generator) []generator {
+	var found []generator
+	for _, g := range generators {
+		found = append(found, g)
+		found = append(found, gits(g.Matrix.Generators)...)
+	}
+	return found
+}
+
 // proofValues is the part of system/argocd/values-<env>.yaml that says what the environment deploys
 type proofValues struct {
 	ArgoCDApps struct {
 		ApplicationSets map[string]struct {
-			Generators []struct {
-				Matrix struct {
-					Generators []struct {
-						Git struct {
-							Directories []struct {
-								Path    string `yaml:"path"`
-								Exclude bool   `yaml:"exclude"`
-							} `yaml:"directories"`
-							Files []struct {
-								Path string `yaml:"path"`
-							} `yaml:"files"`
-						} `yaml:"git"`
-					} `yaml:"generators"`
-				} `yaml:"matrix"`
-			} `yaml:"generators"`
+			Generators []generator `yaml:"generators"`
 		} `yaml:"applicationsets"`
 	} `yaml:"argocd-apps"`
 }
@@ -66,14 +79,12 @@ func GatedPaths(root, proofEnv, commit string) (Gated, error) {
 	}
 	gated := Gated{Paths: append([]string{}, release.Paths...), NotRun: release.NotRun}
 	var included, excluded []string
-	for _, g := range values.ArgoCDApps.ApplicationSets["root"].Generators {
-		for _, sub := range g.Matrix.Generators {
-			for _, d := range sub.Git.Directories {
-				if d.Exclude {
-					excluded = append(excluded, d.Path)
-				} else {
-					included = append(included, d.Path)
-				}
+	for _, g := range gits(values.ArgoCDApps.ApplicationSets["root"].Generators) {
+		for _, d := range g.Git.Directories {
+			if d.Exclude {
+				excluded = append(excluded, d.Path)
+			} else {
+				included = append(included, d.Path)
 			}
 		}
 	}
@@ -86,12 +97,10 @@ func GatedPaths(root, proofEnv, commit string) (Gated, error) {
 			gated.Paths = append(gated.Paths, dir+"/**")
 		}
 	}
-	for _, g := range values.ArgoCDApps.ApplicationSets["apps"].Generators {
-		for _, sub := range g.Matrix.Generators {
-			for _, f := range sub.Git.Files {
-				if strings.HasPrefix(f.Path, "apps/") {
-					gated.Paths = append(gated.Paths, f.Path)
-				}
+	for _, g := range gits(values.ArgoCDApps.ApplicationSets["apps"].Generators) {
+		for _, f := range g.Git.Files {
+			if strings.HasPrefix(f.Path, "apps/") {
+				gated.Paths = append(gated.Paths, f.Path)
 			}
 		}
 	}

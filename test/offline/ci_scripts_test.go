@@ -17,18 +17,18 @@ import (
 // reads Forgejo, and never because the cluster could not be asked
 func TestArgoCDChooseValues(t *testing.T) {
 	const forgejo = "http://forgejo-http.forgejo:3000/ops/homelab"
-	const seedValues = `{"values":"values-seed.yaml","environment":"seed"}`
-	const forgejoValues = `{"values":"values-dev.yaml","environment":"dev"}`
+	const seed = "https://github.com/example/homelab"
+	const seedValues = `{"values":"values-seed.yaml","environment":"seed","repository":"` + seed + `"}`
+	const forgejoValues = `{"values":"values-dev.yaml","environment":"dev","repository":"` + forgejo + `"}`
 	for _, c := range []struct {
 		name, seed, rootRepo, token, master, want string
-		kubectlFails, execFails, fails, noArgoCD  bool
+		kubectlFails, execFails, fails            bool
 	}{
-		// A new cluster has no Argo CD yet: no ApplicationSet kind to ask about is a first install, not a failure
-		{name: "first install, no Argo CD CRDs", seed: "values-seed.yaml", noArgoCD: true, want: seedValues},
+		// A new cluster has no cluster Secret yet (nor namespace argocd): --ignore-not-found answers empty
+		{name: "first install, no cluster Secret", seed: "values-seed.yaml", want: seedValues},
 		{name: "sandbox: no seed", want: forgejoValues, kubectlFails: true},
-		{name: "first install, no credential yet", seed: "values-seed.yaml", want: seedValues},
 		{name: "credential, nothing pushed", seed: "values-seed.yaml", token: "t1", want: seedValues},
-		{name: "credential reads master: switch", seed: "values-seed.yaml", rootRepo: "https://github.com/example/homelab", token: "t1", master: "t1", want: forgejoValues},
+		{name: "credential reads master: switch", seed: "values-seed.yaml", rootRepo: seed, token: "t1", master: "t1", want: forgejoValues},
 		{name: "wrong credential", seed: "values-seed.yaml", token: "t1", master: "t2", want: seedValues},
 		// Review Focus 5: the Secret exists but Forgejo's pod is down
 		{name: "Forgejo down", seed: "values-seed.yaml", token: "t1", master: "t1", execFails: true, want: seedValues},
@@ -37,7 +37,7 @@ func TestArgoCDChooseValues(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			kubectl := `case "$*" in
-  *applicationset*) [ -z "$NO_ARGOCD" ] || { echo 'error: the server doesn'"'"'t have a resource type "applicationset"' >&2; exit 1; }; echo "$ROOT_REPO" ;;
+  *"get secret in-cluster"*) echo "$ROOT_REPO" ;;
   *"get secret argocd-repo-forgejo"*) [ -z "$TOKEN" ] || printf '%s' "$TOKEN" | base64 ;;
   *exec*) echo "$*" >> "$FIXTURES/exec-args"; [ -z "$EXEC_FAILS" ] || exit 1; [ -n "$MASTER" ] && [ "$(cat)" = "Authorization: token $MASTER" ] ;;
   *) echo "unexpected kubectl $*" >&2; exit 2 ;;
@@ -51,10 +51,7 @@ esac`
 			if c.execFails {
 				cmd.Env = append(cmd.Env, "EXEC_FAILS=1")
 			}
-			if c.noArgoCD {
-				cmd.Env = append(cmd.Env, "NO_ARGOCD=1")
-			}
-			cmd.Stdin = strings.NewReader(`{"values":"values-dev.yaml","environment":"dev","seed":"` + c.seed + `","forgejo_repository":"` + forgejo + `","kubeconfig":"/dev/null"}`)
+			cmd.Stdin = strings.NewReader(`{"values":"values-dev.yaml","environment":"dev","seed":"` + c.seed + `","repository":"` + forgejo + `","seed_repository":"` + seed + `","kubeconfig":"/dev/null"}`)
 			out, err := cmd.CombinedOutput()
 			if c.fails {
 				require.Error(t, err, string(out))
