@@ -2,8 +2,12 @@
 
 Falco (`system/falco`) watches every node's system calls through its modern eBPF probe. It reports what happens inside
 running containers that should not: a shell nobody expected, a read of `/etc/shadow`, a binary that was not in the image,
-a reverse shell, a kernel module loaded, `ptrace` on another process, a container escape. It only detects; nothing is
-blocked (step 15g-2 will respond to a short list of rules, after production's first weeks).
+a reverse shell, a kernel module loaded, `ptrace` on another process, a container escape, a miner naming its pool. It only
+detects; nothing is blocked (step 15g-2 will respond to a short list of rules, after production's first weeks).
+
+Its rules are the stable ruleset in Falco's image, plus one vendored file (`system/falco/files/miners.yaml`: the Stratum rule
+from falcosecurity/rules' sandbox set, with its tag). Nothing is downloaded while it runs. A miner that hides its pool's
+URI evades that rule, and egress does not stop one in a namespace allowed out on 443 (Woodpecker's steps, for one).
 
 Its events are in Loki, beside the other logs ([Logs](logs.md)), and on the dashboard **Security** (row "Runtime
 (Falco)"). Error and above raise alerts, which reach ntfy and Telegram like every other alert ([Alerts](alerts.md)).
