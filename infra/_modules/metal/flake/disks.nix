@@ -1,9 +1,15 @@
-{ hostConfig, ... }:
+{ hostConfig, defaultDisk, ... }:
 
 {
   disko.devices.disk.main = {
     type = "disk";
-    device = hostConfig.disk or "/dev/sda";
+    device =
+      if hostConfig ? disk then
+        hostConfig.disk
+      else if defaultDisk != null then
+        defaultDisk
+      else
+        "/dev/sda";
     content = {
       type = "gpt";
       partitions = {

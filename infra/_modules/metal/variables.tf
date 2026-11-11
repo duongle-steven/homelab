@@ -1,6 +1,6 @@
 variable "hosts" {
   type        = any
-  description = "The machines, by host name (infra/<env>/metal/hosts.json): mac_address, ip, disk"
+  description = "The machines, by host name (infra/<env>/metal/hosts.json): mac_address, ip (the disk comes from config.json's disk)"
 }
 
 variable "cluster" {

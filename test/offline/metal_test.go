@@ -39,7 +39,8 @@ type metalNode struct {
 		Label   string          `json:"label"`
 		Content json.RawMessage `json:"content"`
 	} `json:"data"`
-	Disk             string `json:"disk"`
+	Disk             string   `json:"disk"`
+	DNS              []string `json:"dns"`
 	TimeZone         string `json:"timeZone"`
 	Kernel           string `json:"kernel"`
 	PoweroffDeadline struct {
@@ -76,10 +77,12 @@ func metalEval(t *testing.T) map[string]metalNode {
 			metalErr = &os.PathError{Op: "cp", Path: string(out), Err: err}
 			return
 		}
+		// node-a names its own disk; node-b and node-c take config.json's (the environment's)
 		hosts := `{"node-a": {"mac_address": "02:00:00:00:00:01", "ip": "10.0.0.11", "disk": "/dev/vda"},
-			"node-b": {"mac_address": "02:00:00:00:00:02", "ip": "10.0.0.12", "disk": "/dev/vda"},
-			"node-c": {"mac_address": "02:00:00:00:00:03", "ip": "10.0.0.13", "disk": "/dev/vda"}}`
-		cluster := `{"init_host": "node-a", "vip": "` + metalFixtureVIP + `", "network": {"prefix_length": 24, "gateway": "10.0.0.1"},
+			"node-b": {"mac_address": "02:00:00:00:00:02", "ip": "10.0.0.12"},
+			"node-c": {"mac_address": "02:00:00:00:00:03", "ip": "10.0.0.13"}}`
+		cluster := `{"init_host": "node-a", "vip": "` + metalFixtureVIP + `", "disk": "/dev/nvme0n1",
+			"network": {"prefix_length": 24, "gateway": "10.0.0.1", "dns": ["10.0.0.1"]},
 			"service_vips": {"gateway": "10.0.0.2", "wireguard": "10.0.0.3"}, "domain": "example.test", "timezone": "Asia/Ho_Chi_Minh"}`
 		for name, body := range map[string]string{"hosts.json": hosts, "cluster.json": cluster, "authorized_keys": "ssh-ed25519 AAAAfixture fixture\n"} {
 			if metalErr = os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); metalErr != nil {
@@ -94,6 +97,7 @@ func metalEval(t *testing.T) map[string]metalNode {
 			zram = c.config.zramSwap.enable;
 			data = { inherit (c.config.disko.devices.disk.main.content.partitions.data) label content; };
 			disk = c.config.disko.devices.disk.main.device;
+			dns = c.config.systemd.network.networks."10-uplink".dns;
 			timeZone = c.config.time.timeZone;
 			kernel = c.config.boot.kernelPackages.kernel.version;
 			tunnelOffload = let s = c.config.systemd.services.vm-tunnel-offload or null; in if s == null then {} else {
@@ -256,10 +260,66 @@ func TestMetalVMTunnelOffload(t *testing.T) {
 // The rest of the disk is a partition rook-ceph takes as its OSD: labelled, never formatted
 func TestMetalDisk(t *testing.T) {
 	for name, node := range metalEval(t) {
-		assert.Equal(t, "/dev/vda", node.Disk, name)
+		want := "/dev/nvme0n1"
+		if name == "node-a" {
+			want = "/dev/vda"
+		}
+		assert.Equal(t, want, node.Disk, name)
 		assert.Equal(t, "rook-data", node.Data.Label, name)
 		assert.Equal(t, "null", string(node.Data.Content), name)
 	}
+}
+
+// The nodes resolve through the environment's network.dns (production: the Archer, whose DoH avoids the ISP modem's
+// interception of UDP/53, step 12b-1)
+func TestMetalDNS(t *testing.T) {
+	for name, node := range metalEval(t) {
+		assert.Equal(t, []string{"10.0.0.1"}, node.DNS, name)
+	}
+}
+
+// Without config.json's disk and network.dns (the testbed) a node keeps /dev/sda and the public resolvers
+func TestMetalDefaults(t *testing.T) {
+	metalEval(t)
+	dir := t.TempDir()
+	cp := exec.Command("cp", "-r", filepath.Join(repo.Root(), metalFlake)+"/.", dir)
+	out, err := cp.CombinedOutput()
+	require.NoError(t, err, string(out))
+	for name, body := range map[string]string{
+		"hosts.json": `{"node-a": {"mac_address": "02:00:00:00:00:01", "ip": "10.0.0.11"}}`,
+		"cluster.json": `{"init_host": "node-a", "vip": "10.0.0.10", "network": {"prefix_length": 24, "gateway": "10.0.0.1"},
+			"service_vips": {"gateway": "10.0.0.2", "wireguard": "10.0.0.3"}, "domain": "example.test", "timezone": "Asia/Ho_Chi_Minh"}`,
+		"authorized_keys": "ssh-ed25519 AAAAfixture fixture\n",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
+	}
+	got, err := exec.Command("nix", "eval", "--json", "--no-write-lock-file", "path:"+dir+"#nixosConfigurations.node-a.config",
+		"--apply", `c: { disk = c.disko.devices.disk.main.device; dns = c.systemd.network.networks."10-uplink".dns; }`).Output()
+	require.NoError(t, err)
+	var node struct {
+		Disk string   `json:"disk"`
+		DNS  []string `json:"dns"`
+	}
+	require.NoError(t, json.Unmarshal(got, &node))
+	assert.Equal(t, "/dev/sda", node.Disk)
+	assert.Equal(t, []string{"8.8.8.8", "1.1.1.1"}, node.DNS)
+}
+
+// Production's config.json names what its nodes need (step 12b-1)
+func TestProductionConfig(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "production", "cluster", "config.json"))
+	require.NoError(t, err)
+	var config struct {
+		InitHost string `json:"init_host"`
+		Disk     string `json:"disk"`
+		Network  struct {
+			DNS []string `json:"dns"`
+		} `json:"network"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &config))
+	assert.Equal(t, "homelab-1", config.InitHost)
+	assert.Equal(t, "/dev/nvme0n1", config.Disk)
+	assert.Equal(t, []string{"192.168.0.1"}, config.Network.DNS)
 }
 
 // The nodes' time zone is the environment's (config.json), like every chart's
