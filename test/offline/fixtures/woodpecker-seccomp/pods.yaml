@@ -1,0 +1,301 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: buildah
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: alpine
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: docker.io/library/alpine:3.22.2
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: buildah-runtime-default
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: buildah-container-runtime-default
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: alpine-asks-pod
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: docker.io/library/alpine:3.22.2
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/buildah.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: alpine-asks-container
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: docker.io/library/alpine:3.22.2
+    securityContext:
+      seccompProfile:
+        type: Localhost
+        localhostProfile: homelab/buildah.json
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: buildah-other-profile
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/other.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: buildah-alpine-init
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+  initContainers:
+  - name: init
+    image: docker.io/library/alpine:3.22.2
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: buildah-alpine-init-asks
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/buildah.json
+  initContainers:
+  - name: init
+    image: docker.io/library/alpine:3.22.2
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: buildah-digest
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: buildah-tag-digest
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: buildah-asks
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/buildah.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: stable-evil
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable-evil:v1
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: stable-evil-asks
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable-evil:v1
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/buildah.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: prefixed
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: evil.io/quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: registry-port
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io:443/buildah/stable:v1.43.5
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-users
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-users-asks
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5
+  hostUsers: true
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/buildah.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: no-step-label
+  namespace: woodpecker
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
