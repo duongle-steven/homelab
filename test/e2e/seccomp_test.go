@@ -46,7 +46,7 @@ var _ = Describe("WoodpeckerSeccomp", Label("sandbox", "woodpecker", "seccomp"),
 		Eventually(ctx, func() string {
 			out, _ := kube.Kubectl(ctx, "woodpecker", "get", "pod", name, "-o", "jsonpath={.status.phase}")
 			return out
-		}).WithTimeout(3*time.Minute).WithPolling(2*time.Second).Should(Or(Equal("Succeeded"), Equal("Failed")))
+		}).WithTimeout(3 * time.Minute).WithPolling(2 * time.Second).Should(Or(Equal("Succeeded"), Equal("Failed")))
 		profile, err := kube.Kubectl(ctx, "woodpecker", "get", "pod", name, "-o", "jsonpath={.spec.securityContext.seccompProfile}")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(profile).To(BeEmpty(), "the mutation gave busybox a profile")
