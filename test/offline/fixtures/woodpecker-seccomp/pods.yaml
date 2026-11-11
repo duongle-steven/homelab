@@ -8,8 +8,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5
   hostUsers: false
 ---
 apiVersion: v1
@@ -22,8 +22,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: docker.io/library/alpine:3.22.2
+    - name: step
+      image: docker.io/library/alpine:3.22.2
   hostUsers: false
 ---
 apiVersion: v1
@@ -36,8 +36,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5
   hostUsers: false
   securityContext:
     seccompProfile:
@@ -53,11 +53,11 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5
-    securityContext:
-      seccompProfile:
-        type: RuntimeDefault
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
   hostUsers: false
 ---
 apiVersion: v1
@@ -70,8 +70,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: docker.io/library/alpine:3.22.2
+    - name: step
+      image: docker.io/library/alpine:3.22.2
   hostUsers: false
   securityContext:
     seccompProfile:
@@ -88,12 +88,12 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: docker.io/library/alpine:3.22.2
-    securityContext:
-      seccompProfile:
-        type: Localhost
-        localhostProfile: homelab/buildah.json
+    - name: step
+      image: docker.io/library/alpine:3.22.2
+      securityContext:
+        seccompProfile:
+          type: Localhost
+          localhostProfile: homelab/buildah.json
   hostUsers: false
 ---
 apiVersion: v1
@@ -106,8 +106,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5
   hostUsers: false
   securityContext:
     seccompProfile:
@@ -124,12 +124,12 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5
-    securityContext:
-      seccompProfile:
-        type: Localhost
-        localhostProfile: homelab/other.json
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5
+      securityContext:
+        seccompProfile:
+          type: Localhost
+          localhostProfile: homelab/other.json
   hostUsers: false
 ---
 apiVersion: v1
@@ -142,12 +142,12 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5
   hostUsers: false
   initContainers:
-  - name: init
-    image: docker.io/library/alpine:3.22.2
+    - name: init
+      image: docker.io/library/alpine:3.22.2
 ---
 apiVersion: v1
 kind: Pod
@@ -159,16 +159,16 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5
   hostUsers: false
   securityContext:
     seccompProfile:
       type: Localhost
       localhostProfile: homelab/buildah.json
   initContainers:
-  - name: init
-    image: docker.io/library/alpine:3.22.2
+    - name: init
+      image: docker.io/library/alpine:3.22.2
 ---
 apiVersion: v1
 kind: Pod
@@ -180,8 +180,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    - name: step
+      image: quay.io/buildah/stable@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   hostUsers: false
 ---
 apiVersion: v1
@@ -194,8 +194,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   hostUsers: false
 ---
 apiVersion: v1
@@ -208,8 +208,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5
   hostUsers: false
   securityContext:
     seccompProfile:
@@ -226,8 +226,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable-evil:v1
+    - name: step
+      image: quay.io/buildah/stable-evil:v1
   hostUsers: false
 ---
 apiVersion: v1
@@ -240,8 +240,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable-evil:v1
+    - name: step
+      image: quay.io/buildah/stable-evil:v1
   hostUsers: false
   securityContext:
     seccompProfile:
@@ -258,8 +258,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: evil.io/quay.io/buildah/stable:v1.43.5
+    - name: step
+      image: evil.io/quay.io/buildah/stable:v1.43.5
   hostUsers: false
 ---
 apiVersion: v1
@@ -272,8 +272,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io:443/buildah/stable:v1.43.5
+    - name: step
+      image: quay.io:443/buildah/stable:v1.43.5
   hostUsers: false
 ---
 apiVersion: v1
@@ -286,8 +286,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5
 ---
 apiVersion: v1
 kind: Pod
@@ -299,8 +299,8 @@ metadata:
     step: image
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5
   hostUsers: true
   securityContext:
     seccompProfile:
@@ -314,6 +314,6 @@ metadata:
   namespace: woodpecker
 spec:
   containers:
-  - name: step
-    image: quay.io/buildah/stable:v1.43.5
+    - name: step
+      image: quay.io/buildah/stable:v1.43.5
   hostUsers: false
