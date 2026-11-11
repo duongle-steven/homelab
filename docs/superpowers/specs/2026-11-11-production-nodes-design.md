@@ -190,6 +190,8 @@ k3s with this repository's flags, kube-vip for the API's VIP (`192.168.0.10`), n
     disk path, kube-bench on hardware;
   - what stays for 12b-2.
 
-## Open
+## BIOS as found ready *(2026-11-11)*
 
-- The BIOS versions of `homelab-1` and `homelab-2`, to update them as well.
+All three on HP's latest BIOS the person found, with Secure Boot off (read from the installer: `SecureBoot = 0`):
+`homelab-1` `Q21 Ver. 02.33.00` (2026-02-03), `homelab-2` and `homelab-3` `P21 Ver. 02.50` (2024-07-14). After Power Loss,
+Wake-on-LAN and the boot order were set as decision 1 says.
