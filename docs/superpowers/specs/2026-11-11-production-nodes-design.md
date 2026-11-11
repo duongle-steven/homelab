@@ -28,7 +28,7 @@ All three are cabled to the TP-Link Archer C64 (`192.168.0.0/24`, its DHCP `.100
 |---|---|---|---|---|---|
 | `homelab-1` (`192.168.0.11`, `init_host`) | HP EliteDesk 800 G4 DM 35W | i5-8500T, 6 cores | 16 GB | `/dev/nvme0n1`, SK hynix BC901 256 GB | `38:22:e2:2c:dc:35` |
 | `homelab-2` (`192.168.0.12`) | HP EliteDesk 800 G3 DM 35W | i5-7500T, 4 cores | 16 GB | `/dev/nvme0n1`, Samsung MZAL8256HDJD 256 GB | `10:62:e5:16:d2:ca` |
-| `homelab-3` (`192.168.0.13`) | HP EliteDesk 800 G3 DM 35W | i5-7500T, 4 cores | 16 GB | not read yet (Secure Boot refused the installer) | `10:e7:c6:0f:63:a0` |
+| `homelab-3` (`192.168.0.13`) | HP EliteDesk 800 G3 DM 35W | i5-7500T, 4 cores | 16 GB | `/dev/nvme0n1`, Samsung MZAL8256HDJD 256 GB | `10:e7:c6:0f:63:a0` |
 
 Names, addresses and `init_host` are *(Claude's call)*: the G4 starts the cluster because it carries it alone for its first
 minutes; afterwards the three are equal servers. Both disk models are DRAM-less OEM NVMe drives without power-loss
@@ -73,7 +73,7 @@ raw partition `rook-data` for Ceph in 12b-2. No LVM: Ceph takes a raw block devi
 A checklist in the installation docs, done by hand:
 
 - BIOS updated to HP's latest for the model (G4: `Q21`, G3: `P21`). Found on `homelab-3`: `P21 Ver. 02.15` (2018-01-31),
-  which kept no change made in F10 (Secure Boot, Power State); updating it is the first fix, a CR2032 battery the second.
+  which kept no change made in F10 (Secure Boot, Power State); updated to `02.50` (2024-07-14), it kept them.
 - Secure Boot off ("Legacy Support Disable and Secure Boot Disable"): `nixie`'s iPXE is unsigned and the firmware refused it
   ("Selected boot image did not authenticate"). `homelab-1` and `homelab-2` had it off already.
 - Network boot (UEFI IPv4) and Wake-on-LAN on *(user: done)*, Wake-on-LAN booting to the network and the NVMe first in the
@@ -192,6 +192,4 @@ k3s with this repository's flags, kube-vip for the API's VIP (`192.168.0.10`), n
 
 ## Open
 
-- `homelab-3`'s BIOS: update it, then turn Secure Boot off; if its settings still do not stick, replace the CMOS battery.
-  The install waits for it.
-- The other two machines' BIOS versions, to update them as well.
+- The BIOS versions of `homelab-1` and `homelab-2`, to update them as well.
