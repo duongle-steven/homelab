@@ -47,6 +47,16 @@ sequenceDiagram
     Note over Nixie: Shut down after all hosts are installed
 ```
 
+## From WSL
+
+Under WSL with mirrored networking, `nixie` runs on the laptop and reaches the machines' LAN over the laptop's own
+interface (Wi-Fi works). Two things differ from a Linux machine on the LAN:
+
+- WSL receives no broadcast from the LAN until the Hyper-V firewall lets `nixie`'s ports in (UDP 67, 69, 4011 and TCP 80,
+  5000): the rules, and their removal after the install, are in [the deployment guide](../installation/production/deployment.md).
+- Broadcasts sent from WSL without a source address may leave by another interface (Docker's bridges): `nixie` binds its
+  own (`--address`, `HOMELAB_PXE_ADDRESS`), and the specs' Wake-on-LAN binds the workstation's LAN address.
+
 Here's how it looks like in action (this is an old clip so the logs look different now):
 
 <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/y-d7btNNAT8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>

@@ -35,7 +35,7 @@ minutes; afterwards the three are equal servers. Both disk models are DRAM-less 
 protection.
 
 One disk per node stays for now; a second disk is decided together with the NAS idea *(user)*. The layout stays upstream's
-(`infra/_modules/metal/flake/disks.nix`): ESP 1 GB, root 64 GB (NixOS, k3s, etcd, images, logs), the rest (about 190 GB) a
+(`infra/_modules/metal/flake/disks.nix`): ESP 1 GB, root 64 GB (NixOS, k3s, etcd, images, logs), the rest (173.5 GB, measured) a
 raw partition `rook-data` for Ceph in 12b-2. No LVM: Ceph takes a raw block device.
 
 ## Goals
