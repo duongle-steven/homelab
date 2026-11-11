@@ -76,9 +76,10 @@ A checklist in the installation docs, done by hand:
   which kept no change made in F10 (Secure Boot, Power State); updating it is the first fix, a CR2032 battery the second.
 - Secure Boot off ("Legacy Support Disable and Secure Boot Disable"): `nixie`'s iPXE is unsigned and the firmware refused it
   ("Selected boot image did not authenticate"). `homelab-1` and `homelab-2` had it off already.
-- Network boot (UEFI IPv4) and Wake-on-LAN on *(user: done)*, with the NVMe first in the boot order (decision 6).
+- Network boot (UEFI IPv4) and Wake-on-LAN on *(user: done)*, Wake-on-LAN booting to the network and the NVMe first in the
+  normal boot order (decision 6).
 - After Power Loss: Previous State (Last State), so a cut machine boots when power returns (12a-3).
-- F12 starts a network boot directly on these HP machines (the startup menu ignored one USB keyboard).
+- F12 starts a network boot by hand on these HP machines, if Wake-on-LAN does not (the startup menu ignored one USB keyboard).
 
 ### 2. PXE from the workstation *(spike 2026-11-11)*
 
@@ -90,7 +91,7 @@ booted the flake's installer into RAM on `homelab-1` and `homelab-2`, about 500 
 - The docs give the two `New-NetFirewallHyperVRule` commands (UDP 67, 69, 4011; TCP 80, 5000) before the install and
   `Remove-NetFirewallHyperVRule` after it, run by the person in an administrator PowerShell.
 - `nixie` gets the laptop's LAN address (`--address`), as the testbed gives it the bridge's.
-- One machine at a time, as on the testbed. Each install is started by a person.
+- One machine at a time, as on the testbed. The person starts the run; `nixie` wakes the machines.
 
 ### 3. The disk path
 
@@ -120,9 +121,12 @@ and k3s's CoreDNS forwards to the node's resolvers, so both nodes and pods would
 
 ### 6. Boot order, the install record, and never reinstalling a live node *(Claude's call)*
 
-- **Boot order:** each machine boots its NVMe first, with the network as a fallback. The first install starts by hand
-  with F12 (the disks hold Windows, so a network fallback alone would never be reached), and so does any reinstall.
-  A node already installed therefore never boots into `nixie`, even with `nixie` running and Wake-on-LAN sent.
+- **Boot order** *(upstream's option 2, `docs/installation/production/prerequisites.md`)*:
+  - Wake-on-LAN boots from the network (HP: S4/S5 Wake on LAN = "Boot to Network"), and the normal boot order puts the NVMe
+    first. `nixie` wakes the machines it has not recorded and installs them with no one pressing F12. A machine switched on
+    by its button, or by power returning after a cut, boots its NixOS.
+  - A woken node that finds no `nixie` must fall back to its NVMe. The VIP spec below wakes a node and checks that it does,
+    which is the thorough test upstream asks for.
 - **The install record:** `nixie`'s record (`machine_id_hash`) stays local in `.state/production/metal/`, as the
   testbed's does (it is not secret, and `nixie` rewrites it).
 - **Losing the record:** if the record is lost, the wrapper must still not reinstall a live node. Before it gives `nixie`
