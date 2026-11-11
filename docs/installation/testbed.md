@@ -69,6 +69,7 @@ error, and WSL keeps at least 2 GB available. `leader failed to send out heartbe
 | 1 | Argo CD, rook-ceph | Ceph on three nodes through Argo CD | holds, 2 vCPUs |
 | 2 | cert-manager, Istio | the ambient mesh across nodes, the Gateway at its VIP | holds, 2 vCPUs |
 | 3 | CloudNativePG, three instances failing over | what otherwise only production runs | does not hold |
+| beside 2 | Falco (`system/falco`) | the modern eBPF driver on NixOS's kernel | does not hold |
 
 Measured from `just testbed-fresh`:
 
@@ -131,6 +132,26 @@ says what the operator saw before.
 flush forced to no disk. So it proves the software recovers and that writes the guest never flushed do not count as acknowledged, not
 that a real disk keeps what it acknowledged. Without a UPS that risk sits entirely in the hardware: step 12b prefers SSDs with power-loss
 protection and repeats the cut before real data.
+
+### Falco, one measurement
+
+Once, on layers 1 and 2 after `just testbed` (2026-11-10, 2 vCPUs, the nodes just upgraded and rebooted), with `system/falco` on
+the list; it is off the list since. `TestbedFalco` passed: the modern eBPF probe loaded on all three nodes and a dropped binary was
+reported. Then 10-minute windows, with Falco, without it, and with it again:
+
+| | With Falco (30 min) | Without Falco | Falco added again |
+| --- | --- | --- | --- |
+| k3s exits, leader changes | 0, 0 | 0, 0 | 1 exit (homelab-2), the API's VIP briefly gone |
+| API or lease errors (`deadline exceeded`) | 3, 12, 0 | 0, 0, 0 | |
+| Heartbeat warnings | 0, 30, 0 | 0, 4, 0 | |
+| `k3s server`'s CPU, of 2 vCPUs | 50–88% | 17–33% | load average 11–18 |
+| CPU idle in each node | 0–20% | 74–77% (one node 12%, Argo CD catching up) | |
+| WSL's lowest available | 2.18 GB | | |
+
+Falco itself used 7–12% CPU per node; the cost is the probe on every system call, which `k3s server` makes the most of. So the
+driver's proof on NixOS is this run, by hand: add `system/falco` to `system/argocd/values-testbed.yaml` on a branch, run `just
+testbed`, then `just test e2e --env testbed --labels falco`, and take it off again. Production's nodes are larger; its own numbers
+come from `FalcoEventsDropped` and the nodes' load in the first days.
 
 ### CloudNativePG, one measurement
 

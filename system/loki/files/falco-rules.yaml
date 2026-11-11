@@ -1,0 +1,25 @@
+# Falco's events (system/falco, docs/how-to-guides/runtime-detection.md): one JSON line per event in Falco's pod log,
+# from warning up. Error and above alert; warning shows only on the dashboard Security. Grouped by rule and the event's
+# namespace (empty for a process outside Kubernetes), so one noisy rule is one notification. Falco's own startup lines
+# are not JSON and drop out (__error__)
+groups:
+  - name: falco
+    rules:
+      - alert: FalcoCriticalEvent
+        expr: |
+          sum by (rule, namespace) (count_over_time({job="pods", namespace="falco"} | json rule="rule", priority="priority", event_namespace=`output_fields["k8s.ns.name"]` | __error__="" | priority=~"Critical|Alert|Emergency" | label_format namespace="{{ .event_namespace }}" [5m])) > 0
+        labels:
+          severity: critical
+          source: falco
+        annotations:
+          summary: 'Falco: {{ $labels.rule }} in {{ $labels.namespace }}'
+          description: 'Find out who did it and why; accept it in system/falco/values.yaml with its reason only if it is expected (docs/how-to-guides/runtime-detection.md). Explore (Loki): {namespace="falco"} |= "{{ $labels.rule }}"'
+      - alert: FalcoErrorEvent
+        expr: |
+          sum by (rule, namespace) (count_over_time({job="pods", namespace="falco"} | json rule="rule", priority="priority", event_namespace=`output_fields["k8s.ns.name"]` | __error__="" | priority="Error" | label_format namespace="{{ .event_namespace }}" [5m])) > 0
+        labels:
+          severity: warning
+          source: falco
+        annotations:
+          summary: 'Falco: {{ $labels.rule }} in {{ $labels.namespace }}'
+          description: 'Check what triggered it; accept it in system/falco/values.yaml with its reason if it is expected (docs/how-to-guides/runtime-detection.md). Explore (Loki): {namespace="falco"} |= "{{ $labels.rule }}"'

@@ -1,0 +1,52 @@
+# Runtime detection (docs/superpowers/specs/2026-11-10-runtime-detection-design.md, docs/how-to-guides/runtime-detection.md):
+# Falco watches every node's syscalls and only detects; its JSON events reach Loki through Alloy, and
+# system/loki/files/falco-rules.yaml alerts on them. Blocking is step 15g-2.
+falco:
+  # CO-RE eBPF: no kernel module or headers (WSL's kernel and the NixOS nodes' have BTF)
+  driver:
+    kind: modern_ebpf
+  # No download at runtime: the image's stable rules plus files/ (pinned like every other version, no egress)
+  falcoctl:
+    artifact:
+      install:
+        enabled: false
+      follow:
+        enabled: false
+  falco:
+    json_output: true
+    # warning and above reach Loki; error and above alert (system/loki/files/falco-rules.yaml)
+    priority: warning
+  # Falco's own counters (events, drops) for FalcoStalled and FalcoEventsDropped (templates/prometheus-rule.yaml)
+  metrics:
+    enabled: true
+  serviceMonitor:
+    create: true
+  # The vendored rules and the accepted events (templates/accepted-rules.yaml), loaded from rules.d after the image's
+  mounts:
+    volumes:
+      - name: falco-accepted-rules
+        configMap:
+          name: falco-accepted-rules
+    volumeMounts:
+      - name: falco-accepted-rules
+        mountPath: /etc/falco/rules.d
+        readOnly: true
+
+# Events accepted as expected, each narrowing its rule with an exception (never disabling it), with its reason:
+# {rule, name, fields, comps, values, reason} (Falco's rule exceptions). Workstation processes seen only by the
+# sandbox go in acceptedWorkstation, in values-dev.yaml (Helm replaces a list, so a values-dev.yaml accepted would drop
+# these)
+accepted:
+  - rule: Fileless execution via memfd_create
+    name: buildah-chroot-reexec
+    fields: [k8s.ns.name, container.image.repository, proc.exepath]
+    comps: ["=", "=", "in"]
+    values: [["woodpecker", "quay.io/buildah/stable", ["memfd:buildah-chroot-runtime", "memfd:buildah-chroot-exec"]]]
+    reason: >-
+      Buildah's chroot isolation (Woodpecker's image steps) runs its own binary from a sealed memfd, as runc does
+      against CVE-2019-5736; any other memfd execution still alerts
+acceptedWorkstation: []
+
+# Off on the testbed: their kinds come from Kyverno and the monitoring operator, which it does not run
+policyExceptions: true
+prometheusRules: true

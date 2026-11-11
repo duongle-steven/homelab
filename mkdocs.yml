@@ -65,6 +65,7 @@ nav:
     - how-to-guides/secrets-rotation.md
     - how-to-guides/logs.md
     - how-to-guides/security-logs.md
+    - how-to-guides/runtime-detection.md
     - how-to-guides/kiali.md
     - how-to-guides/policy.md
     - how-to-guides/supply-chain.md

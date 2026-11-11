@@ -43,6 +43,7 @@ argocd-apps:
                           - path: system/kiali
                           - path: system/kyverno
                           - path: system/trivy-operator
+                          - path: system/falco
                           - path: system/public-scan
                           - path: platform/external-secrets
                           - path: platform/openbao

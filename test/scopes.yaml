@@ -66,6 +66,7 @@ labels:
   - policy
   - supply-chain
   - trivy-operator
+  - falco
   - public
   - node-restart
   - node-power-cut
@@ -88,7 +89,7 @@ labels:
 always: smoke
 # Each runs by itself after the main run, in this order (#78)
 alone: [backup-restore, node-power-cut, node-restart, rotation]
-full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || woodpecker || policy || supply-chain || trivy-operator || public || node-restart || node-power-cut || backup-restore || rotation
+full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || woodpecker || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
 groups:
   - paths:
       - justfile
@@ -139,6 +140,8 @@ groups:
     tests: policy || supply-chain
   - paths: [system/trivy-operator/**]
     tests: trivy-operator
+  - paths: [system/falco/**, system/loki/files/falco-rules.yaml, test/e2e/falco_test.go]
+    tests: falco
   - paths: [system/public-scan/**, system/loki/files/public-scan-rules.yaml, test/e2e/public_scan_test.go]
     tests: public
   - paths: [system/monitoring-system/**]

@@ -1,0 +1,17 @@
+# Vendored from falcosecurity/rules, rules/falco-sandbox_rules.yaml at tag falco-sandbox-rules-6.2.0 (80880bd59906ee9619dedc6cd60f6603252052f6),
+# Apache-2.0: only the Stratum rule, unchanged (step 15g-2's crypto miner). Its sibling "Detect outbound connections to
+# common miner pool ports" stays out: upstream disables it, since resolving the pools' names makes Falco itself query them.
+# The image's stable ruleset provides spawned_process. A miner that hides its pool URI evades this rule.
+- rule: Detect crypto miners using the Stratum protocol
+  desc: >
+    Miners commonly specify the mining pool to connect to using a URI that starts with "stratum+tcp". However, this rule is highly specific to
+    this technique, and matching command-line arguments can generally be bypassed quite easily.
+  condition: >
+    spawned_process
+    and (proc.cmdline contains "stratum+tcp" or
+         proc.cmdline contains "stratum2+tcp" or
+         proc.cmdline contains "stratum+ssl" or
+         proc.cmdline contains "stratum2+ssl")
+  output: Possible miner running | evt_type=%evt.type user=%user.name user_uid=%user.uid user_loginuid=%user.loginuid process=%proc.name proc_exepath=%proc.exepath parent=%proc.pname command=%proc.cmdline terminal=%proc.tty exe_flags=%evt.arg.flags
+  priority: CRITICAL
+  tags: [maturity_sandbox, host, container, process, mitre_impact, T1496]

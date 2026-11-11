@@ -357,6 +357,92 @@
           }
         }
       ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Runtime (Falco)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Falco events by priority, rule and namespace (error and above alert)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 38
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (priority, rule, event_namespace) (count_over_time({job=\"pods\", namespace=\"falco\"} | json rule=\"rule\", priority=\"priority\", event_namespace=`output_fields[\"k8s.ns.name\"]` | __error__=\"\" [$__auto]))",
+          "legendFormat": "{{priority}} {{rule}} ({{event_namespace}})",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "logs",
+      "title": "Falco events",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 38
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{job=\"pods\", namespace=\"falco\"} | json output=\"output\", rule=\"rule\", priority=\"priority\", event_namespace=`output_fields[\"k8s.ns.name\"]` | __error__=\"\" | line_format \"{{.priority}} {{.rule}} ({{.event_namespace}}): {{.output}}\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending"
+      }
     }
   ]
 }

@@ -184,9 +184,18 @@ func TestE2EKeepsSelection(t *testing.T) {
 		got := slices.DeleteFunc(selectContainers(t, specs, r.filter, r.env), func(name string) bool { return !old[name] })
 		assert.Equal(t, want, got, "%s: (%s) && %s", key, r.filter, r.env)
 	}
-	for key := range runs {
-		_, ok := record.Selection[key]
-		assert.True(t, ok, "%s: not in the record", key)
+	// A group added since the record selects no old test beyond always's
+	always := map[string]bool{}
+	for _, name := range selectContainers(t, specs, scopes.Always, "sandbox") {
+		always[name] = true
+	}
+	for key, r := range runs {
+		if _, ok := record.Selection[key]; ok {
+			continue
+		}
+		for _, name := range selectContainers(t, specs, r.filter, r.env) {
+			assert.False(t, old[name] && !always[name], "%s: not in the record, yet selects %s", key, name)
+		}
 	}
 }
 

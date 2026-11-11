@@ -1,0 +1,18 @@
+# Under the mesh-wide deny-all (system/istio-system): Prometheus scrapes Falco's metrics
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow
+  namespace: {{ .Release.Namespace }}
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["{{ .Release.Namespace }}"]
+    - from:
+        - source:
+            namespaces: ["monitoring-system"]
+      to:
+        - operation:
+            ports: ["8765"]
