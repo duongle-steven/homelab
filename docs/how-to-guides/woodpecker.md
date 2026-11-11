@@ -56,6 +56,14 @@ steps:
 
 `vfs` is slower than overlay and each step starts from scratch, so there is no layer cache between runs.
 
+Every step runs under a seccomp filter: the nodes give `RuntimeDefault` to a pod that names no profile, and it refuses
+`unshare`. A step whose image is `quay.io/buildah/stable` (any tag or digest), in its own user namespace, gets the
+`Localhost` profile `homelab/buildah.json` by itself, which adds what Buildah's chroot isolation needs (`unshare`,
+`mount`, `umount2`, `pivot_root`; `infra/_modules/metal/flake/seccomp/README.md`); write no `backend_options` for it.
+No other step may name a `Localhost` profile (`platform/woodpecker/templates/seccomp-policy.yaml` refuses the pod), nor
+`Unconfined` (Pod Security `baseline`). A step that sets its own profile keeps it, so a Buildah step asking for
+`RuntimeDefault` cannot build.
+
 ## The registry secrets (once per org, a `homelab-admins` member)
 
 `registry_username` is `ci`; `registry_password` is zot's `ci` password from OpenBao, piped into Woodpecker's API so
