@@ -96,10 +96,8 @@ booted the flake's installer into RAM on `homelab-1` and `homelab-2`, about 500 
 ### 3. The disk path
 
 `hosts.json` names each node's disk (`"disk": "/dev/nvme0n1"`); `disks.nix` already reads `hostConfig.disk`. `nixie` keeps only
-`mac_address`, `ip` and `machine_id_hash` when it records an install, so it works on a copy (`scripts/testbed-nixie`'s way):
-the unit's wrapper for production does the same, and the repository's `hosts.json` keeps `disk`. This settles the
-before-production note about disks other than `/dev/sda`. Whether the wrapper is shared with the testbed's or its own is the
-builder's call.
+`mac_address`, `ip` and `machine_id_hash` when it rewrites the file, so the unit puts `disk` back after each run (decision 6).
+This settles the before-production note about disks other than `/dev/sda`.
 
 ### 4. DNS *(Claude's call)*
 
@@ -127,11 +125,16 @@ and k3s's CoreDNS forwards to the node's resolvers, so both nodes and pods would
     by its button, or by power returning after a cut, boots its NixOS.
   - A woken node that finds no `nixie` must fall back to its NVMe. The VIP spec below wakes a node and checks that it does,
     which is the thorough test upstream asks for.
-- **The install record:** `nixie`'s record (`machine_id_hash`) stays local in `.state/production/metal/`, as the
-  testbed's does (it is not secret, and `nixie` rewrites it).
-- **Losing the record:** if the record is lost, the wrapper must still not reinstall a live node. Before it gives `nixie`
-  a host, it checks the host's address over SSH with production's key. A node that answers as an installed NixOS is
-  recorded and skipped, never reinstalled. Reinstalling a node is its own explicit command.
+- **The install record** *(upstream's way)*: `nixie` writes each machine's `machine_id_hash` into the repository's
+  `infra/production/metal/hosts.json`, and the person commits it after the install. `infra/_modules/metal` already leaves
+  that field out of the flake's input. A recorded host is skipped even when it is unreachable, and `nixie` does not start
+  when every host is recorded, so the record in git is what keeps a live node from being reinstalled, from any checkout.
+  - The testbed keeps its record in `.state/testbed/` (`scripts/testbed-nixie`), because its VMs are reinstalled often and
+    a commit per reinstall would mean nothing. Production installs rarely, and its record must outlive the workstation.
+  - Production therefore needs no copy of `hosts.json`, and `disk` stays in the file `nixie` rewrites. Since `nixie` keeps
+    only the fields it knows, the unit restores `disk` (and any field `nixie` drops) from the committed file after each
+    run, and a test fails if `disk` goes missing. Decision 3 changes accordingly.
+  - Reinstalling a node is deliberate: delete its `machine_id_hash`, commit, then run.
 
 ### 7. Production's SSH host keys *(Claude's call)*
 
