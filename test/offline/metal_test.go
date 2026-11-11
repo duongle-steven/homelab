@@ -414,3 +414,38 @@ func TestMetalSlowControlPlane(t *testing.T) {
 		assert.Equal(t, want, config.Slow, env)
 	}
 }
+
+// Production's nodes (step 12b-1): nixie records each install in the committed hosts.json (upstream's way), so a
+// recorded machine is never installed again from any checkout; the disk comes from config.json, never hosts.json,
+// whose unknown fields nixie drops
+func TestProductionMetalUnit(t *testing.T) {
+	dir := filepath.Join(repo.Root(), "infra", "production", "metal")
+	raw, err := os.ReadFile(filepath.Join(dir, "hosts.json"))
+	require.NoError(t, err)
+	var hosts map[string]map[string]string
+	require.NoError(t, json.Unmarshal(raw, &hosts))
+	want := map[string][2]string{
+		"homelab-1": {"192.168.0.11", "38:22:e2:2c:dc:35"},
+		"homelab-2": {"192.168.0.12", "10:62:e5:16:d2:ca"},
+		"homelab-3": {"192.168.0.13", "10:e7:c6:0f:63:a0"},
+	}
+	require.Len(t, hosts, len(want))
+	for name, w := range want {
+		require.Contains(t, hosts, name)
+		assert.Equal(t, w[0], hosts[name]["ip"], name)
+		assert.Equal(t, w[1], hosts[name]["mac_address"], name)
+		assert.NotContains(t, hosts[name], "disk", "%s: the disk goes in config.json", name)
+	}
+
+	unit, err := os.ReadFile(filepath.Join(dir, "terragrunt.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, string(unit), `"${get_repo_root()}/scripts/metal-nixie", "${get_terragrunt_dir()}/hosts.json"`,
+		"nixie gets the committed hosts.json itself, never a copy")
+	assert.NotContains(t, string(unit), "testbed-nixie")
+	assert.NotContains(t, string(unit), `"--environment", "testbed"`)
+	assert.Equal(t, 3, strings.Count(string(unit), `"--environment", "production"`), "enroll, kubeconfig and upgrade")
+
+	argocd, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "production", "argocd", "terragrunt.hcl"))
+	require.NoError(t, err)
+	assert.Regexp(t, `dependencies \{\s*paths = \["\.\./metal"\]`, string(argocd), "the bootstrap waits for the nodes")
+}

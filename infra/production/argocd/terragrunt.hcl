@@ -2,6 +2,11 @@ include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
+# The nodes come first (infra/production/metal): it writes the kubeconfig the bootstrap applies with
+dependencies {
+  paths = ["../metal"]
+}
+
 # The cluster comes from infra/production/metal (nixie, lab cluster enroll). Re-applied when system/argocd changes; the first run
 # after Forgejo runs switches from the seed to ops/homelab
 terraform {

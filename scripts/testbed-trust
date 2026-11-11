@@ -1,6 +1,7 @@
 #!/bin/sh
-# Trust testbed's host keys on first contact (only on the workstation's own libvirt network), waiting for each node's
-# SSH: VMs just started are still booting.
+# Trust the nodes' host keys on first contact, waiting for each node's SSH (machines just installed are still booting):
+# the testbed's on the workstation's own libvirt network, production's during its install on the home LAN (an accepted
+# risk, step 12b-1: check a fingerprint on the machine's console). Only hosts.json's addresses.
 # Usage: testbed-trust <hosts.json>
 set -eu
 wait_seconds=${TESTBED_TRUST_WAIT:-300}
