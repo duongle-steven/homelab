@@ -1,2 +1,3 @@
 # The public keys allowed to log in to production's nodes as admin and root (nixie, lab cluster); never a
 # testbed key. Added with the hardware (step 12b)
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKPzn9gLn/TTJriPq+a4I/iHg4DMbYakm11lX1Bg2Je2 homelab-production
