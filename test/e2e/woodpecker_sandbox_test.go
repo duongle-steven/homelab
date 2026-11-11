@@ -312,10 +312,10 @@ var _ = Describe("Woodpecker", Label("sandbox", "testbed", "woodpecker"), func()
 		}
 		Eventually(ctx, func() bool {
 			if out, err := kube.Kubectl(ctx, "woodpecker", "get", "pods", "-o",
-				`jsonpath={range .items[?(@.metadata.name!="woodpecker-server-0")]}{.metadata.name} {.spec.hostUsers} {.spec.serviceAccountName} {.spec.containers[*].securityContext.privileged}{"\n"}{end}`); err == nil {
+				`jsonpath={range .items[?(@.metadata.name!="woodpecker-server-0")]}{.metadata.name}|{.spec.hostUsers}|{.spec.serviceAccountName}|{.spec.containers[0].image}|{.spec.securityContext.seccompProfile.type}/{.spec.securityContext.seccompProfile.localhostProfile}|{.spec.containers[*].securityContext.privileged}{"\n"}{end}`); err == nil {
 				for _, line := range strings.Split(out, "\n") {
-					if f := strings.Fields(line); len(f) > 0 && strings.HasPrefix(f[0], "wp-") {
-						seen[f[0]] = strings.Join(f[1:], " ")
+					if name, rest, ok := strings.Cut(line, "|"); ok && strings.HasPrefix(name, "wp-") {
+						seen[name] = rest
 					}
 				}
 			}
@@ -363,13 +363,23 @@ var _ = Describe("Woodpecker", Label("sandbox", "testbed", "woodpecker"), func()
 		}
 		Expect(seen).NotTo(BeEmpty(), "no step pod was seen")
 		GinkgoWriter.Printf("step pods: %v\n", seen)
+		buildah := 0
 		for pod, spec := range seen {
-			f := strings.Fields(spec)
-			Expect(len(f)).To(BeNumerically(">=", 2), "%s: %q", pod, spec)
+			f := strings.Split(spec, "|")
+			Expect(f).To(HaveLen(5), "%s: %q", pod, spec)
 			Expect(f[0]).To(Equal("false"), "%s: hostUsers", pod)
 			Expect(f[1]).NotTo(Equal("woodpecker-agent"), "%s runs as the agent's service account", pod)
-			Expect(f[2:]).NotTo(ContainElement("true"), "%s has a privileged container", pod)
+			Expect(strings.Fields(f[4])).NotTo(ContainElement("true"), "%s has a privileged container", pod)
+			// Buildah's steps alone get its Localhost profile (platform/woodpecker/templates/seccomp-policy.yaml); the
+			// others name none, and the kubelet's seccomp-default gives them RuntimeDefault (WoodpeckerSeccomp)
+			if strings.HasPrefix(f[2], "quay.io/buildah/stable:") {
+				buildah++
+				Expect(f[3]).To(Equal("Localhost/homelab/buildah.json"), "%s: Buildah's step has no profile of its own", pod)
+			} else {
+				Expect(f[3]).To(Equal("/"), "%s (%s) names a seccomp profile", pod, f[2])
+			}
 		}
+		Expect(buildah).To(BeNumerically(">", 0), "no Buildah step pod was seen")
 
 		// zot serves the image
 		req, err := http.NewRequestWithContext(ctx, http.MethodHead, "https://"+registryHost+"/v2/"+name+"/manifests/"+commit.Commit.SHA, nil)
