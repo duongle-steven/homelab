@@ -95,9 +95,11 @@ booted the flake's installer into RAM on `homelab-1` and `homelab-2`, about 500 
 
 ### 3. The disk path
 
-`hosts.json` names each node's disk (`"disk": "/dev/nvme0n1"`); `disks.nix` already reads `hostConfig.disk`. `nixie` keeps only
-`mac_address`, `ip` and `machine_id_hash` when it rewrites the file, so the unit puts `disk` back after each run (decision 6).
-This settles the before-production note about disks other than `/dev/sda`.
+The disk's path goes in the environment's `config.json` (a field such as `disk`, `/dev/nvme0n1` for production), which
+`disks.nix` reads after a node's own `hostConfig.disk` and before the default `/dev/sda`. `hosts.json` stays `nixie`'s file:
+`nixie` keeps only `mac_address`, `ip` and `machine_id_hash` when it rewrites it, so any other field there would be lost.
+This settles the before-production note about disks other than `/dev/sda`. The docs' `hosts.json` example, which shows
+`disk`, is corrected.
 
 ### 4. DNS *(Claude's call)*
 
@@ -131,9 +133,7 @@ and k3s's CoreDNS forwards to the node's resolvers, so both nodes and pods would
   when every host is recorded, so the record in git is what keeps a live node from being reinstalled, from any checkout.
   - The testbed keeps its record in `.state/testbed/` (`scripts/testbed-nixie`), because its VMs are reinstalled often and
     a commit per reinstall would mean nothing. Production installs rarely, and its record must outlive the workstation.
-  - Production therefore needs no copy of `hosts.json`, and `disk` stays in the file `nixie` rewrites. Since `nixie` keeps
-    only the fields it knows, the unit restores `disk` (and any field `nixie` drops) from the committed file after each
-    run, and a test fails if `disk` goes missing. Decision 3 changes accordingly.
+  - Production therefore needs no copy of `hosts.json`; the disk's path lives in `config.json` (decision 3).
   - Reinstalling a node is deliberate: delete its `machine_id_hash`, commit, then run.
 
 ### 7. Production's SSH host keys *(Claude's call)*
@@ -180,7 +180,7 @@ k3s with this repository's flags, kube-vip for the API's VIP (`192.168.0.10`), n
   - the BIOS checklist;
   - the Hyper-V firewall commands;
   - the SSH key;
-  - `hosts.json` with `disk`;
+  - the disk's path in `config.json`, and `hosts.json`'s committed record;
   - the DNS field;
   - the fio numbers.
 - `docs/concepts/pxe-boot.md`: PXE from WSL (mirrored) and the firewall rules.
