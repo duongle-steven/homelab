@@ -150,8 +150,11 @@ reported. Then 10-minute windows, with Falco, without it, and with it again:
 
 Falco itself used 7–12% CPU per node; the cost is the probe on every system call, which `k3s server` makes the most of. So the
 driver's proof on NixOS is this run, by hand: add `system/falco` to `system/argocd/values-testbed.yaml` on a branch, run `just
-testbed`, then `just test e2e --env testbed --labels falco`, and take it off again. Production's nodes are larger; its own numbers
-come from `FalcoEventsDropped` and the nodes' load in the first days.
+testbed`, then `just test e2e --env testbed --labels falco`, and take it off again. Taking it off the list leaves it running:
+`root` keeps the resources of a path it drops (`preserveResourcesOnDeletion`), so delete them too (`kubectl -n argocd delete
+application falco`, `kubectl delete namespace falco`). 15h's upgrade found it still on the nodes, where it restarted kube-vip
+and lost the API's address during a drain. Production's nodes are larger; its own numbers come from `FalcoEventsDropped` and
+the nodes' load in the first days.
 
 ### CloudNativePG, one measurement
 
