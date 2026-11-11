@@ -16,8 +16,9 @@ import (
 // Production's hardware (step 12b-1). The specs labelled hardware-proof power nodes off: a routine run against
 // production (just test e2e --env production, no --labels) leaves them out, so they run only when asked by label
 
-// wakeOnLAN sends a magic packet for mac to the limited broadcast and to each node's /24 broadcast: the workstation
-// reaches the nodes' LAN over Wi-Fi, where the limited broadcast alone may not go out on the right interface
+// wakeOnLAN sends a magic packet for mac from the workstation's own address on the nodes' /24, to that subnet's
+// broadcast and to the limited broadcast. Unbound, the packets left WSL (mirrored networking) by another interface
+// (Docker's bridges) and woke nothing; bound to the LAN address, as nixie binds its own, they wake the node (12b-1)
 func wakeOnLAN(mac string, ips map[string]string) error {
 	hw, err := net.ParseMAC(mac)
 	if err != nil {
@@ -30,17 +31,25 @@ func wakeOnLAN(mac string, ips map[string]string) error {
 	for range 16 {
 		packet = append(packet, hw...)
 	}
-	targets := map[string]bool{"255.255.255.255": true}
+	var subnet net.IP
 	for _, ip := range ips {
 		if v4 := net.ParseIP(ip).To4(); v4 != nil {
-			targets[fmt.Sprintf("%d.%d.%d.255", v4[0], v4[1], v4[2])] = true
+			subnet = v4.Mask(net.CIDRMask(24, 32))
 		}
 	}
+	if subnet == nil {
+		return fmt.Errorf("no node address to wake %s on", mac)
+	}
+	local, err := localAddressIn(subnet)
+	if err != nil {
+		return err
+	}
+	broadcast := net.IPv4(subnet[0], subnet[1], subnet[2], 255)
 	sent := 0
-	for target := range targets {
-		conn, err := net.Dial("udp4", target+":9")
+	for _, target := range []net.IP{broadcast, net.IPv4bcast} {
+		conn, err := net.DialUDP("udp4", &net.UDPAddr{IP: local}, &net.UDPAddr{IP: target, Port: 9})
 		if err != nil {
-			GinkgoWriter.Printf("Wake-on-LAN to %s: %v\n", target, err)
+			GinkgoWriter.Printf("Wake-on-LAN to %s from %s: %v\n", target, local, err)
 			continue
 		}
 		if _, err := conn.Write(packet); err == nil {
@@ -49,9 +58,25 @@ func wakeOnLAN(mac string, ips map[string]string) error {
 		conn.Close()
 	}
 	if sent == 0 {
-		return fmt.Errorf("no Wake-on-LAN packet for %s went out", mac)
+		return fmt.Errorf("no Wake-on-LAN packet for %s went out from %s", mac, local)
 	}
 	return nil
+}
+
+// localAddressIn is the workstation's IPv4 address on subnet (a /24), from its interfaces
+func localAddressIn(subnet net.IP) (net.IP, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil, err
+	}
+	for _, addr := range addrs {
+		if n, ok := addr.(*net.IPNet); ok {
+			if v4 := n.IP.To4(); v4 != nil && v4.Mask(net.CIDRMask(24, 32)).Equal(subnet) {
+				return v4, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("this machine has no address on %s/24: Wake-on-LAN cannot reach the nodes", subnet)
 }
 
 func bootID(ctx context.Context, node string) string {
