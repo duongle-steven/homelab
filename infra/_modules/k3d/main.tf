@@ -33,6 +33,11 @@ variable "audit_policy" {
   description = "The API server's audit policy (infra/_modules/metal/flake/audit-policy.yaml, shared with the nodes), outside Terragrunt's cache: k3d mounts it into the node"
 }
 
+variable "seccomp_profiles" {
+  type        = string
+  description = "The Localhost seccomp profiles (infra/_modules/metal/flake/seccomp, shared with the nodes): k3d mounts them under the kubelet's seccomp root"
+}
+
 variable "manifest_dir" {
   type        = string
   description = "Where the Gateway API manifest is kept: k3d mounts it into the node, so it must outlive Terragrunt's cache"
@@ -82,7 +87,7 @@ locals {
 }
 
 resource "terraform_data" "cluster" {
-  triggers_replace = [filesha1(local.config), filesha1(var.audit_policy), local.manifest, var.name, local.registries]
+  triggers_replace = [filesha1(local.config), filesha1(var.audit_policy), filesha1("${var.seccomp_profiles}/buildah.json"), local.manifest, var.name, local.registries]
   input            = { name = var.name, kubeconfig = var.kubeconfig }
 
   provisioner "local-exec" {
@@ -102,6 +107,7 @@ resource "terraform_data" "cluster" {
 %{endfor~}
         --volume "${local.manifest}:/var/lib/rancher/k3s/server/manifests/gateway-api.yaml@server:*" \
         --volume "${var.audit_policy}:/etc/rancher/k3s/audit-policy.yaml@server:*" \
+        --volume "${var.seccomp_profiles}/buildah.json:/var/lib/kubelet/seccomp/homelab/buildah.json@server:*" \
         --registry-config "${local.registries_file}"
       # Docker gives a restarted container any free address (a WSL restart restarts them all), and k3s's etcd then
       # refuses to start: its member address is the old one. Each container on the network keeps the address it has

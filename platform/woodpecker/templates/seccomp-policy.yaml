@@ -1,0 +1,95 @@
+{{- /*
+Woodpecker's Buildah steps need unshare and mount, which RuntimeDefault (the kubelet's seccomp-default) refuses: they get
+the Localhost profile homelab/buildah.json (infra/_modules/metal/flake/seccomp, placed on every node), and nothing else in
+this namespace may name a Localhost profile (step 15h). Native admission policies, not Kyverno's: the API server
+evaluates them itself, so they hold while Kyverno is down (its webhooks ignore failures), and a missed mutation leaves
+RuntimeDefault, where the build fails.
+
+A Buildah pod: every container's image is quay.io/buildah/stable (any tag or digest) and it runs in its own user
+namespace (Woodpecker's WOODPECKER_BACKEND_K8S_USER_NAMESPACES; a step may ask for hostUsers itself).
+*/ -}}
+{{- define "woodpecker.buildahPod" -}}
+(object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers : [])).all(c,
+  (c.image.split('@')[0].lastIndexOf(':') > c.image.split('@')[0].lastIndexOf('/')
+    ? c.image.split('@')[0].substring(0, c.image.split('@')[0].lastIndexOf(':'))
+    : c.image.split('@')[0]) == 'quay.io/buildah/stable')
+&& has(object.spec.hostUsers) && object.spec.hostUsers == false
+{{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: woodpecker-buildah-seccomp
+spec:
+  failurePolicy: Fail
+  reinvocationPolicy: Never
+  matchConstraints:
+    resourceRules:
+      - {apiGroups: [""], apiVersions: [v1], operations: [CREATE], resources: [pods]}
+  matchConditions:
+    # A step pod of Woodpecker's Kubernetes backend
+    - name: step
+      expression: "has(object.metadata.labels) && 'woodpecker-ci.org/step' in object.metadata.labels"
+    - name: buildah
+      expression: |-
+        {{- include "woodpecker.buildahPod" . | nindent 8 }}
+    # A profile the step names itself stays
+    - name: no-profile
+      expression: |-
+        !(has(object.spec.securityContext) && has(object.spec.securityContext.seccompProfile))
+        && (object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers : [])).all(c,
+          !(has(c.securityContext) && has(c.securityContext.seccompProfile)))
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: >-
+          Object{spec: Object.spec{securityContext: Object.spec.securityContext{seccompProfile:
+          Object.spec.securityContext.seccompProfile{type: "Localhost", localhostProfile: "homelab/buildah.json"}}}}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: woodpecker-buildah-seccomp
+spec:
+  policyName: woodpecker-buildah-seccomp
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ .Release.Namespace }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: woodpecker-localhost-seccomp
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - {apiGroups: [""], apiVersions: [v1], operations: [CREATE], resources: [pods]}
+  variables:
+    # Every seccomp profile the pod names, its own and its containers'
+    - name: profiles
+      expression: |-
+        (has(object.spec.securityContext) && has(object.spec.securityContext.seccompProfile)
+          ? [object.spec.securityContext.seccompProfile] : [])
+        + (object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers : []))
+          .filter(c, has(c.securityContext) && has(c.securityContext.seccompProfile))
+          .map(c, c.securityContext.seccompProfile)
+  validations:
+    - expression: |-
+        variables.profiles.all(p, p.type != 'Localhost')
+        || (({{- include "woodpecker.buildahPod" . | nindent 10 }})
+          && variables.profiles.all(p, p.type != 'Localhost' || (has(p.localhostProfile) && p.localhostProfile == 'homelab/buildah.json')))
+      message: "only Woodpecker's Buildah steps may use a Localhost seccomp profile (homelab/buildah.json)"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: woodpecker-localhost-seccomp
+spec:
+  policyName: woodpecker-localhost-seccomp
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ .Release.Namespace }}

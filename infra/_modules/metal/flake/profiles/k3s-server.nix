@@ -64,7 +64,13 @@ in
   environment.etc."rancher/k3s/audit-policy.yaml".source = ../audit-policy.yaml;
   # The API server reads it only at start: a new policy restarts k3s at the switch (lab cluster upgrade drains first)
   systemd.services.k3s.restartTriggers = [ config.environment.etc."rancher/k3s/audit-policy.yaml".source ];
-  systemd.tmpfiles.rules = [ "d /var/log/kubernetes/audit 0700 root root -" ];
+  systemd.tmpfiles.rules = [
+    "d /var/log/kubernetes/audit 0700 root root -"
+    # Woodpecker's Buildah steps' Localhost seccomp profile (step 15h, ../seccomp/README.md), shared with the k3d
+    # sandbox; the kubelet reads it at each container start
+    "d /var/lib/kubelet/seccomp/homelab 0755 root root -"
+    "L+ /var/lib/kubelet/seccomp/homelab/buildah.json - - - - ${../seccomp/buildah.json}"
+  ];
 
   services.k3s = {
     enable = true;
@@ -105,10 +111,11 @@ in
       "--kube-apiserver-arg=audit-log-maxage=30"
       "--kube-apiserver-arg=audit-log-truncate-enabled=true"
       "--kube-apiserver-arg=audit-log-truncate-max-event-size=102400"
-      # kube-bench's 1.2.30 and 4.2.13 (docs/how-to-guides/cluster-scan.md): the same on k3d; not seccomp-default
-      # (4.2.14): it would give Woodpecker's step pods RuntimeDefault, which refuses Buildah's unshare
+      # kube-bench's 1.2.30, 4.2.13 and 4.2.14 (docs/how-to-guides/cluster-scan.md): the same on k3d. A pod naming no
+      # seccomp profile gets RuntimeDefault; Woodpecker's Buildah steps get homelab/buildah.json (tmpfiles above)
       "--kube-apiserver-arg=service-account-extend-token-expiration=false"
       "--kubelet-arg=pod-max-pids=4096"
+      "--kubelet-arg=seccomp-default=true"
       "--node-ip=${hostConfig.ip}"
       "--tls-san=${k3s.vip}"
       "--cluster-cidr=10.42.0.0/16"

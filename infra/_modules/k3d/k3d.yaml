@@ -52,11 +52,14 @@ options:
         nodeFilters: [server:*]
       - arg: --kube-apiserver-arg=audit-log-truncate-max-event-size=102400
         nodeFilters: [server:*]
-      # kube-bench's 1.2.30 and 4.2.13 (docs/how-to-guides/cluster-scan.md): the same on the nodes; not seccomp-default
-      # (4.2.14): it would give Woodpecker's step pods RuntimeDefault, which refuses Buildah's unshare
+      # kube-bench's 1.2.30, 4.2.13 and 4.2.14 (docs/how-to-guides/cluster-scan.md): the same on the nodes
       - arg: --kube-apiserver-arg=service-account-extend-token-expiration=false
         nodeFilters: [server:*]
       - arg: --kubelet-arg=pod-max-pids=4096
+        nodeFilters: [server:*]
+      # A pod naming no seccomp profile gets RuntimeDefault; Woodpecker's Buildah steps get homelab/buildah.json
+      # (infra/_modules/metal/flake/seccomp, mounted by main.tf)
+      - arg: --kubelet-arg=seccomp-default=true
         nodeFilters: [server:*]
   kubeconfig:
     updateDefaultKubeconfig: false

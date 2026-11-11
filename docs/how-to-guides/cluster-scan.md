@@ -92,7 +92,7 @@ The fourteen warnings outside section 5's manual policy checks (section 5 is wha
 | 3.2.2 audit policy | Read in step 15c (`infra/_modules/metal/flake/audit-policy.yaml`) |
 | 4.2.12 kubelet ciphers | Left: Go's defaults are strong; pinning a list would need updating as Go changes them |
 | 4.2.13 pod PID limit | Fixed: `pod-max-pids=4096`, on the nodes and k3d |
-| 4.2.14 `seccomp-default` | Left: tried, and `TestWoodpecker` failed. Woodpecker's step pods set no profile, and `RuntimeDefault` refuses the `unshare` Buildah needs to build images; they run in user namespaces, and every workload of ours sets `RuntimeDefault` itself (policy). A `Localhost` profile for the step pods would allow both (`deferred-minors.md`) |
+| 4.2.14 `seccomp-default` | Fixed (step 15h): on, on the nodes and k3d, so a pod naming no profile gets `RuntimeDefault`. Woodpecker's Buildah steps need `unshare`, which it refuses: a native `MutatingAdmissionPolicy` gives them the `Localhost` profile `homelab/buildah.json` (`RuntimeDefault` plus `unshare`, `mount`, `umount2` and `pivot_root`, `infra/_modules/metal/flake/seccomp`), and a `ValidatingAdmissionPolicy` refuses any `Localhost` profile to every other pod in namespace `woodpecker` ([Woodpecker](woodpecker.md)); other namespaces have no such guard, their pods come from git |
 
 **kubescape**: 87 failed controls on the sandbox, about 2,100 control and resource pairs. Fixed:
 

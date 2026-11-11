@@ -470,3 +470,52 @@ var _ = Describe("TestbedPostgresFailover", Label("testbed", "proof"), func() {
 		}).WithTimeout(5*time.Minute).WithPolling(5*time.Second).Should(BeTrue(), "%s did not catch up", primary)
 	}, SpecTimeout(60*time.Minute))
 })
+
+// Step 15h on NixOS's kernel: every node runs the kubelet with seccomp-default and holds Buildah's Localhost profile,
+// a pod naming no profile cannot unshare, and Buildah builds under its profile (Woodpecker itself does not run here)
+var _ = Describe("TestbedSeccomp", Label("testbed", "proof"), func() {
+	It("runs pods under RuntimeDefault and Buildah under its profile", func(ctx SpecContext) {
+		want, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "_modules", "metal", "flake", "seccomp", "buildah.json"))
+		Expect(err).NotTo(HaveOccurred())
+		names, ips := testbedHosts()
+		for _, name := range names {
+			profile, err := testbedSSH(ctx, ips[name], "cat /var/lib/kubelet/seccomp/homelab/buildah.json")
+			Expect(err).NotTo(HaveOccurred(), "%s: %s", name, profile)
+			Expect(profile).To(Equal(strings.TrimSpace(string(want))), "%s holds another profile", name)
+			unit, err := testbedSSH(ctx, ips[name], "systemctl cat k3s")
+			Expect(err).NotTo(HaveOccurred(), unit)
+			Expect(unit).To(ContainSubstring("--kubelet-arg=seccomp-default=true"), name)
+		}
+
+		namespace := fmt.Sprintf("seccomp-test-%d", time.Now().Unix())
+		Expect(kube.CreateNamespace(ctx, namespace)).To(Succeed())
+		DeferCleanup(func(ctx SpecContext) { _ = kube.DeleteNamespace(ctx, namespace) }, NodeTimeout(5*time.Minute))
+		run := func(name, image, profile, command string) (string, string) {
+			GinkgoHelper()
+			security := ""
+			if profile != "" {
+				security = fmt.Sprintf(`"securityContext":{"seccompProfile":{"type":"Localhost","localhostProfile":%q}},`, profile)
+			}
+			Expect(kube.Apply(ctx, namespace, fmt.Sprintf(`{"apiVersion":"v1","kind":"Pod","metadata":{"name":%q},"spec":{%s
+				"restartPolicy":"Never","hostUsers":false,"containers":[{"name":"c","image":%q,"command":["sh","-c",%q]}]}}`,
+				name, security, image, command))).To(Succeed())
+			var phase string
+			Eventually(ctx, func() string {
+				phase, _ = kube.Kubectl(ctx, namespace, "get", "pod", name, "-o", "jsonpath={.status.phase}")
+				return phase
+			}).WithTimeout(10*time.Minute).WithPolling(5*time.Second).Should(Or(Equal("Succeeded"), Equal("Failed")), name)
+			logs, _ := kube.Kubectl(ctx, namespace, "logs", name)
+			return phase, logs
+		}
+
+		_, logs := run("runtime-default", "docker.io/library/busybox:1.37.0", "", "grep Seccomp: /proc/self/status; unshare -U true && echo UNSHARED")
+		Expect(logs).To(MatchRegexp(`Seccomp:\s+2`), "a pod naming no profile runs unconfined")
+		Expect(logs).NotTo(ContainSubstring("UNSHARED"))
+
+		phase, logs := run("buildah", "quay.io/buildah/stable:v1.43.5", "homelab/buildah.json", `set -e; mkdir /w; cd /w
+printf 'FROM docker.io/library/busybox:1.37.0\nRUN echo probe > /probe.txt\n' > Containerfile
+buildah --storage-driver vfs build --isolation chroot -t probe . && echo BUILT`)
+		Expect(phase).To(Equal("Succeeded"), logs)
+		Expect(logs).To(ContainSubstring("BUILT"))
+	}, SpecTimeout(20*time.Minute))
+})
