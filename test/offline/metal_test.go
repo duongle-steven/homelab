@@ -449,3 +449,47 @@ func TestProductionMetalUnit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Regexp(t, `dependencies \{\s*paths = \["\.\./metal"\]`, string(argocd), "the bootstrap waits for the nodes")
 }
+
+// testbed-trust, which every just infra deploy production runs, names ssh's own error when it gives up: a changed host
+// key after a reinstall or a key missing from the agent otherwise read as a dead node after 5 minutes (12b-1's review)
+func TestTrustNamesSSHError(t *testing.T) {
+	hosts := filepath.Join(t.TempDir(), "hosts.json")
+	require.NoError(t, os.WriteFile(hosts, []byte(`{"a": {"ip": "127.0.0.1", "mac_address": "02:00:00:00:00:01"}}`), 0o600))
+	cmd := exec.Command(filepath.Join(repo.Root(), "scripts", "testbed-trust"), hosts)
+	cmd.Env = append(os.Environ(), "TESTBED_TRUST_WAIT=1", "TESTBED_TRUST_INTERVAL=1")
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err, string(out))
+	assert.Contains(t, string(out), "no SSH from 127.0.0.1")
+	assert.Regexp(t, `ssh said: \S`, string(out), "the last ssh error is shown")
+}
+
+// node-fio writes to the raw rook-data partition: its guard refuses anything that is not plainly empty, so it can never
+// destroy a Ceph OSD once 12b-2 gives the disk to Ceph (12b-1's review). Checked on files standing in for the partition
+func TestNodeFioGuard(t *testing.T) {
+	dir := t.TempDir()
+	run := func(data, rook string) (string, error) {
+		cmd := exec.Command("sh", filepath.Join(repo.Root(), "scripts", "node-fio-remote"))
+		cmd.Env = append(os.Environ(), "NODE_FIO_GUARD_ONLY=1", "NODE_FIO_DATA="+data, "NODE_FIO_ROOK="+rook)
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	empty := filepath.Join(dir, "empty")
+	require.NoError(t, os.WriteFile(empty, make([]byte, 1<<20), 0o600))
+	osd := filepath.Join(dir, "osd")
+	require.NoError(t, os.WriteFile(osd, append([]byte("bluestore block device\n"), make([]byte, 1<<20)...), 0o600))
+	rook := filepath.Join(dir, "rook")
+	require.NoError(t, os.Mkdir(rook, 0o700))
+	none := filepath.Join(dir, "no-rook")
+
+	out, err := run(empty, none)
+	require.NoError(t, err, out)
+	assert.Contains(t, out, "is empty")
+	out, err = run(osd, none)
+	assert.Error(t, err, out)
+	assert.Contains(t, out, "refusing", "a Ceph OSD's partition")
+	out, err = run(empty, rook)
+	assert.Error(t, err, out)
+	assert.Contains(t, out, "Rook has state")
+	out, err = run(filepath.Join(dir, "missing"), none)
+	assert.Error(t, err, out)
+}

@@ -8,9 +8,11 @@ wait_seconds=${TESTBED_TRUST_WAIT:-300}
 interval=${TESTBED_TRUST_INTERVAL:-5}
 for ip in $(jq -r '.[].ip' "$1"); do
 	deadline=$(($(date +%s) + wait_seconds))
-	until ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10 "admin@$ip" true 2>/dev/null; do
+	# ssh's last error is kept: a changed host key (a reinstalled node: ssh-keygen -R <ip>) or a key missing from the
+	# agent is named, not mistaken for a node that never answered
+	until err=$(ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10 "admin@$ip" true 2>&1); do
 		if [ "$(date +%s)" -ge "$deadline" ]; then
-			echo "testbed-trust: no SSH from $ip after ${wait_seconds}s" >&2
+			echo "testbed-trust: no SSH from $ip after ${wait_seconds}s; ssh said: $err" >&2
 			exit 1
 		fi
 		sleep "$interval"

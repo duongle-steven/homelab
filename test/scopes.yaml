@@ -221,6 +221,7 @@ groups:
       - scripts/testbed-nixie
       - scripts/metal-nixie
       - scripts/node-fio
+      - scripts/node-fio-remote
       - scripts/testbed-wake
       - scripts/mark-proof
       - scripts/testbed-trust

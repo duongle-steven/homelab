@@ -1,0 +1,39 @@
+#!/bin/sh
+# node-fio's part on the node (scripts/node-fio pipes it over SSH as root). The guard refuses to write to rook-data
+# unless it is plainly empty: any superblock wipefs sees (Ceph's bluestore, LVM, LUKS, a file system), anything holding
+# the partition, Rook's state on the node, or a running OSD. NODE_FIO_DATA, NODE_FIO_ROOK and NODE_FIO_GUARD_ONLY exist
+# for the offline test (test/offline/metal_test.go)
+set -eu
+data=${NODE_FIO_DATA:-/dev/disk/by-partlabel/rook-data}
+rook=${NODE_FIO_ROOK:-/var/lib/rook}
+refuse() { echo "node-fio: $1: refusing to write to $data" >&2; exit 1; }
+[ -e "$data" ] || refuse "no rook-data partition"
+signatures=$(wipefs --no-act --noheadings --output TYPE "$data" 2>/dev/null || echo "unreadable")
+[ -z "$signatures" ] || refuse "it holds $(echo "$signatures" | tr '\n' ' ')"
+if [ -b "$data" ]; then
+	holders=/sys/class/block/$(basename "$(readlink -f "$data")")/holders
+	[ -z "$(ls -A "$holders" 2>/dev/null)" ] || refuse "something holds it ($(ls "$holders"))"
+fi
+[ ! -e "$rook" ] || refuse "Rook has state on this node ($rook)"
+! pgrep -x ceph-osd >/dev/null 2>&1 || refuse "a Ceph OSD runs here"
+[ -z "${NODE_FIO_GUARD_ONLY:-}" ] || { echo "node-fio: $data is empty"; exit 0; }
+
+tool() { name=$1; shift; nix --extra-experimental-features 'nix-command flakes' shell "nixpkgs#$name" -c "$name" "$@"; }
+fio() { tool fio "$@"; }
+jq() { tool jq "$@"; }
+dir=/var/lib/rancher/fio-etcd
+mkdir -p "$dir"
+trap 'rm -rf "$dir"' EXIT
+echo "== etcd's pattern (fdatasync after each 2300-byte write)"
+fio --name=etcd --directory="$dir" --rw=write --ioengine=sync --fdatasync=1 --bs=2300 --size=22m \
+	--output-format=json | jq -r '.jobs[0].sync.lat_ns.percentile | "fdatasync p99: \(.["99.000000"] / 1e6) ms, p99.9: \(.["99.900000"] / 1e6) ms"'
+for job in "seqwrite write 1m" "seqread read 1m" "randwrite randwrite 4k" "randread randread 4k"; do
+	# shellcheck disable=SC2086 # the job's three words
+	set -- $job
+	fio --name="$1" --filename="$data" --rw="$2" --bs="$3" --ioengine=libaio --direct=1 --iodepth=32 --runtime=30 \
+		--time_based --size=10g --output-format=json |
+		jq -r --arg n "$1" '.jobs[0] | "\($n): \((.read.bw + .write.bw) / 1024 | floor) MiB/s, \(.read.iops + .write.iops | floor) IOPS"'
+done
+# Without -f: the kernel refuses a device something holds open
+blkdiscard "$data"
+echo "rook-data discarded"
