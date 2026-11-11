@@ -1,0 +1,34 @@
+#!/bin/sh
+# Disk numbers of one production node before Ceph takes its rook-data partition (step 12b-1): etcd's write pattern on
+# the root file system (k3s's etcd lives there), its 99th percentile fdatasync against a 10 ms budget, then sequential
+# and random 4k on rook-data, which is discarded afterwards so Ceph finds it empty. fio comes from nixpkgs on the node.
+# Usage: node-fio <node address>
+set -eu
+ip=${1:?usage: node-fio <node address>}
+ssh -o BatchMode=yes "root@$ip" sh -s <<'EOF'
+set -eu
+tool() { name=$1; shift; nix --extra-experimental-features 'nix-command flakes' shell "nixpkgs#$name" -c "$name" "$@"; }
+fio() { tool fio "$@"; }
+jq() { tool jq "$@"; }
+data=/dev/disk/by-partlabel/rook-data
+[ -b "$data" ] || { echo "no rook-data partition" >&2; exit 1; }
+if blkid -p "$data" >/dev/null 2>&1 || [ -n "$(lsblk -no FSTYPE "$data")" ]; then
+	echo "rook-data holds a signature (Ceph's?): refusing to write to it" >&2
+	exit 1
+fi
+dir=/var/lib/rancher/fio-etcd
+mkdir -p "$dir"
+trap 'rm -rf "$dir"' EXIT
+echo "== etcd's pattern (fdatasync after each 2300-byte write)"
+fio --name=etcd --directory="$dir" --rw=write --ioengine=sync --fdatasync=1 --bs=2300 --size=22m \
+	--output-format=json | jq -r '.jobs[0].sync.lat_ns.percentile | "fdatasync p99: \(.["99.000000"] / 1e6) ms, p99.9: \(.["99.900000"] / 1e6) ms"'
+for job in "seqwrite write 1m" "seqread read 1m" "randwrite randwrite 4k" "randread randread 4k"; do
+	# shellcheck disable=SC2086 # the job's three words
+	set -- $job
+	fio --name="$1" --filename="$data" --rw="$2" --bs="$3" --ioengine=libaio --direct=1 --iodepth=32 --runtime=30 \
+		--time_based --size=10g --output-format=json |
+		jq -r --arg n "$1" '.jobs[0] | "\($n): \((.read.bw + .write.bw) / 1024 | floor) MiB/s, \(.read.iops + .write.iops | floor) IOPS"'
+done
+blkdiscard -f "$data"
+echo "rook-data discarded"
+EOF

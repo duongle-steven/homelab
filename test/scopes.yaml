@@ -220,6 +220,7 @@ groups:
       - scripts/testbed-guard
       - scripts/testbed-nixie
       - scripts/metal-nixie
+      - scripts/node-fio
       - scripts/testbed-wake
       - scripts/mark-proof
       - scripts/testbed-trust
