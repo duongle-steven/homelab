@@ -41,7 +41,19 @@ HOMELAB_PXE_ADDRESS=192.168.0.224 terragrunt apply
 
 `nixie` writes each machine's `machine_id_hash` into `hosts.json`: **commit it**. A recorded machine is never installed
 again, and once every machine is recorded the hook neither asks for `sudo` nor needs `HOMELAB_PXE_ADDRESS`, so `just
-infra deploy production` runs it every time. To reinstall a node, delete its `machine_id_hash`, commit, and run again.
+infra deploy production` runs it every time.
+
+To reinstall a node:
+
+1. Drain it and take it out of the cluster (`kubectl drain <node> --ignore-daemonsets --delete-emptydir-data`, then
+   `kubectl delete node <node>`). Its etcd member leaves too: k3s removes a deleted server's member.
+2. Power it off: `nixie` wakes only machines that are off.
+3. Delete its `machine_id_hash` in `hosts.json` (the key, not just the value), commit.
+4. Forget its old host key: `ssh-keygen -R <address>`.
+5. Apply as for the first install, with the firewall rules and `HOMELAB_PXE_ADDRESS`.
+
+If the trust step stops with "no SSH from …", it prints ssh's own error: a changed host key needs step 4, and
+"Permission denied" a key missing from the agent (`ssh-add ~/.ssh/homelab-production`).
 
 Afterwards, remove the firewall rules:
 
@@ -60,7 +72,7 @@ just test e2e --env production --labels proof          # etcd, Secrets encrypted
 just test e2e --env production --focus NodesResolveQuickly
 just test e2e --env production --labels scan           # kube-bench
 scripts/node-fio <address>                              # once per node, before Ceph takes rook-data
-just test e2e --env production --labels hardware-proof  # powers nodes off: never once real data is there
+just test e2e --env production --labels hardware-proof --verbose  # powers nodes off: never once real data is there
 ```
 
 `--labels hardware-proof` runs `ProductionVIPMoves` (a node powered off, woken by Wake-on-LAN) and `ProductionPowerCut`

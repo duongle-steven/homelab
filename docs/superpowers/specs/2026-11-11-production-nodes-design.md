@@ -91,7 +91,8 @@ booted the flake's installer into RAM on `homelab-1` and `homelab-2`, about 500 
 - The docs give the two `New-NetFirewallHyperVRule` commands (UDP 67, 69, 4011; TCP 80, 5000) before the install and
   `Remove-NetFirewallHyperVRule` after it, run by the person in an administrator PowerShell.
 - `nixie` gets the laptop's LAN address (`--address`), as the testbed gives it the bridge's.
-- One machine at a time, as on the testbed. The person starts the run; `nixie` wakes the machines.
+- The person starts the run; `nixie` wakes the machines and installs them in parallel (the testbed goes one at a time only
+  because three installs at once ran WSL out of memory; real machines install from their own memory).
 
 ### 3. The disk path
 
