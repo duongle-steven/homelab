@@ -59,7 +59,10 @@ func bootID(ctx context.Context, node string) string {
 	return id
 }
 
-const timedLookups = `t() { s=$(date +%%s%%N); "$@" >/dev/null 2>&1; e=$(date +%%s%%N); echo $(( (e - s) / 1000000 )); }
+// timedLookups times two lookups on the far side (a node over SSH, or a pod), so SSH's or kubectl's own time is not
+// counted: /proc/uptime has 10 ms steps, enough against a 1 s budget, and busybox's date has no %N
+const timedLookups = `ms() { awk '{ print int($1 * 1000) }' /proc/uptime; }
+t() { s=$(ms); "$@" >/dev/null 2>&1; e=$(ms); echo $((e - s)); }
 t %[1]s nx-%[2]d.example.com
 t %[3]s ipv4only.arpa`
 
