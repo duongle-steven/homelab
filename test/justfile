@@ -24,8 +24,7 @@ e2e env="" $labels="" $focus="" $verbose="":
     *) echo "just test e2e: --env sandbox, testbed or production" >&2; exit 1 ;;
     esac
     export KUBECONFIG="{{ root }}/infra/{{ env }}/kubeconfig.yaml" KUBE_CONFIG_PATH="{{ root }}/infra/{{ env }}/kubeconfig.yaml"
-    filter="{{ env }}"
-    if [ -n "$labels" ]; then filter="($labels) && {{ env }}"; fi
+    filter=$({{ just }} e2e-filter "{{ env }}" "$labels")
     name=$({{ just }} report-name "{{ env }}" "$labels")
     args=(--label-filter "$filter" --fail-on-empty --timeout 2h --poll-progress-after 60s --poll-progress-interval 30s
         --output-dir reports/e2e --junit-report "$name.xml" --json-report "$name.json")
@@ -34,6 +33,17 @@ e2e env="" $labels="" $focus="" $verbose="":
     cd "{{ root }}/test"
     mkdir -p reports/e2e
     go tool ginkgo run "${args[@]}" ./e2e
+
+# The label filter a run uses: `(<labels>) && <env>`, or the environment alone without --labels. Production's routine run
+# leaves out the specs that power off nodes (hardware-proof) and kube-bench's privileged Jobs (scan): they run only when
+# --labels asks for them (step 12b-1)
+[private]
+e2e-filter env $labels:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "$labels" ]; then echo "($labels) && {{ env }}"
+    elif [ "{{ env }}" = production ]; then echo "production && !hardware-proof && !scan"
+    else echo "{{ env }}"; fi
 
 # The name of a run's reports: <env>-<filter> with every character but a-z0-9- as _, or <env>-all; a filter longer than
 # 60 characters (the whole suite's) keeps its first 40 and a hash of all of it, so the name fits a file name

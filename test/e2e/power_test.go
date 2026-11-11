@@ -148,7 +148,7 @@ func cephAnswersHealthy(ctx context.Context, osds int) bool {
 
 func powerHealthy(ctx context.Context, wait time.Duration) {
 	GinkgoHelper()
-	names, _ := testbedHosts()
+	names, _ := metalHosts()
 	Eventually(ctx, func() bool {
 		if !cephAnswersHealthy(ctx, len(names)) {
 			return false
@@ -160,7 +160,7 @@ func powerHealthy(ctx context.Context, wait time.Duration) {
 
 func bootIDs(ctx context.Context) map[string]string {
 	GinkgoHelper()
-	names, _ := testbedHosts()
+	names, _ := metalHosts()
 	ids := map[string]string{}
 	for _, name := range names {
 		id, err := kube.Kubectl(ctx, "", "get", "node", name, "-o", "jsonpath={.status.nodeInfo.bootID}")
@@ -227,7 +227,7 @@ func dumpKubeVIP(ctx context.Context) string {
 
 func cutEveryNode(ctx context.Context) {
 	GinkgoHelper()
-	names, _ := testbedHosts()
+	names, _ := metalHosts()
 	var group sync.WaitGroup
 	failed := make([]string, len(names))
 	for i, name := range names {
@@ -251,7 +251,7 @@ func cutEveryNode(ctx context.Context) {
 var _ = Describe("PowerCutEveryNode", Label("testbed", "power", "cut-every-node"), func() {
 	It("recovers from a cut of every node", func(ctx SpecContext) {
 		powerHealthy(ctx, 30*time.Minute)
-		names, _ := testbedHosts()
+		names, _ := metalHosts()
 		powerNamespaceReady(ctx)
 		probe := startPowerProbe(ctx)
 		booted := bootIDs(ctx)
@@ -321,7 +321,7 @@ func controllerReplicas(ctx context.Context) string {
 // holding the probe's volume, may have needed that
 func stoppedInOrder(ctx context.Context) {
 	GinkgoHelper()
-	_, ips := testbedHosts()
+	_, ips := metalHosts()
 	stopped := 0
 	for _, ip := range ips {
 		out, err := testbedSSH(ctx, ip, "journalctl -b -1 -q --no-pager --grep 'Stopped target Multi-User' | wc -l")
@@ -352,7 +352,7 @@ func waitAllShutOff(ctx context.Context, names []string) {
 var _ = Describe("PowerShutdownStartup", Label("testbed", "power", "shutdown-startup"), func() {
 	It("undoes an ordered shutdown by itself", func(ctx SpecContext) {
 		powerHealthy(ctx, 30*time.Minute)
-		names, _ := testbedHosts()
+		names, _ := metalHosts()
 		powerNamespaceReady(ctx)
 		probe := startPowerProbe(ctx)
 		powerFixtures(ctx)
@@ -401,7 +401,7 @@ var _ = Describe("PowerShutdownStartup", Label("testbed", "power", "shutdown-sta
 var _ = Describe("PowerNodeNotReturning", Label("testbed", "power", "node-not-returning"), func() {
 	It("comes back without one node", func(ctx SpecContext) {
 		powerHealthy(ctx, 30*time.Minute)
-		names, _ := testbedHosts()
+		names, _ := metalHosts()
 		missing, returning := names[len(names)-1], names[:len(names)-1]
 		powerNamespaceReady(ctx)
 		powerFixtures(ctx)
@@ -452,7 +452,7 @@ var _ = Describe("PowerCutPostgres", Label("testbed", "power", "cut-postgres"), 
 		primary := db.status("currentPrimary")
 		_, err := db.psql(primary, "CREATE TABLE probe (value text); INSERT INTO probe VALUES ('power-cut')")
 		Expect(err).NotTo(HaveOccurred())
-		names, _ := testbedHosts()
+		names, _ := metalHosts()
 		booted := bootIDs(ctx)
 
 		cutEveryNode(ctx)

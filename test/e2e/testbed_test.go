@@ -21,24 +21,52 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// The testbed's specs (label testbed) run against its three NixOS VMs (just testbed: ENV=testbed)
+// The testbed's specs (label testbed) run against its three NixOS VMs (just testbed: ENV=testbed); those labelled
+// production too run against production's machines (step 12b-1)
 
-// testbedHosts reads the VMs' names and addresses (infra/testbed/metal/hosts.json), sorted by name
-func testbedHosts() (names []string, ips map[string]string) {
-	GinkgoHelper()
-	raw, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "testbed", "metal", "hosts.json"))
-	Expect(err).NotTo(HaveOccurred())
-	var hosts map[string]struct {
-		IP string `json:"ip"`
+// metalEnv is the environment whose nodes the specs reach: testbed (ENV=testbed) or production (ENV empty: just test
+// e2e --env production)
+func metalEnv() string {
+	if suiteEnv() == "testbed" {
+		return "testbed"
 	}
-	Expect(json.Unmarshal(raw, &hosts)).To(Succeed())
+	return "production"
+}
+
+// metalHosts reads the nodes' names and addresses (infra/<env>/metal/hosts.json), sorted by name
+func metalHosts() (names []string, ips map[string]string) {
+	GinkgoHelper()
 	ips = map[string]string{}
-	for name, host := range hosts {
+	for name, host := range readMetalHosts() {
 		names = append(names, name)
 		ips[name] = host.IP
 	}
 	sort.Strings(names)
 	return names, ips
+}
+
+// metalMACs reads the nodes' MAC addresses, by name (Wake-on-LAN)
+func metalMACs() map[string]string {
+	GinkgoHelper()
+	macs := map[string]string{}
+	for name, host := range readMetalHosts() {
+		macs[name] = host.MAC
+	}
+	return macs
+}
+
+type metalHost struct {
+	IP  string `json:"ip"`
+	MAC string `json:"mac_address"`
+}
+
+func readMetalHosts() map[string]metalHost {
+	GinkgoHelper()
+	raw, err := os.ReadFile(filepath.Join(repo.Root(), "infra", metalEnv(), "metal", "hosts.json"))
+	Expect(err).NotTo(HaveOccurred())
+	var hosts map[string]metalHost
+	Expect(json.Unmarshal(raw, &hosts)).To(Succeed())
+	return hosts
 }
 
 func testbedSSH(ctx context.Context, ip, command string) (string, error) {
@@ -127,9 +155,9 @@ var _ = Describe("TestbedSynced", Label("testbed", "proof"), func() {
 
 // TestbedSecretsEncrypted reads a Secret raw from etcd on a node (TestSecretIsEncrypted proves the check can fail).
 // Only etcdctl's stdout: ssh's warnings would hide the prefix
-var _ = Describe("TestbedSecretsEncrypted", Label("testbed", "proof"), func() {
+var _ = Describe("TestbedSecretsEncrypted", Label("testbed", "production", "proof"), func() {
 	It("encrypts Secrets in etcd", func(ctx SpecContext) {
-		names, ips := testbedHosts()
+		names, ips := metalHosts()
 		random := make([]byte, 16)
 		_, err := rand.Read(random)
 		Expect(err).NotTo(HaveOccurred())
@@ -152,9 +180,9 @@ stringData: {value: %s}
 })
 
 // Three k3s servers, each an etcd member that sees a leader
-var _ = Describe("TestbedNodes", Label("testbed", "proof"), func() {
+var _ = Describe("TestbedNodes", Label("testbed", "production", "proof"), func() {
 	It("runs three etcd members with a leader", func(ctx SpecContext) {
-		names, ips := testbedHosts()
+		names, ips := metalHosts()
 		Expect(names).To(HaveLen(3))
 		for _, name := range names {
 			waitNodeReady(ctx, name, 5*time.Minute)
@@ -214,7 +242,7 @@ var _ = Describe("TestbedCeph", Label("testbed", "proof"), func() {
 			health, _ := kube.Kubectl(ctx, "rook-ceph", "get", "cephcluster", "-o", "jsonpath={.items[*].status.ceph.health}")
 			return health
 		}).WithTimeout(30*time.Minute).WithPolling(15*time.Second).Should(Equal("HEALTH_OK"), "Ceph is not HEALTH_OK")
-		names, _ := testbedHosts()
+		names, _ := metalHosts()
 		// HEALTH_OK can come while Rook still recreates an OSD's pod
 		var osds string
 		Eventually(ctx, func() bool {
@@ -308,7 +336,7 @@ func testbedMeshWorks(ctx context.Context) {
 	Eventually(ctx, func() bool { return gatewayAnswers(ctx) }).WithTimeout(30*time.Minute).WithPolling(10*time.Second).
 		Should(BeTrue(), "the Gateway does not answer")
 
-	names, _ := testbedHosts()
+	names, _ := metalHosts()
 	suffix := time.Now().Unix()
 	meshed := fmt.Sprintf("testbed-mesh-%d", suffix)
 	stranger := fmt.Sprintf("testbed-stranger-%d", suffix)
@@ -473,11 +501,11 @@ var _ = Describe("TestbedPostgresFailover", Label("testbed", "proof"), func() {
 
 // Step 15h on NixOS's kernel: every node runs the kubelet with seccomp-default and holds Buildah's Localhost profile,
 // a pod naming no profile cannot unshare, and Buildah builds under its profile (Woodpecker itself does not run here)
-var _ = Describe("TestbedSeccomp", Label("testbed", "proof"), func() {
+var _ = Describe("TestbedSeccomp", Label("testbed", "production", "proof"), func() {
 	It("runs pods under RuntimeDefault and Buildah under its profile", func(ctx SpecContext) {
 		want, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "_modules", "metal", "flake", "seccomp", "buildah.json"))
 		Expect(err).NotTo(HaveOccurred())
-		names, ips := testbedHosts()
+		names, ips := metalHosts()
 		for _, name := range names {
 			profile, err := testbedSSH(ctx, ips[name], "cat /var/lib/kubelet/seccomp/homelab/buildah.json")
 			Expect(err).NotTo(HaveOccurred(), "%s: %s", name, profile)

@@ -41,8 +41,8 @@ type metalNode struct {
 	} `json:"data"`
 	Disk             string   `json:"disk"`
 	DNS              []string `json:"dns"`
-	TimeZone         string `json:"timeZone"`
-	Kernel           string `json:"kernel"`
+	TimeZone         string   `json:"timeZone"`
+	Kernel           string   `json:"kernel"`
 	PoweroffDeadline struct {
 		WantedBy     []string `json:"wantedBy"`
 		Dependencies bool     `json:"dependencies"`

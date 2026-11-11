@@ -70,9 +70,9 @@ spec:
 %[5]s`, node, scanBenchNamespace, scanBenchImage, volumeMounts.String(), volumes.String())
 }
 
-// ScanBench runs kube-bench on every testbed node (just testbed-scan). A run stopped midway leaves the privileged
+// ScanBench runs kube-bench on every testbed node (just testbed-scan), and on production's when asked (--labels scan). A run stopped midway leaves the privileged
 // namespace behind: the next one deletes it first
-var _ = Describe("ScanBench", Label("testbed", "scan"), func() {
+var _ = Describe("ScanBench", Label("testbed", "production", "scan"), func() {
 	It("leaves no undecided kube-bench finding", func(ctx SpecContext) {
 		raw, err := os.ReadFile(filepath.Join(repo.Root(), ".cluster-scan-accepted.yaml"))
 		Expect(err).NotTo(HaveOccurred())
@@ -102,7 +102,7 @@ metadata:
 		out, err := kube.Kubectl(ctx, scanBenchNamespace, args...)
 		Expect(err).NotTo(HaveOccurred(), out)
 
-		nodes, _ := testbedHosts()
+		nodes, _ := metalHosts()
 		for _, node := range nodes {
 			Expect(kube.Apply(ctx, scanBenchNamespace, scanBenchJob(node))).To(Succeed())
 		}
