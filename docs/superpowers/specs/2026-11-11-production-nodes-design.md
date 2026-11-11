@@ -107,8 +107,8 @@ The ISP's ZTE modem intercepts every UDP/53 query leaving the LAN: negative answ
 (`192.168.0.1`) forwards over DoH and answers in about 50 ms. `network.nix` gives the nodes `8.8.8.8` and `1.1.1.1` over UDP,
 and k3s's CoreDNS forwards to the node's resolvers, so both nodes and pods would hit the 6-second answers.
 
-- The nodes' DNS comes from `config.json` (a field such as `network.dns`, defaulting to the gateway), so production uses the
-  Archer and the testbed keeps its own. The testbed's NAT has no interception.
+- The nodes' DNS comes from `config.json` (`network.dns`, a list): production names the Archer (`["192.168.0.1"]`). Without
+  the field the nodes keep today's servers, so the testbed is unchanged (its NAT has no interception).
 - CoreDNS reads the node's `resolv.conf`, so it follows.
 - The proof is a measurement: an NXDOMAIN and an AAAA-less name answer in under a second from a node and from a pod.
 - Fallback, if the Archer's single DoH upstream proves unreliable: DNS over TLS from the nodes (systemd-resolved) and
