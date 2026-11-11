@@ -24,13 +24,18 @@ func TestScanHardeningFlags(t *testing.T) {
 		"--kube-apiserver-arg=service-account-extend-token-expiration=false",
 		"--kube-apiserver-arg=audit-log-maxage=30",
 		"--kubelet-arg=pod-max-pids=4096",
+		"--kubelet-arg=seccomp-default=true",
 	} {
 		assert.Contains(t, string(k3d), "- arg: "+flag+"\n", "k3d.yaml")
 		assert.Contains(t, string(nodes), `"`+flag+`"`, "k3s-server.nix")
 	}
-	// RuntimeDefault for pods without a profile refuses the unshare Buildah needs in Woodpecker's step pods
-	assert.NotContains(t, string(k3d), "seccomp-default=true", "k3d.yaml")
-	assert.NotContains(t, string(nodes), "seccomp-default=true", "k3s-server.nix")
+	// seccomp-default gives Woodpecker's Buildah steps RuntimeDefault, which refuses their unshare: their Localhost
+	// profile sits beside the kubelet (step 15h)
+	assert.Contains(t, string(nodes), "/var/lib/kubelet/seccomp/homelab/buildah.json", "k3s-server.nix")
+	assert.Contains(t, string(nodes), "../seccomp/buildah.json", "k3s-server.nix")
+	k3dModule, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "_modules", "k3d", "main.tf"))
+	require.NoError(t, err)
+	assert.Contains(t, string(k3dModule), ":/var/lib/kubelet/seccomp/homelab/buildah.json@server:*", "main.tf")
 }
 
 // What kubescape found and step 15d narrowed: no component here holds cluster-admin or reads every Secret for nothing
