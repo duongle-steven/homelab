@@ -12,7 +12,8 @@ fio() { tool fio "$@"; }
 jq() { tool jq "$@"; }
 data=/dev/disk/by-partlabel/rook-data
 [ -b "$data" ] || { echo "no rook-data partition" >&2; exit 1; }
-if blkid -p "$data" >/dev/null 2>&1 || [ -n "$(lsblk -no FSTYPE "$data")" ]; then
+# A file system or Ceph's label (blkid -p also prints the GPT entry of an empty partition: only TYPE counts)
+if [ -n "$(blkid -p -s TYPE -o value "$data" 2>/dev/null)" ] || [ -n "$(lsblk -no FSTYPE "$data")" ]; then
 	echo "rook-data holds a signature (Ceph's?): refusing to write to it" >&2
 	exit 1
 fi
