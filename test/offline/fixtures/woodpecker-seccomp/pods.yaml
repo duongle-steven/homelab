@@ -117,6 +117,24 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
+  name: buildah-other-profile-container
+  namespace: woodpecker
+  labels:
+    woodpecker-ci.org/step: image
+    step: image
+spec:
+  containers:
+  - name: step
+    image: quay.io/buildah/stable:v1.43.5
+    securityContext:
+      seccompProfile:
+        type: Localhost
+        localhostProfile: homelab/other.json
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
   name: buildah-alpine-init
   namespace: woodpecker
   labels:

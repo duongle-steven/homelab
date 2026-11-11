@@ -88,7 +88,7 @@ func TestWoodpeckerSeccompPolicies(t *testing.T) {
 		denied = append(denied, m[1])
 	}
 	sort.Strings(denied)
-	assert.Equal(t, []string{"alpine-asks-container", "alpine-asks-pod", "buildah-alpine-init-asks", "buildah-other-profile",
+	assert.Equal(t, []string{"alpine-asks-container", "alpine-asks-pod", "buildah-alpine-init-asks", "buildah-other-profile", "buildah-other-profile-container",
 		"host-users-asks", "stable-evil-asks"}, denied, out)
 	assert.Contains(t, out, "only Woodpecker's Buildah steps may use a Localhost seccomp profile (homelab/buildah.json)")
 }

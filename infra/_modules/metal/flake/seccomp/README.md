@@ -24,11 +24,14 @@ nodes (nixpkgs' `k3s_1_37`) run that same k3s. The last entry of `syscalls` adds
 (`hostUsers: false`), so the kernel still checks every mount against that namespace's capabilities. `setns`, `clone`'s
 namespace flags and `clone3` were not needed, and stay refused.
 
-Measured on 2026-11-11 in the sandbox (WSL's kernel 6.18), with `TestWoodpecker`'s `Containerfile`
+Measured on 2026-11-11 in the sandbox (WSL's kernel 6.18), with Buildah v1.43.5 (`quay.io/buildah/stable`) and `TestWoodpecker`'s `Containerfile`
 (`FROM busybox`, a `RUN`): the base with `defaultAction: SCMP_ACT_LOG`, then the syscalls the kernel logged
 (`type=1326`). The testbed (`TestbedSeccomp`) builds under it on NixOS's kernel.
 
-When k3s's containerd changes its default profile, regenerate the base and repeat the measurement:
+When k3s's containerd changes its default profile, regenerate the base, update `buildahSeccompBase` in
+`test/offline/seccomp_test.go` and repeat the measurement. When the Buildah steps move to a newer Buildah, repeat the
+measurement: a release that takes other syscalls (the new mount API: `open_tree`, `move_mount`, `mount_setattr`) fails
+its build with `Operation not permitted` until they are added here.
 
 ```go
 // go.mod: require github.com/containerd/containerd/v2 <k3s's version>, replaced by k3s-io/containerd/v2 as k3s's go.mod does
