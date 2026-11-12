@@ -214,6 +214,14 @@
     - {namespace: kiali, workloads: [{kind: Deployment, name: kiali}]}
   settings: {client: kiali, namespace: kiali}
 
+- name: kanidm-client.matrix
+  kind: kaniop-client
+  class: 2
+  reason: a login fails until tuwunel restarts (it reads the secret file at start); open sessions stay
+  readers:
+    - {namespace: matrix, workloads: [{kind: Deployment, name: matrix-server}]}
+  settings: {client: matrix, namespace: matrix}
+
 - name: kanidm-client.paperless
   kind: kaniop-client
   class: 2

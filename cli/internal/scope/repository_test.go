@@ -21,7 +21,7 @@ func TestRepositoryMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	full := "(argocd || backup-restore || egress || falco || forgejo || gateway || identity || logs || mesh || monitoring || node-power-cut || node-restart || ntfy || policy || public || rotation || seccomp || secrets || smoke || sso || supply-chain || trivy-operator || woodpecker) && !alone"
+	full := "(argocd || backup-restore || egress || falco || forgejo || gateway || identity || logs || matrix || mesh || monitoring || node-power-cut || node-restart || ntfy || policy || public || rotation || seccomp || secrets || smoke || sso || supply-chain || trivy-operator || woodpecker) && !alone"
 	fullAlone := []string{"backup-restore", "node-power-cut", "node-restart", "rotation"}
 	for _, tc := range []struct {
 		file, main string
