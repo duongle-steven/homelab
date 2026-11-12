@@ -392,12 +392,12 @@ func TestProductionDefaultFilter(t *testing.T) {
 		return names
 	}
 	routineSpecs := containers(routine)
-	for _, name := range []string{"TestbedNodes", "TestbedSecretsEncrypted", "TestbedSeccomp", "NodesResolveQuickly"} {
+	for _, name := range []string{"TestbedNodes", "TestbedSecretsEncrypted", "TestbedSeccomp", "NodesResolveQuickly", "TestbedCeph"} {
 		assert.Contains(t, routineSpecs, name)
 	}
-	for _, name := range []string{"ProductionVIPMoves", "ProductionPowerCut", "ScanBench"} {
+	for _, name := range []string{"ProductionVIPMoves", "ProductionPowerCut", "ProductionPowerCutWithData", "ScanBench"} {
 		assert.NotContains(t, routineSpecs, name, "a routine production run must not run %s", name)
 	}
-	assert.ElementsMatch(t, []string{"ProductionPowerCut", "ProductionVIPMoves"}, containers(asked))
+	assert.ElementsMatch(t, []string{"ProductionPowerCut", "ProductionPowerCutWithData", "ProductionVIPMoves"}, containers(asked))
 	assert.Contains(t, containers(e2eFilter(t, "production", "scan")), "ScanBench")
 }
