@@ -27,7 +27,8 @@ func TestValuesLayers(t *testing.T) {
 	for _, env := range []string{"testbed", "dev"} {
 		assert.Contains(t, render.Yq(t, "system/kyverno", env, scanInterval), "6h", env)
 		assert.Empty(t, render.Yq(t, "system/kyverno", env, `select(.kind == "Deployment" and .metadata.name == "kyverno-cleanup-controller") | .metadata.name`), env)
-		assert.Equal(t, "1", render.Yq(t, "system/trivy-operator", env,
+		// One scan Job at a time on the testbed's VMs, two in the sandbox (one queued past TrivyOperator's wait, 12b-2)
+		assert.Equal(t, map[string]string{"testbed": "1", "dev": "2"}[env], render.Yq(t, "system/trivy-operator", env,
 			`select(.kind == "ConfigMap") | .data.OPERATOR_CONCURRENT_SCAN_JOBS_LIMIT | select(. != null)`), env)
 	}
 

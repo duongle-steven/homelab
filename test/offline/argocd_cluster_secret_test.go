@@ -64,6 +64,7 @@ func TestArgoCDBootstrapAppliesSecretFirst(t *testing.T) {
 	dir, env := fakeBin(t, map[string]string{"kubectl": `case "$*" in
   *"create namespace"*) printf 'apiVersion: v1\nkind: Namespace\nmetadata: {name: argocd}\n' ;;
   *wait*) ;;
+  *"get secret"*) ;;
   *apply*) yq -N '.kind + "/" + .metadata.name' >> "$FIXTURES/applied" ;;
   *) exit 1 ;;
 esac`})
@@ -239,6 +240,7 @@ func TestArgoCDBootstrapRendersBeforeSecret(t *testing.T) {
 	dir, env := fakeBin(t, map[string]string{"kubectl": `case "$*" in
   *"create namespace"*) printf 'apiVersion: v1\nkind: Namespace\nmetadata: {name: argocd}\n' ;;
   *wait*) ;;
+  *"get secret"*) ;;
   *apply*) yq -N '.kind + "/" + .metadata.name' >> "$FIXTURES/applied" ;;
   *) exit 1 ;;
 esac`})
