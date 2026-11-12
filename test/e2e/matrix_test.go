@@ -56,6 +56,13 @@ var _ = Describe("Matrix", Label("sandbox", "matrix"), func() {
 				return ""
 			}
 			acceptConsent(browser)
+			// tuwunel asks the person to confirm where the login goes (against phishing): click Continue, as they would
+			if u, err := url.Parse(location); err == nil && u.Host == matrixHost && strings.Contains(u.Path, "/sso/callback/") {
+				var found bool
+				_ = chromedp.Run(browser, chromedp.Evaluate(`(() => { const b = [...document.querySelectorAll("button, a, input[type=submit]")]
+					.find(e => (e.innerText || e.value || "").trim() === "Continue"); if (b) { b.click(); return true } return false })()`, &found))
+				return ""
+			}
 			if u, err := url.Parse(location); err == nil && u.Host == chatHost {
 				token = u.Query().Get("loginToken")
 			}
