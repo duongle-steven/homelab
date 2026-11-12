@@ -121,7 +121,65 @@ ArgoCD in the sandbox syncs the GitHub branch `sandbox`. `just dev` force-pushes
 
 Only the components listed in `system/argocd/values-dev.yaml` are synced: system and platform charts in the `root` ApplicationSet, apps in the `apps` ApplicationSet.
 
-- **Apps** are app-template values files, `apps/<name>.yaml`. The `apps` ApplicationSet pins the app-template version and passes the environment: write hosts as `<host>.{{ .Values.global.baseDomain }}`, and attach public apps to `{{ .Values.global.publicGateway }}` (the Cloudflare Tunnel Gateway in production, the LAN Gateway in the sandbox). `apps/matrix/` is the only app that is still a chart.
+- **Apps** are app-template values files, `apps/<name>.yaml`. The `apps` ApplicationSet pins the app-template version and passes the environment: write hosts as `<host>.{{ .Values.global.baseDomain }}`, and attach public apps to `{{ .Values.global.publicGateway }}` (the Cloudflare Tunnel Gateway in production, the LAN Gateway in the sandbox).
+- **System and platform components** are wrapper charts; one that needs sandbox-specific settings gets a `values-dev.yaml` next to its `values.yaml`, and what the sandbox shares with the [testbed](testbed.md) (the local CA, the tests' fixtures, no Telegram or Cloudflare) goes in `values-local.yaml`, loaded before it.
+
+Check how ArgoCD will render something with:
+
+```sh
+scripts/render-chart apps/excalidraw.yaml dev
+scripts/render-chart platform/kanidm dev
+```
+
+## Resource usage
+
+Measured on a fresh k3d sandbox with all components running and every namespace in the ambient mesh (working-set memory per namespace from Prometheus; the node total from `docker stats` of `k3d-homelab-dev-server-0`; the k3d load balancer and the localhost proxy add about 25 MiB):
+
+| Namespace | RAM |
+|---|---|
+| paperless (with Redis) | 926 MiB |
+| grafana | 833 MiB |
+| monitoring-system | 790 MiB |
+| argocd | 637 MiB |
+| istio-system (istiod 103, Gateways 110, istio-cni 59, ztunnel 25) | 300 MiB |
+| cert-manager (with trust-manager) | 228 MiB |
+| opencloud | 205 MiB |
+| forgejo | 175 MiB |
+| external-secrets | 158 MiB |
+| homepage | 141 MiB |
+| kanidm | 122 MiB |
+| zot | 119 MiB |
+| kube-system (CoreDNS, local-path, metrics-server, ServiceLB) | 116 MiB |
+| actualbudget | 83 MiB |
+| pairdrop | 69 MiB |
+| speedtest | 22 MiB |
+| excalidraw | 13 MiB |
+| k3s itself (API server, etcd, controllers, kubelet, containerd; outside any container: node total minus the rows above) | about 3.1 GiB |
+| **Node total** | **7.89 GiB** |
+
+## After a restart
+
+The sandbox survives a WSL or Docker restart: its containers start again (`k3d cluster start homelab-dev` if they do not) and keep their addresses. `just dev` makes each container's address on the k3d network static when it builds the cluster, because Docker otherwise gives a restarted container any free address, and k3s's etcd then refuses to start ("not a member of the etcd cluster": its member address is the old one). A sandbox built before that needs `just dev-fresh` once after such a restart; check with `docker inspect -f '{{json .NetworkSettings.Networks}}' k3d-homelab-dev-server-0` (a static address shows in `IPAMConfig`).
+
+On WSL, a full `C:` drive crashes the whole VM (kernel panics with SIGBUS, reports in `%LOCALAPPDATA%\Temp\wsl-crashes`): the sandbox's disk grows inside WSL's virtual disk on `C:`, so keep about 30 GB free there during the suite.
+
+Never beside [testbed](testbed.md): `just dev` refuses while testbed's VMs run (`just testbed-stop`), and both refuse
+with less than 30 GB free on `C:`.
+
+## Clean up
+
+```sh
+just dev-clean  # terragrunt run --all destroy in infra/sandbox: the cluster, the proxy and the kubeconfig (not the image caches)
+```
+
+## Differences from production
+
+- Certificates come from a local CA instead of Let's Encrypt
+- Only accessible from the host machine
+- No Alertmanager, Loki, backups, Woodpecker or Renovate
+- Forgejo runs one PostgreSQL instance (CloudNativePG) instead of three; Argo CD syncs GitHub branch `sandbox`, not Forgejo (the tests push a commit with the checkout's tree to `ops/homelab`)
+- No Cloudflare Tunnel: excalidraw uses the LAN Gateway `gateway` instead of `public`
+- No kube-vip: ServiceLB serves the Gateway on the k3d node instead of a kube-vip
 - **System and platform components** are wrapper charts; one that needs sandbox-specific settings gets a `values-dev.yaml` next to its `values.yaml`, and what the sandbox shares with the [testbed](testbed.md) (the local CA, the tests' fixtures, no Telegram or Cloudflare) goes in `values-local.yaml`, loaded before it.
 
 Check how ArgoCD will render something with:

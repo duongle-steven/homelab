@@ -8,8 +8,10 @@ zot, Kanidm) stays on the LAN Gateway.
 |---|---|---|
 | `www.` | blog | `blog` |
 | `draw.` | excalidraw | `excalidraw` |
-| `chat.` | Element web | `matrix` |
 | `ntfy.` | ntfy | `ntfy` |
+
+Matrix (`matrix.` and `chat.`) stays on the LAN: it signs in through Kanidm, which is LAN-only until step 13 (VPN from
+outside).
 
 Three guards:
 

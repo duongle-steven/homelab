@@ -25,7 +25,7 @@ checks otherwise):
 
 | Group | Volumes | Off-site |
 |---|---|---|
-| `daily` | OpenBao (its hourly raft snapshot, `openbao-snapshots`), Kanidm, Forgejo (`forgejo-data` and PostgreSQL `forgejo-db`), Woodpecker's server, ntfy, Matrix (Dendrite's media and queues, its PostgreSQL) | every day at 02:00 |
+| `daily` | OpenBao (its hourly raft snapshot, `openbao-snapshots`), Kanidm, Forgejo (`forgejo-data` and PostgreSQL `forgejo-db`), Woodpecker's server, ntfy, Matrix (tuwunel's database) | every day at 02:00 |
 | `manual` | Actual Budget, paperless, OpenCloud | only with `lab backup push <app>` |
 | `none` | zot, Loki, jellyfin, everything else | never: rebuilt or downloaded again |
 
