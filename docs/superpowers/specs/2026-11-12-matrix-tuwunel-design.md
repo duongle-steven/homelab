@@ -27,6 +27,10 @@ is one setting to change later.
   egress entry for 8448 goes.
 - **In the sandbox too:** in `values-dev.yaml`'s apps list, with a spec proving an account signs in through Kanidm and
   sends a message. The old chart never ran there.
+- **LAN only** *(user, 2026-11-12)*: `chat.` and `matrix.` on the LAN Gateway. `matrix` leaves 15f's public map
+  (`system/istio-system/values.yaml`) and `chat` leaves `system/public-scan`'s targets. From outside, use the VPN.
+  Upstream publishes every host through its Tunnel's wildcard (Kanidm included); this fork's 15f does not. A public
+  Matrix, with Kanidm public, is step 13's decision.
 - **Backups:** the data volume `daily`, as Matrix's was.
 - **The old chart removed:** `apps/matrix/`, its entries in `scripts/check-backup-groups`, `test/scopes.yaml` and the
   docs. `CLAUDE.md`'s Portability line about Matrix's domain goes too.
@@ -39,13 +43,12 @@ is one setting to change later.
 ## Anti-goals
 
 - **Production deploying Dendrite before this reaches `master`.** The stage stays `platform` until then.
-- **A public route that exposes more than the client and the client API.** `chat.` stays public, as today;
-  `matrix.` (the client API) is public only as far as the Tunnel's allow-list says (15f).
+- **A half-public Matrix.** Today `chat.` (Element) is on Gateway `public` while the server is LAN-only, so the client
+  loads from outside and can do nothing. Sign-in goes through Kanidm, which is LAN-only until step 13.
 
 ## Left to the builder
 
 - tuwunel's cache and memory settings, the client's `config.json`, the resource limits. Upstream's are a starting point.
 - How the spec drives FluffyChat's or the API's SSO flow: the API (`/_matrix/client/v3/login` with `m.login.sso`) through
   Kanidm's form, as the other SSO specs do, is enough.
-- Whether `matrix.` joins Gateway `public`'s namespaces (15f's map): phones on a mobile network need the client API, so
-  yes unless the person keeps Matrix LAN-only.
+
