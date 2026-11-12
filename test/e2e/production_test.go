@@ -208,12 +208,33 @@ var _ = Describe("ProductionPowerCutWithData", Label("production", "hardware-pro
 		}
 		marker := fmt.Sprint("power-cut-", time.Now().UnixNano())
 
+		// Each scratch write's cleanup is registered before the write and retried: this runs on production, where
+		// scratch data must not stay behind even when the cluster has not recovered by the time the spec gives up
+		cleanup := func(what, byHand string, try func(context.Context) error) {
+			DeferCleanup(func(ctx SpecContext) {
+				var last error
+				done := false
+				for deadline := time.Now().Add(8 * time.Minute); time.Now().Before(deadline); {
+					if last = try(ctx); last == nil {
+						done = true
+						break
+					}
+					sleep(ctx, 20*time.Second)
+				}
+				if !done {
+					GinkgoWriter.Printf("CLEANUP FAILED for %s (%v): remove it by hand: %s\n", what, last, byHand)
+				}
+			}, NodeTimeout(10*time.Minute))
+		}
+
 		// OpenBao (raft on its volume)
+		cleanup("OpenBao's secret/scratch/power-cut", "bao kv metadata delete secret/scratch/power-cut (admin role)", func(ctx context.Context) error {
+			if out, err := bao(ctx, "admin", "openbao", "openbao-admin", "kv", "metadata", "delete", "secret/scratch/power-cut"); err != nil {
+				return fmt.Errorf("%v: %s", err, out)
+			}
+			return nil
+		})
 		admin(ctx, "kv", "put", "secret/scratch/power-cut", "value="+marker)
-		DeferCleanup(func(ctx SpecContext) {
-			_, _ = bao(ctx, "admin", "openbao", "openbao-admin", "kv", "metadata", "delete", "secret/scratch/power-cut")
-		},
-			NodeTimeout(5*time.Minute))
 
 		// Forgejo's PostgreSQL: a scratch table, committed, on the primary
 		psql := func(ctx context.Context, query string) (string, error) {
@@ -224,14 +245,17 @@ var _ = Describe("ProductionPowerCutWithData", Label("production", "hardware-pro
 			}
 			return kube.Kubectl(ctx, "forgejo", "exec", primary, "-c", "postgres", "--", "psql", "-tAc", query)
 		}
+		// In database postgres of forgejo-db (the superuser's, over peer auth): the same data directory and WAL on Ceph as
+		// Forgejo's own database, without touching it
+		cleanup("forgejo-db's table power_cut", "kubectl -n forgejo exec <primary> -c postgres -- psql -c 'DROP TABLE power_cut'",
+			func(ctx context.Context) error { _, err := psql(ctx, "DROP TABLE IF EXISTS power_cut"); return err })
 		_, err := psql(ctx, fmt.Sprintf("CREATE TABLE power_cut (marker text); INSERT INTO power_cut VALUES ('%s')", marker))
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func(ctx SpecContext) { _, _ = psql(ctx, "DROP TABLE IF EXISTS power_cut") }, NodeTimeout(10*time.Minute))
 
 		// A plain Ceph volume, written and synced
 		ns := fmt.Sprintf("power-cut-%d", time.Now().Unix())
+		cleanup("namespace "+ns, "kubectl delete namespace "+ns, func(ctx context.Context) error { return kube.DeleteNamespace(ctx, ns) })
 		Expect(kube.CreateNamespace(ctx, ns)).To(Succeed())
-		DeferCleanup(func(ctx SpecContext) { _ = kube.DeleteNamespace(ctx, ns) }, NodeTimeout(10*time.Minute))
 		Expect(kube.Apply(ctx, ns, `{"apiVersion":"v1","kind":"PersistentVolumeClaim","metadata":{"name":"data","labels":{"homelab/backup":"none"}},
 			"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"1Gi"}}}}`)).To(Succeed())
 		volumePod := func(name, command string) string {
@@ -261,11 +285,13 @@ var _ = Describe("ProductionPowerCutWithData", Label("production", "hardware-pro
 		// The API first reports what it knew before the cut: wait for every pod of what holds the data to be ready again
 		for _, namespace := range []string{"rook-ceph", "openbao", "forgejo", "kube-system", "istio-system"} {
 			Eventually(ctx, func() string {
-				out, _ := kube.Kubectl(ctx, namespace, "get", "pods", "-o",
-					`jsonpath={range .items[?(@.status.phase!="Succeeded")]}{.metadata.name}{" "}{.status.containerStatuses[*].ready}{"\n"}{end}`)
+				// A Job's pod that ended (a watchdog run the cut stopped) is not waited for
+				out, _ := kube.Kubectl(ctx, namespace, "get", "pods", "--field-selector=status.phase!=Succeeded,status.phase!=Failed", "-o",
+					`jsonpath={range .items[*]}{.metadata.name}{" "}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}`)
 				var waiting []string
 				for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-					if line != "" && strings.Contains(line, "false") {
+					// Every pod Ready, a Pending one too (no Ready condition yet)
+					if fields := strings.Fields(line); len(fields) > 0 && (len(fields) < 2 || fields[1] != "True") {
 						waiting = append(waiting, line)
 					}
 				}

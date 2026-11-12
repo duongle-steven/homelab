@@ -35,7 +35,7 @@ rules, Ginkgo, testify, just.
 - **Production:**
   - no test accounts or clients;
   - Renovate's key withheld until 12b-3;
-  - kured held during the hardware proofs;
+  - kured removed (spec decision 7);
   - the cut before `lab backup enable`.
 - **Never:**
   - `just dev` beside the testbed, or with C: under 30 GB;
@@ -54,8 +54,7 @@ rules, Ginkgo, testify, just.
    generators. Task 1 renders each.
 4. **The cut's scratch data is gone afterwards, even when the spec fails midway.** Expect deferred cleanup. Task 3's
    spec owns it.
-5. **kured cannot reboot a node during a hardware proof, and is released after.** Task 3's specs take and release its
-   lock.
+5. **Nothing reboots a node but `lab cluster upgrade`.** kured is removed (spec decision 7); `TestNoRebootDaemon` pins it.
 
 ---
 
@@ -133,9 +132,6 @@ rules, Ginkgo, testify, just.
 **Files:**
 - Modify: `test/e2e/testbed_test.go`: `Describe("TestbedCeph")` takes the label `production`.
 - Create, in `test/e2e/production_test.go`:
-  - `holdKured(ctx) (release func(context.Context))`: takes kured's lock by annotating its DaemonSet in `kured` with
-    `weave.works/kured-node-lock` (kured's own lock), and releases it in a `DeferCleanup`. `ProductionVIPMoves` and
-    `ProductionPowerCut` call it too.
   - `Describe("ProductionPowerCutWithData", Label("production", "hardware-proof"), Serial)`. Before the cut, it writes and
     records:
     - a random marker at OpenBao's `secret/scratch/power-cut`, written with the admin role the sandbox's specs use;
@@ -155,7 +151,7 @@ rules, Ginkgo, testify, just.
 - [ ] **Step 3: Implement.** Reuse the sandbox's `NodePowerCut` helpers for OpenBao and Forgejo where they exist
   (`test/e2e/node_restart_test.go`). `go vet ./e2e`.
 - [ ] **Step 4: Run** the check, `TestE2EKeepsSelection` and `just cli check`. Expected: PASS.
-- [ ] **Step 5: Commit** `test(12b-2): the cut with data, Ceph on production, kured held during hardware proofs`.
+- [ ] **Step 5: Commit** `test(12b-2): the cut with data, and Ceph on production`.
 
 ### Task 4: Sandbox proof and the release
 

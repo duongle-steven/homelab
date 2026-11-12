@@ -124,7 +124,13 @@ A production spec labelled `hardware-proof`, like 12b-1's `ProductionPowerCut`.
 
 - **Renovate:** its GitHub App key is not given until 12b-3. Renovate waits for its Secret, harmlessly, and no daily
   pull request labelled `sandbox` starts a CI sandbox meanwhile.
-- **kured:** held during the hardware proofs (its lock taken on the DaemonSet), so no reboot falls inside a measurement.
+- **kured: removed** *(found while building, 2026-11-12)*. Its sentinel was `needs-restarting --reboothint`, a RHEL
+  tool NixOS lacks: the shell's 127, negated by `!`, says "reboot needed", so kured would reboot the nodes in turn
+  forever. NixOS nodes change only through `lab cluster upgrade`, which already reboots when the kernel, initrd or
+  modules change, drains first and waits for Ceph between nodes, which kured does not. Upstream keeps kured, with a
+  NixOS sentinel comparing `/run/booted-system` to the system profile, because it rebuilds nodes by hand; this fork
+  automates that rebuild. Bring kured back, with upstream's sentinel and a night window, only if nodes ever update
+  outside `lab cluster upgrade` (`system.autoUpgrade`).
 - **The rotation CronJob:** stays suspended until a release builds lab's image, as today.
 
 ### 8. Accounts and test data on production *(Claude's call)*
