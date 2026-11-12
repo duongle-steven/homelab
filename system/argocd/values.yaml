@@ -145,8 +145,9 @@ argocd-apps:
                           - path: infra/production/cluster/config.json
                         # Its own .path would replace the directory's
                         pathParamPrefix: config
-        # Whatever deploys an app, only at stage all (the cluster Secret's homelab/stage, step 12b-2): a new cluster's first
-        # deploy may stop at the platform. Matrix (the only app chart) and the public scan, whose targets are apps
+        # The public scan, whose targets are apps, only at stage all (the cluster Secret's homelab/stage, step 12b-2): a new
+        # cluster's first deploy may stop at the platform. The apps themselves come from the apps ApplicationSet, gated the
+        # same way; no app is a chart any more, so root lists no apps/* directory
         - matrix:
             generators:
               - clusters: &appsCluster
@@ -160,7 +161,6 @@ argocd-apps:
                         repoURL: *repoURL
                         revision: *revision
                         directories:
-                          - path: apps/*
                           - path: system/public-scan
                     - git:
                         repoURL: *repoURL
@@ -268,7 +268,7 @@ argocd-apps:
           destination:
             namespace: argocd
         {{- end }}
-    # One Application per app-template values file apps/<name>.yaml (apps/matrix/ is a chart, synced by root)
+    # One Application per app-template values file apps/<name>.yaml
     apps:
       namespace: argocd
       # The VPN routers need NET_ADMIN: privileged under Pod Security Admission (their PolicyExceptions say why)

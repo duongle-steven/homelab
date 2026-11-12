@@ -24,8 +24,9 @@ var _ = Describe("Matrix", Label("sandbox", "matrix"), func() {
 	waitForAppBeforeEach(base + "/_matrix/client/versions")
 
 	It("signs in through Kanidm only and sends a message", func(ctx SpecContext) {
-		// FluffyChat's page
-		Expect(getJSON(ctx, "GET", "https://"+chatHost+"/config.json", nil, "", "", nil, nil)).To(Equal(http.StatusOK))
+		// FluffyChat's page: its image may still be pulling on a fresh sync
+		Eventually(ctx, func() int { return getJSON(ctx, "GET", "https://"+chatHost+"/config.json", nil, "", "", nil, nil) }).
+			WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Equal(http.StatusOK), "FluffyChat does not answer")
 
 		// No password login: SSO alone
 		var flows struct {
@@ -49,7 +50,8 @@ var _ = Describe("Matrix", Label("sandbox", "matrix"), func() {
 		browser, cancel := newBrowser(ctx)
 		defer cancel()
 		openLogin(browser, account, start)
-		kanidmLogin(browser, account, ensureCredentials(ctx, account), ensureCredentials(ctx, account).Password)
+		credentials := ensureCredentials(ctx, account)
+		kanidmLogin(browser, account, credentials, credentials.Password)
 		var token, location string
 		Eventually(browser, func() string {
 			if chromedp.Run(browser, chromedp.Location(&location)) != nil {

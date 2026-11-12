@@ -59,9 +59,9 @@ func TestClusterSecretStage(t *testing.T) {
 
 // Every generator that deploys an app selects only a cluster at stage all; the others are unchanged
 func TestStageGatesApps(t *testing.T) {
-	// What each environment's root deploys behind the stage: production (and its seed) Matrix and the public scan, the
-	// sandbox the public scan, the testbed neither (it runs no app)
-	gatedByEnv := map[string][]string{"": {"apps/*", "system/public-scan"}, "seed": {"apps/*", "system/public-scan"},
+	// What each environment's root deploys behind the stage: the public scan (the apps come from the apps ApplicationSet,
+	// gated too), except on the testbed, which runs neither
+	gatedByEnv := map[string][]string{"": {"system/public-scan"}, "seed": {"system/public-scan"},
 		"dev": {"system/public-scan"}, "testbed": nil}
 	for _, env := range []string{"", "dev", "testbed", "seed"} {
 		yq := func(expr string) []string {

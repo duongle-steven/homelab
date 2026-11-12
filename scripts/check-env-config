@@ -74,7 +74,6 @@ def domain_literals():
     return hits
 # Components that still name the production domain, and why (listed in CLAUDE.md's production checklist)
 EXEMPT = {
-    "apps/matrix": "dendrite and element-web neither template their config nor take an existing one (production only)",
 }
 # Globals we pass to every chart (system/argocd ApplicationSets): no subchart may define them in its own global
 OUR_GLOBALS = {"addresses", "baseDomain", "timezone", "seedRepository"}

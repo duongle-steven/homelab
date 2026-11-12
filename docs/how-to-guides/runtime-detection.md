@@ -90,6 +90,6 @@ busy node, raise the CPU limit first.
 - **Testbed** (`TestbedFalco`, once by hand): Falco runs on the three NixOS nodes with the modern eBPF probe and reports
   a dropped binary. It is off the testbed's list: on its 2-vCPU VMs the probe more than doubled `k3s server`'s CPU
   ([the measurement](../installation/testbed.md#falco-one-measurement)).
-- **Production**: its own workloads (cloudflared, the VPN routers, Matrix, jellyfin, Ceph's daemons, kube-vip) were
+- **Production**: its own workloads (cloudflared, the VPN routers, jellyfin, Ceph's daemons, kube-vip) were
   never watched. Review Falco's events in the first days after the first deploy, and accept each with its reason or fix
   its cause.

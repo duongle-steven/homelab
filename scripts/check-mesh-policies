@@ -42,7 +42,6 @@ def targets():
     for d in sorted(glob.glob("system/*/") + glob.glob("platform/*/")):
         if os.path.exists(os.path.join(d, "Chart.yaml")):
             yield d.rstrip("/")
-    yield "apps/matrix"
     yield from sorted(glob.glob("apps/*.yaml"))
 
 

@@ -119,7 +119,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 15d | `service-account-extend-token-expiration=false`: a client caching its projected token past an hour gets 401s; no test failed over the whole suite, but nobody read the audit log for ServiceAccount 401s over a long run | before production |
 | 15d | `TestBackupRestore`'s "push asks first" failed once right after the sandbox started (`lab backup push`: "ntfy has no mounted volume"): `VolumeBytes` reads the kubelets' stats summary, which has no volume figures for a pod until its first collection; the rerun passed. Retry for a minute, or read the claims' pods instead | any |
 | 15d | `just testbed` from stopped VMs failed once in `lab cluster enroll` ("Waiting for homelab-2 to join": the API server's `etcd failed` while the VMs were still booting, homelab-3 pending); the rerun passed. Enroll should retry an unhealthy API server while the nodes come up | 12b |
-| 15f | Element web (`chat.`) is public while dendrite's route is on the LAN Gateway only, so Element cannot sign in from outside the house: publish dendrite's client API (and federation) on `public` with its host in the public map, or keep Element on the LAN | any |
 | 15f | `system/public-scan/files/scan.sh` drops nuclei's own `[FTL]`/`[ERR]` lines when nuclei fails: the log says only that it failed | any |
 | 15f | The scan's last line `{"public_scan":"done","templates":N}` reports the last host's template count only | any |
 | 15f | `docs/how-to-guides/public-surface.md` does not say how to import an existing `http_ratelimit` or `http_request_firewall_managed` entry point, if the first apply finds one | the first production apply |
@@ -159,3 +158,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 12b-2 | `EtcdLeaderChanges` overlaps kube-prometheus-stack's `etcdHighNumberOfLeaderChanges` and fires once per member: aggregate it (`max without (instance, pod)`) or keep only `EtcdSlowDisk` | any |
 | 12b-2 | `ProductionPowerCutWithData` reads OpenBao once after the cut; wrap it in `Eventually` like the PostgreSQL read | 12b-2 |
 | 12b-2 | `TestStageGatesApps` passes trivially if no `apps` cluster generator is rendered: assert one for production and dev | any |
+| Matrix (#89) | The `Matrix` spec leaves a private room for `dev-admin` per run in the `daily` volume: leave and forget it in a `DeferCleanup` | any |
+| Matrix (#89) | The `Matrix` spec finds tuwunel's "Continue sign-in" button by its text; a text or language change breaks it (its failure says where the browser stopped) | any |
+| Matrix (#89) | tuwunel 2.0's `media.upload_min_free_space` (1 GiB) refuses uploads once about 4 GiB of `matrix-data`'s 5Gi is used: size it or note it | 12b-3 |
+| Matrix (#89) | Matrix joins the sandbox's default apps (requests 272Mi, limits about 1.1Gi) unmeasured under the full suite, and `Falco`'s clean baseline has not run with it | any |

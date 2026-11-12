@@ -40,7 +40,7 @@ and reach it from outside through the VPN.
 The Free plan (Cloudflare's docs, read 2026-11-06) allows one rate-limiting rule, counted per client IP over 10 seconds,
 blocking for 10 seconds, whose expression may use only the path: it cannot name a host. So the rule
 (`cloudflare_ruleset.rate_limit`) covers the whole zone: **200 requests per 10 seconds per IP**
-(`rate_limit_requests`), far above a browser's cold load of Element web. Nothing else in the zone is proxied; a proxied
+(`rate_limit_requests`), far above a browser's cold load of a public app. Nothing else in the zone is proxied; a proxied
 host added later outside the Tunnel gets the same rule. Per-account limits stay the apps' own (ntfy's per-visitor
 limits read `CF-Connecting-IP`). The rule also counts cached assets: the Free plan cannot exclude them.
 
