@@ -50,9 +50,8 @@ var _ = Describe("Matrix", Label("sandbox", "matrix"), func() {
 		defer cancel()
 		openLogin(browser, account, start)
 		kanidmLogin(browser, account, ensureCredentials(ctx, account), ensureCredentials(ctx, account).Password)
-		var token string
+		var token, location string
 		Eventually(browser, func() string {
-			var location string
 			if chromedp.Run(browser, chromedp.Location(&location)) != nil {
 				return ""
 			}
@@ -61,7 +60,11 @@ var _ = Describe("Matrix", Label("sandbox", "matrix"), func() {
 				token = u.Query().Get("loginToken")
 			}
 			return token
-		}).WithTimeout(60*time.Second).WithPolling(500*time.Millisecond).ShouldNot(BeEmpty(), "no loginToken back on %s", chatHost)
+		}).WithTimeout(60*time.Second).WithPolling(500*time.Millisecond).ShouldNot(BeEmpty(), func() string {
+			var text string
+			_ = chromedp.Run(browser, chromedp.Evaluate(`document.body ? document.body.innerText.slice(0, 600) : ""`, &text))
+			return fmt.Sprintf("no loginToken back on %s; last at %s:\n%s", chatHost, location, text)
+		})
 
 		var login struct {
 			AccessToken string `json:"access_token"`
