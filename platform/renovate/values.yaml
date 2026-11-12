@@ -12,7 +12,7 @@ renovate:
     name: renovate
   cronjob:
     schedule: '0 5 * * *'
-    # The chart cannot read global.timezone (like kured): keep it and "timezone" below equal to config.json's timezone
+    # The chart cannot read global.timezone: keep it and "timezone" below equal to config.json's timezone
     timeZone: Asia/Ho_Chi_Minh
     concurrencyPolicy: Forbid
     # One retry of a failed run (a crash, a node restart), with a new token. The token script retries GitHub's passing

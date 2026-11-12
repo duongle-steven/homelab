@@ -201,7 +201,6 @@ groups:
       - platform/renovate/**
       - system/cloudflared/**
       - system/external-dns/**
-      - system/kured/**
       - system/rook-ceph/**
       - infra/justfile
       - infra/production/**
