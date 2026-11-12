@@ -48,7 +48,7 @@ func TestRepositoryMap(t *testing.T) {
 		{"test/offline/woodpecker_test.go", "", nil},
 		{"apps/paperless.yaml", "(paperless || smoke) && !alone", nil},
 		{"apps/blog.yaml", "smoke && !alone", nil},
-		{"system/kured/values.yaml", "smoke && !alone", nil},
+		{"system/external-dns/values.yaml", "smoke && !alone", nil},
 		// the offline tests and the internal packages' own tests: the basic checks run them
 		{"test/offline/velero_test.go", "", nil},
 		{"test/internal/repo/repo_test.go", "", nil},

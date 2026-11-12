@@ -493,3 +493,14 @@ func TestNodeFioGuard(t *testing.T) {
 	out, err = run(filepath.Join(dir, "missing"), none)
 	assert.Error(t, err, out)
 }
+
+// Nothing but lab cluster upgrade reboots a node: NixOS nodes change only through it, and it drains and reboots on a
+// kernel change. kured, which upstream ran for distributions that patch themselves, would reboot NixOS nodes in turn
+// forever: its sentinel (needs-restarting) does not exist there (12b-2)
+func TestNoRebootDaemon(t *testing.T) {
+	tracked, err := exec.Command("git", "-C", repo.Root(), "ls-files", "system/kured").Output()
+	require.NoError(t, err)
+	assert.Empty(t, strings.TrimSpace(string(tracked)), "system/kured deploys a reboot daemon")
+	out, _ := exec.Command("git", "-C", repo.Root(), "grep", "-l", "needs-restarting", "--", "system", "platform", "apps").Output()
+	assert.Empty(t, strings.TrimSpace(string(out)), "a reboot sentinel for another distribution")
+}

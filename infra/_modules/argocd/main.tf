@@ -57,6 +57,12 @@ variable "optional_apps" {
   description = "The sandbox's optional apps to deploy (a label each on the cluster Secret): paperless, opencloud"
 }
 
+variable "stage" {
+  type        = string
+  default     = ""
+  description = "platform or all for a new cluster's first deploys (production's HOMELAB_PRODUCTION_STAGE); empty keeps the cluster's (resolve-stage.sh)"
+}
+
 variable "revision" {
   type        = string
   default     = ""
@@ -88,22 +94,23 @@ locals {
   files = sort(setunion(fileset(var.chart, "*.yaml"), fileset(var.chart, "templates/**")))
   hash  = sha1(join("", [for f in local.files : filesha1("${var.chart}/${f}")]))
   environment = {
-    KUBECONFIG    = var.kubeconfig
-    CHART         = var.chart
-    VALUES        = data.external.values.result.values
-    ENVIRONMENT   = data.external.values.result.environment
-    REVISION      = var.revision
-    BACKUP_S3_URL = var.backup_s3_url
-    OPTIONAL_APPS = join(" ", var.optional_apps)
-    REPOSITORY    = data.external.values.result.repository
-    BRANCH        = var.branch
+    KUBECONFIG      = var.kubeconfig
+    CHART           = var.chart
+    VALUES          = data.external.values.result.values
+    ENVIRONMENT     = data.external.values.result.environment
+    REVISION        = var.revision
+    BACKUP_S3_URL   = var.backup_s3_url
+    OPTIONAL_APPS   = join(" ", var.optional_apps)
+    REPOSITORY      = data.external.values.result.repository
+    BRANCH          = var.branch
+    REQUESTED_STAGE = var.stage
   }
   command = "sh ${abspath("${path.module}/bootstrap.sh")}"
 }
 
 # It has no destroy-time action: destroying it leaves Argo CD running
 resource "terraform_data" "bootstrap" {
-  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, data.external.values.result.repository, var.branch, var.revision, var.backup_s3_url, var.optional_apps]
+  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, data.external.values.result.repository, var.branch, var.revision, var.backup_s3_url, var.optional_apps, var.stage]
 
   lifecycle {
     precondition {

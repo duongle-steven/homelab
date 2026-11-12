@@ -1,0 +1,34 @@
+# etcd's disk (step 12b-1's finding): homelab-1's SK hynix disk missed fio's etcd budget (p99 fdatasync over 10 ms) and
+# was accepted and watched. etcd commits on a quorum, so a slow member costs little until these fire; then fix it by
+# CLAUDE.md's options (replace the disk, a second M.2 for etcd, keep the leader off it). Prometheus scrapes etcd on
+# every node (job kube-etcd, templates/control-plane-scrape.yaml)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: etcd
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: etcd
+      rules:
+        - alert: EtcdSlowDisk
+          expr: |
+            histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket{job="kube-etcd"}[10m])) > 0.010
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "etcd's WAL fsync on {{`{{ $labels.instance }}`}} has been slow for an hour"
+            description: >-
+              The 99th percentile WAL fsync stayed over 10 ms, etcd's disk budget. 12b-1 measured homelab-1's disk (SK
+              hynix BC901) over it and accepted it: fix it now by CLAUDE.md's options (replace the disk, a second M.2 for
+              etcd, keep the leader off it).
+        - alert: EtcdLeaderChanges
+          expr: |
+            increase(etcd_server_leader_changes_seen_total{job="kube-etcd"}[1h]) > 3
+          labels:
+            severity: warning
+          annotations:
+            summary: "etcd changed leader more than three times in an hour ({{`{{ $labels.instance }}`}})"
+            description: >-
+              Frequent elections come from slow disks or a busy network: check EtcdSlowDisk and the nodes' load first.

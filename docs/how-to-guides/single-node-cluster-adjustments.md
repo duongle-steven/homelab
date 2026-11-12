@@ -42,14 +42,3 @@ rook-ceph-cluster:
           activeStandby: false
 ```
 
-## Disable automatic upgrade
-
-Because they will try to drain the only node, the pods will have no place to go.
-Remove them entirely:
-
-```sh
-rm -rf system/kured
-```
-
-Commit and push the change.
-You can revert it later when you add more nodes.

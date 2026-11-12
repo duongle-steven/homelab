@@ -156,3 +156,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | 12b-1 | `just test e2e --env production --labels <broad filter>` (e.g. `production`, `!kiali`) still selects `hardware-proof`: only the empty filter excludes it | 12b-2 |
 | 12b-1 | `metalEnv()` treats any `ENV` other than `testbed` as production, and the production recipe leaves `ENV` as the shell has it: export `ENV=production` and fail on anything else | any |
 | 12b-1 | `TestProductionMetalUnit` and `TestProductionConfig` hard-code the machines' MACs, addresses and config values: replacing a machine means editing a test | any |
+| 12b-2 | `EtcdLeaderChanges` overlaps kube-prometheus-stack's `etcdHighNumberOfLeaderChanges` and fires once per member: aggregate it (`max without (instance, pod)`) or keep only `EtcdSlowDisk` | any |
+| 12b-2 | `ProductionPowerCutWithData` reads OpenBao once after the cut; wrap it in `Eventually` like the PostgreSQL read | 12b-2 |
+| 12b-2 | `TestStageGatesApps` passes trivially if no `apps` cluster generator is rendered: assert one for production and dev | any |

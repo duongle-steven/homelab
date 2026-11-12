@@ -135,13 +135,38 @@ argocd-apps:
                           - path: system/csi-hostpath
                             exclude: true
                           - path: platform/*
-                          - path: apps/*
+                          # Behind the stage (the generator below)
+                          - path: system/public-scan
+                            exclude: true
                     - git:
                         repoURL: *repoURL
                         revision: *revision
                         files:
                           - path: infra/production/cluster/config.json
                         # Its own .path would replace the directory's
+                        pathParamPrefix: config
+        # Whatever deploys an app, only at stage all (the cluster Secret's homelab/stage, step 12b-2): a new cluster's first
+        # deploy may stop at the platform. Matrix (the only app chart) and the public scan, whose targets are apps
+        - matrix:
+            generators:
+              - clusters: &appsCluster
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        directories:
+                          - path: apps/*
+                          - path: system/public-scan
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: infra/production/cluster/config.json
                         pathParamPrefix: config
       template:
         metadata:
@@ -209,7 +234,7 @@ argocd-apps:
                 pod-security.kubernetes.io/enforce: baseline
       # The mesh itself and Ceph (some host-network pods, its own encryption) stay out of the mesh; keep in step with
       # OUTSIDE in scripts/check-mesh-policies and test/mesh_test.go
-      # Privileged under Pod Security Admission: the mesh's CNI and ztunnel, Ceph's OSDs, kured, Alloy, node-exporter, Falco
+      # Privileged under Pod Security Admission: the mesh's CNI and ztunnel, Ceph's OSDs, Alloy, node-exporter, Falco
       # and the sandbox's CSI driver (their PolicyExceptions say why); keep in step with test/policy_test.go
       templatePatch: |
         {{- if has .path.basename (list "istio-system" "rook-ceph") }}
@@ -219,7 +244,7 @@ argocd-apps:
               labels:
                 istio.io/dataplane-mode: none
                 pod-security.kubernetes.io/enforce: privileged
-        {{- else if has .path.basename (list "kured" "loki" "monitoring-system" "csi-hostpath" "falco") }}
+        {{- else if has .path.basename (list "loki" "monitoring-system" "csi-hostpath" "falco") }}
         spec:
           syncPolicy:
             managedNamespaceMetadata:
@@ -266,7 +291,7 @@ argocd-apps:
       generators:
         - matrix:
             generators:
-              - clusters: *cluster
+              - clusters: *appsCluster
               - matrix:
                   generators:
                     - git:

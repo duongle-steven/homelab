@@ -236,7 +236,7 @@ var _ = Describe("TestbedVIPMoves", Label("testbed", "proof"), func() {
 })
 
 // Ceph on three nodes: healthy, an OSD on each node, and a volume written on one node read back from another
-var _ = Describe("TestbedCeph", Label("testbed", "proof"), func() {
+var _ = Describe("TestbedCeph", Label("testbed", "production", "proof"), func() {
 	It("serves a volume across nodes", func(ctx SpecContext) {
 		Eventually(ctx, func() string {
 			health, _ := kube.Kubectl(ctx, "rook-ceph", "get", "cephcluster", "-o", "jsonpath={.items[*].status.ceph.health}")

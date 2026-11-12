@@ -8,7 +8,7 @@ Two layers keep workloads within the rules (step 15b, `docs/superpowers/specs/20
   nothing is refused yet (Enforce is step 15b-2).
 - **Pod Security Admission** (Kubernetes itself) enforces **baseline** on every managed namespace, and stays in force
   if Kyverno is down. Namespaces whose pods need the node are `privileged`: the mesh (`istio-system`), Ceph
-  (`rook-ceph`), `kured`, `loki` (Alloy), `monitoring-system` (node-exporter), the sandbox's `csi-hostpath`, and the VPN
+  (`rook-ceph`), `loki` (Alloy), `monitoring-system` (node-exporter), the sandbox's `csi-hostpath`, and the VPN
   routers (`tailscale`, `wireguard`). The labels come from Argo CD's ApplicationSets (`system/argocd/values.yaml`).
 
 ## The `policy` check
