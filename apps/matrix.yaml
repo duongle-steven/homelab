@@ -10,6 +10,9 @@ controllers:
   server:
     pod:
       securityContext:
+        # Replaces defaultPodOptions' securityContext (app-template does not merge them): keep its seccomp profile
+        seccompProfile:
+          type: RuntimeDefault
         # tuwunel's image names no user: run it unprivileged, owning its volume
         runAsNonRoot: true
         runAsUser: 1000
