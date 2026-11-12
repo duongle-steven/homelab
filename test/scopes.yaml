@@ -8,6 +8,8 @@ skip:
   - scripts/lint
   # Compares renders offline (diff -r of two runs)
   - scripts/render-all
+  # just dev's check for a stopped sandbox (test/offline/preflight_test.go)
+  - scripts/sandbox-stopped
   - docs/**
   - "**/*.md"
   - mkdocs.yml
