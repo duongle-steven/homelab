@@ -218,6 +218,8 @@ groups:
       - scripts/lab
       - scripts/testbed-guard
       - scripts/testbed-nixie
+      - scripts/ssh-key-loaded
+      - scripts/testbed-leftovers
       - scripts/metal-nixie
       - scripts/node-fio
       - scripts/node-fio-remote
