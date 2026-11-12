@@ -41,9 +41,10 @@ var _ = Describe("Matrix", Label("sandbox", "matrix"), func() {
 		Expect(types).To(ContainElement("m.login.sso"))
 		Expect(types).NotTo(ContainElement("m.login.password"))
 
-		// Kanidm's form, then tuwunel's redirect back to the client with a login token
+		// Kanidm's form, then tuwunel's redirect back with a login token. To a static file of the client: FluffyChat's page
+		// reads the token and drops it from the address before the spec can
 		account := "dev-admin"
-		back := "https://" + chatHost + "/"
+		back := "https://" + chatHost + "/config.json"
 		start := base + "/_matrix/client/v3/login/sso/redirect/matrix?redirectUrl=" + url.QueryEscape(back)
 		browser, cancel := newBrowser(ctx)
 		defer cancel()
