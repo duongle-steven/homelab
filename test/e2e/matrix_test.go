@@ -1,0 +1,101 @@
+package e2e
+
+import (
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/chromedp/chromedp"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+)
+
+var (
+	matrixHost = "matrix." + suiteDomain
+	chatHost   = "chat." + suiteDomain
+)
+
+// Matrix (tuwunel and FluffyChat, apps/matrix.yaml): an account signs in through Kanidm only, then chats
+var _ = Describe("Matrix", Label("sandbox", "matrix"), func() {
+	base := "https://" + matrixHost
+	waitForIdentity()
+	waitForAppBeforeEach(base + "/_matrix/client/versions")
+
+	It("signs in through Kanidm only and sends a message", func(ctx SpecContext) {
+		// FluffyChat's page
+		Expect(getJSON(ctx, "GET", "https://"+chatHost+"/config.json", nil, "", "", nil, nil)).To(Equal(http.StatusOK))
+
+		// No password login: SSO alone
+		var flows struct {
+			Flows []struct {
+				Type string `json:"type"`
+			} `json:"flows"`
+		}
+		Expect(getJSON(ctx, "GET", base+"/_matrix/client/v3/login", nil, "", "", nil, &flows)).To(Equal(http.StatusOK))
+		var types []string
+		for _, f := range flows.Flows {
+			types = append(types, f.Type)
+		}
+		Expect(types).To(ContainElement("m.login.sso"))
+		Expect(types).NotTo(ContainElement("m.login.password"))
+
+		// Kanidm's form, then tuwunel's redirect back to the client with a login token
+		account := "dev-admin"
+		back := "https://" + chatHost + "/"
+		start := base + "/_matrix/client/v3/login/sso/redirect/matrix?redirectUrl=" + url.QueryEscape(back)
+		browser, cancel := newBrowser(ctx)
+		defer cancel()
+		openLogin(browser, account, start)
+		kanidmLogin(browser, account, ensureCredentials(ctx, account), ensureCredentials(ctx, account).Password)
+		var token string
+		Eventually(browser, func() string {
+			var location string
+			if chromedp.Run(browser, chromedp.Location(&location)) != nil {
+				return ""
+			}
+			acceptConsent(browser)
+			if u, err := url.Parse(location); err == nil && u.Host == chatHost {
+				token = u.Query().Get("loginToken")
+			}
+			return token
+		}).WithTimeout(60*time.Second).WithPolling(500*time.Millisecond).ShouldNot(BeEmpty(), "no loginToken back on %s", chatHost)
+
+		var login struct {
+			AccessToken string `json:"access_token"`
+			UserID      string `json:"user_id"`
+		}
+		Expect(getJSON(ctx, "POST", base+"/_matrix/client/v3/login", nil, "", "",
+			map[string]any{"type": "m.login.token", "token": token}, &login)).To(Equal(http.StatusOK))
+		Expect(login.AccessToken).NotTo(BeEmpty())
+		Expect(login.UserID).To(Equal("@" + account + ":" + matrixHost))
+		auth := []string{"Authorization", "Bearer " + login.AccessToken}
+
+		// A room, a message, read back
+		var room struct {
+			RoomID string `json:"room_id"`
+		}
+		Expect(getJSON(ctx, "POST", base+"/_matrix/client/v3/createRoom", nil, "", "",
+			map[string]any{"preset": "private_chat"}, &room, auth...)).To(Equal(http.StatusOK))
+		Expect(room.RoomID).NotTo(BeEmpty())
+		marker := fmt.Sprint("matrix-", time.Now().UnixNano())
+		txn := fmt.Sprint(time.Now().UnixNano())
+		Expect(getJSON(ctx, "PUT", base+"/_matrix/client/v3/rooms/"+url.PathEscape(room.RoomID)+"/send/m.room.message/"+txn, nil, "", "",
+			map[string]any{"msgtype": "m.text", "body": marker}, nil, auth...)).To(Equal(http.StatusOK))
+		var messages struct {
+			Chunk []struct {
+				Content struct {
+					Body string `json:"body"`
+				} `json:"content"`
+			} `json:"chunk"`
+		}
+		Expect(getJSON(ctx, "GET", base+"/_matrix/client/v3/rooms/"+url.PathEscape(room.RoomID)+"/messages?dir=b&limit=10", nil, "", "",
+			nil, &messages, auth...)).To(Equal(http.StatusOK))
+		var bodies []string
+		for _, m := range messages.Chunk {
+			bodies = append(bodies, m.Content.Body)
+		}
+		Expect(strings.Join(bodies, "\n")).To(ContainSubstring(marker))
+	}, SpecTimeout(15*time.Minute))
+})
