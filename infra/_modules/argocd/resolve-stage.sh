@@ -10,6 +10,10 @@ case "$requested" in
 "" | platform | all) ;;
 *) echo "resolve-stage: stage must be platform or all, not \"$requested\"" >&2; exit 1 ;;
 esac
+case "$current" in
+"" | platform | all) ;;
+*) echo "resolve-stage: the cluster carries an unknown stage \"$current\"" >&2; exit 1 ;;
+esac
 if [ "$requested" = platform ] && [ "$current" = all ]; then
 	echo "resolve-stage: the stage only moves forward: this cluster runs all, so platform would delete its apps" >&2
 	exit 1

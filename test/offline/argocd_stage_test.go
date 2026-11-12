@@ -84,3 +84,27 @@ func TestStageGatesApps(t *testing.T) {
 		}
 	}
 }
+
+// The cluster's current stage is read or the bootstrap stops: a cluster that cannot be asked must never look like a new
+// one, which would move a platform cluster to all (12b-2's review)
+func TestCurrentStage(t *testing.T) {
+	script := filepath.Join(repo.Root(), "infra", "_modules", "argocd", "current-stage.sh")
+	run := func(kubectl string) (string, error) {
+		_, env := fakeBin(t, map[string]string{"kubectl": kubectl})
+		cmd := exec.Command("sh", script)
+		cmd.Env = env
+		out, err := cmd.Output()
+		return strings.TrimSpace(string(out)), err
+	}
+	out, err := run(`echo '{"metadata":{"labels":{"homelab/stage":"platform"}}}'`)
+	require.NoError(t, err)
+	assert.Equal(t, "platform", out)
+	out, err = run(`true`) // --ignore-not-found: no Secret yet, a new cluster
+	require.NoError(t, err)
+	assert.Equal(t, "", out)
+	_, err = run(`echo 'Unable to connect to the server' >&2; exit 1`)
+	assert.Error(t, err, "an API error must stop the bootstrap, not read as a new cluster")
+	refused, err := exec.Command("sh", filepath.Join(repo.Root(), "infra", "_modules", "argocd", "resolve-stage.sh"), "", "bogus").CombinedOutput()
+	assert.Error(t, err)
+	assert.Contains(t, string(refused), "unknown", "a label resolve-stage does not know is refused")
+}

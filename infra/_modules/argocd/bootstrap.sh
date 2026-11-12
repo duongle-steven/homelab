@@ -41,7 +41,7 @@ apply() { kubectl apply --namespace argocd --server-side --field-manager argocd-
 # three releases (add the new label, switch the selectors, drop the old one), or every ApplicationSet deletes its
 # Applications while it matches nothing
 # The stage: the requested one (production's HOMELAB_PRODUCTION_STAGE), else the cluster's own, else all (12b-2)
-current_stage=$(kubectl -n argocd get secret in-cluster -o json 2>/dev/null | jq -r '.metadata.labels["homelab/stage"] // ""' || true)
+current_stage=$(sh "$(dirname "$0")/current-stage.sh")
 STAGE=$(sh "$(dirname "$0")/resolve-stage.sh" "${REQUESTED_STAGE:-}" "$current_stage")
 export STAGE
 sh "$(dirname "$0")/cluster-secret.sh" | apply
