@@ -44,7 +44,6 @@ argocd-apps:
                           - path: system/kyverno
                           - path: system/trivy-operator
                           - path: system/falco
-                          - path: system/public-scan
                           - path: platform/external-secrets
                           - path: platform/openbao
                           - path: platform/generated-secrets
@@ -62,6 +61,22 @@ argocd-apps:
                         files:
                           - path: infra/sandbox/cluster/config.json
                         pathParamPrefix: config
+        # The public scan, only at stage all (system/argocd/values.yaml; the sandbox is always all)
+        - matrix:
+            generators:
+              - clusters: &appsCluster
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        directories:
+                          - path: system/public-scan
+                    - git: *config
       template:
         spec:
           # A fresh sandbox syncs while the CRDs and webhooks its apps wait for appear: retry soon, so an app follows
@@ -116,7 +131,7 @@ argocd-apps:
       generators:
         - matrix:
             generators:
-              - clusters: *cluster
+              - clusters: *appsCluster
               - matrix:
                   generators:
                     - git:
@@ -138,6 +153,7 @@ argocd-apps:
                   selector:
                     matchLabels:
                       homelab/bootstrap: "true"
+                      homelab/stage: all
                       homelab/app-paperless: "true"
               - matrix:
                   generators:
@@ -153,6 +169,7 @@ argocd-apps:
                   selector:
                     matchLabels:
                       homelab/bootstrap: "true"
+                      homelab/stage: all
                       homelab/app-opencloud: "true"
               - matrix:
                   generators:

@@ -3,7 +3,8 @@
 # itself. The field manager stays Argo CD's, which managed it before step 10b.
 # Env: KUBECONFIG, CHART (system/argocd), VALUES (file name in CHART, chosen by choose-values.sh: the seed on
 # production's first install), ENVIRONMENT (prod, testbed, dev or seed, for scripts/env-values: the chart gets the same
-# global values Argo CD passes it), and cluster-secret.sh's REPOSITORY, BRANCH, REVISION, BACKUP_S3_URL and OPTIONAL_APPS:
+# global values Argo CD passes it), REQUESTED_STAGE (optional, resolve-stage.sh), and cluster-secret.sh's REPOSITORY, BRANCH,
+# REVISION, BACKUP_S3_URL and OPTIONAL_APPS:
 # what is not in git or known only now reaches the ApplicationSets through the cluster Secret, not a rewrite of the render
 set -eu
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
@@ -39,6 +40,10 @@ apply() { kubectl apply --namespace argocd --server-side --field-manager argocd-
 # after the render, so a failed render leaves it as it was. Its labels change at once: rename the selector label in
 # three releases (add the new label, switch the selectors, drop the old one), or every ApplicationSet deletes its
 # Applications while it matches nothing
+# The stage: the requested one (production's HOMELAB_PRODUCTION_STAGE), else the cluster's own, else all (12b-2)
+current_stage=$(kubectl -n argocd get secret in-cluster -o json 2>/dev/null | jq -r '.metadata.labels["homelab/stage"] // ""' || true)
+STAGE=$(sh "$(dirname "$0")/resolve-stage.sh" "${REQUESTED_STAGE:-}" "$current_stage")
+export STAGE
 sh "$(dirname "$0")/cluster-secret.sh" | apply
 # The ApplicationSets need Argo CD's CRDs established first
 yq 'select(.kind == "CustomResourceDefinition")' "$manifests" | apply

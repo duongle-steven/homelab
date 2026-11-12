@@ -31,4 +31,6 @@ inputs = {
   branch          = "master"
   seed_repository = jsondecode(file("${get_terragrunt_dir()}/../cluster/config.json")).seed_repository
   backup_s3_url   = dependency.backup.outputs.endpoint
+  # platform for a new cluster's first deploys (12b-2): unset keeps the cluster's stage (infra/_modules/argocd/resolve-stage.sh)
+  stage = get_env("HOMELAB_PRODUCTION_STAGE", "")
 }

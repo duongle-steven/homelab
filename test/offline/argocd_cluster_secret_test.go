@@ -18,7 +18,8 @@ import (
 func clusterSecret(t *testing.T, env ...string) (string, error) {
 	t.Helper()
 	cmd := exec.Command("sh", repo.Root()+"/infra/_modules/argocd/cluster-secret.sh")
-	cmd.Env = append(os.Environ(), env...)
+	// The bootstrap always resolves a stage (resolve-stage.sh, 12b-2); a test may override it
+	cmd.Env = append(append(os.Environ(), "STAGE=all"), env...)
 	out, err := cmd.Output()
 	return string(out), err
 }
@@ -39,7 +40,7 @@ func TestArgoCDClusterSecret(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `"Secret"`, yqOn(t, out, ".kind"))
 	assert.Equal(t, `{"name":"in-cluster","namespace":"argocd"}`, yqOn(t, out, `.metadata | {"name": .name, "namespace": .namespace}`))
-	assert.JSONEq(t, `{"argocd.argoproj.io/secret-type":"cluster","homelab/bootstrap":"true","homelab/app-paperless":"true"}`,
+	assert.JSONEq(t, `{"argocd.argoproj.io/secret-type":"cluster","homelab/bootstrap":"true","homelab/stage":"all","homelab/app-paperless":"true"}`,
 		yqOn(t, out, ".metadata.labels"))
 	assert.JSONEq(t, `{"repository":"https://github.com/example/homelab","revision":"sandbox","backupS3Url":""}`,
 		yqOn(t, out, ".metadata.annotations"))
@@ -199,7 +200,7 @@ func TestArgoCDOptionalApps(t *testing.T) {
 			continue
 		}
 		optional[app] = true
-		assert.Equal(t, map[string]any{"homelab/bootstrap": "true", "homelab/app-" + app: "true"}, labels)
+		assert.Equal(t, map[string]any{"homelab/bootstrap": "true", "homelab/stage": "all", "homelab/app-" + app: "true"}, labels)
 		assert.Equal(t, []string{"apps/" + app + ".yaml", "infra/sandbox/cluster/config.json"}, files)
 	}
 	assert.Equal(t, map[string]bool{"paperless": true, "opencloud": true}, optional)
