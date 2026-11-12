@@ -96,8 +96,10 @@ func TestTrivyOperatorRender(t *testing.T) {
 			assert.Contains(t, missing, "unless on (namespace, resource_name) trivy_image_vulnerabilities")
 		})
 	}
-	// The sandbox: one scan at a time, with limits
-	assert.Equal(t, "1", renderTrivyOperator(t, "dev", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-config") | .data["OPERATOR_CONCURRENT_SCAN_JOBS_LIMIT"]`))
+	// The sandbox: two scans at a time (one queued about 90 minutes of scans behind the suite's 45-minute wait, 12b-2),
+	// with limits; the testbed keeps one (values-local.yaml)
+	assert.Equal(t, "1", renderTrivyOperator(t, "testbed", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-config") | .data["OPERATOR_CONCURRENT_SCAN_JOBS_LIMIT"]`))
+	assert.Equal(t, "2", renderTrivyOperator(t, "dev", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-config") | .data["OPERATOR_CONCURRENT_SCAN_JOBS_LIMIT"]`))
 	assert.NotEmpty(t, renderTrivyOperator(t, "dev", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-trivy-config") | .data["trivy.resources.limits.memory"]`))
 }
 

@@ -1,0 +1,5 @@
+# The sandbox (more memory than a testbed VM): two scan Jobs at a time. One at a time scanned about 60 workloads in 90
+# minutes, so the suite's TrivyOperator often waited past its window for a workload at the end of the queue (12b-2)
+trivy-operator:
+  operator:
+    scanJobsConcurrentLimit: 2
