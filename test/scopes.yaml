@@ -76,6 +76,7 @@ labels:
   - proof
   - power
   - scan
+  - hardware-proof
   - kiali
   - grafana
   - zot
@@ -218,6 +219,9 @@ groups:
       - scripts/lab
       - scripts/testbed-guard
       - scripts/testbed-nixie
+      - scripts/metal-nixie
+      - scripts/node-fio
+      - scripts/node-fio-remote
       - scripts/testbed-wake
       - scripts/mark-proof
       - scripts/testbed-trust

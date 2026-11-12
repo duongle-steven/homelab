@@ -26,17 +26,26 @@ Charts read these from there (`scripts/check-env-config` checks that none is wri
     ```
 
 Then list the machines in `infra/production/metal/hosts.json`: the address each node will have (not its current
-one: the machines have no operating system yet), the **lowercase, colon separated** MAC address of the interface it
-boots from, and its disk (installation erases it; the rest of the disk after the system becomes Ceph's OSD). Set
-`init_host` in `infra/production/cluster/config.json` to the node that starts the cluster.
+one: the machines have no operating system yet) and the **lowercase, colon separated** MAC address of the interface it
+boots from. `nixie` rewrites this file after each install: it adds the machine's `machine_id_hash` (commit it: a recorded
+machine is never installed again) and keeps no other field.
+
+In `infra/production/cluster/config.json`, set:
+
+- `init_host`: the node that starts the cluster.
+- `disk`: the disk every node installs on. Installation erases it, and the rest of the disk after the system becomes
+  Ceph's OSD. A node whose disk differs names its own `disk` in `hosts.json`, but `nixie` drops that field at its next
+  install, so prefer machines alike.
+- `network.dns`: the resolvers the nodes and, through k3s's CoreDNS, the pods use. Name your router when the ISP's
+  equipment intercepts DNS on UDP/53. Without the field, the nodes use `8.8.8.8` and `1.1.1.1`.
 
 !!! example
 
     ```json title="infra/production/metal/hosts.json"
     {
-      "homelab-1": {"ip": "192.168.0.11", "mac_address": "02:00:00:00:00:01", "disk": "/dev/sda"},
-      "homelab-2": {"ip": "192.168.0.12", "mac_address": "02:00:00:00:00:02", "disk": "/dev/sda"},
-      "homelab-3": {"ip": "192.168.0.13", "mac_address": "02:00:00:00:00:03", "disk": "/dev/sda"}
+      "homelab-1": {"ip": "192.168.0.11", "mac_address": "02:00:00:00:00:01"},
+      "homelab-2": {"ip": "192.168.0.12", "mac_address": "02:00:00:00:00:02"},
+      "homelab-3": {"ip": "192.168.0.13", "mac_address": "02:00:00:00:00:03"}
     }
     ```
 

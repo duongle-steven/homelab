@@ -1,0 +1,17 @@
+{
+  "homelab-1": {
+    "mac_address": "38:22:e2:2c:dc:35",
+    "ip": "192.168.0.11",
+    "machine_id_hash": "c7c8a1a604a02c4e3dbe01dc2efbb3ae9864b28f7ff80f885247fccdac2fa359"
+  },
+  "homelab-2": {
+    "mac_address": "10:62:e5:16:d2:ca",
+    "ip": "192.168.0.12",
+    "machine_id_hash": "3e1776fb18d78f5be1aa468d89aefb43c128db74f63722f8cd1e2a5b30be0565"
+  },
+  "homelab-3": {
+    "mac_address": "10:e7:c6:0f:63:a0",
+    "ip": "192.168.0.13",
+    "machine_id_hash": "3b1a79e52d35caff759c8ae3d77323c8e200439b85ffaf659e74d6c394687f3d"
+  }
+}

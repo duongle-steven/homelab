@@ -96,6 +96,21 @@ Boot order options (select one, each has their pros and cons):
       CSM: false
     ```
 
+!!! example "This homelab's HP EliteDesk Minis (800 G3, 800 G4)"
+
+    Set on each machine in F10 (BIOS Setup), and checked from `nixie`'s installer in step 12b-1:
+
+    - **BIOS updated** to HP's latest for the model (G3: `P21`, G4: `Q21`). One G3 shipped with `P21 Ver. 02.15` from
+      2018, which kept no change made in F10 (Secure Boot, After Power Loss) until it was updated.
+    - **Secure Boot off** ("Legacy Support Disable and Secure Boot Disable"): `nixie`'s iPXE is unsigned, and the
+      firmware refused it with "Selected boot image did not authenticate". No BIOS administrator password: the disks
+      are not encrypted, so it would guard little, and a forgotten HP password is hard to reset.
+    - **After Power Loss: Previous State**, so a node cut by an outage boots when the power returns.
+    - **S4/S5 Wake on LAN: Boot to Network** (option 2 above). A node woken this way tries the network first; with no
+      `nixie` answering it boots its NVMe about 75 seconds later.
+    - **Boot order:** the M.2 drive first, then IPv4 network boot; IPv6 network boot off, USB last or off.
+    - **F12** starts a network boot by hand, if Wake-on-LAN does not; the startup menu (Esc) ignored one USB keyboard.
+
 ## Gather information
 
 - [ ] MAC address for each machine

@@ -1,6 +1,6 @@
 variable "hosts" {
   type        = any
-  description = "The machines, by host name (infra/<env>/metal/hosts.json): mac_address, ip, disk"
+  description = "The machines, by host name (infra/<env>/metal/hosts.json): mac_address, ip, and optionally disk (otherwise config.json's disk, else /dev/sda; nixie drops it when it records an install)"
 }
 
 variable "cluster" {

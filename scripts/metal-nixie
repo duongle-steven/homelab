@@ -1,0 +1,20 @@
+#!/bin/sh
+# nixie for production (infra/production/metal's hook; run in the node flake): usage metal-nixie <hosts.json> <nixie args>
+# - nixie records each install (machine_id_hash) in the hosts.json it is given: production gives it the committed file,
+#   so the record outlives the workstation and a recorded machine is never installed again (commit it after the install)
+# - every host recorded: nothing to install, so no sudo and no PXE address (just infra deploy production runs this)
+# - otherwise nixie needs root for its ports (67, 69, 4011, 80) and the workstation's LAN address
+#   (HOMELAB_PXE_ADDRESS); under WSL the Hyper-V firewall must let those ports in (docs/installation/production/deployment.md)
+set -eu
+hosts=$1
+shift
+if [ "$(jq '[.[] | select(.machine_id_hash | not)] | length' "$hosts")" -eq 0 ]; then
+	echo "metal-nixie: every host in $hosts is recorded: nothing to install"
+	exit 0
+fi
+if [ -z "${HOMELAB_PXE_ADDRESS:-}" ]; then
+	echo "metal-nixie: hosts to install ($(jq -r '[to_entries[] | select(.value.machine_id_hash | not) | .key] | join(", ")' "$hosts")): set HOMELAB_PXE_ADDRESS to this machine's LAN address" >&2
+	exit 1
+fi
+sudo -v
+exec sudo "$(command -v nixie)" --hosts "$hosts" --address "$HOMELAB_PXE_ADDRESS" "$@"

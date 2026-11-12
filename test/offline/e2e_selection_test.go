@@ -165,7 +165,7 @@ func TestE2EKeepsSelection(t *testing.T) {
 		"testbed/power/PowerCutPostgres":      {"cut-postgres", "testbed"},
 		"testbed/scan":                        {"scan", "testbed"},
 		"sandbox/scan":                        {"scan", "sandbox"},
-		"production":                          {"production", "production"},
+		"production":                          {"!hardware-proof && !scan", "production"},
 	}
 	for _, g := range scopes.Groups {
 		runs[g.Paths[0]] = run{group(g.Tests), "sandbox"}
@@ -354,4 +354,50 @@ func TestE2EReportNames(t *testing.T) {
 	assert.NotEqual(t, full, reportName(t, "sandbox", "("+scopes.Full+") && !alone && !smoke"), "two filters, one name")
 	assert.Equal(t, "sandbox-logs", reportName(t, "sandbox", "logs"), "a short filter keeps its readable name")
 	assert.Equal(t, "testbed-all", reportName(t, "testbed", ""))
+}
+
+func e2eFilter(t *testing.T, env, labels string) string {
+	t.Helper()
+	cmd := exec.Command("just", "test", "e2e-filter", env, labels)
+	cmd.Dir = repo.Root()
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "%s", out)
+	return strings.TrimSpace(string(out))
+}
+
+// A routine run against production (no --labels) never powers off a node or starts kube-bench's privileged Jobs: those
+// specs (hardware-proof, scan) run only when asked by label (step 12b-1)
+func TestProductionDefaultFilter(t *testing.T) {
+	routine := e2eFilter(t, "production", "")
+	assert.Equal(t, "production && !hardware-proof && !scan", routine)
+	asked := e2eFilter(t, "production", "hardware-proof")
+	assert.Equal(t, "(hardware-proof) && production", asked)
+	assert.Equal(t, "testbed", e2eFilter(t, "testbed", ""), "the other environments are unchanged")
+
+	specs := e2eDryRun(t)
+	containers := func(filter string) []string {
+		selected, err := types.ParseLabelFilter(filter)
+		require.NoError(t, err, filter)
+		set := map[string]bool{}
+		for _, s := range specs {
+			if selected(s.Labels) {
+				set[s.Container] = true
+			}
+		}
+		var names []string
+		for name := range set {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		return names
+	}
+	routineSpecs := containers(routine)
+	for _, name := range []string{"TestbedNodes", "TestbedSecretsEncrypted", "TestbedSeccomp", "NodesResolveQuickly"} {
+		assert.Contains(t, routineSpecs, name)
+	}
+	for _, name := range []string{"ProductionVIPMoves", "ProductionPowerCut", "ScanBench"} {
+		assert.NotContains(t, routineSpecs, name, "a routine production run must not run %s", name)
+	}
+	assert.ElementsMatch(t, []string{"ProductionPowerCut", "ProductionVIPMoves"}, containers(asked))
+	assert.Contains(t, containers(e2eFilter(t, "production", "scan")), "ScanBench")
 }

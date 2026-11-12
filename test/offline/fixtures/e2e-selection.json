@@ -534,7 +534,9 @@
     "production": [
       "ArgoCDCheck",
       "MeshOptOutAllowed",
-      "Smoke"
+      "Smoke",
+      "TestbedNodes",
+      "TestbedSecretsEncrypted"
     ]
   }
 }

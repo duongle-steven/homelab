@@ -6,12 +6,12 @@ hand, each against the environment it can read:
 
 | Target | Tool | Where | Reads |
 |---|---|---|---|
-| `just testbed-scan` | kube-bench (CIS benchmark `k3s-cis-1.11`) | the testbed's three NixOS nodes | k3s's flags, files and permissions on each node |
+| `just testbed-scan`, or `just test e2e --env production --labels scan` | kube-bench (CIS benchmark `k3s-cis-1.11`) | the testbed's or production's three NixOS nodes | k3s's flags, files and permissions on each node |
 | `just dev-scan` | kubescape 4.0.17 (`allcontrols`, `--keep-local`) | the sandbox, the only environment with the whole platform | RBAC and workloads through the API |
 
 Run them before step 12b's hardware, and again when k3s, the node profile (`infra/_modules/metal`) or a component's
-RBAC changes. Neither is part of `just dev`, `just testbed` or a release's proof. Production's hardware runs
-`just testbed-scan`'s Job too, in step 12b.
+RBAC changes. Neither is part of `just dev`, `just testbed` or a release's proof. Production's hardware ran the
+same Job in step 12b-1 (`just test e2e --env production --labels scan`).
 
 Both read `.cluster-scan-accepted.yaml`: a finding it does not list fails the target. Each fails rather than passes
 when the scan did not really run (below).

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Disk numbers of one production node before Ceph takes its rook-data partition (step 12b-1): etcd's write pattern on
+# the root file system (k3s's etcd lives there), its 99th percentile fdatasync against a 10 ms budget, then sequential
+# and random 4k on rook-data, which is discarded afterwards so Ceph finds it empty. It refuses once rook-data holds
+# anything (scripts/node-fio-remote's guard), so it never runs after Ceph has the disk. fio comes from nixpkgs on the node.
+# Usage: node-fio <node address>
+set -eu
+ip=${1:?usage: node-fio <node address>}
+ssh -o BatchMode=yes "root@$ip" sh -s < "$(dirname "$0")/node-fio-remote"
