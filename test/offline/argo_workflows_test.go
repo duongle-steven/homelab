@@ -38,3 +38,15 @@ func TestArgoWorkflowsRender(t *testing.T) {
 		}, strings.Split(rules, "\n"), env)
 	}
 }
+
+// Argo Workflows' minified CRDs leave a WorkflowTemplate's .spec untyped: server-side apply owns it whole, and Argo CD's
+// server-side diff saw no change to the golden path's template (the sandbox). Application ci compares client-side
+func TestCIApplicationDiffsClientSide(t *testing.T) {
+	for _, env := range []string{"", "dev"} {
+		patch := renderVelero(t, "system/argocd", env, `select(.kind == "ApplicationSet" and .metadata.name == "root") | .spec.templatePatch`)
+		i := strings.Index(patch, `eq .path.basename "ci"`)
+		if assert.GreaterOrEqual(t, i, 0, env) {
+			assert.Contains(t, patch[i:], "argocd.argoproj.io/compare-options: ServerSideDiff=false", env)
+		}
+	}
+}

@@ -262,6 +262,13 @@ argocd-apps:
             - group: velero.io
               kind: Schedule
               jsonPointers: [/spec/paused]
+        {{- else if eq .path.basename "ci" }}
+        # Argo Workflows' minified CRDs leave a WorkflowTemplate's .spec untyped, so server-side apply owns it whole:
+        # the server-side diff then saw no change to the golden path's template and nothing was applied (the sandbox);
+        # the client-side diff sees it, and the sync's forced apply replaces .spec
+        metadata:
+          annotations:
+            argocd.argoproj.io/compare-options: ServerSideDiff=false
         {{- else if eq .path.basename "argocd-config" }}
         # Argo CD's own resources (its Kanidm client, its repository credential) live in its namespace
         spec:
