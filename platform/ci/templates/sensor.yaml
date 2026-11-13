@@ -41,13 +41,14 @@ spec:
         allowPrivilegeEscalation: false
         capabilities:
           drop: [ALL]
+  # A webhook event's data is {header, body}: header holds the request's headers, each a list of values
   dependencies:
     - name: push
       eventSourceName: forgejo
       eventName: forgejo
       filters:
         data:
-          - {path: headers.X-Forgejo-Event.0, type: string, value: [push]}
+          - {path: header.X-Forgejo-Event.0, type: string, value: [push]}
           - {path: body.ref, type: string, value: ["refs/heads/.+"]}
           # A branch's deletion is a push whose after is all zeros
           - {path: body.after, type: string, value: ["0000000000000000000000000000000000000000"], comparator: "!="}
@@ -56,7 +57,7 @@ spec:
       eventName: forgejo
       filters:
         data:
-          - {path: headers.X-Forgejo-Event.0, type: string, value: [pull_request]}
+          - {path: header.X-Forgejo-Event.0, type: string, value: [pull_request]}
           - {path: body.action, type: string, value: [opened, synchronized, reopened]}
   triggers:
     - template:

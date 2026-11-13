@@ -23,8 +23,8 @@ func TestCIEventsRender(t *testing.T) {
 		// Every filter of every dependency, as path=values (comparator)
 		filters := render(`select(.kind == "Sensor") | .spec.dependencies[] | .name + ": " + ([.filters.data[] | .path + "=" + (.value | join("|")) + " " + (.comparator // "=")] | join(", "))`)
 		assert.ElementsMatch(t, []string{
-			"push: headers.X-Forgejo-Event.0=push =, body.ref=refs/heads/.+ =, body.after=0000000000000000000000000000000000000000 !=",
-			"pull-request: headers.X-Forgejo-Event.0=pull_request =, body.action=opened|synchronized|reopened =",
+			"push: header.X-Forgejo-Event.0=push =, body.ref=refs/heads/.+ =, body.after=0000000000000000000000000000000000000000 !=",
+			"pull-request: header.X-Forgejo-Event.0=pull_request =, body.action=opened|synchronized|reopened =",
 		}, strings.Split(filters, "\n"), env)
 		assert.Equal(t, "pipeline\npipeline", render(`select(.kind == "Sensor") | .spec.triggers[].template.argoWorkflow.source.resource.spec.workflowTemplateRef.name`), env)
 		assert.Equal(t, "ci-sensor", render(`select(.kind == "Sensor") | .spec.template.serviceAccountName`), env)
