@@ -1,0 +1,26 @@
+# Argo Events' controller (step 10f, docs/how-to-guides/ci.md): it runs the EventBus, EventSource and Sensor that
+# platform/ci declares in namespace ci, where Forgejo's webhook becomes a Workflow
+argo-events:
+  crds:
+    install: true
+    keep: true
+  global:
+    securityContext:
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+  controller:
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+    resources:
+      requests: {cpu: 10m, memory: 64Mi}
+  # The admission webhook only validates these resources' specs: off, so nothing in the API server's path depends on it
+  webhook:
+    enabled: false
