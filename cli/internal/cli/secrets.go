@@ -10,7 +10,6 @@ import (
 	"github.com/duongle-steven/homelab/cli/internal/env"
 	"io"
 	"k8s.io/client-go/rest"
-	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
@@ -329,14 +328,6 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 		ep = &found
 		return found, nil
 	}
-	// Woodpecker's API on ci.<domain>, reached as Forgejo is (the sandbox's on the node)
-	woodpecker := rotate.WoodpeckerClient{Store: store, URL: func(ctx context.Context) (string, *http.Client, error) {
-		ep, err := endpoint(ctx)
-		if err != nil {
-			return "", nil, err
-		}
-		return "https://ci." + e.Domain, ep.HTTP, nil
-	}}
 	return &rotation{
 		Rotator: &rotate.Rotator{
 			Entries: entries,
@@ -344,17 +335,13 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 			Methods: map[rotate.Kind]rotate.Method{
 				rotate.KindGenerated:    rotate.Generated{Store: store, Workloads: workloads},
 				rotate.KindForgejoToken: rotate.ForgejoToken{API: rotate.ForgejoClient{Endpoint: endpoint, Tokens: store}, Store: store, Workloads: workloads},
-				rotate.KindForgejoOAuth: rotate.ForgejoOAuth{API: rotate.ForgejoClient{Endpoint: endpoint, Tokens: store}, Store: store, Workloads: workloads},
 				rotate.KindKaniopClient: rotate.KaniopClient{Kube: kube, Dyn: dyn, Store: store, Workloads: workloads, Waits: workloads},
 				rotate.KindKanidmAdmin:  rotate.KanidmAdmin{Kube: kube, Store: store, Waits: workloads},
 				rotate.KindCNPG:         rotate.CNPGPassword{Kube: kube, Store: store, Workloads: workloads},
 				rotate.KindOpenTofu: rotate.OpenTofu{Root: repositoryRoot(), Run: rotate.Terragrunt(cmd.OutOrStdout()), Store: store, Workloads: workloads, Waits: workloads,
 					Nudge: func(ctx context.Context) error { return nudgeInfraSecrets(ctx, dyn) }, Confirm: ask},
-				rotate.KindManual:          rotate.Manual{Out: cmd.OutOrStdout(), Workloads: workloads, Confirm: ask},
-				rotate.KindWoodpeckerToken: rotate.WoodpeckerToken{API: woodpecker, Store: store},
-				rotate.KindWoodpeckerAgent: rotate.WoodpeckerAgent{API: woodpecker, Kube: kube, Store: store, Workloads: workloads, Waits: workloads},
-				rotate.KindOrgSecret:       rotate.RegistryCI{Generated: rotate.Generated{Store: store, Workloads: workloads}, API: woodpecker},
-				rotate.KindNtfyOverlap:     rotate.NtfyOverlap{Store: store, Workloads: workloads, Check: rotate.NtfyCheck(pods), Confirm: ask},
+				rotate.KindManual:      rotate.Manual{Out: cmd.OutOrStdout(), Workloads: workloads, Confirm: ask},
+				rotate.KindNtfyOverlap: rotate.NtfyOverlap{Store: store, Workloads: workloads, Check: rotate.NtfyCheck(pods), Confirm: ask},
 				rotate.KindAppPassword: rotate.AppPassword{Store: store, Workloads: workloads, Apps: map[string]rotate.App{
 					"forgejo":   rotate.ForgejoAdmin{Endpoint: endpoint},
 					"grafana":   rotate.GrafanaAdmin{Exec: pods},
@@ -394,12 +381,11 @@ return n`
 // idle reports whether what has nothing running that a restart would break.
 func idle(ctx context.Context, kube kubernetes.Interface, pods rotate.Executor, what string) (bool, error) {
 	switch what {
-	case "woodpecker":
-		// A running step pod carries the label woodpecker-ci.org/step (Task 1's finding).
-		// TODO(Task 8): Woodpecker's method may also read the server's queue (GET /api/queue/info).
-		steps, err := kube.CoreV1().Pods("woodpecker").List(ctx, metav1.ListOptions{LabelSelector: "woodpecker-ci.org/step"})
+	case "ci":
+		// A running step of the golden path: Argo labels every Workflow's pods with their Workflow (platform/ci)
+		steps, err := kube.CoreV1().Pods("ci").List(ctx, metav1.ListOptions{LabelSelector: "workflows.argoproj.io/workflow"})
 		if err != nil {
-			return false, fmt.Errorf("list Woodpecker's step pods: %w", err)
+			return false, fmt.Errorf("list the golden path's pods: %w", err)
 		}
 		for _, p := range steps.Items {
 			if p.Status.Phase == corev1.PodPending || p.Status.Phase == corev1.PodRunning {

@@ -85,21 +85,20 @@ rules:
     resourceNames: {{ . | toJson }}
     verbs: [patch]
   {{- end }}
-  # Waiting restarts a crash-looping pod once; Woodpecker's idle check lists step pods; its agents start again
+  # Waiting restarts a crash-looping pod once
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, delete]
+  {{- else if $r.idle }}
+  # The idle wait lists the golden path's step pods (an entry's idle: ci)
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
   {{- end }}
   {{- if $r.exec }}
   - apiGroups: [""]
     resources: [pods/exec]
     verbs: [create, get]
-  {{- end }}
-  {{- with $r.claims }}
-  - apiGroups: [""]
-    resources: [persistentvolumeclaims]
-    resourceNames: {{ . | toJson }}
-    verbs: [get, delete]
   {{- end }}
 {{- include "secrets-rotation.binding" (dict "namespace" $ns "from" $.Release.Namespace) }}
 {{- end }}

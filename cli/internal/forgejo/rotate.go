@@ -9,18 +9,18 @@ import (
 	sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
-// TokenValid reports whether token reads ops/homelab (the check Sync makes before keeping a stored token).
-func TokenValid(ctx context.Context, ep Endpoint, token string) (bool, error) {
-	return valid(ctx, ep, token)
-}
-
-// ClientSecretCurrent reports whether secret is Woodpecker's OAuth2 client's current secret.
-func ClientSecretCurrent(ctx context.Context, ep Endpoint, id, secret, callback string) (bool, error) {
-	return clientSecretCurrent(ctx, ep, id, secret, callback)
+// TokenValid reports whether user's token still reads what that account reads (the check Sync makes before keeping a
+// stored token).
+func TokenValid(ctx context.Context, ep Endpoint, user, token string) (bool, error) {
+	a, err := findAccount(user)
+	if err != nil {
+		return false, err
+	}
+	return valid(ctx, ep, token, a.check)
 }
 
 func findAccount(user string) (account, error) {
-	for _, a := range accounts {
+	for _, a := range append(accounts, ciBot) {
 		if a.name == user {
 			return a, nil
 		}
@@ -45,7 +45,7 @@ func asUser(ctx context.Context, ep Endpoint, adminPassword string, a account) (
 	return newClient(ctx, ep, sdk.SetBasicAuth(a.name, password))
 }
 
-// RotateToken gives user (deploy or argocd) a new token named newName beside its existing ones and keeps it in
+// RotateToken gives user (deploy, argocd or ci-bot) a new token named newName beside its existing ones and keeps it in
 // OpenBao (with its name), returning the names of the tokens it replaces: they keep working until DeleteToken, so the
 // readers move first. Run again with the same newName it makes nothing new once OpenBao holds a working token of that
 // name; a token of that name OpenBao never kept (an interruption in between) is replaced, since Forgejo shows a token
@@ -79,7 +79,7 @@ func RotateToken(ctx context.Context, ep Endpoint, adminPassword string, tokens 
 			return nil, err
 		}
 		if stored["name"] == newName && stored["token"] != "" {
-			ok, err := valid(ctx, ep, stored["token"])
+			ok, err := valid(ctx, ep, stored["token"], a.check)
 			if err != nil {
 				return nil, err
 			}
@@ -126,48 +126,6 @@ func DeleteToken(ctx context.Context, ep Endpoint, adminPassword, user, name str
 		}
 	}
 	return nil
-}
-
-// RotateWoodpeckerClient gives Woodpecker's OAuth2 application a new secret (Forgejo issues one on every update; the
-// old one stops at once) and keeps it in OpenBao.
-func RotateWoodpeckerClient(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens) error {
-	stored, err := tokens.Read(ctx, WoodpeckerPath)
-	if err != nil {
-		return err
-	}
-	if stored["client_id"] == "" || stored["redirect_uri"] == "" {
-		return fmt.Errorf("OpenBao has no Woodpecker client at %s: run lab infra forgejo sync first", WoodpeckerPath)
-	}
-	admin, err := newClient(ctx, ep, sdk.SetBasicAuth("forgejo_admin", adminPassword))
-	if err != nil {
-		return err
-	}
-	var found *sdk.Oauth2
-	for page := 1; found == nil; page++ {
-		apps, _, err := admin.ListOauth2(sdk.ListOauth2Option{ListOptions: sdk.ListOptions{Page: page, PageSize: 50}})
-		if err != nil {
-			return fmt.Errorf("OAuth2 applications: %w", err)
-		}
-		for _, app := range apps {
-			if app.Name == woodpeckerApp && app.ClientID == stored["client_id"] {
-				found = app
-			}
-		}
-		if len(apps) < 50 {
-			break
-		}
-	}
-	if found == nil {
-		return fmt.Errorf("Forgejo has no OAuth2 application %s with the stored client id: run lab infra forgejo sync first", woodpeckerApp)
-	}
-	app, _, err := admin.UpdateOauth2(found.ID, sdk.CreateOauth2Option{Name: woodpeckerApp, ConfidentialClient: true, RedirectURIs: found.RedirectURIs})
-	if err != nil {
-		return fmt.Errorf("OAuth2 application %s: %w", woodpeckerApp, err)
-	}
-	if app.ClientSecret == "" {
-		return fmt.Errorf("Forgejo returned no secret for OAuth2 application %s", woodpeckerApp)
-	}
-	return tokens.Write(ctx, WoodpeckerPath, map[string]string{"client_id": app.ClientID, "client_secret": app.ClientSecret, "redirect_uri": stored["redirect_uri"]})
 }
 
 // NewTokenName names user's next token: its usual name and the time, so Sync and RotateToken recognize it as user's.

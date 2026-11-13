@@ -86,7 +86,7 @@ func Check(root string, entries []Entry) []string {
 			}
 		}
 	}
-	for _, p := range []string{forgejo.DeployPath, forgejo.ArgoCDPath, forgejo.WoodpeckerPath} {
+	for _, p := range []string{forgejo.DeployPath, forgejo.ArgoCDPath, forgejo.CIBotPath} {
 		missingPath(p, "cli/internal/forgejo/sync.go")
 	}
 

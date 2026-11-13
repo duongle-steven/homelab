@@ -82,10 +82,6 @@ func (f fakeReaders) WaitReady(_ context.Context, namespace string, refs []workl
 	return f.do("wait", namespace, refNames(refs))
 }
 
-func (f fakeReaders) ResetClaims(_ context.Context, namespace string, claims []string) error {
-	return f.do("reset", namespace, claims)
-}
-
 const newValue = "N3w-value-0123456789"
 
 // fixed returns newValue and counts its calls
@@ -246,30 +242,15 @@ func TestMethodErrorsHideValues(t *testing.T) {
 				run(t, NtfyOverlap{Sleep: noSleep, Store: kv, Workloads: fakeReaders{log: log, failing: true}, Random: fixed(&n), Check: failing}, e)
 				run(t, NtfyOverlap{Sleep: noSleep, Store: kv, Workloads: fakeReaders{log: log}, Random: fixed(&n), Check: NtfyCheck(fakeExec{log: log, failing: true})}, e)
 			}
-			for _, name := range []string{"forgejo.deploy-token", "forgejo.argocd-token", "forgejo.woodpecker-oauth"} {
+			for _, name := range []string{"forgejo.deploy-token", "forgejo.argocd-token", "forgejo.ci-bot-token"} {
 				e := catalogEntry(t, name)
 				log := &[]string{}
-				kv := newKV(log, map[string]map[string]string{e.Paths[0]: {"token": current, "client_secret": current}})
+				kv := newKV(log, map[string]map[string]string{e.Paths[0]: {"token": current}})
 				kv.failing, kv.failWrites = stage == "store", stage == "write"
 				api := newFakeForgejo(log, kv)
-				api.tokens["deploy"]["lab"], api.tokens["argocd"]["argocd"] = current, current
+				api.tokens["deploy"]["lab"], api.tokens["argocd"]["argocd"], api.tokens["ci-bot"]["pipeline"] = current, current, current
 				api.failing = stage == "app"
 				run(t, ForgejoToken{API: api, Store: kv, Workloads: fakeReaders{log: log, failing: true}}, e)
-				run(t, ForgejoOAuth{API: api, Store: kv, Workloads: fakeReaders{log: log, failing: true}}, e)
-			}
-			for _, name := range []string{"woodpecker.admin-token", "registry.ci"} {
-				e := catalogEntry(t, name)
-				log := &[]string{}
-				kv := newKV(log, map[string]map[string]string{e.Paths[0]: {"token": current, "password": current}, "woodpecker/admin-token": {"token": current}, RecordPath(e): {pendingKey: newValue}})
-				kv.failing, kv.failWrites = stage == "store", stage == "write"
-				// Woodpecker echoes what it was sent in its errors
-				echo := func(context.Context) (string, *http.Client, error) {
-					return "http://woodpecker.invalid", &http.Client{Transport: echoTransport{}}, nil
-				}
-				n := 0
-				api := WoodpeckerClient{URL: echo, Store: kv}
-				run(t, WoodpeckerToken{API: api, Store: kv}, e)
-				run(t, RegistryCI{Generated: Generated{Store: kv, Workloads: fakeReaders{log: log}, Random: fixed(&n)}, API: api}, e)
 			}
 			for _, name := range []string{"forgejo.admin", "grafana.admin", "paperless.admin"} {
 				e := catalogEntry(t, name)
