@@ -180,9 +180,12 @@ groups:
     tests: zot || woodpecker
   - paths: [platform/woodpecker/**]
     tests: woodpecker
-  # Step 10f: the UI's sign-in and the controller that runs the golden path
+  # Step 10f: the UI's sign-in and the controller that runs the golden path (ci once its specs exist)
   - paths: [platform/argo-workflows/**]
     tests: sso
+  # Until Task 8's ci specs: the sandbox's first checks
+  - paths: [platform/argo-events/**]
+    tests: smoke
   - paths: [platform/secrets-rotation/**, scripts/build-lab-image, cli/Dockerfile]
     tests: rotation
   - paths: [apps/actualbudget.yaml]
