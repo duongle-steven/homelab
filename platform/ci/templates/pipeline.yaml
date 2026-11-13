@@ -319,7 +319,7 @@ spec:
           {{- include "ci.env" . | nindent 10 }}
           - {name: HOME, value: /tmp}
           - {name: VAULT_ADDR, value: "http://openbao.openbao.svc.cluster.local:8200"}
-          - {name: REF_IMAGE, value: "registry.{{ $domain }}/{{ "{{inputs.parameters.image}}" }}@{{ "{{inputs.parameters.digest}}" }}"}
+          - {name: SIGNED_REF, value: "registry.{{ $domain }}/{{ "{{inputs.parameters.image}}" }}@{{ "{{inputs.parameters.digest}}" }}"}
           - {name: GIT_REF, value: "{{ "{{workflow.parameters.ref}}" }}"}
           - {name: CONTEXT, value: "{{ "{{inputs.parameters.context}}" }}"}
           - {name: CONTAINERFILE, value: "{{ "{{inputs.parameters.containerfile}}" }}"}
