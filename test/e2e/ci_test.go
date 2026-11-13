@@ -108,6 +108,17 @@ func ciStatus(ctx context.Context, name, sha string) string {
 // it and attests its provenance and SBOM with OpenBao's transit key, and Forgejo shows the result
 var _ = Describe("CI", Label("sandbox", "ci"), func() {
 	waitForAppBeforeEach("https://" + forgejoHost + "/api/healthz")
+	// org ci's bot, its token and the webhook come from lab infra forgejo sync, which production's deploy runs and the
+	// sandbox only in specs: run it (it changes nothing when all is in place), then wait for the token in namespace ci
+	BeforeEach(func(ctx SpecContext) {
+		lab(ctx, "infra", "forgejo", "sync", "--env", labEnv)
+		_, err := kube.Kubectl(ctx, "ci", "annotate", "externalsecret", "forgejo", fmt.Sprintf("force-sync=%d", time.Now().UnixNano()), "--overwrite")
+		Expect(err).NotTo(HaveOccurred())
+		Eventually(ctx, func() string {
+			out, _ := kube.Kubectl(ctx, "ci", "get", "externalsecret", "forgejo", "-o", `jsonpath={.status.conditions[?(@.type=="Ready")].status}`)
+			return out
+		}).WithTimeout(2*time.Minute).WithPolling(5*time.Second).Should(Equal("True"), "Secret ci/forgejo has no token")
+	}, NodeTimeout(10*time.Minute))
 
 	It("builds, pushes, signs and attests a push to the default branch", func(ctx SpecContext) {
 		name := fmt.Sprint("ci-test-", time.Now().Unix())
