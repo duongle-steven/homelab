@@ -56,6 +56,7 @@ argocd-apps:
                           - path: platform/woodpecker
                           - path: platform/argo-workflows
                           - path: platform/argo-events
+                          - path: platform/ci
                           - path: platform/secrets-rotation
                     - git: &config
                         repoURL: *repoURL
