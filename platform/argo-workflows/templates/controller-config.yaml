@@ -9,8 +9,11 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   config: |
+    # Plain HTTP for Prometheus' ServiceMonitor: its own TLS (a self-signed certificate, the default) answered the
+    # scrape 400; the mesh encrypts it already (ztunnel's mTLS)
     metricsConfig:
       enabled: true
+      secure: false
     workflowRestrictions:
       templateReferencing: Strict
     # Argo's own containers in every Workflow pod (init and wait, argoexec, whose user is 8737): no seccomp profile
