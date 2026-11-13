@@ -19,6 +19,14 @@ cleanup() { git -C "$root" worktree remove --force "$work/base" >/dev/null 2>&1 
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 git worktree add -q --detach "$work/base" "$base"
+# A base older than scripts/render-chart (the first release: master still held the fork's start) cannot render: it
+# has no images to compare with, so every image of the targets counts as new and is scanned
+if [ ! -x "$work/base/scripts/render-chart" ]; then
+	echo "check-images: $base has no scripts/render-chart: every image counts as new" >&2
+	base_renders=0
+else
+	base_renders=1
+fi
 
 # images <dir> <target>: every image in the target's renders (production's and the sandbox's), from <dir>'s
 # checkout; a missing target has none. Images are the values of keys image and imageName (CloudNativePG's Cluster),
@@ -43,7 +51,9 @@ images() {
 : >"$work/old"
 for t in $targets; do
 	images "$root" "$t" >>"$work/new"
-	images "$work/base" "$t" >>"$work/old"
+	if [ "$base_renders" = 1 ]; then
+		images "$work/base" "$t" >>"$work/old"
+	fi
 done
 sort -u "$work/old" -o "$work/old"
 sort -u "$work/new" | comm -23 - "$work/old" >"$work/scan"

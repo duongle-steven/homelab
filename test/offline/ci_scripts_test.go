@@ -236,3 +236,26 @@ func TestTestbedArgoCDLimitsTheFirstSync(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "600s", strings.TrimSpace(string(out)))
 }
+
+// A base that predates scripts/render-chart (the first dev → master release: master was still the fork's start) has no
+// images to compare with: every image of the targets is new, so all are scanned rather than the check failing
+func TestCheckImagesBaseWithoutRenderChart(t *testing.T) {
+	root, err := filepath.Abs(repo.Root())
+	require.NoError(t, err)
+	index := filepath.Join(t.TempDir(), "index")
+	git := func(args ...string) string {
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_INDEX_FILE="+index)
+		out, err := cmd.Output()
+		require.NoError(t, err, args)
+		return strings.TrimSpace(string(out))
+	}
+	git("read-tree", "HEAD")
+	git("rm", "-q", "--cached", "scripts/render-chart")
+	base := git("commit-tree", git("write-tree"), "-m", "the target without scripts/render-chart")
+	cmd := exec.Command("sh", root+"/scripts/check-images")
+	cmd.Env = append(os.Environ(), "BASE="+base, "TARGETS=apps/excalidraw.yaml", "IMAGES_ONLY=1")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Contains(t, string(out), "excalidraw/excalidraw", "the target's image counts as new")
+}
