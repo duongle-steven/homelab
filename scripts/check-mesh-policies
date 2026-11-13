@@ -76,8 +76,6 @@ EXTRA = [
     ("platform/forgejo", None, 8000, "Cluster", "the CloudNativePG operator polls forgejo-db's status port"),
     ("system/monitoring-system", GRAFANA, 9090, None, "Grafana's Prometheus data source"),
     ("system/monitoring-system", GRAFANA, 9093, "Alertmanager", "Grafana's Alertmanager data source"),
-    ("platform/woodpecker", "cluster.local/ns/forgejo/sa/default", 8000, None,
-     "Forgejo's webhooks to WOODPECKER_WEBHOOK_HOST (http://woodpecker-server.woodpecker)"),
     ("platform/ci", "cluster.local/ns/forgejo/sa/default", 12000, None,
      "org ci's webhook (lab infra forgejo sync) to the EventSource forgejo-eventsource-svc.ci"),
     ("system/loki", GRAFANA, 3100, None, "Grafana's Loki data source"),

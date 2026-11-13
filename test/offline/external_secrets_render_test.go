@@ -11,8 +11,8 @@ import (
 )
 
 // On a fresh install apps sync while ESO's webhook has no endpoint yet; with failurePolicy Fail the API server refused
-// their SecretStore and ExternalSecrets, and Argo CD waited forever for workloads that needed those Secrets (zot,
-// Woodpecker)
+// their SecretStore and ExternalSecrets, and Argo CD waited forever for workloads that needed those Secrets (zot, and
+// step 10e's CI)
 func TestExternalSecretsWebhookIgnoredWhileDown(t *testing.T) {
 	cmd := exec.Command("sh", "-c", `scripts/render-chart platform/external-secrets | yq -N 'select(.kind == "ValidatingWebhookConfiguration") | .webhooks[] | .name + " " + .failurePolicy'`)
 	cmd.Dir = repo.Root()

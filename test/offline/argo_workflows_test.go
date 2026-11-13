@@ -31,6 +31,5 @@ func TestArgoWorkflowsRender(t *testing.T) {
 			"ci-editor='homelab-editors' in groups",
 			"ci-viewer='homelab-users' in groups",
 		}, strings.Split(rules, "\n"), env)
-		assert.NotContains(t, strings.ToLower(render(`.`)), "woodpecker", env)
 	}
 }

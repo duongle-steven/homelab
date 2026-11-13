@@ -333,16 +333,3 @@ func TestSyncWaitsForTheWebhookSecret(t *testing.T) {
 		t.Fatalf("Sync() = %v", err)
 	}
 }
-
-// Woodpecker's OAuth2 application (step 10e) goes; any other application stays
-func TestSyncDeletesWoodpeckerClient(t *testing.T) {
-	f, ep := newFakeForgejo(t)
-	f.apps[900] = &fakeApp{name: "woodpecker", clientID: "a", secret: "secret-a", confidential: true}
-	f.apps[901] = &fakeApp{name: "other", clientID: "b", secret: "secret-b", confidential: true}
-	if err := Sync(context.Background(), ep, f.admin, ciTokens()); err != nil {
-		t.Fatal(err)
-	}
-	if f.apps[900] != nil || f.apps[901] == nil {
-		t.Fatalf("apps %v", f.apps)
-	}
-}

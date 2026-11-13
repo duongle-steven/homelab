@@ -50,7 +50,7 @@ kyverno-policies:
   podSecurityStandard: restricted
   validationFailureAction: Audit
   failurePolicy: Ignore
-  # Woodpecker's step pods run in user namespaces (hostUsers: false)
+  # The golden path's build pods run in user namespaces (hostUsers: false, platform/ci)
   podSecurityUserNamespaces: true
 # Registries images may come from (templates/images.yaml); zot (registry.<domain>) is added there
 registries: [docker.io, ghcr.io, quay.io, registry.k8s.io, gcr.io, code.forgejo.org, public.ecr.aws, lscr.io]

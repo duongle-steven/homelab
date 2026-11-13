@@ -26,7 +26,6 @@ EXPECTED = {
     "platform/kanidm:kanidm-data": "daily",
     "platform/forgejo:forgejo-data": "daily",
     "platform/forgejo:forgejo-db": "daily",
-    "platform/woodpecker:data": "daily",
     "apps/ntfy.yaml:ntfy": "daily",
     # tuwunel's database and media
     "apps/matrix.yaml:matrix-data": "daily",
