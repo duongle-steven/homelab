@@ -29,8 +29,11 @@ metadata:
 spec:
   template:
     serviceAccountName: ci-sensor
+    # Argo Events' image runs as root unless told otherwise (platform/argo-events)
     securityContext:
       runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
       seccompProfile:
         type: RuntimeDefault
     container:
