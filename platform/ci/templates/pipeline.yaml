@@ -282,6 +282,10 @@ spec:
           - name: SYFT_REGISTRY_AUTH_PASSWORD
             valueFrom: {secretKeyRef: {name: registry, key: password}}
           - {name: SYFT_CHECK_FOR_APP_UPDATE, value: "false"}
+          # Its image has no writable /tmp or home for a non-root user: the run's volume holds its scratch and cache
+          - {name: TMPDIR, value: /work}
+          - {name: HOME, value: /work}
+          - {name: SYFT_CACHE_DIR, value: /work/.syft-cache}
         volumeMounts:
           {{- include "ci.mounts" . | nindent 10 }}
         {{- include "ci.containerSecurity" . | nindent 8 }}
