@@ -14,6 +14,8 @@ func TestArgoWorkflowsRender(t *testing.T) {
 		render := func(expr string) string { return renderVelero(t, "platform/argo-workflows", env, expr) }
 		config := `select(.kind == "ConfigMap" and .metadata.name == "workflow-controller-configmap") | .data.config | from_yaml`
 		assert.Equal(t, "Strict", render(config+` | .workflowRestrictions.templateReferencing`), env)
+		// Prometheus scrapes it over HTTP (the mesh encrypts): its own self-signed TLS answered the scrape 400
+		assert.Equal(t, "true false", render(config+` | (.metricsConfig.enabled | tostring) + " " + (.metricsConfig.secure | tostring)`), env)
 		assert.Equal(t, "https://auth."+domain+"/oauth2/openid/argo-workflows", render(config+` | .sso.issuer`), env)
 		assert.Equal(t, "https://ci."+domain+"/oauth2/callback", render(config+` | .sso.redirectUrl`), env)
 		assert.Equal(t, "homelab_groups", render(config+` | .sso.customGroupClaimName`), env)
