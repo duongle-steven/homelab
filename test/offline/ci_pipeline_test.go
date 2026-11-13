@@ -42,6 +42,9 @@ func TestCIPipelineRender(t *testing.T) {
 		assert.Contains(t, render(`.spec.templates[] | select(.name == "status") | .script.source`), `https://git.$DOMAIN/api/v1/repos/$REPO/statuses/$SHA`, env)
 		assert.Equal(t, "{{workflow.status}}", render(`.spec.templates[] | select(.name == "report") | .steps[][] | .arguments.parameters[] | select(.name == "state") | .value`), env)
 
+		// Every step names its command: Argo's executor would otherwise ask the registry from the controller, whose
+		// egress forbids it
+		assert.Empty(t, render(`.spec.templates[] | select(.container != null or .script != null) | select(((.container // .script).command // []) | length == 0) | .name`), env)
 		// Pinned: a tag with a version, never latest
 		for _, image := range strings.Split(render(`.. | select(has("image")) | .image`), "\n") {
 			assert.Regexp(t, `:v?[0-9]+\.[0-9]+(\.[0-9]+)?(-dev)?$`, image, env)
