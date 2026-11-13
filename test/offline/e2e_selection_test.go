@@ -26,7 +26,7 @@ import (
 type e2eSelection struct {
 	// The commit the record was generated from
 	From string `json:"from"`
-	// The 84 cluster tests, without Test
+	// The 84 cluster tests, without Test, less Woodpecker (gone with step 10f)
 	Tests []string `json:"tests"`
 	// Group (its first path), full, always, alone/<term> or recipe → the tests it ran
 	Selection map[string][]string `json:"selection"`
@@ -44,7 +44,7 @@ func loadE2ESelection(t *testing.T) e2eSelection {
 func TestE2ESelectionRecord(t *testing.T) {
 	record := loadE2ESelection(t)
 	assert.NotEmpty(t, record.From)
-	require.Len(t, record.Tests, 84)
+	require.Len(t, record.Tests, 83)
 	known := map[string]bool{}
 	for _, name := range record.Tests {
 		known[name] = true

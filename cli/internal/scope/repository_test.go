@@ -21,7 +21,7 @@ func TestRepositoryMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	full := "(argocd || backup-restore || egress || falco || forgejo || gateway || identity || logs || matrix || mesh || monitoring || node-power-cut || node-restart || ntfy || policy || public || rotation || seccomp || secrets || smoke || sso || supply-chain || trivy-operator || woodpecker) && !alone"
+	full := "(argocd || backup-restore || ci || egress || falco || forgejo || gateway || identity || logs || matrix || mesh || monitoring || node-power-cut || node-restart || ntfy || policy || public || rotation || seccomp || secrets || smoke || sso || supply-chain || trivy-operator) && !alone"
 	fullAlone := []string{"backup-restore", "node-power-cut", "node-restart", "rotation"}
 	for _, tc := range []struct {
 		file, main string
@@ -36,16 +36,16 @@ func TestRepositoryMap(t *testing.T) {
 		{"infra/_modules/k3d/main.tf", full, fullAlone},
 		{"scripts/env-values", full, fullAlone},
 		{"system/egress/values.yaml", full, fullAlone},
-		{"platform/openbao/values.yaml", "(backup-restore || forgejo || gateway || identity || logs || monitoring || ntfy || secrets || smoke || sso || woodpecker) && !alone", []string{"backup-restore"}},
-		{"platform/kanidm/values.yaml", "((forgejo && deploy) || (gateway && zot) || identity || smoke || sso || woodpecker) && !alone", nil},
+		{"platform/openbao/values.yaml", "(backup-restore || ci || forgejo || gateway || identity || logs || monitoring || ntfy || secrets || smoke || sso) && !alone", []string{"backup-restore"}},
+		{"platform/kanidm/values.yaml", "((forgejo && deploy) || (gateway && zot) || ci || identity || smoke || sso) && !alone", nil},
 		// lab's Forgejo deploy runs against the sandbox; its offline parts are skipped
-		{"cli/internal/forgejo/sync.go", "(forgejo || smoke || woodpecker) && !alone", nil},
-		{"cli/go.mod", "(forgejo || smoke || woodpecker) && !alone", nil},
+		{"cli/internal/forgejo/sync.go", "(ci || forgejo || smoke) && !alone", nil},
+		{"cli/go.mod", "(ci || forgejo || smoke) && !alone", nil},
 		{"cli/internal/guard/verify.go", "", nil},
-		{"platform/forgejo/values.yaml", "(backup-restore || forgejo || smoke || woodpecker) && !alone", []string{"backup-restore"}},
-		{"platform/woodpecker/values.yaml", "(smoke || woodpecker) && !alone", nil},
+		{"platform/forgejo/values.yaml", "(backup-restore || ci || forgejo || smoke) && !alone", []string{"backup-restore"}},
+		{"platform/ci/values.yaml", "(ci || smoke) && !alone", nil},
 		{"system/velero/values.yaml", "(backup-restore || smoke) && !alone", []string{"backup-restore"}},
-		{"test/offline/woodpecker_test.go", "", nil},
+		{"test/offline/ci_settings_test.go", "", nil},
 		{"apps/paperless.yaml", "(paperless || smoke) && !alone", nil},
 		{"apps/blog.yaml", "smoke && !alone", nil},
 		{"system/external-dns/values.yaml", "smoke && !alone", nil},

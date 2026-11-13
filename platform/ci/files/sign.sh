@@ -7,7 +7,7 @@ set -eu
 VAULT_TOKEN=$(cat /bao/token)
 export VAULT_TOKEN
 printf '%s' "$REGISTRY_PASSWORD" | cosign login "registry.$DOMAIN" -u "$REGISTRY_USERNAME" --password-stdin
-cosign sign --yes --tlog-upload=false --key hashivault://ci-signing "$REF_IMAGE"
+cosign sign --yes --use-signing-config=false --tlog-upload=false --key hashivault://ci-signing "$REF_IMAGE"
 cat >/tmp/provenance.json <<JSON
 {
   "buildDefinition": {
@@ -23,6 +23,6 @@ cat >/tmp/provenance.json <<JSON
   }
 }
 JSON
-cosign attest --yes --tlog-upload=false --key hashivault://ci-signing --type slsaprovenance1 --predicate /tmp/provenance.json "$REF_IMAGE"
-cosign attest --yes --tlog-upload=false --key hashivault://ci-signing --type spdxjson --predicate /work/sbom.spdx.json "$REF_IMAGE"
+cosign attest --yes --use-signing-config=false --tlog-upload=false --key hashivault://ci-signing --type slsaprovenance1 --predicate /tmp/provenance.json "$REF_IMAGE"
+cosign attest --yes --use-signing-config=false --tlog-upload=false --key hashivault://ci-signing --type spdxjson --predicate /work/sbom.spdx.json "$REF_IMAGE"
 echo "sign: $REF_IMAGE signed and attested (provenance, SPDX)"
