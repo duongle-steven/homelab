@@ -49,8 +49,12 @@ Rollouts (its repository from Backstage's template, its image from this CI, cana
 - The blog's and Backstage's repositories and pipelines (their own steps); a pipeline per language (tests, linters):
   the golden path builds images only, more templates come with the repositories that need them.
 - Pull requests from forks or strangers: only `ci` members' repositories run.
-- An artifact repository and archived logs: pod logs already reach Loki (Alloy); the UI's logs last as long as the
-  pods.
+- An artifact repository (S3) and archived logs: pod logs already reach Loki (Alloy), the UI's logs last as long as
+  the pods, images and everything attached to them live in zot, and files pass between steps on the Workflow's own
+  volume (below). An S3 artifact repository comes with the first pipeline that produces files other than images (test
+  reports, binaries), choosing then between R2, the sandbox's versitygw, or Garage on the NAS of the Ideas.
+- A layer cache: Buildah on vfs rebuilds every layer. When builds get slow, Buildah's registry cache (`--cache-to`,
+  `--cache-from` in zot) is the first option; it touches the storage driver, so it is its own change.
 - Argo Rollouts (its own step), Argo CD Image Updater (Renovate or a commit bumps image tags).
 - Enforcing image signatures (step 15b-2 switches Kyverno to Enforce).
 
@@ -104,6 +108,9 @@ and server stay where no pipeline runs.
 `WorkflowTemplate` `pipeline` (the only entry point the Sensor uses), built from smaller templates others can reuse
 later:
 
+- the Workflow's volume: one PVC per run from `volumeClaimTemplates` (`homelab/backup: none`, the default storage
+  class: Ceph RBD in production, csi-hostpath in the sandbox), deleted with the Workflow; steps run one after another,
+  so `ReadWriteOnce` is enough. It carries the source from clone to build and the image's digest and SBOM to signing;
 - clone: Forgejo over the in-cluster address with the `ci` bot's token (read), at the commit;
 - settings: optional `.ci.yaml` at the repository's root with only known keys (`context`, `containerfile`, `image`),
   defaults `.`, `Containerfile` or else `Dockerfile`, the repository's name; anything else fails the run; a
@@ -112,8 +119,10 @@ later:
   isolation, vfs, in a user namespace (`hostUsers: false` in the template's pod spec), under `homelab/buildah.json`;
   pull requests build only; the default branch pushes `registry.<domain>/<repo>:<sha>` to zot as its machine account
   `ci` (the existing htpasswd user, now a Secret in namespace `ci`);
-- sign and attest (default branch only): cosign signs the pushed digest and attests an SLSA provenance predicate the
-  pipeline writes (builder: Argo Workflows in this cluster; the workflow's name, template, parameters; materials: the
+- SBOM (default branch only): an SPDX SBOM of the pushed image (Syft or Trivy, pinned; the builder picks), as the
+  `lab` image has since step 15e;
+- sign and attest (default branch only): cosign signs the pushed digest and attests the SBOM and an SLSA provenance
+  predicate the pipeline writes (builder: Argo Workflows in this cluster; the workflow's name, template, parameters; materials: the
   repository at the commit, the base images' digests Buildah reports), both with an OpenBao transit key through
   cosign's `hashivault://` KMS, authenticated by the workflow pod's service account token (OpenBao role `ci-signer`,
   audience `openbao`, policy: sign with that key only). The key never leaves OpenBao; keyless signing is out because
@@ -178,12 +187,12 @@ Workflows instead. OpenBao's initialize stanzas gain the transit engine, the key
 
 A Kyverno `verifyImages` policy (Audit, like `verify-lab-image`) checks `registry.<domain>/*` against the transit key's
 public key (published in the chart, exported once from OpenBao; the builder chooses how it reaches the policy without a
-manual copy if one exists, otherwise a documented step) and the provenance attestation's predicate type.
+manual copy if one exists, otherwise a documented step), and requires the provenance and SPDX attestations.
 
 ### Backups
 
-Argo keeps no volume (Workflows live in etcd for 7 days); JetStream's storage, if it has one, is `homelab/backup: none`
-(an event lost in a restart is a push to repeat). Woodpecker's `daily` group entry goes.
+Argo keeps no lasting volume (Workflows live in etcd for 7 days; each run's volume goes with it, `homelab/backup:
+none`); JetStream's storage, if it has one, is `none` too (an event lost in a restart is a push to repeat). Woodpecker's `daily` group entry goes.
 
 ## Testing
 
@@ -194,7 +203,8 @@ catalog and generated-secrets wiring, `scripts/check-*` updated.
 E2e (`test/e2e`, labels from `test/scopes.yaml`, sandbox and testbed where they apply):
 
 - `CI`: a fixture repository pushed to `ci` (a two-line Containerfile) builds, pushes to zot, is signed and attested
-  (cosign verifies both with the public key), and Forgejo shows a `success` status; a pull request builds without
+  (cosign verifies the signature, the provenance and the SBOM with the public key), its Workflow's PVC is gone once the
+  Workflow is deleted, and Forgejo shows a `success` status; a pull request builds without
   pushing; a repository whose `.ci.yaml` has an unknown key fails with a `failure` status; a webhook without the bearer
   secret creates no Workflow.
 - `CISeccomp`: the build pod runs under `homelab/buildah.json`; another `ci` pod naming a Localhost profile is refused;
