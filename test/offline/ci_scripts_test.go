@@ -245,9 +245,13 @@ func TestCheckImagesBaseWithoutRenderChart(t *testing.T) {
 	index := filepath.Join(t.TempDir(), "index")
 	git := func(args ...string) string {
 		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
-		cmd.Env = append(os.Environ(), "GIT_INDEX_FILE="+index)
+		// CI's runner has no git identity, which commit-tree needs
+		cmd.Env = append(os.Environ(), "GIT_INDEX_FILE="+index, "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.invalid",
+			"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.invalid")
+		var stderr strings.Builder
+		cmd.Stderr = &stderr
 		out, err := cmd.Output()
-		require.NoError(t, err, args)
+		require.NoError(t, err, "%v: %s", args, stderr.String())
 		return strings.TrimSpace(string(out))
 	}
 	git("read-tree", "HEAD")
