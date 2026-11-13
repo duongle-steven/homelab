@@ -39,8 +39,6 @@ const (
 	WebhookAppliedPath = "ci/forgejo-webhook"
 	// WebhookURL is Argo Events' EventSource (platform/ci's values.yaml: webhook.port and webhook.path)
 	WebhookURL = "http://forgejo-eventsource-svc.ci:12000/forgejo"
-	// woodpeckerApp is step 10e's OAuth2 application, which sync deletes
-	woodpeckerApp = "woodpecker"
 )
 
 // Tokens is where Sync keeps the accounts' tokens (OpenBao).
@@ -70,7 +68,7 @@ const opsCheck = "/api/v1/repos/" + Org + "/" + Repo
 var ciBot = account{name: CIBot, token: "pipeline", scope: sdk.AccessTokenScopeRepositoryWrite, path: CIBotPath, check: "/api/v1/repos/search?limit=1"}
 
 // Sync makes orgs ops and ci match the design: what is right is kept, what is wrong is fixed, what is missing is
-// created; step 10e's Woodpecker OAuth client is deleted. It waits for Forgejo, and for the webhook's secret in
+// created. It waits for Forgejo, and for the webhook's secret in
 // OpenBao, until ctx ends.
 func Sync(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens) error {
 	if err := waitReady(ctx, ep); err != nil {
@@ -109,9 +107,6 @@ func Sync(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens)
 		return err
 	}
 	if err := ensureToken(ctx, ep, admin, tokens, ciBot); err != nil {
-		return err
-	}
-	if err := deleteWoodpeckerClient(admin); err != nil {
 		return err
 	}
 	return ensureCIWebhook(ctx, admin, tokens)
@@ -438,26 +433,6 @@ func ensureTeam(c *sdk.Client, name string, canCreate, all bool, units map[strin
 		return 0, fmt.Errorf("restore team %s/%s: %w", CIOrg, name, err)
 	}
 	return team.ID, nil
-}
-
-// deleteWoodpeckerClient deletes step 10e's OAuth2 application woodpecker (forgejo_admin's), if any
-func deleteWoodpeckerClient(c *sdk.Client) error {
-	for page := 1; ; page++ {
-		apps, _, err := c.ListOauth2(sdk.ListOauth2Option{ListOptions: sdk.ListOptions{Page: page, PageSize: 50}})
-		if err != nil {
-			return fmt.Errorf("OAuth2 applications: %w", err)
-		}
-		for _, app := range apps {
-			if app.Name == woodpeckerApp {
-				if _, err := c.DeleteOauth2(app.ID); err != nil {
-					return fmt.Errorf("delete OAuth2 application %s: %w", woodpeckerApp, err)
-				}
-			}
-		}
-		if len(apps) < 50 {
-			return nil
-		}
-	}
 }
 
 // ensureCIWebhook keeps org ci's webhook to Argo Events (WebhookURL): push and pull request events as JSON, with

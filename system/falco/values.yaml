@@ -41,9 +41,9 @@ accepted:
     name: buildah-chroot-reexec
     fields: [k8s.ns.name, container.image.repository, proc.exepath]
     comps: ["=", "=", "in"]
-    values: [["woodpecker", "quay.io/buildah/stable", ["memfd:buildah-chroot-runtime", "memfd:buildah-chroot-exec"]]]
+    values: [["ci", "quay.io/buildah/stable", ["memfd:buildah-chroot-runtime", "memfd:buildah-chroot-exec"]]]
     reason: >-
-      Buildah's chroot isolation (Woodpecker's image steps) runs its own binary from a sealed memfd, as runc does
+      Buildah's chroot isolation (the golden path's build step, platform/ci) runs its own binary from a sealed memfd, as runc does
       against CVE-2019-5736; any other memfd execution still alerts
 acceptedWorkstation: []
 

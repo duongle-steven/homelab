@@ -29,7 +29,7 @@ func TestScanHardeningFlags(t *testing.T) {
 		assert.Contains(t, string(k3d), "- arg: "+flag+"\n", "k3d.yaml")
 		assert.Contains(t, string(nodes), `"`+flag+`"`, "k3s-server.nix")
 	}
-	// seccomp-default gives Woodpecker's Buildah steps RuntimeDefault, which refuses their unshare: their Localhost
+	// seccomp-default gives the golden path's Buildah step RuntimeDefault, which refuses its unshare: its Localhost
 	// profile sits beside the kubelet (step 15h)
 	assert.Contains(t, string(nodes), "/var/lib/kubelet/seccomp/homelab/buildah.json", "k3s-server.nix")
 	assert.Contains(t, string(nodes), "../seccomp/buildah.json", "k3s-server.nix")

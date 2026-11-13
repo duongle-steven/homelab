@@ -57,7 +57,7 @@ options:
         nodeFilters: [server:*]
       - arg: --kubelet-arg=pod-max-pids=4096
         nodeFilters: [server:*]
-      # A pod naming no seccomp profile gets RuntimeDefault; Woodpecker's Buildah steps get homelab/buildah.json
+      # A pod naming no seccomp profile gets RuntimeDefault; the golden path's Buildah step gets homelab/buildah.json
       # (infra/_modules/metal/flake/seccomp, mounted by main.tf)
       - arg: --kubelet-arg=seccomp-default=true
         nodeFilters: [server:*]
