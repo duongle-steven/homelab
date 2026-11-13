@@ -500,7 +500,7 @@ var _ = Describe("TestbedPostgresFailover", Label("testbed", "proof"), func() {
 })
 
 // Step 15h on NixOS's kernel: every node runs the kubelet with seccomp-default and holds Buildah's Localhost profile,
-// a pod naming no profile cannot unshare, and Buildah builds under its profile (Woodpecker itself does not run here)
+// a pod naming no profile cannot unshare, and Buildah builds under its profile (the golden path does not run here)
 var _ = Describe("TestbedSeccomp", Label("testbed", "production", "proof"), func() {
 	It("runs pods under RuntimeDefault and Buildah under its profile", func(ctx SpecContext) {
 		want, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "_modules", "metal", "flake", "seccomp", "buildah.json"))
