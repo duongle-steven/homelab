@@ -1,6 +1,7 @@
 package offline
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,4 +31,20 @@ func TestAlertmanagerDevReceiversFollowProduction(t *testing.T) {
 	prod := renderVelero(t, "system/monitoring-system", "", config+` | .receivers | map(del(.telegram_configs)) | to_json`)
 	dev := renderVelero(t, "system/monitoring-system", "dev", config+` | .receivers | to_json`)
 	assert.JSONEq(t, prod, dev, "system/monitoring-system/values-local.yaml's receivers differ from values.yaml's beyond Telegram")
+}
+
+// prometheus-operator starts a controller only for the CRDs it finds when it starts, and never later: a fresh cluster
+// whose operator came up before the Prometheus and Alertmanager CRDs were established never made either (the first
+// release's sandbox, 2026-11-13). Argo CD's sync waves order them: the CRDs and the rest (wave 0, healthy once
+// established), the operator (1), the resources it serves (2); Telegram's ExternalSecret last (3), since it stays
+// unhealthy until a person writes the bot and a wave waits for every resource before it to be healthy
+func TestOperatorAfterItsCRDs(t *testing.T) {
+	for _, env := range []string{"", "dev"} {
+		waves := renderVelero(t, "system/monitoring-system", env, `select(.metadata.annotations."argocd.argoproj.io/sync-wave" != null) | .kind + "/" + .metadata.name + "=" + .metadata.annotations."argocd.argoproj.io/sync-wave"`)
+		want := "Deployment/monitoring-system-kube-pro-operator=1\nAlertmanager/monitoring-system-kube-pro-alertmanager=2\nPrometheus/monitoring-system-kube-pro-prometheus=2"
+		if env == "" {
+			want += "\nExternalSecret/telegram=3"
+		}
+		assert.ElementsMatch(t, strings.Split(want, "\n"), strings.Split(waves, "\n"), "env %q", env)
+	}
 }

@@ -31,6 +31,10 @@ kube-prometheus-stack:
       - validatingwebhookconfigurations
       - volumeattachments
   prometheusOperator:
+    # The operator starts a controller only for the CRDs it finds at its start: it comes after them (wave 0, healthy
+    # once established), and Prometheus and Alertmanager after it (TestOperatorAfterItsCRDs)
+    annotations:
+      argocd.argoproj.io/sync-wave: "1"
     # The API server (outside the mesh) calls its admission webhook
     podLabels:
       istio.io/dataplane-mode: none
@@ -54,12 +58,16 @@ kube-prometheus-stack:
         type: loki
         url: http://loki.loki:3100
   prometheus:
+    # After the operator (prometheusOperator.annotations)
+    annotations: &afterOperator
+      argocd.argoproj.io/sync-wave: "2"
     prometheusSpec:
       ruleSelectorNilUsesHelmValues: false
       serviceMonitorSelectorNilUsesHelmValues: false
       podMonitorSelectorNilUsesHelmValues: false
       probeSelectorNilUsesHelmValues: false
   alertmanager:
+    annotations: *afterOperator
     alertmanagerSpec:
       # templates/ntfy-secret.yaml, mounted at /etc/alertmanager/secrets/ntfy/
       secrets: [ntfy]
