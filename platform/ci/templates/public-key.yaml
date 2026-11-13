@@ -1,0 +1,109 @@
+{{- /*
+ci-signing's public key, copied from OpenBao (where the key never leaves) to ConfigMap ci-signing-public-key, which
+Kyverno's verify-ci-images reads (system/kyverno) and anyone may use to verify an image (docs/how-to-guides/ci.md).
+After every sync: OpenBao creates the key at its first start, and a new key version needs a new copy. The init
+container reads it as role ci-signing-publisher (nothing else); the main one applies the ConfigMap through the API
+server (server-side apply: create or update, this ConfigMap only).
+*/ -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-signing-public-key
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-signing-public-key
+  namespace: {{ .Release.Namespace }}
+rules:
+  - {apiGroups: [""], resources: [configmaps], resourceNames: [ci-signing-public-key], verbs: [patch]}
+  - {apiGroups: [""], resources: [configmaps], verbs: [create]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-signing-public-key
+  namespace: {{ .Release.Namespace }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: ci-signing-public-key}
+subjects:
+  - {kind: ServiceAccount, name: ci-signing-public-key, namespace: {{ .Release.Namespace }}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ci-signing-public-key
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      serviceAccountName: ci-signing-public-key
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: export
+          image: {{ .Values.images.openbao }}
+          command: [sh, -c]
+          args:
+            - |
+              set -eu
+              BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=ci-signing-publisher jwt=@/var/run/secrets/openbao/token)
+              export BAO_TOKEN
+              # The latest version's PEM, out of the JSON's keys map
+              bao read -format=json transit/export/public-key/ci-signing/latest \
+                | sed -n 's/.*"\(-----BEGIN PUBLIC KEY-----[^"]*\)".*/\1/p' | sed 's/\\n/\n/g' >/out/cosign.pub
+              grep -q "END PUBLIC KEY" /out/cosign.pub
+          env:
+            - {name: BAO_ADDR, value: "http://openbao.openbao.svc.cluster.local:8200"}
+            - {name: HOME, value: /tmp}
+          volumeMounts:
+            - {name: openbao-sa-token, mountPath: /var/run/secrets/openbao, readOnly: true}
+            - {name: out, mountPath: /out}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      containers:
+        - name: apply
+          image: {{ .Values.images.curl }}
+          command: [sh, -c]
+          args:
+            - |
+              set -eu
+              sa=/var/run/secrets/kubernetes.io/serviceaccount
+              {
+                printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: ci-signing-public-key\n  namespace: %s\ndata:\n  cosign.pub: |\n' "$(cat $sa/namespace)"
+                sed 's/^/    /' /out/cosign.pub
+              } >/tmp/configmap.yaml
+              curl -fsS -o /dev/null --cacert "$sa/ca.crt" -H "Authorization: Bearer $(cat $sa/token)" -X PATCH \
+                -H "Content-Type: application/apply-patch+yaml" --data-binary @/tmp/configmap.yaml \
+                "https://kubernetes.default.svc/api/v1/namespaces/$(cat $sa/namespace)/configmaps/ci-signing-public-key?fieldManager=ci-signing-public-key&force=true"
+              echo "ci-signing-public-key: updated"
+          volumeMounts:
+            - {name: out, mountPath: /out, readOnly: true}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+      volumes:
+        - name: openbao-sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: openbao
+                  expirationSeconds: 600
+                  path: token
+        - name: out
+          emptyDir:
+            medium: Memory

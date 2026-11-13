@@ -30,9 +30,10 @@ func renderKyverno(t *testing.T, env, expr string) string {
 
 // lab's image is signed by lab-image.yaml on master, keyless, with its SBOM attested; production's Kyverno checks
 // both (Audit until 15b-2); the sandbox runs lab's image built from the checkout, unsigned, so it has no such policy
+// (verify-ci-images, the golden path's, runs everywhere: TestCISigningRender)
 func TestLabImagePolicy(t *testing.T) {
 	policy := `select(.kind == "ImageValidatingPolicy" and .metadata.name == "verify-lab-image")`
-	assert.Equal(t, "verify-lab-image", renderKyverno(t, "", `[select(.kind == "ImageValidatingPolicy")] | map(.metadata.name) | join(",")`))
+	assert.Equal(t, "verify-ci-images\nverify-lab-image", renderKyverno(t, "", `select(.kind == "ImageValidatingPolicy") | .metadata.name`))
 	assert.Equal(t, labImage, renderKyverno(t, "", policy+` | .spec.matchImageReferences[].glob`))
 	assert.Equal(t, "Audit", renderKyverno(t, "", policy+` | .spec.validationActions | join(",")`))
 	identity := policy + ` | .spec.attestors[] | select(.name == "github") | .cosign.keyless.identities[0]`
@@ -45,5 +46,5 @@ func TestLabImagePolicy(t *testing.T) {
 	assert.Contains(t, validations, "verifyImageSignatures")
 	assert.Contains(t, validations, "verifyAttestationSignatures")
 
-	assert.Empty(t, renderKyverno(t, "dev", `select(.kind == "ImageValidatingPolicy") | .metadata.name`))
+	assert.Empty(t, renderKyverno(t, "dev", `select(.kind == "ImageValidatingPolicy" and .metadata.name == "verify-lab-image") | .metadata.name`))
 }
