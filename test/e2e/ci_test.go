@@ -115,7 +115,7 @@ var _ = Describe("CI", Label("sandbox", "ci"), func() {
 		phase, digest := ciWorkflow(ctx, name, sha)
 		Expect(phase).To(Equal("Succeeded"))
 		Expect(digest).To(HavePrefix("sha256:"))
-		Eventually(ctx, func() string { return ciStatus(ctx, name, sha) }).WithTimeout(2*time.Minute).WithPolling(5*time.Second).Should(Equal("success"))
+		Eventually(ctx, func() string { return ciStatus(ctx, name, sha) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal("success"))
 
 		// Verified with the public key Kyverno uses, without a transparency log (the signing skips it)
 		dir := GinkgoT().TempDir()
@@ -142,7 +142,7 @@ var _ = Describe("CI", Label("sandbox", "ci"), func() {
 		phase, digest := ciWorkflow(ctx, name, sha)
 		Expect(phase).To(Equal("Failed"))
 		Expect(digest).To(BeEmpty())
-		Eventually(ctx, func() string { return ciStatus(ctx, name, sha) }).WithTimeout(2*time.Minute).WithPolling(5*time.Second).Should(Equal("failure"))
+		Eventually(ctx, func() string { return ciStatus(ctx, name, sha) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal("failure"))
 	}, SpecTimeout(30*time.Minute))
 
 	It("refuses a webhook without org ci's secret", func(ctx SpecContext) {
@@ -167,11 +167,13 @@ var _ = Describe("CIRestrictions", Label("sandbox", "ci"), func() {
 		name := fmt.Sprint("inline-", time.Now().Unix())
 		Expect(kube.Apply(ctx, "ci", fmt.Sprintf(`{"apiVersion": "argoproj.io/v1alpha1", "kind": "Workflow", "metadata": {"name": %q},
 			"spec": {"entrypoint": "main", "templates": [{"name": "main", "container": {"image": "docker.io/library/busybox:1.37.0", "command": ["true"]}}]}}`, name))).To(Succeed())
-		DeferCleanup(func(ctx SpecContext) { kube.Kubectl(ctx, "ci", "delete", "workflows.argoproj.io", name, "--wait=false") }, NodeTimeout(time.Minute))
+		DeferCleanup(func(ctx SpecContext) {
+			kube.Kubectl(ctx, "ci", "delete", "workflows.argoproj.io", name, "--wait=false")
+		}, NodeTimeout(time.Minute))
 		Eventually(ctx, func() string {
 			out, _ := kube.Kubectl(ctx, "ci", "get", "workflows.argoproj.io", name, "-o", "jsonpath={.status.phase} {.status.message}")
 			return out
-		}).WithTimeout(2*time.Minute).WithPolling(5*time.Second).Should(And(MatchRegexp(`^(Error|Failed) `), ContainSubstring("workflowTemplateRef")))
+		}).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(And(MatchRegexp(`^(Error|Failed) `), ContainSubstring("workflowTemplateRef")))
 		pods, err := kube.Kubectl(ctx, "ci", "get", "pods", "-l", "workflows.argoproj.io/workflow="+name, "-o", "name")
 		Expect(err).NotTo(HaveOccurred(), pods)
 		Expect(strings.TrimSpace(pods)).To(BeEmpty(), "the inline template ran")
