@@ -5,8 +5,11 @@ argo-events:
     install: true
     keep: true
   global:
+    # The image's user is root: a numeric non-root user (the static binary needs none of root's rights)
     securityContext:
       runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
       seccompProfile:
         type: RuntimeDefault
   controller:

@@ -26,6 +26,8 @@ func TestCIEventsRender(t *testing.T) {
 		}, strings.Split(filters, "\n"), env)
 		assert.Equal(t, "pipeline\npipeline", render(`select(.kind == "Sensor") | .spec.triggers[].template.argoWorkflow.source.resource.spec.workflowTemplateRef.name`), env)
 		assert.Equal(t, "ci-sensor", render(`select(.kind == "Sensor") | .spec.template.serviceAccountName`), env)
+		// Argo Events' image runs as root unless told otherwise
+		assert.Equal(t, "65532\n65532", render(`select(.kind == "Sensor" or .kind == "EventSource") | .spec.template.securityContext.runAsUser`), env)
 		assert.Equal(t, `[{"apiGroups":["argoproj.io"],"resources":["workflows"],"verbs":["create"]}]`, render(`select(.kind == "Role" and .metadata.name == "ci-sensor") | .rules | to_json(0)`), env)
 
 		secrets := render(`select(.kind == "ExternalSecret") | .metadata.name + "=" + ([.spec.data[].remoteRef.key] | join(","))`)
