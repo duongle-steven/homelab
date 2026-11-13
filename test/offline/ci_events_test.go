@@ -30,7 +30,7 @@ func TestCIEventsRender(t *testing.T) {
 		assert.Equal(t, "ci-sensor", render(`select(.kind == "Sensor") | .spec.template.serviceAccountName`), env)
 		// Argo Events' image runs as root unless told otherwise
 		assert.Equal(t, "65532\n65532", render(`select(.kind == "Sensor" or .kind == "EventSource") | .spec.template.securityContext.runAsUser`), env)
-		assert.Equal(t, `[{"apiGroups":["argoproj.io"],"resources":["workflows"],"verbs":["create"]}]`, render(`select(.kind == "Role" and .metadata.name == "ci-sensor") | .rules | to_json(0)`), env)
+		assert.Equal(t, `[{"apiGroups":["argoproj.io"],"resources":["workflows"],"verbs":["create"]},{"apiGroups":["argoproj.io"],"resources":["workflowtemplates"],"verbs":["get"]}]`, render(`select(.kind == "Role" and .metadata.name == "ci-sensor") | .rules | to_json(0)`), env)
 
 		secrets := render(`select(.kind == "ExternalSecret") | .metadata.name + "=" + ([.spec.data[].remoteRef.key] | join(","))`)
 		assert.ElementsMatch(t, []string{"webhook=ci/generated/webhook", "forgejo=ci/forgejo-token", "registry=ci/generated/registry"}, strings.Split(secrets, "\n"), env)

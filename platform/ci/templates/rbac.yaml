@@ -1,5 +1,5 @@
 {{- /*
-Who may do what in namespace ci. The Sensor only creates Workflows. The pipeline's pods report their results to the
+Who may do what in namespace ci. The Sensor only creates Workflows (and reads the template it submits). The pipeline's pods report their results to the
 controller (workflowtaskresults) and nothing else. People act through Argo Server as platform/argo-workflows'
 ServiceAccounts: admins run and manage everything, editors submit from the templates, resubmit and read logs, users
 only look
@@ -18,6 +18,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
 rules:
   - {apiGroups: [argoproj.io], resources: [workflows], verbs: [create]}
+  # The submit trigger (argo's CLI) reads the template it submits
+  - {apiGroups: [argoproj.io], resources: [workflowtemplates], verbs: [get]}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
