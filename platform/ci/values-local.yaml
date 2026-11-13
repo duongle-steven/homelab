@@ -1,0 +1,2 @@
+# The local CA (trust-manager's ConfigMap homelab-dev-ca in every namespace) for git., registry. and auth.
+devCA: true
