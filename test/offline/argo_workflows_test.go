@@ -14,6 +14,9 @@ func TestArgoWorkflowsRender(t *testing.T) {
 		render := func(expr string) string { return renderVelero(t, "platform/argo-workflows", env, expr) }
 		config := `select(.kind == "ConfigMap" and .metadata.name == "workflow-controller-configmap") | .data.config | from_yaml`
 		assert.Equal(t, "Strict", render(config+` | .workflowRestrictions.templateReferencing`), env)
+		// No PreSync hook Job: its server-side apply of the full CRDs timed out on a busy API server and held every sync
+		assert.Empty(t, render(`select(.kind == "Job") | .metadata.name`), env)
+		assert.Contains(t, render(`select(.kind == "CustomResourceDefinition") | .metadata.name`), "workflows.argoproj.io", env)
 		// Prometheus scrapes it over HTTP (the mesh encrypts): its own self-signed TLS answered the scrape 400
 		assert.Equal(t, "true false", render(config+` | (.metricsConfig.enabled | tostring) + " " + (.metricsConfig.secure | tostring)`), env)
 		assert.Equal(t, "https://auth."+domain+"/oauth2/openid/argo-workflows", render(config+` | .sso.issuer`), env)
