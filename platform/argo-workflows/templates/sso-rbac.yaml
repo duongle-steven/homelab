@@ -1,0 +1,27 @@
+{{- /*
+Who may do what in Argo's UI (SSO RBAC): Argo Server acts as the first ServiceAccount whose rule matches the person's
+homelab_groups, highest precedence first; nobody else gets in. Their rights in namespace ci are platform/ci's
+(templates/rbac.yaml). Each needs a token Secret Argo Server reads (values.yaml's secretWhitelist).
+*/ -}}
+{{- range $sa := list (dict "name" "ci-admin" "group" "homelab-admins" "precedence" "2")
+                       (dict "name" "ci-editor" "group" "homelab-editors" "precedence" "1")
+                       (dict "name" "ci-viewer" "group" "homelab-users" "precedence" "0") }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $sa.name }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    workflows.argoproj.io/rbac-rule: "'{{ $sa.group }}' in groups"
+    workflows.argoproj.io/rbac-rule-precedence: "{{ $sa.precedence }}"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $sa.name }}.service-account-token
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    kubernetes.io/service-account.name: {{ $sa.name }}
+type: kubernetes.io/service-account-token
+{{- end }}

@@ -54,6 +54,7 @@ argocd-apps:
                           - path: platform/cloudnative-pg
                           - path: platform/forgejo
                           - path: platform/woodpecker
+                          - path: platform/argo-workflows
                           - path: platform/secrets-rotation
                     - git: &config
                         repoURL: *repoURL

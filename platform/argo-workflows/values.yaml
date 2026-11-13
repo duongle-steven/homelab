@@ -1,0 +1,48 @@
+# Argo Workflows (step 10f, docs/how-to-guides/ci.md): the controller and the UI; Workflows run in namespace ci
+# (platform/ci: the golden path's templates, the events that start them, their ServiceAccounts)
+host: ci
+argo-workflows:
+  crds:
+    install: true
+    keep: true
+  # platform/ci owns the Workflows' ServiceAccounts and their rights
+  workflow:
+    serviceAccount:
+      create: false
+    rbac:
+      create: false
+  controller:
+    # templates/controller-config.yaml: the SSO issuer and redirect come from global.baseDomain, which a subchart value
+    # cannot template
+    configMap:
+      create: false
+      name: workflow-controller-configmap
+    # Cluster-wide, as the chart's default: only namespace ci has ServiceAccounts allowed to create Workflows
+    # (platform/ci), so Workflows run nowhere else; --managed-namespace would need the controller in that namespace
+    workflowNamespaces: []
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    metricsConfig:
+      enabled: true
+    serviceMonitor:
+      enabled: true
+    resources:
+      requests: {cpu: 20m, memory: 64Mi}
+  server:
+    authModes: [sso]
+    # The chart's RBAC for SSO (reading its client Secret and the ServiceAccounts' token Secrets), limited to those
+    sso:
+      enabled: true
+      rbac:
+        enabled: true
+        secretWhitelist:
+          - argo-workflows-kanidm-oauth2-credentials
+          - ci-admin.service-account-token
+          - ci-editor.service-account-token
+          - ci-viewer.service-account-token
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      requests: {cpu: 20m, memory: 64Mi}
