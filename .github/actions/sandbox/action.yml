@@ -54,6 +54,18 @@ runs:
           kubectl -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REVISIONS:.status.sync.revisions > sandbox-state/applications.txt 2>&1
           # Why an Application is not Synced and Healthy: its conditions, last operation and resources that are not
           kubectl -n argocd get applications -o yaml | yq ".items[] | select(.status.sync.status != \"Synced\" or .status.health.status != \"Healthy\") | {\"name\": .metadata.name, \"conditions\": .status.conditions, \"operation\": .status.operationState.message, \"resources\": ((.status.resources // []) | map(select(.status != \"Synced\" or (.health.status // \"Healthy\") != \"Healthy\")))}" > sandbox-state/applications-unhealthy.yaml 2>&1
+          # What an operator was asked for and what it made of it: the Prometheus and Alertmanager resources with their
+          # status (a release once had neither StatefulSet), every StatefulSet, and the node's requests against its size
+          kubectl get prometheuses.monitoring.coreos.com,alertmanagers.monitoring.coreos.com -A -o yaml > sandbox-state/prometheus-operator-resources.yaml 2>&1
+          kubectl get statefulsets -A -o wide > sandbox-state/statefulsets.txt 2>&1
+          kubectl describe nodes > sandbox-state/nodes.txt 2>&1
+          kubectl top pods -A --sort-by=memory > sandbox-state/top-pods.txt 2>&1
+          # The operators of the Applications that are not Healthy: their pods run, so the loop below skips them
+          for app in $(kubectl -n argocd get applications -o json | jq -r ".items[] | select(.status.health.status != \"Healthy\") | .spec.destination.namespace" | sort -u); do
+            kubectl -n "$app" get pods --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | while read -r pod; do
+              kubectl -n "$app" logs "$pod" --all-containers --tail=300 > "sandbox-state/unhealthy.$app.$pod.log" 2>&1
+            done
+          done
           kubectl get pods -A --no-headers 2>/dev/null | while read -r ns pod ready status rest; do
             case "$status" in Running|Completed) [ "${ready%/*}" = "${ready#*/}" ] && continue ;; esac
             kubectl -n "$ns" logs "$pod" --all-containers --tail=200 > "sandbox-state/$ns.$pod.log" 2>&1
