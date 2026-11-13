@@ -1,0 +1,15 @@
+argo-workflows:
+  server:
+    # Trust the local CA (testbed and the sandbox) for calls to Kanidm; not optional: the pod waits until
+    # trust-manager has copied the CA here
+    extraEnv:
+      - name: SSL_CERT_DIR
+        value: /etc/ssl/certs:/etc/homelab-dev-ca
+    volumes:
+      - name: dev-ca
+        configMap:
+          name: homelab-dev-ca
+    volumeMounts:
+      - name: dev-ca
+        mountPath: /etc/homelab-dev-ca
+        readOnly: true

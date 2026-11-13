@@ -1,0 +1,29 @@
+{{- /*
+The controller's configuration (the chart's own is off, values.yaml): Argo Server signs people in with Kanidm, and a
+Workflow must reference the golden path's templates (platform/ci) instead of carrying its own (step 10f)
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: workflow-controller-configmap
+  namespace: {{ .Release.Namespace }}
+data:
+  config: |
+    metricsConfig:
+      enabled: true
+    workflowRestrictions:
+      templateReferencing: Strict
+    sso:
+      issuer: https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/argo-workflows
+      clientId:
+        name: argo-workflows-kanidm-oauth2-credentials
+        key: CLIENT_ID
+      clientSecret:
+        name: argo-workflows-kanidm-oauth2-credentials
+        key: CLIENT_SECRET
+      redirectUrl: https://{{ .Values.host }}.{{ .Values.global.baseDomain }}/oauth2/callback
+      scopes: [groups]
+      # Short role group names from the client's claimMap (templates/kanidm-client.yaml)
+      customGroupClaimName: homelab_groups
+      rbac:
+        enabled: true

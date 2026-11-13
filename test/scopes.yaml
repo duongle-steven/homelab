@@ -180,6 +180,9 @@ groups:
     tests: zot || woodpecker
   - paths: [platform/woodpecker/**]
     tests: woodpecker
+  # Step 10f: the UI's sign-in and the controller that runs the golden path
+  - paths: [platform/argo-workflows/**]
+    tests: sso
   - paths: [platform/secrets-rotation/**, scripts/build-lab-image, cli/Dockerfile]
     tests: rotation
   - paths: [apps/actualbudget.yaml]
