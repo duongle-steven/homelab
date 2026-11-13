@@ -2,9 +2,13 @@
 # (platform/ci: the golden path's templates, the events that start them, their ServiceAccounts)
 host: ci
 argo-workflows:
+  # The minified CRDs, applied by Argo CD like any manifest: the full ones (OpenAPI schemas) need the chart's PreSync
+  # hook Job, whose server-side apply of those very large CRDs timed out against the busy sandbox and held every sync;
+  # the controller validates Workflows itself
   crds:
     install: true
     keep: true
+    full: false
   # platform/ci owns the Workflows' ServiceAccounts and their rights
   workflow:
     serviceAccount:
