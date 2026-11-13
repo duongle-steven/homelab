@@ -1,4 +1,4 @@
-# Argo Events' controller (step 10f, docs/how-to-guides/ci.md): it runs the EventBus, EventSource and Sensor that
+# Argo Events' controller (step 10f, docs/how-to-guides/in-cluster-ci.md): it runs the EventBus, EventSource and Sensor that
 # platform/ci declares in namespace ci, where Forgejo's webhook becomes a Workflow
 argo-events:
   crds:

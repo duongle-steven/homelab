@@ -394,7 +394,7 @@ func TestRotateWaitsForIdle(t *testing.T) {
 			t.Fatalf("Idle was asked %v", asked)
 		}
 		if len(*calls) != 0 {
-			t.Fatalf("calls = %v: it rotated while Woodpecker was busy", *calls)
+			t.Fatalf("calls = %v: it rotated while the CI was busy", *calls)
 		}
 	})
 	t.Run("idle after a while", func(t *testing.T) {

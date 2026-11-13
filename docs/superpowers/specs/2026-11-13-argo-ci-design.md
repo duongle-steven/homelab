@@ -215,7 +215,7 @@ E2e (`test/e2e`, labels from `test/scopes.yaml`, sandbox and testbed where they 
 
 ## Documentation
 
-`docs/how-to-guides/ci.md` replaces `woodpecker.md` (bring a repository, `.ci.yaml`, reading a run, who signs in);
+`docs/how-to-guides/in-cluster-ci.md` replaces `woodpecker.md` (bring a repository, `.ci.yaml`, reading a run, who signs in);
 architecture overview, secrets rotation, supply chain, runtime detection, cluster scan and backup guides lose
 Woodpecker; CLAUDE.md's roadmap gains 10f (done when merged) and the agreed next steps (OpenTelemetry, Backstage, blog
 with Rollouts), and its "before the first production deploy" list trades Woodpecker's unproven points for Argo's.

@@ -98,7 +98,8 @@ signed and an unsigned pod under an Audit policy with that key, and expects the 
 no `pass` results, `--allowedResults`). Kyverno's admission and reports controllers trust the sandbox CA for that
 (`system/kyverno/values-local.yaml`).
 
-The blog's image will be signed by its own pipeline (Woodpecker, a key in OpenBao) when its repository comes.
+The blog's image will be signed by the in-cluster CI's golden path (OpenBao's transit key `ci-signing`, checked by
+Kyverno's `verify-ci-images`) when its repository comes ([In-cluster CI](in-cluster-ci.md)).
 
 ## Workflows
 

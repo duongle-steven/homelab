@@ -1,5 +1,5 @@
 {{- /*
-The golden path (step 10f, docs/how-to-guides/ci.md): the only template the Sensor starts (templates/sensor.yaml) and
+The golden path (step 10f, docs/how-to-guides/in-cluster-ci.md): the only template the Sensor starts (templates/sensor.yaml) and
 the only kind of Workflow the controller accepts (Strict template referencing). Clone the commit, read .ci.yaml
 (files/settings.sh), build with Buildah in a user namespace; on a push to the default branch also push to zot, make
 an SPDX SBOM, sign and attest through OpenBao's transit key (files/sign.sh). Forgejo shows the result as the commit

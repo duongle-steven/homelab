@@ -1,5 +1,5 @@
 #!/bin/sh
-# The golden path's settings (templates/pipeline.yaml, docs/how-to-guides/ci.md): what to build from the repository
+# The golden path's settings (templates/pipeline.yaml, docs/how-to-guides/in-cluster-ci.md): what to build from the repository
 # checked out in $SRC, and whether this run publishes. A repository chooses only context, containerfile and image in
 # an optional .ci.yaml; anything else fails the run. Writes build, publish, context, containerfile and image to $OUT.
 # Needs yq (mikefarah). Inputs: SRC, OUT, REPO (owner/name), EVENT, REF, DEFAULT_BRANCH.

@@ -1,6 +1,6 @@
 {{- /*
 ci-signing's public key, copied from OpenBao (where the key never leaves) to ConfigMap ci-signing-public-key, which
-Kyverno's verify-ci-images reads (system/kyverno) and anyone may use to verify an image (docs/how-to-guides/ci.md).
+Kyverno's verify-ci-images reads (system/kyverno) and anyone may use to verify an image (docs/how-to-guides/in-cluster-ci.md).
 After every sync: OpenBao creates the key at its first start, and a new key version needs a new copy. The init
 container reads it as role ci-signing-publisher (nothing else); the main one applies the ConfigMap through the API
 server (server-side apply: create or update, this ConfigMap only).

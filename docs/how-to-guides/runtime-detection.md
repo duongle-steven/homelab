@@ -7,7 +7,7 @@ detects; nothing is blocked (step 15g-2 will respond to a short list of rules, a
 
 Its rules are the stable ruleset in Falco's image, plus one vendored file (`system/falco/files/miners.yaml`: the Stratum rule
 from falcosecurity/rules' sandbox set, with its tag). Nothing is downloaded while it runs. A miner that hides its pool's
-URI evades that rule, and egress does not stop one in a namespace allowed out on 443 (Woodpecker's steps, for one).
+URI evades that rule, and egress does not stop one in a namespace allowed out on 443 (the golden path's builds, for one).
 
 Its events are in Loki, beside the other logs ([Logs](logs.md)), and on the dashboard **Security** (row "Runtime
 (Falco)"). Error and above raise alerts, which reach ntfy and Telegram like every other alert ([Alerts](alerts.md)).

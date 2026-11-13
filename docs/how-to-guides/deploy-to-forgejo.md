@@ -25,7 +25,7 @@ Without the mark `verify` refuses and names the paths; `just infra deploy produc
 
 ## What `lab infra forgejo sync` owns
 
-`sync` (part of `just infra deploy production`) owns orgs `ops` and `ci` and Woodpecker's OAuth client; nothing
+`sync` (part of `just infra deploy production`) owns orgs `ops` and `ci`, `ci`'s bot and its webhook; nothing
 declares other orgs, teams or repositories. Running it again keeps what is right, fixes what is wrong and creates
 what is missing:
 
@@ -37,13 +37,14 @@ what is missing:
   (they can still edit the protection, which the next `sync` restores);
 - their tokens in OpenBao: `secret/forgejo/deploy` (the push) and `secret/argocd/forgejo` (Argo CD's read-only
   credential, `argocd-repo-forgejo`);
-- in org `ci`, its team `developers` (write on code and pull requests, may create repositories in `ci`,
-  not all of them): Woodpecker admits only `ci`'s members, and Forgejo's Kanidm login source makes `homelab-admins`
-  its owners and `homelab-editors` its developers ([Woodpecker](woodpecker.md)); no team of `ci` reaches `ops`;
-- the OAuth2 application `woodpecker` (confidential, redirect `https://ci.<domain>/authorize`) and its credentials in
-  `secret/woodpecker/forgejo` (`client_id`, `client_secret`, `redirect_uri`); a changed application is updated,
-  which issues a new secret: restart Woodpecker's server afterwards
-  (`kubectl rollout restart statefulset/woodpecker-server -n woodpecker`).
+- in org `ci`, its team `developers` (write on code and pull requests, may create repositories in `ci`, not all of
+  them): Forgejo's Kanidm login source makes `homelab-admins` its owners and `homelab-editors` its developers; no
+  team of `ci` reaches `ops`;
+- the local user `ci-bot`, alone in `ci`'s team `pipeline` (write on code of every repository of `ci`: the golden
+  path's clones and commit statuses), and its token in `secret/ci/forgejo-token`;
+- `ci`'s webhook to Argo Events (`http://forgejo-eventsource-svc.ci:12000/forgejo`, push and pull request events,
+  `Authorization: Bearer` with `secret/ci/generated/webhook`), rewritten when that secret or the hook changed
+  ([In-cluster CI](in-cluster-ci.md)).
 
 Other repositories (for example the blog) live in org `ci`, created there or mirrored, not through `push`.
 

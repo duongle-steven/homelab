@@ -1,4 +1,4 @@
-# Argo Workflows (step 10f, docs/how-to-guides/ci.md): the controller and the UI; Workflows run in namespace ci
+# Argo Workflows (step 10f, docs/how-to-guides/in-cluster-ci.md): the controller and the UI; Workflows run in namespace ci
 # (platform/ci: the golden path's templates, the events that start them, their ServiceAccounts)
 host: ci
 argo-workflows:

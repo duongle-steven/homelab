@@ -26,7 +26,7 @@ import (
 type e2eSelection struct {
 	// The commit the record was generated from
 	From string `json:"from"`
-	// The 84 cluster tests, without Test, less Woodpecker (gone with step 10f)
+	// The 84 cluster tests, without Test, less the in-cluster CI spec step 10f replaced
 	Tests []string `json:"tests"`
 	// Group (its first path), full, always, alone/<term> or recipe → the tests it ran
 	Selection map[string][]string `json:"selection"`
