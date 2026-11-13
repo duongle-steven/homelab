@@ -1,0 +1,18 @@
+#!/bin/sh
+# Fails when the testbed's cluster holds a namespace outside its list (system/argocd/values-testbed.yaml): root keeps the
+# resources of a directory it drops (preserveResourcesOnDeletion), so a component measured once by hand stays running
+# (15g's Falco did, and broke 15h's upgrade). Run with the testbed's KUBECONFIG.
+set -eu
+root=$(git rev-parse --show-toplevel)
+listed=$(yq '.argocd-apps.applicationsets.root.generators | .. | select(has("directories")) | .directories[] | select(.exclude != true) | .path' \
+	"$root/system/argocd/values-testbed.yaml" | sed 's|.*/||')
+present=$(kubectl get namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+leftovers=""
+for ns in $present; do
+	case "$ns" in default | kube-system | kube-public | kube-node-lease | argocd) continue ;; esac
+	printf '%s\n' "$listed" | grep -qxF "$ns" || leftovers="$leftovers $ns"
+done
+[ -z "$leftovers" ] && exit 0
+echo "testbed-leftovers: namespaces outside the testbed's list:$leftovers. Delete what a by-hand measurement left:" >&2
+for ns in $leftovers; do echo "  kubectl -n argocd delete application $ns --ignore-not-found; kubectl delete namespace $ns" >&2; done
+exit 1

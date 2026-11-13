@@ -105,7 +105,18 @@ func TestJustDevRevision(t *testing.T) {
 // just infra deploy production deploys in one command: the guards, the infrastructure, Forgejo's org ops, the push,
 // then the Argo CD bootstrap again (the switch to Forgejo on a first install); --force applies the infrastructure only
 func TestJustInfraDeploy(t *testing.T) {
+	// The agent holds production's key (scripts/ssh-key-loaded), unless EMPTY_AGENT
+	keys, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "production", "metal", "authorized_keys"))
+	require.NoError(t, err)
+	var key string
+	for _, line := range strings.Split(string(keys), "\n") {
+		if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") {
+			key = line
+		}
+	}
+	require.NotEmpty(t, key, "production's authorized_keys holds a key")
 	stubs := map[string]string{
+		"ssh-add":    `[ -z "$EMPTY_AGENT" ] || { echo "The agent has no identities." >&2; exit 1; }; echo '` + key + `'`,
 		"lab":        `echo "lab $*" >> "$FIXTURES/calls"; [ "$3" != verify ] || [ -z "$VERIFY_FAILS" ]`,
 		"terragrunt": `echo "terragrunt $(basename "$PWD") $*${HOMELAB_GITHUB_APP_KEY:+ key=$HOMELAB_GITHUB_APP_KEY}" >> "$FIXTURES/calls"`,
 		"go":         `exit 0`,
@@ -133,6 +144,8 @@ func TestJustInfraDeploy(t *testing.T) {
 			"terragrunt production run --all apply --non-interactive -- -auto-approve",
 		}},
 		{"guards fail", nil, []string{"VERIFY_FAILS=1"}, []string{"lab infra forgejo verify " + commit}},
+		// The nodes' unit needs the agent: an empty one stops the deploy before anything runs
+		{"empty SSH agent", nil, []string{"EMPTY_AGENT=1"}, []string{""}},
 		// GitHub is down (docs/how-to-guides/deploy-to-forgejo.md): verify checks Forgejo's master before the apply,
 		// push says why; the reason's quotes stay out of the shell
 		{"break-glass", []string{"--break-glass", `GitHub "outage"; true`}, nil, []string{

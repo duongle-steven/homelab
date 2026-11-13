@@ -38,6 +38,12 @@ dev $full="" $tests="" $apps="" $revision="" $base="origin/dev": sandbox-checkou
     #!/usr/bin/env bash
     set -euo pipefail
     scripts/testbed-guard dev
+    # A sandbox stopped for the testbed runs stale when started again hours later (timing-sensitive specs fail on it):
+    # rebuild it instead
+    if scripts/sandbox-stopped; then
+        echo "just dev: the sandbox is stopped (the testbed ran?): rebuilding it from scratch" >&2
+        {{ just }} dev-clean
+    fi
     export KUBECONFIG="$PWD/infra/sandbox/kubeconfig.yaml" KUBE_CONFIG_PATH="$PWD/infra/sandbox/kubeconfig.yaml"
     if [ -n "$tests" ]; then sel=(--tests "$tests")
     elif [ -n "$full" ]; then sel=(--full)
@@ -135,6 +141,7 @@ testbed: sandbox-checkout sandbox-clean
     set -euo pipefail
     proof_commit=$(git rev-parse HEAD)
     scripts/testbed-guard testbed
+    scripts/ssh-key-loaded testbed
     gh auth status >/dev/null || { echo "just testbed: gh is not logged in, so the mark could not be written" >&2; exit 1; }
     git push --force origin "$proof_commit:refs/heads/testbed"
     (cd infra/testbed && {{ terragrunt_apply }})

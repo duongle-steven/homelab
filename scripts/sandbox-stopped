@@ -1,0 +1,6 @@
+#!/bin/sh
+# Exits 0 when the sandbox's k3d node exists but is stopped (k3d cluster stop, for the testbed). just dev rebuilds such
+# a sandbox from scratch: started again after hours, it ran stale (Trivy's whole rescan queue, Argo CD's catch-up) and
+# timing-sensitive specs failed on it (2026-11-12)
+state=$(docker inspect -f '{{.State.Status}}' k3d-homelab-dev-server-0 2>/dev/null) || exit 1
+[ "$state" = exited ] || [ "$state" = created ]

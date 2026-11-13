@@ -46,6 +46,8 @@ deploy env $force="" $break_glass="" $skip_proof="":
     export KUBECONFIG="$PWD/infra/{{ env }}/kubeconfig.yaml" KUBE_CONFIG_PATH="$PWD/infra/{{ env }}/kubeconfig.yaml"
     if [ "{{ env }}" = sandbox ]; then {{ just_executable() }} sandbox-checkout; fi
     go -C cli build -o /dev/null ./cmd/lab
+    # The nodes' unit reaches them over SSH (trust, enroll, upgrade): an empty agent fails here, not after minutes
+    case "{{ env }}" in testbed | production) scripts/ssh-key-loaded "{{ env }}" ;; esac
     guard=(--commit "$deploy_commit" ${break_glass:+"--break-glass=$break_glass"} ${skip_proof:+"--skip-proof=$skip_proof"})
     production=$([ "{{ env }}" = production ] && [ -z "$force" ] && echo 1 || true)
     if [ -n "$production" ]; then {{ lab }} infra forgejo verify "${guard[@]}"; fi

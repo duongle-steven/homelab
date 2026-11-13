@@ -8,6 +8,8 @@ skip:
   - scripts/lint
   # Compares renders offline (diff -r of two runs)
   - scripts/render-all
+  # just dev's check for a stopped sandbox (test/offline/preflight_test.go)
+  - scripts/sandbox-stopped
   - docs/**
   - "**/*.md"
   - mkdocs.yml
@@ -220,6 +222,8 @@ groups:
       - scripts/lab
       - scripts/testbed-guard
       - scripts/testbed-nixie
+      - scripts/ssh-key-loaded
+      - scripts/testbed-leftovers
       - scripts/metal-nixie
       - scripts/node-fio
       - scripts/node-fio-remote

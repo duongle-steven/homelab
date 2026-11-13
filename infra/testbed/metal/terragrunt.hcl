@@ -48,6 +48,14 @@ terraform {
     execute     = ["scripts/lab", "cluster", "kubeconfig", "--environment", "testbed", "--output", "${get_repo_root()}/infra/testbed/kubeconfig.yaml"]
   }
 
+  # Nothing outside the testbed's list may run while the nodes upgrade: a component measured once by hand and left
+  # behind (root keeps a dropped directory's resources) overloaded the 2-vCPU VMs and broke an upgrade (15h)
+  after_hook "leftovers" {
+    commands    = ["apply"]
+    working_dir = get_repo_root()
+    execute     = ["env", "KUBECONFIG=${get_repo_root()}/infra/testbed/kubeconfig.yaml", "scripts/testbed-leftovers"]
+  }
+
   # Nodes already installed take the flake's changes in place, one at a time (drain, nixos-rebuild, wait, uncordon)
   after_hook "upgrade" {
     commands    = ["apply"]

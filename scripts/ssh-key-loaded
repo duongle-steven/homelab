@@ -1,0 +1,15 @@
+#!/bin/sh
+# Fails fast when the SSH agent holds none of an environment's keys (infra/<env>/metal/authorized_keys): the
+# commands that reach its nodes otherwise wait minutes for an SSH that never succeeds (after a WSL restart the agent is
+# empty). Usage: ssh-key-loaded <testbed|production>
+set -eu
+env=${1:?usage: ssh-key-loaded <testbed|production>}
+keys="$(git rev-parse --show-toplevel)/infra/$env/metal/authorized_keys"
+loaded=$(ssh-add -L 2>/dev/null | awk '{ print $2 }') || loaded=""
+want=$(grep -v '^#' "$keys" | awk 'NF >= 2 { print $2 }')
+for key in $want; do
+	if printf '%s\n' "$loaded" | grep -qxF "$key"; then exit 0; fi
+done
+names=$(grep -v '^#' "$keys" | awk 'NF >= 3 { print $3 }' | tr '\n' ' ')
+echo "ssh-key-loaded: the SSH agent holds no key for $env ($names): load it first, e.g. ssh-add ~/.ssh/<that key>" >&2
+exit 1
