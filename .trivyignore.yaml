@@ -5,6 +5,39 @@ misconfigurations:
     paths: [Dockerfile]
     statement: upstream's docs image (mkdocs onto nginx); this repository does not deploy it
 vulnerabilities:
+  - id: CVE-2026-77405
+    statement: >-
+      rabbitmq/amqp091-go v1.11.0 (fixed in 1.13.0) in quay.io/argoproj/argo-events v1.9.11, the latest: only its AMQP
+      EventSource and trigger use it, and platform/ci runs one webhook EventSource and Argo Workflows triggers. Bump with
+      Argo Events
+    expired_at: 2027-01-31
+  - id: CVE-2026-77408
+    statement: >-
+      rabbitmq/amqp091-go v1.11.0 (fixed in 1.13.0) in quay.io/argoproj/argo-events v1.9.11, the latest: only its AMQP
+      EventSource and trigger use it, and platform/ci runs one webhook EventSource and Argo Workflows triggers. Bump with
+      Argo Events
+    expired_at: 2027-01-31
+  - id: CVE-2026-77411
+    statement: >-
+      rabbitmq/amqp091-go v1.11.0 (fixed in 1.13.0) in quay.io/argoproj/argo-events v1.9.11, the latest: only its AMQP
+      EventSource and trigger use it, and platform/ci runs one webhook EventSource and Argo Workflows triggers. Bump with
+      Argo Events
+    expired_at: 2027-01-31
+  - id: CVE-2026-33815
+    statement: >-
+      jackc/pgx/v5 v5.7.5 (fixed in 5.9.0) in quay.io/argoproj/argo-events v1.9.11, the latest: only its PostgreSQL
+      sources use it, and platform/ci runs one webhook EventSource. Bump with Argo Events
+    expired_at: 2027-01-31
+  - id: CVE-2026-33816
+    statement: >-
+      jackc/pgx/v5 v5.7.5 (fixed in 5.9.0) in quay.io/argoproj/argo-events v1.9.11, the latest: only its PostgreSQL
+      sources use it, and platform/ci runs one webhook EventSource. Bump with Argo Events
+    expired_at: 2027-01-31
+  - id: CVE-2026-33186
+    statement: >-
+      grpc-go v1.72.2's authz path validation (fixed in 1.79.3) in quay.io/argoproj/argo-events v1.9.11, the latest: it
+      serves no gRPC with grpc/authz policies (platform/ci runs a webhook EventSource and a Sensor). Bump with Argo Events
+    expired_at: 2027-01-31
   - id: CVE-2026-111497
     statement: >-
       brotli-libs 1.2.0 (fixed in 1.2.1, no image rebuilt yet; one id covers every image): in ghcr.io/aquasecurity/trivy
