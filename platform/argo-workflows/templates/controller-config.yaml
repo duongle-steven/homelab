@@ -13,6 +13,15 @@ data:
       enabled: true
     workflowRestrictions:
       templateReferencing: Strict
+    # Argo's own containers in every Workflow pod (init and wait, argoexec, whose user is 8737): no seccomp profile
+    # here, which would keep a build from getting homelab/buildah.json (platform/ci); the pod's profile applies
+    executor:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 8737
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
     sso:
       issuer: https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/argo-workflows
       clientId:

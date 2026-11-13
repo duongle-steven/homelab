@@ -1,25 +1,33 @@
 {{- /*
-Woodpecker's Buildah steps need unshare and mount, which RuntimeDefault (the kubelet's seccomp-default) refuses: they get
-the Localhost profile homelab/buildah.json (infra/_modules/metal/flake/seccomp, placed on every node), and nothing else in
-this namespace may name a Localhost profile (step 15h). Native admission policies, not Kyverno's: the API server
-evaluates them itself, so they hold while Kyverno is down (its webhooks ignore failures), and a missed mutation leaves
-RuntimeDefault, where the build fails.
+The golden path's Buildah step needs unshare and mount, which RuntimeDefault (the kubelet's seccomp-default) refuses: it
+gets the Localhost profile homelab/buildah.json (infra/_modules/metal/flake/seccomp, placed on every node), and nothing
+else in this namespace may name a Localhost profile (step 15h, moved here with step 10f). Native admission policies,
+not Kyverno's: the API server evaluates them itself, so they hold while Kyverno is down (its webhooks ignore failures),
+and a missed mutation leaves RuntimeDefault, where the build fails.
 
-A Buildah pod: every container's image is quay.io/buildah/stable (any tag or digest) and it runs in its own user
-namespace (Woodpecker's WOODPECKER_BACKEND_K8S_USER_NAMESPACES; a step may ask for hostUsers itself).
+A build: the pod templates/pipeline.yaml labels homelab/ci-step=build (only this repository's templates run here:
+Strict template referencing), whose container main is quay.io/buildah/stable (any tag or digest), whose other
+containers are Argo's argoexec (init and wait), in its own user namespace.
 */ -}}
-{{- define "woodpecker.buildahPod" -}}
-(object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers : [])).all(c,
-  (c.image.split('@')[0].lastIndexOf(':') > c.image.split('@')[0].lastIndexOf('/')
-    ? c.image.split('@')[0].substring(0, c.image.split('@')[0].lastIndexOf(':'))
-    : c.image.split('@')[0]) == 'quay.io/buildah/stable')
+{{- define "ci.image" -}}
+(IMAGE.split('@')[0].lastIndexOf(':') > IMAGE.split('@')[0].lastIndexOf('/')
+  ? IMAGE.split('@')[0].substring(0, IMAGE.split('@')[0].lastIndexOf(':'))
+  : IMAGE.split('@')[0])
+{{- end }}
+{{- define "ci.buildPod" -}}
+has(object.metadata.labels) && object.metadata.labels[?'homelab/ci-step'].orValue('') == 'build'
 && has(object.spec.hostUsers) && object.spec.hostUsers == false
+&& object.spec.containers.exists(c, c.name == 'main')
+&& (object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers : [])).all(c,
+  c.name == 'main'
+    ? {{ include "ci.image" . | replace "IMAGE" "c.image" }} == 'quay.io/buildah/stable'
+    : {{ include "ci.image" . | replace "IMAGE" "c.image" }} == 'quay.io/argoproj/argoexec')
 {{- end }}
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:
-  name: woodpecker-buildah-seccomp
+  name: ci-buildah-seccomp
 spec:
   failurePolicy: Fail
   reinvocationPolicy: Never
@@ -27,13 +35,10 @@ spec:
     resourceRules:
       - {apiGroups: [""], apiVersions: [v1], operations: [CREATE], resources: [pods]}
   matchConditions:
-    # A step pod of Woodpecker's Kubernetes backend
-    - name: step
-      expression: "has(object.metadata.labels) && 'woodpecker-ci.org/step' in object.metadata.labels"
-    - name: buildah
+    - name: build
       expression: |-
-        {{- include "woodpecker.buildahPod" . | nindent 8 }}
-    # A profile the step names itself stays
+        {{- include "ci.buildPod" . | nindent 8 }}
+    # A profile the pod names itself stays
     - name: no-profile
       expression: |-
         !(has(object.spec.securityContext) && has(object.spec.securityContext.seccompProfile))
@@ -49,9 +54,9 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicyBinding
 metadata:
-  name: woodpecker-buildah-seccomp
+  name: ci-buildah-seccomp
 spec:
-  policyName: woodpecker-buildah-seccomp
+  policyName: ci-buildah-seccomp
   matchResources:
     namespaceSelector:
       matchLabels:
@@ -60,7 +65,7 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
-  name: woodpecker-localhost-seccomp
+  name: ci-localhost-seccomp
 spec:
   failurePolicy: Fail
   matchConstraints:
@@ -78,16 +83,16 @@ spec:
   validations:
     - expression: |-
         variables.profiles.all(p, p.type != 'Localhost')
-        || (({{- include "woodpecker.buildahPod" . | nindent 10 }})
+        || (({{- include "ci.buildPod" . | nindent 10 }})
           && variables.profiles.all(p, p.type != 'Localhost' || (has(p.localhostProfile) && p.localhostProfile == 'homelab/buildah.json')))
-      message: "only Woodpecker's Buildah steps may use a Localhost seccomp profile (homelab/buildah.json)"
+      message: "only the golden path's Buildah step may use a Localhost seccomp profile (homelab/buildah.json)"
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
 metadata:
-  name: woodpecker-localhost-seccomp
+  name: ci-localhost-seccomp
 spec:
-  policyName: woodpecker-localhost-seccomp
+  policyName: ci-localhost-seccomp
   validationActions: [Deny]
   matchResources:
     namespaceSelector:
