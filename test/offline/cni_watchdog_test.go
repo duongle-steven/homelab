@@ -121,3 +121,17 @@ func TestIstioCNIWatchdogFewCalls(t *testing.T) {
 	assert.Equal(t, "-n istio-system delete pod istio-cni-a --wait=false", deleted)
 	assert.LessOrEqual(t, calls, 5, "one call per query, not per event or pod")
 }
+
+// Pods only get IPv4 (cni.ambient.ipv6 false), so ztunnel binds its in-pod DNS proxy on 127.0.0.1 only: it decides
+// IPv6 once, in its own network namespace, and then bound [::1]:15053 in every pod's, which a sandbox whose loopback is
+// not up yet, or is being torn down, does not have. After a power cut those binds failed for every pod, their retries
+// made each add miss istio-cni's 5 s, the sandboxes were torn down and retried in turn, and the sandbox never recovered
+// (2026-11-13); IPV6_ENABLED=false recovered it within a minute
+func TestZtunnelIPv4Only(t *testing.T) {
+	for _, env := range []string{"", "dev"} {
+		assert.Equal(t, "false", renderVelero(t, "system/istio-system", env,
+			`select(.kind == "DaemonSet" and .metadata.name == "ztunnel") | .spec.template.spec.containers[0].env[] | select(.name == "IPV6_ENABLED") | .value`), env)
+		assert.Equal(t, "false", renderVelero(t, "system/istio-system", env,
+			`select(.kind == "ConfigMap" and .metadata.name == "istio-cni-config") | .data.AMBIENT_IPV6`), env, "the two must agree")
+	}
+}

@@ -60,6 +60,13 @@ cni:
       memory: 32Mi
 ztunnel:
   <<: *ambient
+  # IPv4 only, as istio-cni (cni.ambient.ipv6 above): ztunnel decides IPv6 once, in its own network namespace, then binds
+  # its in-pod DNS proxy on [::1]:15053 in every pod's, which a sandbox whose loopback is not up yet, or is being torn
+  # down, does not have. After a power cut every pod's bind failed, the retries made each add miss istio-cni's 5 s and
+  # the sandbox never recovered, the watchdog's restarts included (2026-11-13; TestZtunnelIPv4Only). Remove both if the
+  # cluster becomes dual-stack
+  env:
+    IPV6_ENABLED: false
   resources:
     requests:
       cpu: 10m
