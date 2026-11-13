@@ -268,6 +268,8 @@ spec:
       {{- include "ci.podSecurity" . | nindent 6 }}
       container:
         image: {{ .Values.images.syft }}
+        # Argo's executor needs the command: without it the controller asks the registry, which its egress forbids
+        command: [/syft]
         args:
           - "registry:registry.{{ $domain }}/{{ "{{inputs.parameters.image}}" }}@{{ "{{inputs.parameters.digest}}" }}"
           - --output
