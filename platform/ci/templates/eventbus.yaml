@@ -7,6 +7,10 @@ spec:
   jetstream:
     version: {{ .Values.eventBus.version | quote }}
     replicas: {{ .Values.eventBus.replicas }}
+    # The stream's replicas follow the bus's: its default (3) cannot be created on the sandbox's one, and the Sensor and
+    # EventSource then exit
+    streamConfig: |
+      replicas: {{ .Values.eventBus.replicas }}
     securityContext:
       runAsNonRoot: true
       runAsUser: 1000
