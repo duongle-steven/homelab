@@ -8,9 +8,6 @@ secrets:
     key: password
     special: true
     destinations: [forgejo/generated/admin]
-  - name: woodpecker.agent
-    key: secret
-    destinations: [woodpecker/generated/agent]
   - name: paperless.admin
     key: PAPERLESS_ADMIN_PASSWORD
     special: true

@@ -16,9 +16,7 @@ type ForgejoAPI interface {
 	NewTokenName(user string, at time.Time) (string, error)
 	RotateToken(ctx context.Context, user, newName string) ([]string, error)
 	DeleteToken(ctx context.Context, user, name string) error
-	TokenValid(ctx context.Context, token string) (bool, error)
-	RotateWoodpeckerClient(ctx context.Context) error
-	ClientSecretCurrent(ctx context.Context, id, secret, callback string) (bool, error)
+	TokenValid(ctx context.Context, user, token string) (bool, error)
 }
 
 // ForgejoClient reaches Forgejo as forgejo_admin, its password from OpenBao, keeping tokens in OpenBao (Tokens).
@@ -63,33 +61,16 @@ func (c ForgejoClient) DeleteToken(ctx context.Context, user, name string) error
 	return hide(forgejo.DeleteToken(ctx, ep, password, user, name), password)
 }
 
-func (c ForgejoClient) TokenValid(ctx context.Context, token string) (bool, error) {
+func (c ForgejoClient) TokenValid(ctx context.Context, user, token string) (bool, error) {
 	ep, err := c.Endpoint(ctx)
 	if err != nil {
 		return false, err
 	}
-	ok, err := forgejo.TokenValid(ctx, ep, token)
+	ok, err := forgejo.TokenValid(ctx, ep, user, token)
 	return ok, hide(err, token)
 }
 
-func (c ForgejoClient) RotateWoodpeckerClient(ctx context.Context) error {
-	ep, password, err := c.admin(ctx)
-	if err != nil {
-		return err
-	}
-	return hide(forgejo.RotateWoodpeckerClient(ctx, ep, password, c.Tokens), password)
-}
-
-func (c ForgejoClient) ClientSecretCurrent(ctx context.Context, id, secret, callback string) (bool, error) {
-	ep, err := c.Endpoint(ctx)
-	if err != nil {
-		return false, err
-	}
-	ok, err := forgejo.ClientSecretCurrent(ctx, ep, id, secret, callback)
-	return ok, hide(err, secret)
-}
-
-// ForgejoToken replaces Forgejo account Settings account's token (deploy or argocd) with an overlap: Prepare makes a
+// ForgejoToken replaces Forgejo account Settings account's token (deploy, argocd or ci-bot) with an overlap: Prepare makes a
 // new token beside the old ones and keeps it in OpenBao, Switch refreshes the readers' ExternalSecrets (Argo CD's
 // repository credential; lab reads deploy's from OpenBao), Verify checks Forgejo accepts it, Revoke deletes the old
 // ones. The new token's name and the old ones' are kept in the rotation's record path, so every phase reruns.
@@ -148,7 +129,7 @@ func (m ForgejoToken) Verify(ctx context.Context, e Entry) error {
 	if err != nil {
 		return fmt.Errorf("read secret/%s failed", e.Paths[0])
 	}
-	ok, err := m.API.TokenValid(ctx, data["token"])
+	ok, err := m.API.TokenValid(ctx, e.Settings["account"], data["token"])
 	if err != nil {
 		return hide(err, data["token"])
 	}
@@ -171,78 +152,6 @@ func (m ForgejoToken) Revoke(ctx context.Context, e Entry) error {
 			return m.hide(ctx, e, err)
 		}
 	}
-	return writeState(ctx, m.Store, e, nil)
-}
-
-// ForgejoOAuth gives Woodpecker's OAuth2 client a new secret (Forgejo has no overlap: class 2), restarts Woodpecker's
-// server on it and checks Forgejo accepts it.
-type ForgejoOAuth struct {
-	API       ForgejoAPI
-	Store     KV
-	Workloads Readers
-}
-
-func (m ForgejoOAuth) Prepare(ctx context.Context, e Entry) error {
-	state, err := readState(ctx, m.Store, e)
-	if err != nil {
-		return err
-	}
-	if state["rotated"] != "" {
-		// A previous run regenerated it and OpenBao kept it
-		return nil
-	}
-	if err := m.API.RotateWoodpeckerClient(ctx); err != nil {
-		var secret string
-		if len(e.Paths) > 0 {
-			if data, readErr := m.Store.Read(ctx, e.Paths[0]); readErr == nil {
-				secret = data["client_secret"]
-			}
-		}
-		return hide(err, secret)
-	}
-	return writeState(ctx, m.Store, e, map[string]string{"rotated": "yes"})
-}
-
-func (m ForgejoOAuth) Switch(ctx context.Context, e Entry) error {
-	if err := refresh(ctx, m.Workloads, e); err != nil {
-		return err
-	}
-	for _, r := range namespaced(e) {
-		if len(r.Workloads) > 0 {
-			if err := m.Workloads.Restart(ctx, r.Namespace, r.Workloads); err != nil {
-				return fmt.Errorf("restart %s's workloads: %w", r.Namespace, err)
-			}
-		}
-	}
-	return nil
-}
-
-func (m ForgejoOAuth) Verify(ctx context.Context, e Entry) error {
-	for _, r := range namespaced(e) {
-		if len(r.Workloads) > 0 {
-			if err := m.Workloads.WaitReady(ctx, r.Namespace, r.Workloads); err != nil {
-				return err
-			}
-		}
-	}
-	if len(e.Paths) == 0 {
-		return fmt.Errorf("%s has no paths", e.Name)
-	}
-	data, err := m.Store.Read(ctx, e.Paths[0])
-	if err != nil {
-		return fmt.Errorf("read secret/%s failed", e.Paths[0])
-	}
-	ok, err := m.API.ClientSecretCurrent(ctx, data["client_id"], data["client_secret"], data["redirect_uri"])
-	if err != nil {
-		return hide(err, data["client_secret"])
-	}
-	if !ok {
-		return fmt.Errorf("Forgejo refuses Woodpecker's client secret at secret/%s", e.Paths[0])
-	}
-	return nil
-}
-
-func (m ForgejoOAuth) Revoke(ctx context.Context, e Entry) error {
 	return writeState(ctx, m.Store, e, nil)
 }
 

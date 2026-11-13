@@ -157,7 +157,7 @@ func TestSecretsList(t *testing.T) {
 		"ntfy.alerts-token":     {"ntfy-overlap", "90d", "2026-09-01 03:00:00 by rotation-job", "2026-11-30"},
 		"grafana.admin":         {"app-password", "command", "never (interrupted after switched"},
 		"openbao.unseal-key":    {"never", "-"},
-		"woodpecker.agent":      {"90d", "now"},
+		"registry.ci":           {"90d", "now"},
 		"kanidm-client.grafana": {"kaniop-client", "2"},
 	} {
 		for _, w := range want {
@@ -176,6 +176,7 @@ func TestSecretsListDueWorkstation(t *testing.T) {
 		"cloudflare.external-dns": {Phase: rotate.PhaseDone, At: recent, By: "steven"},
 		"backup.r2-token":         {Phase: rotate.PhaseDone, At: recent, By: "steven"},
 		"forgejo.deploy-token":    {Phase: rotate.PhaseDone, At: time.Now().Add(-95 * 24 * time.Hour), By: "steven"},
+		"forgejo.ci-bot-token":    {Phase: rotate.PhaseDone, At: time.Now().Add(-1 * 24 * time.Hour), By: "steven"},
 		"forgejo.argocd-token":    {Phase: rotate.PhaseDone, At: recent, By: "steven"},
 		"ntfy.alerts-token":       {Phase: rotate.PhaseDone, At: time.Now().Add(-200 * 24 * time.Hour), By: "rotation-job"},
 	})
@@ -191,20 +192,23 @@ func TestSecretsListDueWorkstation(t *testing.T) {
 	}
 }
 
-func TestIdleWoodpecker(t *testing.T) {
+// The golden path is idle when no Workflow pod in ci is pending or running (the EventSource and Sensor always run)
+func TestIdleCI(t *testing.T) {
 	ctx := context.Background()
 	step := func(name string, phase corev1.PodPhase) *corev1.Pod {
 		return &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "woodpecker", Labels: map[string]string{"woodpecker-ci.org/step": "build"}},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "ci", Labels: map[string]string{"workflows.argoproj.io/workflow": "ci-abc"}},
 			Status:     corev1.PodStatus{Phase: phase},
 		}
 	}
-	server := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "woodpecker-server-0", Namespace: "woodpecker"}, Status: corev1.PodStatus{Phase: corev1.PodRunning}}
-	if ok, err := idle(ctx, fake.NewClientset(server, step("done", corev1.PodSucceeded)), nil, "woodpecker"); err != nil || !ok {
+	sensor := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "forgejo-sensor-xyz", Namespace: "ci"}, Status: corev1.PodStatus{Phase: corev1.PodRunning}}
+	if ok, err := idle(ctx, fake.NewClientset(sensor, step("done", corev1.PodSucceeded)), nil, "ci"); err != nil || !ok {
 		t.Fatalf("no running step: %v, %v", ok, err)
 	}
-	if ok, err := idle(ctx, fake.NewClientset(server, step("build", corev1.PodRunning)), nil, "woodpecker"); err != nil || ok {
-		t.Fatalf("a running step: %v, %v", ok, err)
+	for _, phase := range []corev1.PodPhase{corev1.PodRunning, corev1.PodPending} {
+		if ok, err := idle(ctx, fake.NewClientset(sensor, step("build", phase)), nil, "ci"); err != nil || ok {
+			t.Fatalf("a %s step: %v, %v", phase, ok, err)
+		}
 	}
 	if _, err := idle(ctx, fake.NewClientset(), nil, "nothing"); err == nil {
 		t.Fatal("an unknown idle check reported idle")

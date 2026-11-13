@@ -3,7 +3,6 @@ package forgejo
 import (
 	"context"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -20,8 +19,8 @@ func tokenNames(f *fakeForgejo, user string) []string {
 func TestRotateTokenKeepsOldUntilDeleted(t *testing.T) {
 	ctx := context.Background()
 	f, ep := newFakeForgejo(t)
-	tokens := memoryTokens{}
-	if err := Sync(ctx, ep, f.admin, tokens, callback); err != nil {
+	tokens := ciTokens()
+	if err := Sync(ctx, ep, f.admin, tokens); err != nil {
 		t.Fatal(err)
 	}
 	before := tokens[ArgoCDPath]["token"]
@@ -37,7 +36,7 @@ func TestRotateTokenKeepsOldUntilDeleted(t *testing.T) {
 		t.Fatalf("%s holds %v", ArgoCDPath, stored)
 	}
 	for _, token := range []string{before, stored["token"]} {
-		if ok, err := TokenValid(ctx, ep, token); err != nil || !ok {
+		if ok, err := TokenValid(ctx, ep, "deploy", token); err != nil || !ok {
 			t.Fatalf("a token stopped working before DeleteToken: %v %v", ok, err)
 		}
 	}
@@ -52,10 +51,10 @@ func TestRotateTokenKeepsOldUntilDeleted(t *testing.T) {
 	if err := DeleteToken(ctx, ep, f.admin, "argocd", "argocd"); err != nil {
 		t.Fatal(err)
 	}
-	if ok, _ := TokenValid(ctx, ep, before); ok {
+	if ok, _ := TokenValid(ctx, ep, "deploy", before); ok {
 		t.Fatal("the old token still works after DeleteToken")
 	}
-	if ok, _ := TokenValid(ctx, ep, stored["token"]); !ok {
+	if ok, _ := TokenValid(ctx, ep, "deploy", stored["token"]); !ok {
 		t.Fatal("DeleteToken ended the new token")
 	}
 	// Deleting a token that is gone already is not an error (a rerun of the revoke)
@@ -69,8 +68,8 @@ func TestRotateTokenKeepsOldUntilDeleted(t *testing.T) {
 func TestRotateTokenReplacesAnUnstoredNewToken(t *testing.T) {
 	ctx := context.Background()
 	f, ep := newFakeForgejo(t)
-	tokens := memoryTokens{}
-	if err := Sync(ctx, ep, f.admin, tokens, callback); err != nil {
+	tokens := ciTokens()
+	if err := Sync(ctx, ep, f.admin, tokens); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := RotateToken(ctx, ep, f.admin, tokens, "deploy", "lab-1792800000"); err != nil {
@@ -81,10 +80,10 @@ func TestRotateTokenReplacesAnUnstoredNewToken(t *testing.T) {
 	if _, err := RotateToken(ctx, ep, f.admin, tokens, "deploy", "lab-1792800000"); err != nil {
 		t.Fatal(err)
 	}
-	if ok, _ := TokenValid(ctx, ep, lost); ok {
+	if ok, _ := TokenValid(ctx, ep, "deploy", lost); ok {
 		t.Fatal("the token OpenBao never kept still works")
 	}
-	if ok, _ := TokenValid(ctx, ep, tokens[DeployPath]["token"]); !ok || len(f.users["deploy"].tokens) != 2 {
+	if ok, _ := TokenValid(ctx, ep, "deploy", tokens[DeployPath]["token"]); !ok || len(f.users["deploy"].tokens) != 2 {
 		t.Fatalf("tokens %v", tokenNames(f, "deploy"))
 	}
 }
@@ -93,8 +92,8 @@ func TestRotateTokenReplacesAnUnstoredNewToken(t *testing.T) {
 func TestSyncKeepsRotatedToken(t *testing.T) {
 	ctx := context.Background()
 	f, ep := newFakeForgejo(t)
-	tokens := memoryTokens{}
-	if err := Sync(ctx, ep, f.admin, tokens, callback); err != nil {
+	tokens := ciTokens()
+	if err := Sync(ctx, ep, f.admin, tokens); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := RotateToken(ctx, ep, f.admin, tokens, "deploy", "lab-1792800000"); err != nil {
@@ -104,7 +103,7 @@ func TestSyncKeepsRotatedToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	rotated := tokens[DeployPath]["token"]
-	if err := Sync(ctx, ep, f.admin, tokens, callback); err != nil {
+	if err := Sync(ctx, ep, f.admin, tokens); err != nil {
 		t.Fatal(err)
 	}
 	if tokens[DeployPath]["token"] != rotated || !reflect.DeepEqual(tokenNames(f, "deploy"), []string{"lab-1792800000"}) {
@@ -112,34 +111,29 @@ func TestSyncKeepsRotatedToken(t *testing.T) {
 	}
 }
 
-// Woodpecker's OAuth2 client gets a new secret: Forgejo has no overlap, so the old one stops at once
-func TestRotateWoodpeckerClient(t *testing.T) {
+// ci-bot's token rotates like deploy's: the new one beside the old until it is deleted, and both check against what
+// ci-bot reads (repositories), not ops/homelab
+func TestRotateCIBotToken(t *testing.T) {
 	ctx := context.Background()
 	f, ep := newFakeForgejo(t)
-	tokens := memoryTokens{}
-	if err := Sync(ctx, ep, f.admin, tokens, callback); err != nil {
+	tokens := ciTokens()
+	if err := Sync(ctx, ep, f.admin, tokens); err != nil {
 		t.Fatal(err)
 	}
-	before := tokens[WoodpeckerPath]
-	if err := RotateWoodpeckerClient(ctx, ep, f.admin, tokens); err != nil {
+	old, err := RotateToken(ctx, ep, f.admin, tokens, CIBot, "pipeline-1792800000")
+	if err != nil {
 		t.Fatal(err)
 	}
-	after := tokens[WoodpeckerPath]
-	apps := woodpeckerApps(f)
-	if len(apps) != 1 || after["client_secret"] == before["client_secret"] || after["client_secret"] != apps[0].secret ||
-		after["client_id"] != before["client_id"] || after["redirect_uri"] != callback {
-		t.Fatalf("before %v, after %v, apps %+v", before, after, apps)
+	if !reflect.DeepEqual(old, []string{"pipeline"}) {
+		t.Fatalf("old tokens %v", old)
 	}
-	if ok, err := ClientSecretCurrent(ctx, ep, after["client_id"], after["client_secret"], callback); err != nil || !ok {
-		t.Fatalf("the new secret is not current: %v %v", ok, err)
+	if ok, err := TokenValid(ctx, ep, CIBot, tokens[CIBotPath]["token"]); err != nil || !ok {
+		t.Fatalf("the new token is not valid: %v %v", ok, err)
 	}
-}
-
-// Without Woodpecker's client (sync never ran) there is nothing to rotate: an error says what to run first
-func TestRotateWoodpeckerClientNeedsSync(t *testing.T) {
-	f, ep := newFakeForgejo(t)
-	err := RotateWoodpeckerClient(context.Background(), ep, f.admin, memoryTokens{})
-	if err == nil || !strings.Contains(err.Error(), "lab infra forgejo sync") {
-		t.Fatalf("err = %v", err)
+	if err := DeleteToken(ctx, ep, f.admin, CIBot, "pipeline"); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(tokenNames(f, CIBot), []string{"pipeline-1792800000"}) {
+		t.Fatalf("tokens %v", tokenNames(f, CIBot))
 	}
 }
