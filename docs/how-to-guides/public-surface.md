@@ -1,8 +1,8 @@
 # Public surface
 
 What the internet reaches, and how it is guarded (step 15f, `docs/superpowers/specs/2026-11-06-public-surface-design.md`).
-The Cloudflare Tunnel publishes the public apps only; every admin app (Argo CD, Grafana, Kiali, Forgejo, Woodpecker,
-zot, Kanidm) stays on the LAN Gateway.
+The Cloudflare Tunnel publishes the public apps only; every admin app (Argo CD, Grafana, Kiali, Forgejo, Argo
+Workflows, zot, Kanidm) stays on the LAN Gateway.
 
 | Host | App | Namespace |
 |---|---|---|

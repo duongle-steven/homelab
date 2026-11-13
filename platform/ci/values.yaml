@@ -1,4 +1,4 @@
-# The CI's namespace (step 10f, docs/how-to-guides/ci.md): Forgejo's org ci webhook becomes, through Argo Events, a
+# The CI's namespace (step 10f, docs/how-to-guides/in-cluster-ci.md): Forgejo's org ci webhook becomes, through Argo Events, a
 # Workflow of the golden path's template (templates/pipeline.yaml), whose pods run here
 webhook:
   port: 12000

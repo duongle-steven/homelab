@@ -177,7 +177,7 @@
   steps: >-
     Rotate it with the admin role (bao write -f transit/keys/ci-signing/rotate), sync platform/ci in Argo CD (its
     PostSync Job copies the new public key to ci/ci-signing-public-key), then rebuild the images still running that the
-    old version signed (docs/how-to-guides/ci.md)
+    old version signed (docs/how-to-guides/in-cluster-ci.md)
 
 - name: kanidm-client.actualbudget
   kind: kaniop-client
