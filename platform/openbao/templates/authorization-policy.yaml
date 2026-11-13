@@ -18,3 +18,10 @@ spec:
       to:
         - operation:
             ports: ["8200"]
+    # The golden path's sign step and the public key's copy (platform/ci): their own roles only
+    - from:
+        - source:
+            principals: ["cluster.local/ns/ci/sa/ci-signer", "cluster.local/ns/ci/sa/ci-signing-public-key"]
+      to:
+        - operation:
+            ports: ["8200"]
