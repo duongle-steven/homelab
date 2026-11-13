@@ -15,6 +15,7 @@ internet:
   forgejo: [{port: 443}]  # seed clone, mirrors
   renovate: [{port: 443}]  # GitHub
   woodpecker: [{port: 80}, {port: 443}]  # pipelines
+  ci: [{port: 80}, {port: 443}]  # the golden path: base images, a build's downloads
   ntfy: [{port: 443}]  # ntfy.sh: iOS push (upstream-base-url, production)
   jellyfin: [{}]  # torrents, indexers, Seerr: every port
   tailscale: [{port: 443}, {protocol: UDP}]  # DERP; STUN and direct connections on any UDP port

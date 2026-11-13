@@ -1,0 +1,86 @@
+{{- /*
+Which of Forgejo's events start the golden path: a push to a branch that is not its deletion (after all zeros), and a
+pull request opened, updated or reopened; tags, deletions and every other event start nothing. Each creates a
+Workflow of the template pipeline (templates/pipeline.yaml) with what Forgejo's JSON says; the controller refuses
+anything else (Strict template referencing, platform/argo-workflows)
+*/ -}}
+{{- define "ci.workflow" -}}
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: ci-
+  namespace: {{ .Release.Namespace }}
+spec:
+  workflowTemplateRef:
+    name: pipeline
+  arguments:
+    parameters:
+      - {name: repo, value: ""}
+      - {name: sha, value: ""}
+      - {name: ref, value: ""}
+      - {name: event, value: ""}
+      - {name: default-branch, value: ""}
+{{- end }}
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: forgejo
+  namespace: {{ .Release.Namespace }}
+spec:
+  template:
+    serviceAccountName: ci-sensor
+    securityContext:
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+    container:
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+  dependencies:
+    - name: push
+      eventSourceName: forgejo
+      eventName: forgejo
+      filters:
+        data:
+          - {path: headers.X-Forgejo-Event.0, type: string, value: [push]}
+          - {path: body.ref, type: string, value: ["refs/heads/.+"]}
+          # A branch's deletion is a push whose after is all zeros
+          - {path: body.after, type: string, value: ["0000000000000000000000000000000000000000"], comparator: "!="}
+    - name: pull-request
+      eventSourceName: forgejo
+      eventName: forgejo
+      filters:
+        data:
+          - {path: headers.X-Forgejo-Event.0, type: string, value: [pull_request]}
+          - {path: body.action, type: string, value: [opened, synchronized, reopened]}
+  triggers:
+    - template:
+        name: push
+        conditions: push
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              {{- include "ci.workflow" . | nindent 14 }}
+          parameters:
+            - {src: {dependencyName: push, dataKey: body.repository.full_name}, dest: spec.arguments.parameters.0.value}
+            - {src: {dependencyName: push, dataKey: body.after}, dest: spec.arguments.parameters.1.value}
+            - {src: {dependencyName: push, dataKey: body.ref}, dest: spec.arguments.parameters.2.value}
+            - {src: {dependencyName: push, value: push}, dest: spec.arguments.parameters.3.value}
+            - {src: {dependencyName: push, dataKey: body.repository.default_branch}, dest: spec.arguments.parameters.4.value}
+    - template:
+        name: pull-request
+        conditions: pull-request
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              {{- include "ci.workflow" . | nindent 14 }}
+          parameters:
+            - {src: {dependencyName: pull-request, dataKey: body.repository.full_name}, dest: spec.arguments.parameters.0.value}
+            - {src: {dependencyName: pull-request, dataKey: body.pull_request.head.sha}, dest: spec.arguments.parameters.1.value}
+            - {src: {dependencyName: pull-request, dataKey: body.pull_request.head.ref}, dest: spec.arguments.parameters.2.value}
+            - {src: {dependencyName: pull-request, value: pull_request}, dest: spec.arguments.parameters.3.value}
+            - {src: {dependencyName: pull-request, dataKey: body.repository.default_branch}, dest: spec.arguments.parameters.4.value}

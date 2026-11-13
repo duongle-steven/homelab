@@ -184,7 +184,7 @@ groups:
   - paths: [platform/argo-workflows/**]
     tests: sso
   # Until Task 8's ci specs: the sandbox's first checks
-  - paths: [platform/argo-events/**]
+  - paths: [platform/argo-events/**, platform/ci/**]
     tests: smoke
   - paths: [platform/secrets-rotation/**, scripts/build-lab-image, cli/Dockerfile]
     tests: rotation

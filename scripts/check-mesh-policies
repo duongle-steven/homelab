@@ -78,6 +78,8 @@ EXTRA = [
     ("system/monitoring-system", GRAFANA, 9093, "Alertmanager", "Grafana's Alertmanager data source"),
     ("platform/woodpecker", "cluster.local/ns/forgejo/sa/default", 8000, None,
      "Forgejo's webhooks to WOODPECKER_WEBHOOK_HOST (http://woodpecker-server.woodpecker)"),
+    ("platform/ci", "cluster.local/ns/forgejo/sa/default", 12000, None,
+     "org ci's webhook (lab infra forgejo sync) to the EventSource forgejo-eventsource-svc.ci"),
     ("system/loki", GRAFANA, 3100, None, "Grafana's Loki data source"),
     ("apps/ntfy.yaml", "cluster.local/ns/monitoring-system/sa/monitoring-system-kube-pro-alertmanager", 80, None,
      "Alertmanager posts alerts"),
