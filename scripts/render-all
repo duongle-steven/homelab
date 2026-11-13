@@ -6,7 +6,7 @@ set -eu
 env="$1"
 out="$2"
 mkdir -p "$out"
-for dir in system/* platform/* apps/matrix; do
+for dir in system/* platform/*; do
 	[ -f "$dir/Chart.yaml" ] || continue
 	scripts/render-chart "$dir" "$env" > "$out/$(echo "$dir" | tr / _).yaml"
 done

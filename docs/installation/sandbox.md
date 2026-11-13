@@ -121,7 +121,7 @@ ArgoCD in the sandbox syncs the GitHub branch `sandbox`. `just dev` force-pushes
 
 Only the components listed in `system/argocd/values-dev.yaml` are synced: system and platform charts in the `root` ApplicationSet, apps in the `apps` ApplicationSet.
 
-- **Apps** are app-template values files, `apps/<name>.yaml`. The `apps` ApplicationSet pins the app-template version and passes the environment: write hosts as `<host>.{{ .Values.global.baseDomain }}`, and attach public apps to `{{ .Values.global.publicGateway }}` (the Cloudflare Tunnel Gateway in production, the LAN Gateway in the sandbox). `apps/matrix/` is the only app that is still a chart.
+- **Apps** are app-template values files, `apps/<name>.yaml`. The `apps` ApplicationSet pins the app-template version and passes the environment: write hosts as `<host>.{{ .Values.global.baseDomain }}`, and attach public apps to `{{ .Values.global.publicGateway }}` (the Cloudflare Tunnel Gateway in production, the LAN Gateway in the sandbox).
 - **System and platform components** are wrapper charts; one that needs sandbox-specific settings gets a `values-dev.yaml` next to its `values.yaml`, and what the sandbox shares with the [testbed](testbed.md) (the local CA, the tests' fixtures, no Telegram or Cloudflare) goes in `values-local.yaml`, loaded before it.
 
 Check how ArgoCD will render something with:

@@ -28,10 +28,8 @@ EXPECTED = {
     "platform/forgejo:forgejo-db": "daily",
     "platform/woodpecker:data": "daily",
     "apps/ntfy.yaml:ntfy": "daily",
-    # Dendrite's uploads and its JetStream queues; the search index is rebuilt
-    "apps/matrix:matrix-dendrite-media-pvc": "daily",
-    "apps/matrix:matrix-dendrite-jetstream-pvc": "daily",
-    "apps/matrix:data": "daily",
+    # tuwunel's database and media
+    "apps/matrix.yaml:matrix-data": "daily",
     "apps/actualbudget.yaml:actualbudget-data": "manual",
     "apps/paperless.yaml:paperless-data": "manual",
     "apps/opencloud.yaml:opencloud-config": "manual",
@@ -66,7 +64,6 @@ def targets():
     for d in sorted(glob.glob("system/*/") + glob.glob("platform/*/")):
         if os.path.exists(os.path.join(d, "Chart.yaml")):
             yield d.rstrip("/")
-    yield "apps/matrix"
     yield from sorted(glob.glob("apps/*.yaml"))
 
 

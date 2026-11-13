@@ -15,7 +15,7 @@ Everything that depends on where your homelab runs lives in `infra/production/cl
 - `vip`: the Kubernetes API address; `network.gateway`, `network.prefix_length`: your router and LAN prefix
 - `service_vips`: the LAN addresses of the Gateway and wireguard, outside your router's DHCP range
 
-Charts read these from there (`scripts/check-env-config` checks that none is written into a chart or app file). Two settings still need a hand edit, because their charts cannot take them from `config.json`: the domain in `apps/matrix/values.yaml` (Matrix) and the time zone in `platform/renovate/values.yaml` (Renovate's schedule). The nodes read the time zone from `config.json`.
+Charts read these from there (`scripts/check-env-config` checks that none is written into a chart or app file). One setting still needs a hand edit, because its chart cannot take it from `config.json`: the time zone in `platform/renovate/values.yaml` (Renovate's schedule). The nodes read the time zone from `config.json`.
 
 !!! example
 

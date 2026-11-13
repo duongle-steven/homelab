@@ -141,6 +141,7 @@ argocd-apps:
                           - path: apps/actualbudget.yaml
                           - path: apps/excalidraw.yaml
                           - path: apps/homepage.yaml
+                          - path: apps/matrix.yaml
                           - path: apps/ntfy.yaml
                           - path: apps/pairdrop.yaml
                           - path: apps/speedtest.yaml

@@ -37,7 +37,7 @@ if [ -n "${WORKLOADS:-}" ]; then
 	exceptions "$WORKLOADS"
 else
 	if [ "${TARGETS+set}" != set ]; then
-		TARGETS="$(for d in system/*/ platform/*/; do [ -f "$d/Chart.yaml" ] && echo "${d%/}"; done) apps/matrix $(ls apps/*.yaml)"
+		TARGETS="$(for d in system/*/ platform/*/; do [ -f "$d/Chart.yaml" ] && echo "${d%/}"; done) $(ls apps/*.yaml)"
 	fi
 	for env in prod dev; do
 		mkdir -p "$work/$env"

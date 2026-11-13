@@ -97,7 +97,7 @@ func TestPublicScanAcceptedPerHost(t *testing.T) {
 	}
 	assert.Equal(t, "x-1,x-2", lines["www"])
 	assert.Equal(t, "-", lines["draw"], "draw has nothing accepted")
-	assert.Len(t, lines, 4, "one line per target")
+	assert.Len(t, lines, 3, "one line per target")
 }
 
 // nuclei stays under half of Cloudflare's rate limit (infra/_modules/cloudflare): the household's own requests never

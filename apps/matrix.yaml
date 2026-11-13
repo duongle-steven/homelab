@@ -1,0 +1,255 @@
+# Matrix: tuwunel (the homeserver) and FluffyChat (the web client), like upstream's apps/matrix.yaml. LAN only: Kanidm,
+# which signs everyone in, is LAN-only until step 13 (docs/superpowers/specs/2026-11-12-matrix-tuwunel-design.md).
+# Federation is off: only homelab accounts chat
+# Pod Security restricted (system/kyverno): RuntimeDefault seccomp, no privilege escalation
+defaultPodOptions:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+controllers:
+  server:
+    pod:
+      securityContext:
+        # Replaces defaultPodOptions' securityContext (app-template does not merge them): keep its seccomp profile
+        seccompProfile:
+          type: RuntimeDefault
+        # tuwunel's image names no user: run it unprivileged, owning its volume
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      # RocksDB flushes on a clean stop
+      terminationGracePeriodSeconds: 120
+    containers:
+      main:
+        image:
+          repository: ghcr.io/matrix-construct/tuwunel
+          tag: v2.0.0
+        env:
+          TUWUNEL_CONFIG: /config/tuwunel.toml
+          # Kanidm's discovery through the sandbox CA (global.devCA); the image's own bundle in production
+          SSL_CERT_FILE: '{{ if .Values.global.devCA }}/etc/homelab-dev-ca/ca.crt{{ else }}/etc/ssl/certs/ca-certificates.crt{{ end }}'
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        probes:
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              exec:
+                command: [tuwunel, --health-check]
+              periodSeconds: 10
+              failureThreshold: 60
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              exec:
+                command: [tuwunel, --health-check]
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              exec:
+                command: [tuwunel, --health-check]
+  client:
+    containers:
+      main:
+        image:
+          repository: ghcr.io/krille-chan/fluffychat
+          tag: v2.11.5
+        securityContext:
+          allowPrivilegeEscalation: false
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            memory: 128Mi
+service:
+  server:
+    controller: server
+    ports:
+      http:
+        port: 8008
+        protocol: HTTP
+  client:
+    controller: client
+    ports:
+      http:
+        port: 80
+        protocol: HTTP
+route:
+  server:
+    hostnames:
+      - matrix.{{ .Values.global.baseDomain }}
+    parentRefs:
+      - name: gateway
+        namespace: istio-system
+        sectionName: https
+    rules:
+      - backendRefs:
+          - identifier: server
+            port: 8008
+  client:
+    hostnames:
+      - chat.{{ .Values.global.baseDomain }}
+    parentRefs:
+      - name: gateway
+        namespace: istio-system
+        sectionName: https
+    rules:
+      - backendRefs:
+          - identifier: client
+            port: 80
+persistence:
+  data:
+    labels:
+      homelab/backup: daily
+    # Keep the PVC name matrix-data
+    suffix: data
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    advancedMounts:
+      server:
+        main:
+          - path: /var/lib/tuwunel
+  server-config:
+    type: configMap
+    identifier: server
+    advancedMounts:
+      server:
+        main:
+          - path: /config/tuwunel.toml
+            subPath: tuwunel.toml
+  client-config:
+    type: configMap
+    identifier: client
+    advancedMounts:
+      client:
+        main:
+          - path: /usr/share/nginx/html/config.json
+            subPath: config.json
+  sso:
+    # kaniop's Secret for the client below (CLIENT_SECRET)
+    type: secret
+    name: matrix-kanidm-oauth2-credentials
+    advancedMounts:
+      server:
+        main:
+          - path: /run/secrets/sso
+            readOnly: true
+  dev-ca:
+    # The sandbox CA from trust-manager; absent in production, so the volume is optional
+    type: custom
+    volumeSpec:
+      configMap:
+        name: homelab-dev-ca
+        optional: true
+    advancedMounts:
+      server:
+        main:
+          - path: /etc/homelab-dev-ca
+            readOnly: true
+configMaps:
+  server:
+    data:
+      tuwunel.toml: |
+        [global]
+        server_name = "matrix.{{ .Values.global.baseDomain }}"
+        database_path = "/var/lib/tuwunel"
+        address = ["0.0.0.0"]
+        port = 8008
+        # Kanidm only: no password, no open registration, no federation
+        login_with_password = false
+        allow_registration = false
+        allow_federation = false
+        db_cache_capacity_mb = 128
+        cache_capacity_modifier = 0.5
+
+        [global.well_known]
+        client = "https://matrix.{{ .Values.global.baseDomain }}"
+
+        [[global.identity_provider]]
+        brand = "kanidm"
+        name = "Homelab"
+        client_id = "matrix"
+        client_secret_file = "/run/secrets/sso/CLIENT_SECRET"
+        issuer_url = "https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/matrix"
+        userid_claims = ["preferred_username"]
+        unique_id_fallbacks = false
+  client:
+    data:
+      config.json: |
+        {
+          "defaultHomeserver": "matrix.{{ .Values.global.baseDomain }}",
+          "enableMatrixNativeOIDC": false
+        }
+rawResources:
+  # Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
+  authorization-policy:
+    forceRename: allow
+    manifest:
+      apiVersion: security.istio.io/v1
+      kind: AuthorizationPolicy
+      spec:
+        action: ALLOW
+        rules:
+          - from:
+              - source:
+                  namespaces: ['{{ .Release.Namespace }}']
+          # the LAN Gateway
+          - from:
+              - source:
+                  principals: ['cluster.local/ns/istio-system/sa/gateway-istio']
+            to:
+              - operation:
+                  ports: ["8008", "80"]
+  kanidm-client:
+    forceRename: matrix
+    manifest:
+      apiVersion: kaniop.rs/v1beta1
+      kind: KanidmOAuth2Client
+      spec:
+        kanidmRef:
+          name: kanidm
+          namespace: kanidm
+        displayname: Matrix
+        origin: 'https://chat.{{ .Values.global.baseDomain }}'
+        redirectUrl:
+          - 'https://matrix.{{ .Values.global.baseDomain }}/_matrix/client/unstable/login/sso/callback/matrix'
+        disableConsentPrompt: true
+        preferShortUsername: true
+        strictRedirectUrl: true
+        scopeMap:
+          - group: homelab-users
+            scopes: [openid, profile, email]
+          - group: homelab-editors
+            scopes: [openid, profile, email]
+          - group: homelab-admins
+            scopes: [openid, profile, email]
+  # Pod Security restricted (system/kyverno) does not hold for the client's image: why, in homelab/reason
+  policy-exception:
+    forceRename: pod-security
+    manifest:
+      apiVersion: policies.kyverno.io/v1
+      kind: PolicyException
+      metadata:
+        annotations:
+          # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+          homelab/reason: "the FluffyChat image is nginx serving port 80 as root"
+      spec:
+        policyRefs:
+          - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+        matchConditions:
+          - name: matrix-client
+            expression: "object.metadata.namespace == 'matrix' && object.metadata.name.startsWith('matrix-client')"

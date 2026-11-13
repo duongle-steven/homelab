@@ -63,6 +63,7 @@ labels:
   - logs
   - security-logs
   - woodpecker
+  - matrix
   - seccomp
   - policy
   - supply-chain
@@ -91,7 +92,7 @@ labels:
 always: smoke
 # Each runs by itself after the main run, in this order (#78)
 alone: [backup-restore, node-power-cut, node-restart, rotation]
-full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || woodpecker || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
+full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || woodpecker || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
 groups:
   - paths:
       - justfile
@@ -181,6 +182,8 @@ groups:
     tests: rotation
   - paths: [apps/actualbudget.yaml]
     tests: actual-budget
+  - paths: [apps/matrix.yaml]
+    tests: matrix
   - paths: [apps/paperless.yaml]
     tests: paperless
   - paths: [apps/opencloud.yaml]
@@ -193,7 +196,6 @@ groups:
       - apps/excalidraw.yaml
       - apps/homepage.yaml
       - apps/jellyfin.yaml
-      - apps/matrix/**
       - apps/pairdrop.yaml
       - apps/speedtest.yaml
       - apps/tailscale.yaml

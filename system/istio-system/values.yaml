@@ -10,7 +10,6 @@ gateway:
 public:
   blog: [www]
   excalidraw: [draw]
-  matrix: [chat]
   ntfy: [ntfy]
 # Off where Kyverno or the monitoring operator does not run, so these kinds do not exist (the testbed)
 policyExceptions: true
