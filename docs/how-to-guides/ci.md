@@ -115,8 +115,10 @@ Label your own pull requests only when they change what the local sandbox cannot
 Pull requests write, and a label added by an App triggers workflows), because nobody runs `just dev` for them.
 
 A failed run uploads the artifact `sandbox-state`: the `just dev` output, the pods, the events, the Applications and
-the logs and descriptions of the pods that are not ready, and why each unhealthy Application is unhealthy
-(`applications-unhealthy.yaml`).
+the logs and descriptions of the pods that are not ready, why each unhealthy Application is unhealthy
+(`applications-unhealthy.yaml`), and whether the node restarted and why: its container's state
+(`node-container.json`: restarts, `OOMKilled`, exit code), the runner's memory and kernel OOM kills (`memory.txt`,
+`oom.txt`) and k3s's own errors and starts (`k3s-errors.log`; only those lines, since the artifact is public).
 
 ```sh
 gh run download <run-id> --name sandbox-state
