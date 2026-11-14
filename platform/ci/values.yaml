@@ -4,10 +4,10 @@ webhook:
   port: 12000
   path: /forgejo
 eventBus:
-  # JetStream takes 1 or at least 3 replicas (Argo Events v1.9.11's validation); the version is the newest the
-  # controller lists (platform/argo-events' chart). No persistence: an event lost in a restart is a push to repeat
+  # JetStream takes 1 or at least 3 replicas (Argo Events v1.9.11's validation); the version is one platform/argo-events
+  # declares (NATS's latest images). No persistence: an event lost in a restart is a push to repeat
   replicas: 3
-  version: 2.10.29
+  version: 2.15.3
 # The golden path's images (templates/pipeline.yaml), pinned. Buildah: the version step 15h measured its seccomp
 # profile with (infra/_modules/metal/flake/seccomp/README.md: measure again before moving past it)
 images:

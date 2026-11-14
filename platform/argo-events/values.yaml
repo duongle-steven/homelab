@@ -27,3 +27,13 @@ argo-events:
   # The admission webhook only validates these resources' specs: off, so nothing in the API server's path depends on it
   webhook:
     enabled: false
+  configs:
+    jetstream:
+      # The versions an EventBus may name (platform/ci names 2.15.3): the chart's own list stops at nats 2.10.29 with the
+      # exporter and reloader 0.14.0, which carry CRITICAL CVEs with fixes; NATS's latest images instead
+      versions:
+        - version: 2.15.3
+          natsImage: nats:2.15.3
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.20.3
+          configReloaderImage: natsio/nats-server-config-reloader:0.25.0
+          startCommand: /nats-server

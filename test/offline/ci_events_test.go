@@ -15,7 +15,7 @@ func TestCIEventsRender(t *testing.T) {
 		render := func(expr string) string { return renderVelero(t, "platform/ci", env, expr) }
 		assert.Equal(t, "webhook/token", render(`select(.kind == "EventSource") | .spec.webhook.forgejo.authSecret | .name + "/" + .key`), env)
 		assert.Equal(t, "/forgejo 12000", render(`select(.kind == "EventSource") | .spec.webhook.forgejo | .endpoint + " " + .port`), env)
-		assert.Equal(t, replicas+" 2.10.29", render(`select(.kind == "EventBus") | .spec.jetstream | (.replicas | tostring) + " " + .version`), env)
+		assert.Equal(t, replicas+" 2.15.3", render(`select(.kind == "EventBus") | .spec.jetstream | (.replicas | tostring) + " " + .version`), env)
 		assert.Equal(t, "null", render(`select(.kind == "EventBus") | .spec.jetstream.persistence`), env, "an event lost in a restart is a push to repeat")
 		// The stream's replicas follow the bus's: the default 3 cannot be created on one replica (the sandbox)
 		assert.Equal(t, "replicas: "+replicas, render(`select(.kind == "EventBus") | .spec.jetstream.streamConfig | trim`), env)

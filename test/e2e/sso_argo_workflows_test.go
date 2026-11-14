@@ -41,7 +41,12 @@ var _ = Describe("SSOArgoWorkflows", Label("sandbox", "sso", "ci"), func() {
 			status, _ := getJSONE(ctx, "POST", base+"/api/v1/workflow-templates/ci", cookies, "", "", probe, &created)
 			if canWrite {
 				Expect(status).To(Equal(http.StatusOK))
-				Expect(getJSON(ctx, "DELETE", base+"/api/v1/workflow-templates/ci/"+created.Metadata.Name, cookies, "", "", nil, nil)).To(Equal(http.StatusOK))
+				Expect(created.Metadata.Name).NotTo(BeEmpty())
+				// Argo Server reads templates from its informer's cache: right after the create it may answer 404
+				Eventually(ctx, func() int {
+					status, _ := getJSONE(ctx, "DELETE", base+"/api/v1/workflow-templates/ci/"+created.Metadata.Name, cookies, "", "", nil, nil)
+					return status
+				}).WithTimeout(time.Minute).WithPolling(2 * time.Second).Should(Equal(http.StatusOK))
 			} else {
 				Expect(status).To(Equal(http.StatusForbidden), "%s created a template", account)
 			}
