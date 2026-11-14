@@ -1,0 +1,30 @@
+# The OpenTelemetry Operator and the Collectors it runs (docs/superpowers/specs/2026-11-14-opentelemetry-design.md):
+# the agent (a DaemonSet sending the nodes' logs to Loki) and the gateway (traces to Tempo, Kubernetes events to Loki)
+opentelemetry-operator:
+  manager:
+    image:
+      # The chart's own Operator version (0.163.0 exists, but chart 0.129.0, the latest, ships 0.162.0's CRDs)
+      tag: 0.162.0
+    # The Collectors' default image: the project's own distribution for Kubernetes, smaller than contrib
+    collectorImage:
+      tag: 0.165.0
+    # The API server calls its webhooks: outside the mesh
+    podLabels:
+      istio.io/dataplane-mode: none
+    serviceMonitor:
+      enabled: true
+    resources:
+      requests: {cpu: 10m, memory: 64Mi}
+  # A webhook that refuses while the Operator is down would block pods everywhere (its pod webhook) or Argo CD's syncs:
+  # ignore, as ESO's and Kyverno's do
+  admissionWebhooks:
+    failurePolicy: Ignore
+    pods:
+      failurePolicy: Ignore
+  securityContext:
+    runAsGroup: 65532
+    runAsNonRoot: true
+    runAsUser: 65532
+    fsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault

@@ -44,6 +44,7 @@ argocd-apps:
                           - path: system/kyverno
                           - path: system/trivy-operator
                           - path: system/falco
+                          - path: system/opentelemetry
                           - path: platform/external-secrets
                           - path: platform/openbao
                           - path: platform/generated-secrets
