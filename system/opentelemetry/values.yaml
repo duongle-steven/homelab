@@ -28,3 +28,8 @@ opentelemetry-operator:
     fsGroup: 65532
     seccompProfile:
       type: RuntimeDefault
+# The agent Collector (templates/agent.yaml)
+agent:
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 512Mi}

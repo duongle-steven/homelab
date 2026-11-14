@@ -1,0 +1,194 @@
+{{- /*
+The agent: one Collector per node (a DaemonSet the Operator runs as agent-collector). It reads every pod's log and the
+API server's audit log on its node and sends them to Loki over OTLP itself, through a queue kept on the node with its
+read positions: lines read while Loki is down survive the agent's restart, as Alloy's write-ahead log did (step 9).
+Labels follow OpenTelemetry's conventions (Loki indexes service.name and the k8s.* resource attributes it knows).
+*/ -}}
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: agent
+  namespace: {{ .Release.Namespace }}
+spec:
+  mode: daemonset
+  {{- with .Values.agent.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  observability:
+    metrics:
+      enableMetrics: true
+  # Root reads the files root owns on the node (see templates/policy-exception.yaml); nothing else of root's rights
+  podSecurityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  env:
+    - name: K8S_NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+  volumes:
+    - name: pod-logs
+      hostPath:
+        path: /var/log/pods
+    - name: audit-logs
+      hostPath:
+        path: /var/log/kubernetes/audit
+        type: DirectoryOrCreate
+    - name: storage
+      hostPath:
+        path: /var/lib/otelcol
+        type: DirectoryOrCreate
+  volumeMounts:
+    - name: pod-logs
+      mountPath: /var/log/pods
+      readOnly: true
+    - name: audit-logs
+      mountPath: /var/log/kubernetes/audit
+      readOnly: true
+    - name: storage
+      mountPath: /var/lib/otelcol
+  config:
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      # Read positions and the queue to Loki, on the node: they survive a restart of the pod
+      file_storage:
+        directory: /var/lib/otelcol
+        create_directory: true
+    receivers:
+      # /var/log/pods/<namespace>_<pod>_<uid>/<container>/<n>.log in containerd's CRI format; the path gives the
+      # pod's namespace, name, uid and container
+      filelog/pods:
+        include: [/var/log/pods/*/*/*.log]
+        include_file_path: true
+        start_at: beginning
+        storage: file_storage
+        operators:
+          - type: container
+            id: container-parser
+      # The API server's audit log (JSON lines, one event each), rotated by the server: followed by name, its
+      # position kept, so a rotation neither rereads nor skips a line
+      filelog/audit:
+        include: [/var/log/kubernetes/audit/audit.log]
+        start_at: beginning
+        storage: file_storage
+    connectors:
+      # OpenBao's audit device (platform/openbao) writes JSON requests and responses to its stdout: those records
+      # alone move to their own pipeline; OpenBao's other output stays an ordinary pod log
+      routing/openbao:
+        default_pipelines: [logs/loki]
+        table:
+          - context: log
+            condition: 'resource.attributes["k8s.namespace.name"] == "openbao" and IsMatch(body, "^\\{.*\"type\":\"(request|response)\"")'
+            pipelines: [logs/openbao-audit]
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      # The pod's metadata from the API, for this node's pods only
+      k8sattributes:
+        auth_type: serviceAccount
+        filter:
+          node_from_env_var: K8S_NODE_NAME
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.uid
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.node.name
+            - k8s.deployment.name
+            - k8s.statefulset.name
+            - k8s.daemonset.name
+            - k8s.cronjob.name
+            - k8s.job.name
+          labels:
+            # The app's name (app.kubernetes.io/name), as Alloy's label app was; Loki's service_name
+            - tag_name: service.name
+              key: app.kubernetes.io/name
+              from: pod
+      # The file's path is in the pod's attributes already, and no query reads it: not kept in Loki
+      transform/pods:
+        log_statements:
+          - context: log
+            statements:
+              - delete_key(attributes, "log.file.path")
+      transform/openbao-audit:
+        log_statements:
+          - context: resource
+            statements:
+              - set(attributes["service.name"], "openbao-audit")
+      transform/k3s-audit:
+        log_statements:
+          - context: resource
+            statements:
+              - set(attributes["service.name"], "k3s-audit")
+              - set(attributes["k8s.node.name"], "${env:K8S_NODE_NAME}")
+      batch: {}
+    exporters:
+      otlphttp/loki:
+        endpoint: http://loki.loki:3100/otlp
+        sending_queue:
+          enabled: true
+          storage: file_storage
+        # Never give up while Loki is down: the queue on the node holds the lines
+        retry_on_failure:
+          enabled: true
+          max_elapsed_time: 0
+    service:
+      extensions: [health_check, file_storage]
+      pipelines:
+        logs/pods:
+          receivers: [filelog/pods]
+          processors: [memory_limiter, k8sattributes, transform/pods]
+          exporters: [routing/openbao]
+        logs/loki:
+          receivers: [routing/openbao]
+          processors: [batch]
+          exporters: [otlphttp/loki]
+        logs/openbao-audit:
+          receivers: [routing/openbao]
+          processors: [transform/openbao-audit, batch]
+          exporters: [otlphttp/loki]
+        logs/k3s-audit:
+          receivers: [filelog/audit]
+          processors: [memory_limiter, transform/k3s-audit, batch]
+          exporters: [otlphttp/loki]
+---
+# What k8sattributes reads: pods and namespaces, and the ReplicaSets that name a pod's Deployment
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opentelemetry-agent
+rules:
+  - apiGroups: [""]
+    resources: [pods, namespaces, nodes]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opentelemetry-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opentelemetry-agent
+subjects:
+  - kind: ServiceAccount
+    name: agent-collector
+    namespace: {{ .Release.Namespace }}
