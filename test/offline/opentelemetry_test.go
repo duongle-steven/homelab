@@ -80,3 +80,29 @@ func TestLokiWithoutAlloy(t *testing.T) {
 	}
 }
 
+
+// The gateway (one replica) takes OTLP traces from the Istio Gateways and the tools and sends them to Tempo, and
+// watches Kubernetes events once for Loki; nothing routes to it from outside, and only named senders may call it
+func TestCollectorGatewayRender(t *testing.T) {
+	for _, env := range []string{"", "dev"} {
+		render := func(expr string) string { return renderVelero(t, "system/opentelemetry", env, expr) }
+		gateway := func(expr string) string {
+			return render(`select(.kind == "OpenTelemetryCollector" and .metadata.name == "gateway") | ` + expr)
+		}
+		assert.Equal(t, "deployment 1", gateway(`.spec.mode + " " + (.spec.replicas | tostring)`), env)
+		config := `.spec.config`
+		assert.Equal(t, "0.0.0.0:4317 0.0.0.0:4318", gateway(config+`.receivers.otlp.protocols | .grpc.endpoint + " " + .http.endpoint`), env)
+		assert.Equal(t, "events watch", gateway(config+`.receivers.k8sobjects.objects[] | .name + " " + .mode`), env)
+		assert.Equal(t, "otlp otlp/tempo", gateway(config+`.service.pipelines.traces | (.receivers | join(",")) + " " + (.exporters | join(","))`), env)
+		assert.Equal(t, "tempo.tempo:4317", gateway(config+`.exporters["otlp/tempo"].endpoint`), env)
+		assert.Equal(t, "k8sobjects otlphttp/loki", gateway(config+`.service.pipelines["logs/events"] | (.receivers | join(",")) + " " + (.exporters | join(","))`), env)
+		assert.Contains(t, gateway(config+`.processors | to_json(0)`), `\"kubernetes-events\"`, env)
+		assert.Empty(t, render(`select(.kind == "HTTPRoute" or .kind == "GRPCRoute") | .metadata.name`), env)
+		// Who may send OTLP: the Gateways' identity and the tools' namespaces, on the OTLP ports only
+		otlp := `select(.kind == "AuthorizationPolicy" and .metadata.name == "allow-otlp") | .spec`
+		assert.Contains(t, render(otlp+` | .selector.matchLabels | to_json(0)`), `"app.kubernetes.io/name":"gateway-collector"`, env)
+		senders := render(otlp + ` | .rules[] | ((.from[].source.principals // []) + (.from[].source.namespaces // []) | join(",")) + " " + (.to[].operation.ports | join(","))`)
+		assert.Contains(t, senders, "cluster.local/ns/istio-system/sa/gateway-istio", env)
+		assert.Contains(t, senders, "argocd,grafana 4317,4318", env)
+	}
+}

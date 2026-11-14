@@ -1,0 +1,132 @@
+{{- /*
+The gateway: one Collector for the cluster (a Deployment the Operator runs as gateway-collector). It takes OTLP traces
+from the Istio Gateways' Envoy and the platform tools and sends them to Tempo, and watches Kubernetes events once (a
+single replica) for Loki. Nothing routes to it from outside the cluster: allow-otlp names who may send.
+*/ -}}
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: gateway
+  namespace: {{ .Release.Namespace }}
+spec:
+  mode: deployment
+  replicas: 1
+  {{- with .Values.gateway.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  observability:
+    metrics:
+      enableMetrics: true
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  config:
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+      # Every namespace's events, as Alloy's loki.source.kubernetes_events did
+      k8sobjects:
+        auth_type: serviceAccount
+        objects:
+          - name: events
+            mode: watch
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      transform/events:
+        log_statements:
+          - context: resource
+            statements:
+              - set(attributes["service.name"], "kubernetes-events")
+      batch: {}
+    exporters:
+      otlp/tempo:
+        endpoint: tempo.tempo:4317
+        tls:
+          # Inside the mesh: ztunnel encrypts it (mTLS)
+          insecure: true
+      otlphttp/loki:
+        endpoint: http://loki.loki:3100/otlp
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/tempo]
+        logs/events:
+          receivers: [k8sobjects]
+          processors: [memory_limiter, transform/events, batch]
+          exporters: [otlphttp/loki]
+---
+# What k8sobjects watches: events
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opentelemetry-gateway
+rules:
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [get, list, watch]
+  - apiGroups: [events.k8s.io]
+    resources: [events]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opentelemetry-gateway
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opentelemetry-gateway
+subjects:
+  - kind: ServiceAccount
+    name: gateway-collector
+    namespace: {{ .Release.Namespace }}
+---
+# Who may send OTLP to the gateway: the Istio Gateways (their Envoy's spans) and the tools that export traces, on the
+# OTLP ports only (docs/superpowers/specs/2026-11-14-threat-model-design.md: OTLP stays inside)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-otlp
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway-collector
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/istio-system/sa/gateway-istio
+              - cluster.local/ns/istio-system/sa/public-istio
+      to:
+        - operation:
+            ports: ["4317", "4318"]
+    - from:
+        - source:
+            namespaces: {{ .Values.gateway.senders | toJson }}
+      to:
+        - operation:
+            ports: ["4317", "4318"]
