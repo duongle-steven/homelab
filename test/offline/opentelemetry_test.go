@@ -85,7 +85,6 @@ func TestLokiWithoutAlloy(t *testing.T) {
 	}
 }
 
-
 // The gateway (one replica) takes OTLP traces from the Istio Gateways and the tools and sends them to Tempo, and
 // watches Kubernetes events once for Loki; nothing routes to it from outside, and only named senders may call it
 func TestCollectorGatewayRender(t *testing.T) {
