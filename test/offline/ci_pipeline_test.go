@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// The golden path's template (step 10f): one volume per run for its steps, kept 7 days, its pods gone on success; the
+// The golden path's template (step 10f): one volume per run for its steps, gone when the run ends; the run kept 7 days, its pods gone on success; the
 // build is the labelled pod in its own user namespace; publishing (push, SBOM, signature) only when the settings step
 // says so (a push to the default branch, TestCISettings); every result reported to Forgejo; every image pinned
 func TestCIPipelineRender(t *testing.T) {
@@ -17,6 +17,7 @@ func TestCIPipelineRender(t *testing.T) {
 		}
 		assert.Equal(t, "main report ci-pipeline", render(`.spec.entrypoint + " " + .spec.onExit + " " + .spec.serviceAccountName`), env)
 		assert.Equal(t, "604800 OnPodSuccess", render(`(.spec.ttlStrategy.secondsAfterCompletion | tostring) + " " + .spec.podGC.strategy`), env)
+		assert.Equal(t, "OnWorkflowCompletion", render(`.spec.volumeClaimGC.strategy`), env, "a failed run's volume goes too: Argo's default keeps it until the run's TTL")
 		assert.Equal(t, "work ReadWriteOnce none", render(`.spec.volumeClaimTemplates[] | .metadata.name + " " + .spec.accessModes[0] + " " + .metadata.labels."homelab/backup"`), env)
 		assert.Equal(t, "repo sha ref event default-branch", render(`[.spec.arguments.parameters[].name] | join(" ")`), env)
 

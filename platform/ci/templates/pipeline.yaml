@@ -59,6 +59,10 @@ spec:
     secondsAfterCompletion: 604800
   podGC:
     strategy: OnPodSuccess
+  # The run's volume goes when it ends, failed or not (Argo's default keeps a failed run's until its TTL): a failed
+  # step's pod keeps its logs, and a finished pod does not hold the claim
+  volumeClaimGC:
+    strategy: OnWorkflowCompletion
   volumeClaimTemplates:
     - metadata:
         name: work
