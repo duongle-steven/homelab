@@ -23,17 +23,17 @@ import (
 // own user namespace
 func TestCISeccompPolicies(t *testing.T) {
 	for _, env := range []string{"", "dev"} {
-		kinds := render.Yq(t, "platform/ci", env, `select(.kind == "*AdmissionPolicy*") | .kind + " " + .metadata.name + " " + (.spec.failurePolicy // "-")`)
+		kinds := render.Yq(t, "platform/ci", env, `select(.kind == "*AdmissionPolicy*" and (.metadata.name | test("seccomp"))) | .kind + " " + .metadata.name + " " + (.spec.failurePolicy // "-")`)
 		assert.ElementsMatch(t, []string{
 			"MutatingAdmissionPolicy ci-buildah-seccomp Fail",
 			"MutatingAdmissionPolicyBinding ci-buildah-seccomp -",
 			"ValidatingAdmissionPolicy ci-localhost-seccomp Fail",
 			"ValidatingAdmissionPolicyBinding ci-localhost-seccomp -",
 		}, lines(kinds), "env=%q", env)
-		assert.Equal(t, "Deny", render.Yq(t, "platform/ci", env, `select(.kind == "ValidatingAdmissionPolicyBinding") | .spec.validationActions[]`))
+		assert.Equal(t, "Deny", render.Yq(t, "platform/ci", env, `select(.kind == "ValidatingAdmissionPolicyBinding" and .metadata.name == "ci-localhost-seccomp") | .spec.validationActions[]`))
 		for _, kind := range []string{"MutatingAdmissionPolicyBinding", "ValidatingAdmissionPolicyBinding"} {
 			assert.Equal(t, "ci", render.Yq(t, "platform/ci", env,
-				`select(.kind == "`+kind+`") | .spec.matchResources.namespaceSelector.matchLabels["kubernetes.io/metadata.name"]`), kind)
+				`select(.kind == "`+kind+`" and (.metadata.name | test("seccomp"))) | .spec.matchResources.namespaceSelector.matchLabels["kubernetes.io/metadata.name"]`), kind)
 		}
 	}
 
@@ -44,7 +44,7 @@ func TestCISeccompPolicies(t *testing.T) {
 	policy := func(kinds ...string) string {
 		var docs []string
 		for _, kind := range kinds {
-			docs = append(docs, render.Yq(t, "platform/ci", "", `select(.kind == "`+kind+`") | del(.spec.matchResources)`))
+			docs = append(docs, render.Yq(t, "platform/ci", "", `select(.kind == "`+kind+`" and (.metadata.name | test("seccomp"))) | del(.spec.matchResources)`))
 		}
 		return strings.Join(docs, "\n---\n")
 	}

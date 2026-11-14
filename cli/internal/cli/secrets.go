@@ -24,8 +24,8 @@ import (
 	"github.com/duongle-steven/homelab/cli/internal/secrets"
 	"github.com/duongle-steven/homelab/cli/internal/workload"
 	"github.com/spf13/cobra"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
@@ -352,7 +352,7 @@ var newRotation = func(cmd *cobra.Command, entries []rotate.Entry) (*rotation, e
 			// The CronJob's namespace (Task 9), which a person's run reaches too
 			Lock:     &rotate.LeaseLocker{Kube: kube, Namespace: "secrets-rotation", Out: cmd.OutOrStdout()},
 			Backups:  b.Runs,
-			Idle:     func(ctx context.Context, what string) (bool, error) { return idle(ctx, kube, pods, what) },
+			Idle:     func(ctx context.Context, what string) (bool, error) { return idle(ctx, kube, dyn, pods, what) },
 			Deployed: deployedNamespaces(cmd.Context(), kube),
 			Out:      cmd.OutOrStdout(),
 			Poll:     15 * time.Second,
@@ -378,17 +378,22 @@ for _, k in ipairs(redis.call('KEYS', 'celery*')) do
 end
 return n`
 
+// workflows are Argo Workflows' runs (platform/ci)
+var workflows = schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "workflows"}
+
 // idle reports whether what has nothing running that a restart would break.
-func idle(ctx context.Context, kube kubernetes.Interface, pods rotate.Executor, what string) (bool, error) {
+func idle(ctx context.Context, kube kubernetes.Interface, dyn dynamic.Interface, pods rotate.Executor, what string) (bool, error) {
 	switch what {
 	case "ci":
-		// A running step of the golden path: Argo labels every Workflow's pods with their Workflow (platform/ci)
-		steps, err := kube.CoreV1().Pods("ci").List(ctx, metav1.ListOptions{LabelSelector: "workflows.argoproj.io/workflow"})
+		// A run of the golden path that has not ended: between two steps it has no pod, and its next step would read
+		// the new secret while the other side still holds the old one. A Workflow not picked up yet has no phase
+		runs, err := dyn.Resource(workflows).Namespace("ci").List(ctx, metav1.ListOptions{})
 		if err != nil {
-			return false, fmt.Errorf("list the golden path's pods: %w", err)
+			return false, fmt.Errorf("list the golden path's runs: %w", err)
 		}
-		for _, p := range steps.Items {
-			if p.Status.Phase == corev1.PodPending || p.Status.Phase == corev1.PodRunning {
+		for _, w := range runs.Items {
+			phase, _, _ := unstructured.NestedString(w.Object, "status", "phase")
+			if phase == "" || phase == "Pending" || phase == "Running" {
 				return false, nil
 			}
 		}

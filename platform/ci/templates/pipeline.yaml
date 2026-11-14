@@ -230,6 +230,10 @@ spec:
           - name: publish
       script:
         image: {{ .Values.images.buildah }}
+        # Root only inside its own user namespace (hostUsers false), so it needs no setuid; its capabilities are that
+        # namespace's, which Pod Security baseline allows
+        securityContext:
+          allowPrivilegeEscalation: false
         command: [sh]
         source: |
           set -eu

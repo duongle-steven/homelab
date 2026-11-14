@@ -89,10 +89,11 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, delete]
-  {{- else if $r.idle }}
-  # The idle wait lists the golden path's step pods (an entry's idle: ci)
-  - apiGroups: [""]
-    resources: [pods]
+  {{- end }}
+  {{- if $r.idle }}
+  # The idle wait lists the golden path's runs (an entry's idle: ci)
+  - apiGroups: [argoproj.io]
+    resources: [workflows]
     verbs: [get, list]
   {{- end }}
   {{- if $r.exec }}

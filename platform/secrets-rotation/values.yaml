@@ -8,7 +8,7 @@ env: production
 # 03:00 in global.timezone: an hour after Velero's daily backup, which the rotation wants from the last 24 hours
 schedule: "0 3 * * *"
 # What the scheduled entries' readers are, by namespace: the rotation may patch only these ExternalSecrets (refresh) and
-# workloads (rolling restart), exec into the pods of `exec`, and list the pods of `idle` (an entry's idle wait). lab
+# workloads (rolling restart), exec into the pods of `exec`, and list the runs of `idle` (an entry's idle wait: the golden path's Workflows). lab
 # secrets check compares this with the catalog (cli/internal/rotate/catalog.yaml)
 readers:
   monitoring-system:
@@ -18,7 +18,7 @@ readers:
     deployments: [ntfy]
     # ntfy denies callers outside the mesh: the new token is checked from its own pod
     exec: true
-  # registry.ci: the golden path's push (platform/ci); its idle wait lists the steps' pods
+  # registry.ci: the golden path's push (platform/ci); its idle wait lists the runs
   ci:
     externalSecrets: [registry]
     idle: true

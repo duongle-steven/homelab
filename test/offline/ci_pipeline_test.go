@@ -35,6 +35,7 @@ func TestCIPipelineRender(t *testing.T) {
 		assert.Equal(t, "build", render(build+` | .metadata.labels."homelab/ci-step"`), env)
 		assert.Equal(t, `{"hostUsers": false}`, render(build+` | .podSpecPatch`), env)
 		assert.Equal(t, "null", render(build+` | .securityContext.seccompProfile`), env, "the mutation gives it homelab/buildah.json")
+		assert.Equal(t, "false", render(build+` | .script.securityContext.allowPrivilegeEscalation`), env, "Kyverno's restricted set: Buildah needs no setuid in its user namespace")
 		assert.Equal(t, "", render(`.spec.templates[] | select(.name != "build" and .name != "main" and .name != "report") | select(.securityContext.seccompProfile.type != "RuntimeDefault") | .name`), env)
 		assert.Contains(t, render(build+` | .script.source`), `image="registry.$DOMAIN/$IMAGE:$SHA"`, env)
 		assert.Equal(t, strings.Repeat(domain+"\n", 5)+domain, render(`.spec.templates[] | (.script // .container) | .env[] | select(.name == "DOMAIN") | .value`), env, "every step but the steps-only templates")

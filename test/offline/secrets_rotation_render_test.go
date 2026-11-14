@@ -26,8 +26,8 @@ func TestSecretsCronJobRender(t *testing.T) {
 	exec := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and (.rules[].resources[] == "pods/exec")) | .metadata.namespace`)
 	assert.Equal(t, "ntfy", exec)
 	assert.Empty(t, renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and (.rules[].resources[] == "persistentvolumeclaims")) | .metadata.namespace`))
-	// The golden path's idle wait lists its step pods; nothing there is restarted or deleted
-	assert.Equal(t, "get,list", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "ci") | .rules[] | select(.resources[0] == "pods") | .verbs | join(",")`))
+	// The golden path's idle wait lists its runs; nothing there is restarted or deleted
+	assert.Equal(t, "argoproj.io workflows get,list", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "ci") | .rules[] | select(.resources[0] != "externalsecrets") | .apiGroups[0] + " " + (.resources | join(",")) + " " + (.verbs | join(","))`))
 	// Only named objects are changed: Alertmanager's namespace allows refreshing one ExternalSecret and nothing else
 	assert.Equal(t, "externalsecrets ntfy", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "monitoring-system") | .rules[] | .resources[0] + " " + (.resourceNames | join(","))`))
 	// A new cluster is not overdue: the CronJob counts from its creation until its first success

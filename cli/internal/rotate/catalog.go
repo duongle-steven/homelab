@@ -59,7 +59,7 @@ type Entry struct {
 	Readers  []Reader          `yaml:"readers"`
 	Pending  string            `yaml:"pending"`  // the task that creates what it names; skips the repository consistency check
 	Steps    string            `yaml:"steps"`    // what a person does, for manual and script entries
-	Idle     string            `yaml:"idle"`     // "ci": wait for no running step of the golden path
+	Idle     string            `yaml:"idle"`     // "ci": wait for no unfinished run of the golden path
 	Settings map[string]string `yaml:"settings"` // method-specific: app, Forgejo account, OpenTofu unit and resource, kaniop client
 	Envs     []string          `yaml:"envs"`     // the environments that have it (production, sandbox); empty = every one
 	// Workstation entries rotate only from a person's run (just infra deploy production names them when due), never the

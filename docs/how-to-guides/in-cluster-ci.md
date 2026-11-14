@@ -62,6 +62,12 @@ Forgejo's Kanidm login source also makes `homelab-admins` the owners of org `ci`
 `developers` (create and push repositories). Whatever the UI or the API is asked, the controller runs only Workflows
 that reference the golden path's templates (`templateReferencing: Strict`).
 
+Only Forgejo's events publish. A run started from the UI or the API (Submit on the template `pipeline`) builds and
+reports its status but never pushes or signs: the admission policy `ci-workflow-arguments` refuses `event=push` from
+anyone but the Sensor, any entrypoint but `main`, and any change to a run's arguments afterwards, so resubmitting a
+push's run is refused too (push again instead). A signature therefore always means "built by the golden path from the
+default branch".
+
 ## Verify an image
 
 The public key is the ConfigMap `ci/ci-signing-public-key`, copied from OpenBao after every sync of `platform/ci`.
@@ -84,6 +90,6 @@ All in OpenBao and the rotation catalog ([Secrets rotation](secrets-rotation.md)
 |--------|------|----------|
 | the webhook's secret | `ci/generated/webhook` | `ci.webhook`, manual: a new value, `lab infra forgejo sync`, the EventSource restarted |
 | `ci-bot`'s Forgejo token | `ci/forgejo-token` | `forgejo.ci-bot-token`, with overlap, from the workstation |
-| zot's `ci` password | `zot/generated/ci`, `ci/generated/registry` | `registry.ci`, once no step runs |
+| zot's `ci` password | `zot/generated/ci`, `ci/generated/registry` | `registry.ci`, once no run is unfinished |
 | Kanidm client `argo-workflows` | kaniop's Secret | `kanidm-client.argo-workflows` |
 | the signing key | OpenBao transit `ci-signing` | `ci.signing-key`, manual (Kyverno needs the new public key) |

@@ -25,22 +25,36 @@ func ciRepo(ctx context.Context, name string, files map[string]string) string {
 	DeferCleanup(func(ctx SpecContext) { forgejoAs(ctx, "", "DELETE", "/repos/ci/"+name, nil, nil) }, NodeTimeout(time.Minute))
 	var sha string
 	for path, content := range files {
-		var out struct {
-			Commit struct {
-				SHA string `json:"sha"`
-			} `json:"commit"`
-		}
-		Expect(forgejoAs(ctx, "", "POST", "/repos/ci/"+name+"/contents/"+path, map[string]any{
-			"content": base64.StdEncoding.EncodeToString([]byte(content)), "message": "add " + path, "branch": "main"}, &out)).
-			To(Equal(http.StatusCreated))
-		sha = out.Commit.SHA
+		sha = ciCommit(ctx, name, "main", "", path, content)
 	}
 	return sha
+}
+
+// ciCommit adds a file to ci/<name> on branch (creating newBranch from it when newBranch is set) and returns the commit
+func ciCommit(ctx context.Context, name, branch, newBranch, path, content string) string {
+	GinkgoHelper()
+	var out struct {
+		Commit struct {
+			SHA string `json:"sha"`
+		} `json:"commit"`
+	}
+	body := map[string]any{"content": base64.StdEncoding.EncodeToString([]byte(content)), "message": "add " + path, "branch": branch}
+	if newBranch != "" {
+		body["new_branch"] = newBranch
+	}
+	Expect(forgejoAs(ctx, "", "POST", "/repos/ci/"+name+"/contents/"+path, body, &out)).To(Equal(http.StatusCreated))
+	return out.Commit.SHA
 }
 
 // ciWorkflow waits for the Workflow the Sensor made for repository ci/<name> at sha to end, and returns its phase and
 // the build's digest output ("" when nothing was pushed)
 func ciWorkflow(ctx context.Context, name, sha string) (phase, digest string) {
+	GinkgoHelper()
+	return ciWorkflowFor(ctx, name, sha, "")
+}
+
+// ciWorkflowFor is ciWorkflow for one event (push, pull_request), or any when event is ""
+func ciWorkflowFor(ctx context.Context, name, sha, event string) (phase, digest string) {
 	GinkgoHelper()
 	Eventually(ctx, func() bool {
 		out, err := kube.Kubectl(ctx, "ci", "get", "workflows.argoproj.io", "-o", "json")
@@ -68,7 +82,7 @@ func ciWorkflow(ctx context.Context, name, sha string) (phase, digest string) {
 			for _, p := range w.Spec.Arguments.Parameters {
 				args[p.Name] = p.Value
 			}
-			if args["repo"] != "ci/"+name || args["sha"] != sha {
+			if args["repo"] != "ci/"+name || args["sha"] != sha || (event != "" && args["event"] != event) {
 				continue
 			}
 			switch w.Status.Phase {
@@ -90,7 +104,7 @@ func ciWorkflow(ctx context.Context, name, sha string) (phase, digest string) {
 			}
 		}
 		return false
-	}).WithTimeout(25*time.Minute).WithPolling(15*time.Second).Should(BeTrue(), "no finished Workflow for ci/%s@%s", name, sha)
+	}).WithTimeout(25*time.Minute).WithPolling(15*time.Second).Should(BeTrue(), "no finished Workflow for ci/%s@%s (%s)", name, sha, event)
 	return phase, digest
 }
 
@@ -156,6 +170,30 @@ var _ = Describe("CI", Label("sandbox", "ci"), func() {
 		Eventually(ctx, func() string { return ciStatus(ctx, name, sha) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal("failure"))
 	}, SpecTimeout(30*time.Minute))
 
+	It("builds a pull request without pushing, with a status on its head", func(ctx SpecContext) {
+		name := fmt.Sprint("ci-pr-", time.Now().Unix())
+		ciRepo(ctx, name, map[string]string{"Containerfile": "FROM docker.io/library/busybox:1.37.0\n"})
+		sha := ciCommit(ctx, name, "main", "feature", "Containerfile", "FROM docker.io/library/busybox:1.37.0\nRUN echo pr > /pr\n")
+		Expect(forgejoAs(ctx, "", "POST", "/repos/ci/"+name+"/pulls", map[string]any{"head": "feature", "base": "main", "title": "a change"}, nil)).
+			To(Equal(http.StatusCreated))
+		phase, digest := ciWorkflowFor(ctx, name, sha, "pull_request")
+		Expect(phase).To(Equal("Succeeded"))
+		Expect(digest).To(BeEmpty(), "a pull request pushed its image")
+		Eventually(ctx, func() string { return ciStatus(ctx, name, sha) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal("success"))
+	}, SpecTimeout(35*time.Minute))
+
+	It("runs two pushes in a row, each with its own status", func(ctx SpecContext) {
+		name := fmt.Sprint("ci-twice-", time.Now().Unix())
+		first := ciRepo(ctx, name, map[string]string{"Containerfile": "FROM docker.io/library/busybox:1.37.0\n"})
+		second := ciCommit(ctx, name, "main", "", "README.md", "two\n")
+		for _, sha := range []string{first, second} {
+			phase, digest := ciWorkflowFor(ctx, name, sha, "push")
+			Expect(phase).To(Equal("Succeeded"), sha)
+			Expect(digest).To(HavePrefix("sha256:"), sha)
+			Eventually(ctx, func() string { return ciStatus(ctx, name, sha) }).WithTimeout(2*time.Minute).WithPolling(5*time.Second).Should(Equal("success"), sha)
+		}
+	}, SpecTimeout(45*time.Minute))
+
 	It("refuses a webhook without org ci's secret", func(ctx SpecContext) {
 		before, err := kube.Kubectl(ctx, "ci", "get", "workflows.argoproj.io", "-o", "name")
 		Expect(err).NotTo(HaveOccurred(), before)
@@ -174,6 +212,32 @@ var _ = Describe("CI", Label("sandbox", "ci"), func() {
 
 // Step 10f: the controller runs only Workflows that reference the golden path's templates
 var _ = Describe("CIRestrictions", Label("sandbox", "ci"), func() {
+	// templates/workflow-policy.yaml: what an editor may submit through Argo Server, which acts as its ServiceAccount
+	editor := "system:serviceaccount:argo-workflows:ci-editor"
+	submit := func(ctx context.Context, entrypoint, event string) (string, error) {
+		spec := map[string]any{"workflowTemplateRef": map[string]any{"name": "pipeline"}, "arguments": map[string]any{"parameters": []map[string]string{
+			{"name": "repo", "value": "ci/none"}, {"name": "sha", "value": "1111111111111111111111111111111111111111"},
+			{"name": "ref", "value": "refs/heads/main"}, {"name": "event", "value": event}, {"name": "default-branch", "value": "main"}}}}
+		if entrypoint != "" {
+			spec["entrypoint"] = entrypoint
+		}
+		doc, _ := json.Marshal(map[string]any{"apiVersion": "argoproj.io/v1alpha1", "kind": "Workflow", "metadata": map[string]any{"generateName": "manual-"}, "spec": spec})
+		file := filepath.Join(GinkgoT().TempDir(), "workflow.json")
+		Expect(os.WriteFile(file, doc, 0o600)).To(Succeed())
+		return kube.Kubectl(ctx, "ci", "create", "--dry-run=server", "--as="+editor, "-f", file)
+	}
+
+	It("lets only the Sensor start a run that publishes", func(ctx SpecContext) {
+		out, err := submit(ctx, "", "push")
+		Expect(err).To(HaveOccurred(), out)
+		Expect(out).To(ContainSubstring("only the Sensor starts a run with event=push"))
+		out, err = submit(ctx, "sign", "pull_request")
+		Expect(err).To(HaveOccurred(), out)
+		Expect(out).To(ContainSubstring("the golden path's entrypoint"))
+		out, err = submit(ctx, "", "pull_request")
+		Expect(err).NotTo(HaveOccurred(), "a manual run that does not publish: %s", out)
+	}, SpecTimeout(2*time.Minute))
+
 	It("refuses a Workflow with an inline template", func(ctx SpecContext) {
 		name := fmt.Sprint("inline-", time.Now().Unix())
 		Expect(kube.Apply(ctx, "ci", fmt.Sprintf(`{"apiVersion": "argoproj.io/v1alpha1", "kind": "Workflow", "metadata": {"name": %q},
@@ -188,5 +252,11 @@ var _ = Describe("CIRestrictions", Label("sandbox", "ci"), func() {
 		pods, err := kube.Kubectl(ctx, "ci", "get", "pods", "-l", "workflows.argoproj.io/workflow="+name, "-o", "name")
 		Expect(err).NotTo(HaveOccurred(), pods)
 		Expect(strings.TrimSpace(pods)).To(BeEmpty(), "the inline template ran")
+
+		// Nobody changes a run's arguments afterwards (editors may patch Workflows to stop or retry them)
+		out, err := kube.Kubectl(ctx, "ci", "patch", "workflows.argoproj.io", name, "--dry-run=server", "--as="+editor, "--type=merge",
+			"-p", `{"spec": {"arguments": {"parameters": [{"name": "event", "value": "push"}]}}}`)
+		Expect(err).To(HaveOccurred(), out)
+		Expect(out).To(ContainSubstring("do not change after it is created"))
 	}, SpecTimeout(5*time.Minute))
 })

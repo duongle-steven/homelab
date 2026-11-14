@@ -1,0 +1,47 @@
+{{- /*
+Only the Sensor publishes. A run with event=push builds, pushes, signs and attests what its parameters name, and Strict
+template referencing still lets a submitter set a Workflow's arguments and entrypoint (Argo Server's Submit dialog
+offers both): an editor could otherwise sign an unmerged commit as the default branch's, or run the sign step alone on
+any digest. So in namespace ci only the Sensor's ServiceAccount creates a run with event=push, every run starts at the
+golden path's entrypoint, and nobody changes a run's arguments or entrypoint afterwards (editors may patch Workflows:
+resubmit, retry, stop). Native, like the seccomp policies: the API server evaluates it while Kyverno is down. A manual
+run (any event but push) builds without publishing; resubmitting a push run is refused.
+*/ -}}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: ci-workflow-arguments
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - {apiGroups: [argoproj.io], apiVersions: ["*"], operations: [CREATE, UPDATE], resources: [workflows]}
+  variables:
+    - name: entrypoint
+      expression: "has(object.spec.entrypoint) ? string(object.spec.entrypoint) : ''"
+    - name: push
+      expression: |-
+        has(object.spec.arguments) && has(object.spec.arguments.parameters)
+        && object.spec.arguments.parameters.exists(p, has(p.name) && p.name == 'event' && has(p.value) && p.value == 'push')
+  validations:
+    - expression: "variables.entrypoint == '' || variables.entrypoint == 'main'"
+      message: "a run in ci starts at the golden path's entrypoint (main)"
+    - expression: "request.operation != 'CREATE' || !variables.push || request.userInfo.username == 'system:serviceaccount:{{ .Release.Namespace }}:ci-sensor'"
+      message: "only the Sensor starts a run with event=push (it publishes and signs); a manual run builds without publishing"
+    - expression: |-
+        request.operation != 'UPDATE'
+        || ((has(object.spec.arguments) ? object.spec.arguments : {}) == (has(oldObject.spec.arguments) ? oldObject.spec.arguments : {})
+          && variables.entrypoint == (has(oldObject.spec.entrypoint) ? string(oldObject.spec.entrypoint) : ''))
+      message: "a run's arguments and entrypoint do not change after it is created"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: ci-workflow-arguments
+spec:
+  policyName: ci-workflow-arguments
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ .Release.Namespace }}
