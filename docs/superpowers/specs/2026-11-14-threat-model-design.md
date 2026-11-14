@@ -71,9 +71,23 @@ Ordered by what a person running this homelab would lose, most first. Each names
 Pod Security `restricted`, pinned images, allowed registries and the image signatures (`verify-lab-image`, `verify-ci-images`) report but
 block nothing. 10f's final review showed the cost: the build pod broke a restricted rule and nothing noticed until a reviewer read it.
 
-Proposal *(Claude's call)*: 15b-2 (Enforce, after restricting who may create a `PolicyException`) becomes a precondition of 12b-3, not a later
-step. It needs the sandbox's PolicyReports clean first, the golden path's pods rendered for the policy check (10f's deferred minor), and the
-first release's signatures (lab's image) verified.
+The window is small, though: every workload from git already passes the same policies in the pull request's basic check `policy`, Pod
+Security Admission enforces `baseline` (privileged, host paths and namespaces, dangerous capabilities) whatever Kyverno says, and the native
+admission policies (the build's seccomp, `ci-workflow-arguments`) refuse on their own. What Audit leaves open is what no render shows (pods an
+operator makes: Ceph, CloudNativePG, Trivy's scans, the golden path's steps) and the image signatures, which only someone already able to
+create pods could get around.
+
+Decision *(user, 2026-11-14)*: production starts in Audit (12b-3) and switches to Enforce (15b-2) after a short window of reading its own
+PolicyReports: production runs workloads the sandbox never does (cloudflared, the VPN routers, jellyfin, Ceph's daemons, kube-vip, Renovate's
+initContainer), whose reports exist nowhere else, and the `skip` results show which `PolicyException`s are still used and which can go.
+Enforcing before 12b-3 would risk refusing those pods on the first deploy. During the window:
+
+- an alert on a new `fail` result in a PolicyReport (today only `PolicyException` changes outside Argo CD alert), so the window does not depend
+  on someone reading the reports;
+- nothing new is published and nobody outside the household joins org `ci`;
+- Enforce comes before step 13 at the latest, and within about two weeks when the reports are clean; it also needs who may create a
+  `PolicyException` restricted, the golden path's pods rendered for the policy check (10f's deferred minor) and the first release's signatures
+  (lab's image) verified.
 
 ### G2. The nodes' cluster ports are open to the whole LAN (E3)
 
@@ -166,10 +180,11 @@ sign-in through Kanidm only (as today).
 
 *(Claude's call)*, to debate:
 
-1. Before 12b-3 (the first production deploy): G2 (node ports, proven on the testbed) and G1 (15b-2 Enforce).
-2. With step 13: G3 and G4, as preconditions of publishing Kanidm and starting the VPS.
-3. After 12b-3: G6 (admin path) as its own step; G9 with the backup bucket's next change.
-4. Ideas: G5 (segmentation), G10 (Matrix public).
+1. Before 12b-3 (the first production deploy): G2 (node ports, proven on the testbed) and G1's alert on new `fail` results.
+2. After 12b-3, within about two weeks of production's reports and before step 13 at the latest: G1 (15b-2 Enforce) *(user, 2026-11-14)*.
+3. With step 13: G3 and G4, as preconditions of publishing Kanidm and starting the VPS.
+4. After 12b-3: G6 (admin path) as its own step; G9 with the backup bucket's next change.
+5. Ideas: G5 (segmentation), G10 (Matrix public).
 
 ## How it stays current
 
