@@ -1,5 +1,6 @@
-# Logs: Loki stores them (single binary, filesystem on its PVC, 30 days); Alloy (DaemonSet) reads every pod's log on its
-# node and the cluster's events. Grafana's data source: http://loki.loki:3100
+# Logs: Loki stores them (single binary, filesystem on its PVC, 30 days); the OpenTelemetry Collectors
+# (system/opentelemetry) send every pod's log, the audit logs and the cluster's events over OTLP. Grafana's data source:
+# http://loki.loki:3100
 loki:
   deploymentMode: Monolithic
   loki:

@@ -85,7 +85,7 @@ The fourteen warnings outside section 5's manual policy checks (section 5 is wha
 | 1.2.9 `EventRateLimit` | Left: an alpha admission plugin needing its own config file |
 | 1.2.11 `AlwaysPullImages` | Left: every image is pinned, and pulling at every start would make a power cut's recovery wait on the registries |
 | 1.2.17 `audit-log-maxage` | Fixed: 30 days, on the nodes and k3d (the size and backup limits still bound it) |
-| 1.2.18 `audit-log-maxbackup` | Left at 3: Alloy ships the audit log to Loki, which keeps 60 days ([Security logs](security-logs.md)) |
+| 1.2.18 `audit-log-maxbackup` | Left at 3: the OpenTelemetry agent ships the audit log to Loki, which keeps 60 days ([Security logs](security-logs.md)) |
 | 1.2.20 `request-timeout` | Left at the default |
 | 1.3.1 `terminated-pod-gc-threshold` | Left at the default |
 | 3.1.1 to 3.1.3 authentication for users | People sign in through Kanidm to the apps; only the admin kubeconfig uses a client certificate, kept on the workstation |

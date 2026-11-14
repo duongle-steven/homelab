@@ -109,7 +109,7 @@ groups:
           source: audit
         annotations:
           summary: 'No line from the API server''s audit log for 15 minutes'
-          description: 'Check Alloy on the server nodes and the audit flags (infra/_modules/metal/flake/profiles/k3s-server.nix)'
+          description: 'Check the OpenTelemetry agent on the server nodes and the audit flags (infra/_modules/metal/flake/profiles/k3s-server.nix)'
       # OpenBao is quieter (ESO and its stores' checks, the hourly snapshot): two hours
       - alert: AuditLogsMissing
         expr: absent_over_time({service_name="openbao-audit"}[2h])
@@ -119,4 +119,4 @@ groups:
           source: audit
         annotations:
           summary: 'No line from OpenBao''s audit device for 2 hours'
-          description: 'Check bao audit list (admin role) and Alloy''s audit/openbao relabelling (system/loki)'
+          description: 'Check bao audit list (admin role) and the agent''s openbao-audit route (system/opentelemetry)'

@@ -1,7 +1,7 @@
 {{- /*
 The agent: one Collector per node (a DaemonSet the Operator runs as agent-collector). It reads every pod's log and the
 API server's audit log on its node and sends them to Loki over OTLP itself, through a queue kept on the node with its
-read positions: lines read while Loki is down survive the agent's restart, as Alloy's write-ahead log did (step 9).
+read positions: lines read while Loki is down survive the agent's restart.
 Labels follow OpenTelemetry's conventions (Loki indexes service.name and the k8s.* resource attributes it knows).
 */ -}}
 apiVersion: opentelemetry.io/v1beta1
@@ -115,7 +115,7 @@ spec:
             - k8s.cronjob.name
             - k8s.job.name
           labels:
-            # The app's name (app.kubernetes.io/name), as Alloy's label app was; Loki's service_name
+            # The app's name (app.kubernetes.io/name): Loki's service_name
             - tag_name: service.name
               key: app.kubernetes.io/name
               from: pod

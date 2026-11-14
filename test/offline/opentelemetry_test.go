@@ -2,6 +2,7 @@ package offline
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -134,4 +135,15 @@ func TestNoOldLogLabels(t *testing.T) {
 			assert.Empty(t, old.FindAllString(string(content), -1), file)
 		}
 	}
+}
+
+// Alloy is gone (step OpenTelemetry): no file names it any more, except the history (docs/superpowers, CLAUDE.md's
+// step 9), this test, and two comments whose files rebuild something when they change (the node flake gates releases
+// on the testbed, k3d.yaml recreates the sandbox's cluster): deferred-minors.md tracks them
+func TestNoAlloy(t *testing.T) {
+	cmd := exec.Command("git", "grep", "-il", "alloy", "--", ".", ":!docs/superpowers/**", ":!CLAUDE.md", ":!test/offline/opentelemetry_test.go",
+		":!infra/_modules/metal/flake/profiles/k3s-server.nix", ":!infra/_modules/k3d/k3d.yaml")
+	cmd.Dir = repo.Root()
+	out, _ := cmd.Output()
+	assert.Empty(t, strings.TrimSpace(string(out)), "files still naming Alloy")
 }

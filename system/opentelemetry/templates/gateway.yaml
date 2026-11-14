@@ -40,7 +40,7 @@ spec:
             endpoint: 0.0.0.0:4317
           http:
             endpoint: 0.0.0.0:4318
-      # Every namespace's events, as Alloy's loki.source.kubernetes_events did
+      # Every namespace's events
       k8sobjects:
         auth_type: serviceAccount
         objects:
