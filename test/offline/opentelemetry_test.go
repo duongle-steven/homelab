@@ -1,8 +1,13 @@
 package offline
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/duongle-steven/homelab/test/internal/repo"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -116,5 +121,18 @@ func TestToolsExportTraces(t *testing.T) {
 		ini := renderVelero(t, "platform/grafana", env, `select(.kind == "ConfigMap" and .metadata.name == "grafana") | .data["grafana.ini"]`)
 		assert.Contains(t, ini, "[tracing.opentelemetry.otlp]\naddress = gateway-collector.opentelemetry:4317", env)
 		assert.Contains(t, ini, "[tracing.opentelemetry]\npropagation = w3c", env)
+	}
+}
+
+// Logs arrive with OpenTelemetry's labels (step OpenTelemetry): no alert, no dashboard panel selects a stream by
+// Alloy's old labels (job, namespace, pod, container, app), which nothing writes any more
+func TestNoOldLogLabels(t *testing.T) {
+	old := regexp.MustCompile(`\{[^{}]*\b(job|namespace|pod|container|app)\s*(=~|!=|=)`)
+	for _, file := range []string{"system/loki/files/audit-rules.yaml", "system/loki/files/falco-rules.yaml",
+		"system/loki/files/public-scan-rules.yaml", "system/monitoring-system/files/security-dashboard.json"} {
+		content, err := os.ReadFile(filepath.Join(repo.Root(), file))
+		if assert.NoError(t, err) {
+			assert.Empty(t, old.FindAllString(string(content), -1), file)
+		}
 	}
 }
