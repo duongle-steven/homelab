@@ -47,6 +47,14 @@ runs:
         mkdir -p sandbox-state
         cp just-dev.log sandbox-state/ 2>/dev/null || true
         export KUBECONFIG="$PWD/infra/sandbox/kubeconfig.yaml"
+        # Whether the node's container or k3s restarted, and why (a release's run once lost k3s mid-suite with nothing
+        # else to show): Docker's view of the container, the runner's memory and kernel OOM kills, and k3s's own errors
+        # (its log is the container's output: only error lines and restarts, since the artifact is public)
+        docker inspect -f '{{json .State}}' k3d-homelab-dev-server-0 > sandbox-state/node-container.json 2>&1 || true
+        docker stats --no-stream > sandbox-state/docker-stats.txt 2>&1 || true
+        free -m > sandbox-state/memory.txt 2>&1 || true
+        { sudo dmesg -T 2>&1 | grep -iE 'oom|killed process|out of memory' || true; } > sandbox-state/oom.txt
+        { docker logs -t k3d-homelab-dev-server-0 2>&1 | grep -E 'level=(error|fatal|panic)|^[^ ]+ E[0-9]{4} |Starting k3s|signal' | tail -n 3000 || true; } > sandbox-state/k3s-errors.log
         # shellcheck disable=SC2016 # the inner script expands its own variables
         nix develop --command sh -c '
           kubectl get pods -A -o wide > sandbox-state/pods.txt 2>&1
