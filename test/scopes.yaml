@@ -141,7 +141,7 @@ groups:
     tests: rotation
   - paths: [system/loki/**]
     tests: logs
-  - paths: [system/opentelemetry/**]
+  - paths: [system/opentelemetry/**, system/tempo/**]
     tests: logs
   - paths: [system/kiali/**]
     tests: kiali

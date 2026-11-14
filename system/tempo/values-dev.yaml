@@ -1,0 +1,5 @@
+tempo:
+  tempo:
+    retention: 24h
+  persistence:
+    size: 2Gi

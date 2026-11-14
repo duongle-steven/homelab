@@ -1,0 +1,34 @@
+# Tempo stores the traces the gateway Collector (system/opentelemetry) sends (docs/how-to-guides/traces.md): one
+# binary, local storage on a PVC that is never backed up (telemetry, like Loki), a week of traces
+tempo:
+  tempo:
+    tag: 3.1.1
+    reportingEnabled: false
+    retention: 168h
+    # OTLP: what the gateway Collector sends. The chart's templates require its Jaeger receivers, so they stay; the
+    # mesh admits only 4317 and 3200 (templates/authorization-policy.yaml), so nothing reaches them
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+    resources:
+      requests: {cpu: 20m, memory: 128Mi}
+      limits: {memory: 1Gi}
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
+  securityContext:
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  persistence:
+    enabled: true
+    size: 10Gi
+  serviceMonitor:
+    enabled: true
