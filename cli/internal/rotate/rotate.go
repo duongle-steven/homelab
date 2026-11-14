@@ -72,7 +72,7 @@ type Rotator struct {
 	// Deployed reports whether a reader's namespace exists (nil: every one does). --all in the sandbox skips an
 	// entry none of whose readers is deployed: it runs paperless and OpenCloud only on request
 	Deployed func(namespace string) bool
-	// Idle reports whether what (an entry's Idle: woodpecker, paperless) is idle
+	// Idle reports whether what (an entry's Idle: ci, paperless) is idle
 	Idle func(ctx context.Context, what string) (bool, error)
 	Out  io.Writer
 	// Poll is how often the idle wait looks again, Wait how long it may take
@@ -134,8 +134,8 @@ func (r *Rotator) Plan(ctx context.Context, names []string, o Options) ([]Entry,
 	return plan, nil
 }
 
-// rank is an entry's place in a run: generated secrets and ntfy, Forgejo, Kanidm, Woodpecker and zot (with the idle
-// wait), OpenTofu's, manual ones, then the entries that are only listed.
+// rank is an entry's place in a run: generated secrets and ntfy, Forgejo, Kanidm, the CI's (with the idle wait),
+// OpenTofu's, manual ones, then the entries that are only listed.
 func rank(e Entry) int {
 	switch {
 	case e.Kind == KindNever || e.Kind == KindAutomatic || e.Kind == KindScript:
@@ -144,11 +144,11 @@ func rank(e Entry) int {
 		return 6
 	case e.Kind == KindOpenTofu:
 		return 5
-	case e.Idle == "woodpecker" || e.Kind == KindWoodpeckerAgent || e.Kind == KindWoodpeckerToken:
+	case e.Idle == "ci":
 		return 4
 	case e.Kind == KindKaniopClient || e.Kind == KindKanidmAdmin:
 		return 3
-	case e.Kind == KindForgejoToken || e.Kind == KindForgejoOAuth || e.Kind == KindCNPG:
+	case e.Kind == KindForgejoToken || e.Kind == KindCNPG:
 		return 2
 	default:
 		return 1
@@ -401,8 +401,8 @@ func (r *Rotator) overdue(ctx context.Context, e Entry, o Options) (bool, error)
 
 // idleWhat names what an idle wait waits for
 var idleWhat = map[string]string{
-	"woodpecker": "Woodpecker to have no running pipeline",
-	"paperless":  "paperless to have no queued task",
+	"ci":        "the golden path to have no running step",
+	"paperless": "paperless to have no queued task",
 }
 
 func (r *Rotator) waitIdle(ctx context.Context, what string) error {

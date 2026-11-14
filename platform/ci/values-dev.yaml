@@ -1,0 +1,3 @@
+eventBus:
+  # One node
+  replicas: 1

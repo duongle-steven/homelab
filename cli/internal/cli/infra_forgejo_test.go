@@ -176,7 +176,7 @@ func cleanRepo(t *testing.T) (string, string) {
 	return dir, strings.TrimSpace(string(head))
 }
 
-// docs/superpowers/specs/2026-10-21-woodpecker-design.md, decision 10
+// step 10e's design, decision 10 (docs/superpowers/specs/2026-10-21-*)
 func TestPushCommitBreakGlass(t *testing.T) {
 	root, head := cleanRepo(t)
 	production, sandbox := env.Env{Name: "production", Root: root}, env.Env{Name: "sandbox", Root: root}

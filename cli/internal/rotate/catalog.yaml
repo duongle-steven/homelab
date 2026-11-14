@@ -64,43 +64,19 @@
   idle: paperless
   settings: {key: PAPERLESS_SECRET_KEY, length: 64, special: false}
 
-- name: woodpecker.agent
-  kind: woodpecker-agent
-  class: 2
-  reason: >-
-    Woodpecker keeps the secret an agent registered with as its row's token, so the rotation deletes every agent row
-    and the agents' ids and registers them again with the new one: CI stops meanwhile (after the idle wait)
-  period: 2160h
-  paths: [woodpecker/generated/agent]
-  readers:
-    - namespace: woodpecker
-      externalSecrets: [woodpecker-secret, woodpecker-agent]
-      workloads: [{kind: StatefulSet, name: woodpecker-server}, {kind: StatefulSet, name: woodpecker-agent}]
-  idle: woodpecker
-  settings: {key: secret, length: 32, special: false, server: woodpecker-server, agents: woodpecker-agent}
-
-- name: woodpecker.admin-token
-  kind: woodpecker-token
-  class: 1
-  reason: only lab reads it; the token reset ends every earlier token of that user
-  period: 2160h
-  paths: [woodpecker/admin-token]
-  steps: >-
-    The first token needs a person: Forgejo's site admin (WOODPECKER_ADMIN) signs in to Woodpecker once and writes
-    the token with the admin role (docs/how-to-guides/woodpecker.md)
-
 - name: registry.ci
-  kind: generated-org-secret
+  kind: generated
   class: 2
   reason: >-
-    zot's htpasswd and Woodpecker's org secret registry_password change together (through Woodpecker's API with
-    woodpecker.admin-token, checked first); wait for no running pipeline
+    zot's htpasswd (user ci) and the golden path's push read it together (platform/zot, platform/ci); a build that
+    starts while they differ fails, so the rotation waits for no running step of the golden path
   period: 2160h
-  paths: [zot/generated/ci]
+  paths: [zot/generated/ci, ci/generated/registry]
   readers:
     - {namespace: zot, externalSecrets: [zot-auth], workloads: [{kind: StatefulSet, name: zot}]}
-  idle: woodpecker
-  settings: {org-secret: registry_password, woodpecker-org: ci, key: password, length: 32, special: false}
+    - {namespace: ci, externalSecrets: [registry]}
+  idle: ci
+  settings: {key: password, length: 32, special: false}
 
 - name: ntfy.alerts-token
   kind: ntfy-overlap
@@ -165,14 +141,43 @@
     - {namespace: argocd, externalSecrets: [argocd-repo-forgejo]}
   settings: {account: argocd}
 
-- name: forgejo.woodpecker-oauth
-  kind: forgejo-oauth
-  class: 2
-  reason: Forgejo regenerates the OAuth2 application's secret with no overlap, so a login fails until Woodpecker restarts
-  paths: [woodpecker/forgejo]
+- name: forgejo.ci-bot-token
+  # Its method needs Forgejo's admin password, which reaches ops/homelab and so the cluster: never the CronJob's
+  workstation: true
+  kind: forgejo-token
+  class: 0
+  reason: a new Forgejo access token is created, then the old one deleted; each step reads the Secret at its start
+  period: 2160h
+  paths: [ci/forgejo-token]
   readers:
-    - {namespace: woodpecker, externalSecrets: [woodpecker-secret], workloads: [{kind: StatefulSet, name: woodpecker-server}]}
-  idle: woodpecker
+    - {namespace: ci, externalSecrets: [forgejo]}
+  settings: {account: ci-bot}
+
+- name: ci.webhook
+  kind: manual
+  class: 1
+  reason: >-
+    Forgejo's org ci webhook sends it to Argo Events' EventSource, which refuses a request without it; between the two
+    changes a push builds nothing (push again). Only Forgejo's pods reach the EventSource (platform/ci's allow)
+  paths: [ci/generated/webhook]
+  readers:
+    - {namespace: ci, externalSecrets: [webhook]}
+  steps: >-
+    Write a new random value to ci/generated/webhook (key token) with the admin role, run lab infra forgejo sync
+    (Forgejo's hook gets it), then restart the EventSource (kubectl -n ci rollout restart deployment -l
+    eventsource-name=forgejo)
+  settings: {key: token, length: 32, special: false}
+
+- name: ci.signing-key
+  kind: manual
+  class: 1
+  reason: >-
+    OpenBao's transit key ci-signing, which signs the golden path's images and never leaves OpenBao. A new version
+    signs from then on while the old ones still verify only if Kyverno knows them, so it is rotated by a person
+  steps: >-
+    Rotate it with the admin role (bao write -f transit/keys/ci-signing/rotate), sync platform/ci in Argo CD (its
+    PostSync Job copies the new public key to ci/ci-signing-public-key), then rebuild the images still running that the
+    old version signed (docs/how-to-guides/in-cluster-ci.md)
 
 - name: kanidm-client.actualbudget
   kind: kaniop-client
@@ -213,6 +218,14 @@
   readers:
     - {namespace: kiali, workloads: [{kind: Deployment, name: kiali}]}
   settings: {client: kiali, namespace: kiali}
+
+- name: kanidm-client.argo-workflows
+  kind: kaniop-client
+  class: 2
+  reason: a login to the CI's UI fails until Argo Server restarts (it reads the secret at start); pipelines run on
+  readers:
+    - {namespace: argo-workflows, workloads: [{kind: Deployment, name: argo-workflows-server}]}
+  settings: {client: argo-workflows, namespace: argo-workflows}
 
 - name: kanidm-client.matrix
   kind: kaniop-client

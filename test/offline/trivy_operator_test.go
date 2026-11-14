@@ -69,6 +69,16 @@ func TestTrivyOperatorRender(t *testing.T) {
 				}
 				assert.NotEqual(t, "0", parts[2], "%s has no statement", parts[0])
 			}
+			// The basic check images accepts a CVE only in an image the cluster runs, so the operator accepts it too:
+			// otherwise the cluster alerts on what the pull request accepted (step 10f's argo-events)
+			accepted := strings.Fields(renderTrivyOperator(t, e, ignore+` | .id`))
+			cmd := exec.Command("yq", "-N", ".vulnerabilities[].id", ".trivyignore.yaml")
+			cmd.Dir = repo.Root()
+			ids, err := cmd.Output()
+			require.NoError(t, err)
+			for _, id := range strings.Fields(string(ids)) {
+				assert.Contains(t, accepted, id, "%s is accepted in .trivyignore.yaml but not by the operator (values.yaml)", id)
+			}
 
 			rule := func(name, field string) string {
 				return renderTrivyOperator(t, e, `select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(.alert == "`+name+`") | `+field)

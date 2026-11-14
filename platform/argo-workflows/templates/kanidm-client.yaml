@@ -1,0 +1,34 @@
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmOAuth2Client
+metadata:
+  name: argo-workflows
+  namespace: {{ .Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+    namespace: kanidm
+  displayname: Argo Workflows
+  origin: https://{{ .Values.host }}.{{ .Values.global.baseDomain }}
+  redirectUrl:
+    - https://{{ .Values.host }}.{{ .Values.global.baseDomain }}/oauth2/callback
+  disableConsentPrompt: true
+  preferShortUsername: true
+  strictRedirectUrl: true
+  # Argo Server's OIDC client (v4.1.6, server/auth/sso) sends no PKCE, which Kanidm otherwise requires; a confidential
+  # client, so its secret still proves it
+  allowInsecureClientDisablePkce: true
+  # Short, domain-free group names for the rbac-rules (templates/sso-rbac.yaml)
+  claimMap:
+    - name: homelab_groups
+      joinStrategy: array
+      valuesMap:
+        {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+        - group: {{ . }}
+          values:
+            - {{ . }}
+        {{- end }}
+  scopeMap:
+    {{- range list "homelab-admins" "homelab-editors" "homelab-users" }}
+    - group: {{ . }}
+      scopes: [openid, profile, email, groups]
+    {{- end }}

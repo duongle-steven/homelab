@@ -72,7 +72,7 @@ flowchart TD
 
   subgraph platform[./platform]
     Forgejo
-    Woodpecker
+    argo-workflows[Argo Workflows and Events]
     Grafana
   end
 

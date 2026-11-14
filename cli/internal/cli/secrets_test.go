@@ -16,6 +16,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/ptr"
 )
@@ -157,7 +161,7 @@ func TestSecretsList(t *testing.T) {
 		"ntfy.alerts-token":     {"ntfy-overlap", "90d", "2026-09-01 03:00:00 by rotation-job", "2026-11-30"},
 		"grafana.admin":         {"app-password", "command", "never (interrupted after switched"},
 		"openbao.unseal-key":    {"never", "-"},
-		"woodpecker.agent":      {"90d", "now"},
+		"registry.ci":           {"90d", "now"},
 		"kanidm-client.grafana": {"kaniop-client", "2"},
 	} {
 		for _, w := range want {
@@ -176,6 +180,7 @@ func TestSecretsListDueWorkstation(t *testing.T) {
 		"cloudflare.external-dns": {Phase: rotate.PhaseDone, At: recent, By: "steven"},
 		"backup.r2-token":         {Phase: rotate.PhaseDone, At: recent, By: "steven"},
 		"forgejo.deploy-token":    {Phase: rotate.PhaseDone, At: time.Now().Add(-95 * 24 * time.Hour), By: "steven"},
+		"forgejo.ci-bot-token":    {Phase: rotate.PhaseDone, At: time.Now().Add(-1 * 24 * time.Hour), By: "steven"},
 		"forgejo.argocd-token":    {Phase: rotate.PhaseDone, At: recent, By: "steven"},
 		"ntfy.alerts-token":       {Phase: rotate.PhaseDone, At: time.Now().Add(-200 * 24 * time.Hour), By: "rotation-job"},
 	})
@@ -191,22 +196,31 @@ func TestSecretsListDueWorkstation(t *testing.T) {
 	}
 }
 
-func TestIdleWoodpecker(t *testing.T) {
+// The golden path is idle when no Workflow in ci is pending or running: between two steps a running Workflow has no
+// pod, and the next step would read the rotated secret while zot still holds the old one
+func TestIdleCI(t *testing.T) {
 	ctx := context.Background()
-	step := func(name string, phase corev1.PodPhase) *corev1.Pod {
-		return &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "woodpecker", Labels: map[string]string{"woodpecker-ci.org/step": "build"}},
-			Status:     corev1.PodStatus{Phase: phase},
+	workflow := func(name, phase string) *unstructured.Unstructured {
+		w := &unstructured.Unstructured{Object: map[string]any{"apiVersion": "argoproj.io/v1alpha1", "kind": "Workflow",
+			"metadata": map[string]any{"name": name, "namespace": "ci"}}}
+		if phase != "" {
+			w.Object["status"] = map[string]any{"phase": phase}
+		}
+		return w
+	}
+	dyn := func(objects ...runtime.Object) *dynamicfake.FakeDynamicClient {
+		return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{workflows: "WorkflowList"}, objects...)
+	}
+	if ok, err := idle(ctx, fake.NewClientset(), dyn(workflow("done", "Succeeded"), workflow("broke", "Failed")), nil, "ci"); err != nil || !ok {
+		t.Fatalf("no running Workflow: %v, %v", ok, err)
+	}
+	// A Workflow the controller has not picked up yet has no phase
+	for _, phase := range []string{"Running", "Pending", ""} {
+		if ok, err := idle(ctx, fake.NewClientset(), dyn(workflow("done", "Succeeded"), workflow("busy", phase)), nil, "ci"); err != nil || ok {
+			t.Fatalf("a Workflow in phase %q: %v, %v", phase, ok, err)
 		}
 	}
-	server := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "woodpecker-server-0", Namespace: "woodpecker"}, Status: corev1.PodStatus{Phase: corev1.PodRunning}}
-	if ok, err := idle(ctx, fake.NewClientset(server, step("done", corev1.PodSucceeded)), nil, "woodpecker"); err != nil || !ok {
-		t.Fatalf("no running step: %v, %v", ok, err)
-	}
-	if ok, err := idle(ctx, fake.NewClientset(server, step("build", corev1.PodRunning)), nil, "woodpecker"); err != nil || ok {
-		t.Fatalf("a running step: %v, %v", ok, err)
-	}
-	if _, err := idle(ctx, fake.NewClientset(), nil, "nothing"); err == nil {
+	if _, err := idle(ctx, fake.NewClientset(), dyn(), nil, "nothing"); err == nil {
 		t.Fatal("an unknown idle check reported idle")
 	}
 }
@@ -226,16 +240,16 @@ func (r redisExec) Exec(_ context.Context, namespace string, w workload.Ref, con
 func TestIdlePaperless(t *testing.T) {
 	ctx := context.Background()
 	var command []string
-	if ok, err := idle(ctx, fake.NewClientset(), redisExec{out: "0\n", command: &command}, "paperless"); err != nil || !ok {
+	if ok, err := idle(ctx, fake.NewClientset(), nil, redisExec{out: "0\n", command: &command}, "paperless"); err != nil || !ok {
 		t.Fatalf("an empty queue: %v, %v", ok, err)
 	}
 	if !slices.Equal(command[:4], []string{"paperless", "paperless", "redis", "redis-cli"}) {
 		t.Fatalf("ran %q", command)
 	}
-	if ok, err := idle(ctx, fake.NewClientset(), redisExec{out: "2\n", command: &command}, "paperless"); err != nil || ok {
+	if ok, err := idle(ctx, fake.NewClientset(), nil, redisExec{out: "2\n", command: &command}, "paperless"); err != nil || ok {
 		t.Fatalf("two queued tasks: %v, %v", ok, err)
 	}
-	if _, err := idle(ctx, fake.NewClientset(), redisExec{out: "ERR\n", command: &command}, "paperless"); err == nil {
+	if _, err := idle(ctx, fake.NewClientset(), nil, redisExec{out: "ERR\n", command: &command}, "paperless"); err == nil {
 		t.Fatal("a redis error reported idle")
 	}
 }

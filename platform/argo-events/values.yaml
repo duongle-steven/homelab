@@ -1,0 +1,39 @@
+# Argo Events' controller (step 10f, docs/how-to-guides/in-cluster-ci.md): it runs the EventBus, EventSource and Sensor that
+# platform/ci declares in namespace ci, where Forgejo's webhook becomes a Workflow
+argo-events:
+  crds:
+    install: true
+    keep: true
+  global:
+    # The image's user is root: a numeric non-root user (the static binary needs none of root's rights)
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+  controller:
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+    resources:
+      requests: {cpu: 10m, memory: 64Mi}
+  # The admission webhook only validates these resources' specs: off, so nothing in the API server's path depends on it
+  webhook:
+    enabled: false
+  configs:
+    jetstream:
+      # The versions an EventBus may name (platform/ci names 2.15.3): the chart's own list stops at nats 2.10.29 with the
+      # exporter and reloader 0.14.0, which carry CRITICAL CVEs with fixes; NATS's latest images instead
+      versions:
+        - version: 2.15.3
+          natsImage: nats:2.15.3
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.20.3
+          configReloaderImage: natsio/nats-server-config-reloader:0.25.0
+          startCommand: /nats-server

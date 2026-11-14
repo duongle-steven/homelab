@@ -8,7 +8,7 @@ import (
 )
 
 // The scheduled rotation (platform/secrets-rotation): daily at 03:00, one run at a time, suspended until production
-// has lab's image; it may exec only into ntfy and delete claims only in woodpecker (step 11b)
+// has lab's image; it may exec only into ntfy and list pods without restarting any only in ci (step 11b, step 10f)
 func TestSecretsCronJobRender(t *testing.T) {
 	const cron = `select(.kind == "CronJob")`
 	assert.Equal(t, `0 3 * * *`, renderVelero(t, "platform/secrets-rotation", "", cron+` | .spec.schedule`))
@@ -22,14 +22,14 @@ func TestSecretsCronJobRender(t *testing.T) {
 
 	roles := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role") | .metadata.namespace`)
 	// Not argocd: Forgejo's tokens rotate from the workstation
-	assert.ElementsMatch(t, []string{"secrets-rotation", "openbao", "velero", "monitoring-system", "ntfy", "woodpecker", "zot"}, strings.Fields(roles))
+	assert.ElementsMatch(t, []string{"secrets-rotation", "openbao", "velero", "monitoring-system", "ntfy", "ci", "zot"}, strings.Fields(roles))
 	exec := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and (.rules[].resources[] == "pods/exec")) | .metadata.namespace`)
 	assert.Equal(t, "ntfy", exec)
-	claims := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and (.rules[].resources[] == "persistentvolumeclaims")) | .metadata.namespace`)
-	assert.Equal(t, "woodpecker", claims)
+	assert.Empty(t, renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and (.rules[].resources[] == "persistentvolumeclaims")) | .metadata.namespace`))
+	// The golden path's idle wait lists its runs; nothing there is restarted or deleted
+	assert.Equal(t, "argoproj.io workflows get,list", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "ci") | .rules[] | select(.resources[0] != "externalsecrets") | .apiGroups[0] + " " + (.resources | join(",")) + " " + (.verbs | join(","))`))
 	// Only named objects are changed: Alertmanager's namespace allows refreshing one ExternalSecret and nothing else
 	assert.Equal(t, "externalsecrets ntfy", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "monitoring-system") | .rules[] | .resources[0] + " " + (.resourceNames | join(","))`))
-	assert.Equal(t, "agent-config-woodpecker-agent-0,agent-config-woodpecker-agent-1", renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and .metadata.namespace == "woodpecker") | .rules[] | select(.resources[0] == "persistentvolumeclaims") | .resourceNames | join(",")`))
 	// A new cluster is not overdue: the CronJob counts from its creation until its first success
 	assert.Contains(t, renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "PrometheusRule") | .spec.groups[0].rules[] | select(.alert == "SecretRotationOverdue") | .expr`), "kube_cronjob_created")
 	assert.Equal(t, "production", renderVelero(t, "platform/secrets-rotation", "", pod+` | .containers[0].env[] | select(.name == "HOMELAB_ENV") | .value`))

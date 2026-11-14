@@ -1,0 +1,41 @@
+{{- /*
+The controller's configuration (the chart's own is off, values.yaml): Argo Server signs people in with Kanidm, and a
+Workflow must reference the golden path's templates (platform/ci) instead of carrying its own (step 10f)
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: workflow-controller-configmap
+  namespace: {{ .Release.Namespace }}
+data:
+  config: |
+    # Plain HTTP for Prometheus' ServiceMonitor: its own TLS (a self-signed certificate, the default) answered the
+    # scrape 400; the mesh encrypts it already (ztunnel's mTLS)
+    metricsConfig:
+      enabled: true
+      secure: false
+    workflowRestrictions:
+      templateReferencing: Strict
+    # Argo's own containers in every Workflow pod (init and wait, argoexec, whose user is 8737): no seccomp profile
+    # here, which would keep a build from getting homelab/buildah.json (platform/ci); the pod's profile applies
+    executor:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 8737
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+    sso:
+      issuer: https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/argo-workflows
+      clientId:
+        name: argo-workflows-kanidm-oauth2-credentials
+        key: CLIENT_ID
+      clientSecret:
+        name: argo-workflows-kanidm-oauth2-credentials
+        key: CLIENT_SECRET
+      redirectUrl: https://{{ .Values.host }}.{{ .Values.global.baseDomain }}/oauth2/callback
+      scopes: [groups]
+      # Short role group names from the client's claimMap (templates/kanidm-client.yaml)
+      customGroupClaimName: homelab_groups
+      rbac:
+        enabled: true

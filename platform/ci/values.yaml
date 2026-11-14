@@ -1,0 +1,24 @@
+# The CI's namespace (step 10f, docs/how-to-guides/in-cluster-ci.md): Forgejo's org ci webhook becomes, through Argo Events, a
+# Workflow of the golden path's template (templates/pipeline.yaml), whose pods run here
+webhook:
+  port: 12000
+  path: /forgejo
+eventBus:
+  # JetStream takes 1 or at least 3 replicas (Argo Events v1.9.11's validation); the version is one platform/argo-events
+  # declares (NATS's latest images). No persistence: an event lost in a restart is a push to repeat
+  replicas: 3
+  version: 2.15.3
+# The golden path's images (templates/pipeline.yaml), pinned. Buildah: the version step 15h measured its seccomp
+# profile with (infra/_modules/metal/flake/seccomp/README.md: measure again before moving past it)
+images:
+  git: docker.io/alpine/git:v2.54.0
+  yq: docker.io/mikefarah/yq:4.54.3
+  buildah: quay.io/buildah/stable:v1.43.5
+  syft: docker.io/anchore/syft:v1.57.1
+  # The -dev image has a shell, which the signing script needs; the same cosign
+  cosign: ghcr.io/sigstore/cosign/cosign:v3.1.4-dev
+  # platform/openbao's server image, for its bao CLI
+  openbao: quay.io/openbao/openbao:2.7.1
+  curl: docker.io/curlimages/curl:8.23.0
+# The sandbox and the testbed trust their local CA (values-local.yaml)
+devCA: false

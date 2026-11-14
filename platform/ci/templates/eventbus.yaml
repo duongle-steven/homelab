@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: EventBus
+metadata:
+  name: default
+  namespace: {{ .Release.Namespace }}
+spec:
+  jetstream:
+    version: {{ .Values.eventBus.version | quote }}
+    replicas: {{ .Values.eventBus.replicas }}
+    # The stream's replicas follow the bus's: its default (3) cannot be created on the sandbox's one, and the Sensor and
+    # EventSource then exit
+    streamConfig: |
+      replicas: {{ .Values.eventBus.replicas }}
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containerTemplate:
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+    reloaderContainerTemplate:
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+    metricsContainerTemplate:
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]

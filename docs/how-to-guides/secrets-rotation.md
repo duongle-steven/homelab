@@ -3,7 +3,7 @@
 Every secret the homelab makes is in a catalog (`cli/internal/rotate/catalog.yaml`) that says where it lives, who
 reads it, how it is replaced and how often. `lab` replaces it by its own method, with no outage where the other side
 allows two values at once (several tokens per user, a new token before the old one goes), and otherwise with the
-shortest one it can: a restart of the readers, after waiting for Woodpecker to have no running pipeline. The design is
+shortest one it can: a restart of the readers, after waiting for the golden path to have no running step. The design is
 [step 11b's](../superpowers/specs/2026-10-24-secrets-rotation-design.md).
 
 ## What is due
@@ -64,9 +64,9 @@ The CronJob `secrets-rotation/secrets-rotation` runs `lab secrets rotate --sched
 `global.timezone`): the entries with a period (90 days) whose turn came, counted from their creation until their first
 rotation, and the interrupted ones. It never runs manual or workstation entries (OpenTofu's, Forgejo's tokens), and leaves an interrupted rotation by
 command to a person. Its Kubernetes access names what those entries need (each namespace's ExternalSecrets, workloads
-and Woodpecker's agent claims) and OpenBao's role `rotator` their paths; `lab secrets check` keeps both in step with
+and the golden path's pods it waits on) and OpenBao's role `rotator` their paths; `lab secrets check` keeps both in step with
 the catalog. It never holds Forgejo's admin password (which reaches `ops/homelab`, what Argo CD deploys): taken over,
-it reaches the scheduled entries' secrets (ntfy's, zot's `ci` password, Woodpecker's), not the cluster.
+it reaches the scheduled entries' secrets (ntfy's, zot's `ci` password), not the cluster.
 
 - A failed run alerts (`SecretRotationFailed`, through ntfy and Telegram): `kubectl -n secrets-rotation logs
   job/<job>` names the secret; fix the cause, then `lab secrets rotate <name>` finishes it.

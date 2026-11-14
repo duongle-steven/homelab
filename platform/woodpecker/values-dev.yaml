@@ -1,4 +1,0 @@
-woodpecker:
-  agent:
-    # One agent is enough for the tests (the sandbox has about 4 GiB free)
-    replicaCount: 1

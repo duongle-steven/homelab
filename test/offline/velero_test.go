@@ -98,7 +98,7 @@ func TestArgoCDBackupSync(t *testing.T) {
 }
 
 // csi-hostpath keeps volumes where k3d mounts the host's disk: the node container's own overlayfs refuses the
-// idmapped mounts of pods in user namespaces (Woodpecker's steps failed with MOUNT_ATTR_IDMAP)
+// idmapped mounts of pods in user namespaces (step 10e's Buildah steps failed with MOUNT_ATTR_IDMAP)
 func TestCSIHostPathDataOnNodeDisk(t *testing.T) {
 	cmd := exec.Command("sh", "-c", `scripts/render-chart system/csi-hostpath dev | yq -N 'select(.kind == "StatefulSet" or .kind == "DaemonSet") | .spec.template.spec.volumes[] | select(.name == "csi-data-dir") | .hostPath.path'`)
 	cmd.Dir = repo.Root()

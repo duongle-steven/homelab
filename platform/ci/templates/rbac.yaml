@@ -1,0 +1,84 @@
+{{- /*
+Who may do what in namespace ci. The Sensor only creates Workflows (and reads the template it submits). The pipeline's pods report their results to the
+controller (workflowtaskresults) and nothing else. People act through Argo Server as platform/argo-workflows'
+ServiceAccounts: admins run and manage everything, editors submit from the templates, resubmit and read logs, users
+only look
+*/ -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-sensor
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-sensor
+  namespace: {{ .Release.Namespace }}
+rules:
+  - {apiGroups: [argoproj.io], resources: [workflows], verbs: [create]}
+  # The submit trigger (argo's CLI) reads the template it submits
+  - {apiGroups: [argoproj.io], resources: [workflowtemplates], verbs: [get]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-sensor
+  namespace: {{ .Release.Namespace }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: ci-sensor}
+subjects:
+  - {kind: ServiceAccount, name: ci-sensor, namespace: {{ .Release.Namespace }}}
+{{- range $sa := list "ci-pipeline" "ci-signer" }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $sa }}
+  namespace: {{ $.Release.Namespace }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-pipeline
+  namespace: {{ .Release.Namespace }}
+rules:
+  - {apiGroups: [argoproj.io], resources: [workflowtaskresults], verbs: [create, patch]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-pipeline
+  namespace: {{ .Release.Namespace }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: ci-pipeline}
+subjects:
+  - {kind: ServiceAccount, name: ci-pipeline, namespace: {{ .Release.Namespace }}}
+  - {kind: ServiceAccount, name: ci-signer, namespace: {{ .Release.Namespace }}}
+{{- range $r := list
+  (dict "name" "ci-admin" "rules" (list
+    (dict "apiGroups" (list "argoproj.io") "resources" (list "workflows" "workflowtemplates" "cronworkflows") "verbs" (list "get" "list" "watch" "create" "update" "patch" "delete"))
+    (dict "apiGroups" (list "") "resources" (list "pods" "pods/log" "events") "verbs" (list "get" "list" "watch"))))
+  (dict "name" "ci-editor" "rules" (list
+    (dict "apiGroups" (list "argoproj.io") "resources" (list "workflows") "verbs" (list "get" "list" "watch" "create" "update" "patch"))
+    (dict "apiGroups" (list "argoproj.io") "resources" (list "workflowtemplates") "verbs" (list "get" "list" "watch"))
+    (dict "apiGroups" (list "") "resources" (list "pods" "pods/log" "events") "verbs" (list "get" "list" "watch"))))
+  (dict "name" "ci-viewer" "rules" (list
+    (dict "apiGroups" (list "argoproj.io") "resources" (list "workflows" "workflowtemplates") "verbs" (list "get" "list" "watch")))) }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $r.name }}
+  namespace: {{ $.Release.Namespace }}
+rules: {{- toYaml $r.rules | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $r.name }}
+  namespace: {{ $.Release.Namespace }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ $r.name }}}
+subjects:
+  - {kind: ServiceAccount, name: {{ $r.name }}, namespace: argo-workflows}
+{{- end }}

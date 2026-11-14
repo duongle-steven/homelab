@@ -86,21 +86,19 @@ var _ = Describe("Rotation", Ordered, ContinueOnFailure, Serial, Label("sandbox"
 		waitForApp(ctx, "https://"+grafanaHost+"/api/health")
 	}, SpecTimeout(30*time.Minute))
 
-	It("woodpecker agent", func(ctx SpecContext) {
-		// The token lab uses, as a person makes it once (docs/how-to-guides/woodpecker.md); dev-admin is the sandbox's
-		// Woodpecker admin
-		token := woodpeckerToken(ctx, "dev-admin")
-		baoPutStdin(ctx, "woodpecker/admin-token", "token", token)
+	// registry.ci: one value in zot's and ci's branches, after the golden path's idle wait; zot's htpasswd and ci's
+	// Secret follow it
+	It("registry ci", func(ctx SpecContext) {
 		// Finishes a rotation an earlier run left interrupted, which already holds its new value
-		rotateSecrets(ctx, "woodpecker.agent")
-		old := generatedValue(ctx, "woodpecker/generated/agent", "secret")
-		rotateSecrets(ctx, "woodpecker.agent")
-		Expect(old == generatedValue(ctx, "woodpecker/generated/agent", "secret")).To(BeFalse(), "the value did not change")
+		rotateSecrets(ctx, "registry.ci")
+		old := generatedValue(ctx, "zot/generated/ci", "password")
+		rotateSecrets(ctx, "registry.ci")
+		value := generatedValue(ctx, "zot/generated/ci", "password")
+		Expect(old == value).To(BeFalse(), "the value did not change")
+		Expect(generatedValue(ctx, "ci/generated/registry", "password") == value).To(BeTrue(), "ci's branch differs from zot's")
 		Eventually(ctx, func() bool {
-			status, raw := woodpeckerRequest(ctx, http.MethodGet, "/api/agents", token, nil, nil)
-			var agents []map[string]any
-			return status == http.StatusOK && json.Unmarshal(raw, &agents) == nil && len(agents) > 0
-		}).WithTimeout(5*time.Minute).WithPolling(5*time.Second).Should(BeTrue(), "no agent registered with the new secret")
+			return secretValue(ctx, "ci", "registry", "password") == value
+		}).WithTimeout(2*time.Minute).WithPolling(5*time.Second).Should(BeTrue(), "Secret ci/registry does not hold the new value")
 	}, SpecTimeout(40*time.Minute))
 
 	It("all", func(ctx SpecContext) {

@@ -68,6 +68,21 @@ openbao:
               options = { version = "2" }
             }
           }
+          # The golden path's signing key (platform/ci, step 10f): it never leaves OpenBao, cosign signs through it
+          request "transit" {
+            operation = "update"
+            path      = "sys/mounts/transit"
+            data = {
+              type = "transit"
+            }
+          }
+          request "ci-signing" {
+            operation = "update"
+            path      = "transit/keys/ci-signing"
+            data = {
+              type = "ecdsa-p256"
+            }
+          }
           request "kubernetes" {
             operation = "update"
             path      = "sys/auth/kubernetes"
@@ -118,6 +133,23 @@ openbao:
               policy = "path \"secret/data/+/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/+/*\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/data/+/generated/*\" { capabilities = [\"deny\"] }\npath \"secret/metadata/+/generated/*\" { capabilities = [\"deny\"] }"
             }
           }
+          # The golden path's sign step (platform/ci): signs with ci-signing and reads it (cosign asks for its
+          # versions), nothing else
+          request "ci-signer" {
+            operation = "update"
+            path      = "sys/policies/acl/ci-signer"
+            data = {
+              policy = "path \"transit/sign/ci-signing\" { capabilities = [\"update\"] }\npath \"transit/sign/ci-signing/*\" { capabilities = [\"update\"] }\npath \"transit/keys/ci-signing\" { capabilities = [\"read\"] }"
+            }
+          }
+          # Copies ci-signing's public key for Kyverno (platform/ci's ci-signing-public-key Job)
+          request "ci-signing-publisher" {
+            operation = "update"
+            path      = "sys/policies/acl/ci-signing-publisher"
+            data = {
+              policy = "path \"transit/export/public-key/ci-signing/latest\" { capabilities = [\"read\"] }"
+            }
+          }
           # The hourly raft snapshot (templates/snapshot.yaml): reads the snapshot, nothing else
           request "snapshot" {
             operation = "update"
@@ -134,7 +166,7 @@ openbao:
             operation = "update"
             path      = "sys/policies/acl/rotator"
             data = {
-              policy = "path \"secret/data/woodpecker/generated/agent\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/woodpecker/generated/agent\" { capabilities = [\"read\"] }\npath \"secret/data/woodpecker/admin-token\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/woodpecker/admin-token\" { capabilities = [\"read\"] }\npath \"secret/data/zot/generated/ci\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/zot/generated/ci\" { capabilities = [\"read\"] }\npath \"secret/data/ntfy/generated/alerts-token\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/ntfy/generated/alerts-token\" { capabilities = [\"read\"] }\npath \"secret/data/monitoring-system/generated/ntfy\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/monitoring-system/generated/ntfy\" { capabilities = [\"read\"] }\npath \"secret/data/ntfy/generated/alerts-password\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/ntfy/generated/alerts-password\" { capabilities = [\"read\"] }\npath \"secret/metadata/rotation/*\" { capabilities = [\"read\"] }\npath \"secret/data/rotation/woodpecker.agent\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/rotation/woodpecker.agent\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/data/rotation/woodpecker.admin-token\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/rotation/woodpecker.admin-token\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/data/rotation/registry.ci\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/rotation/registry.ci\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/data/rotation/ntfy.alerts-token\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/rotation/ntfy.alerts-token\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/data/rotation/ntfy.alerts-password\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/rotation/ntfy.alerts-password\" { capabilities = [\"create\", \"read\", \"update\"] }"
+              policy = "path \"secret/data/zot/generated/ci\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/zot/generated/ci\" { capabilities = [\"read\"] }\npath \"secret/data/ci/generated/registry\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/ci/generated/registry\" { capabilities = [\"read\"] }\npath \"secret/data/ntfy/generated/alerts-token\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/ntfy/generated/alerts-token\" { capabilities = [\"read\"] }\npath \"secret/data/monitoring-system/generated/ntfy\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/monitoring-system/generated/ntfy\" { capabilities = [\"read\"] }\npath \"secret/data/ntfy/generated/alerts-password\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/ntfy/generated/alerts-password\" { capabilities = [\"read\"] }\npath \"secret/metadata/rotation/*\" { capabilities = [\"read\"] }\npath \"secret/data/rotation/registry.ci\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/rotation/registry.ci\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/data/rotation/ntfy.alerts-token\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/rotation/ntfy.alerts-token\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/data/rotation/ntfy.alerts-password\" { capabilities = [\"create\", \"read\", \"update\"] }\npath \"secret/metadata/rotation/ntfy.alerts-password\" { capabilities = [\"create\", \"read\", \"update\"] }"
             }
           }
           # Emergency access: no root token exists
@@ -180,6 +212,28 @@ openbao:
               token_policies                   = ["infra"]
               audience                         = "openbao"
               token_ttl                        = "10m"
+            }
+          }
+          request "ci-signer" {
+            operation = "update"
+            path      = "auth/kubernetes/role/ci-signer"
+            data = {
+              bound_service_account_names      = ["ci-signer"]
+              bound_service_account_namespaces = ["ci"]
+              token_policies                   = ["ci-signer"]
+              audience                         = "openbao"
+              token_ttl                        = "10m"
+            }
+          }
+          request "ci-signing-publisher" {
+            operation = "update"
+            path      = "auth/kubernetes/role/ci-signing-publisher"
+            data = {
+              bound_service_account_names      = ["ci-signing-public-key"]
+              bound_service_account_namespaces = ["ci"]
+              token_policies                   = ["ci-signing-publisher"]
+              audience                         = "openbao"
+              token_ttl                        = "5m"
             }
           }
           request "snapshot" {

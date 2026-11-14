@@ -8,9 +8,6 @@ secrets:
     key: password
     special: true
     destinations: [forgejo/generated/admin]
-  - name: woodpecker.agent
-    key: secret
-    destinations: [woodpecker/generated/agent]
   - name: paperless.admin
     key: PAPERLESS_ADMIN_PASSWORD
     special: true
@@ -29,9 +26,14 @@ secrets:
     key: password
     special: true
     destinations: [grafana/generated/admin]
+  # zot's machine account ci (its htpasswd) and the golden path's push (platform/ci)
   - name: registry.ci
     key: password
-    destinations: [zot/generated/ci]
+    destinations: [zot/generated/ci, ci/generated/registry]
+  # Forgejo's org ci webhook to Argo Events (Authorization: Bearer, set by lab infra forgejo sync)
+  - name: ci.webhook
+    key: token
+    destinations: [ci/generated/webhook]
   # ntfy (apps/ntfy.yaml): user alerts publishes (Alertmanager), user phone subscribes (people's apps). No symbols:
   # ntfy's lists are comma-separated. ntfy tokens are tk_ plus 29 characters: the readers add the prefix
   - name: ntfy.alerts-token

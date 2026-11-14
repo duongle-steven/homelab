@@ -107,10 +107,11 @@ configMaps:
               href: https://git.{{ .Values.global.baseDomain }}
               description: Git forge
               icon: forgejo.svg
-          - Woodpecker:
+          - Argo Workflows:
               href: https://ci.{{ .Values.global.baseDomain }}
               description: Continuous integration
-              icon: woodpecker-ci.svg
+              # No Argo Workflows icon in the dashboard set: the Argo project logo
+              icon: argocd.svg
           - ArgoCD:
               href: https://argocd.{{ .Values.global.baseDomain }}
               description: Continuous deployment

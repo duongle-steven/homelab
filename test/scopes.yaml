@@ -64,7 +64,7 @@ labels:
   - ntfy
   - logs
   - security-logs
-  - woodpecker
+  - ci
   - matrix
   - seccomp
   - policy
@@ -94,7 +94,7 @@ labels:
 always: smoke
 # Each runs by itself after the main run, in this order (#78)
 alone: [backup-restore, node-power-cut, node-restart, rotation]
-full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || woodpecker || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
+full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || ci || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
 groups:
   - paths:
       - justfile
@@ -165,21 +165,22 @@ groups:
       - infra/sandbox/openbao/**
       - infra/sandbox/secrets/**
     # Every component that reads a secret through ESO
-    tests: secrets || identity || sso || ntfy || forgejo || logs || gateway || monitoring || woodpecker || backup-restore
+    tests: secrets || identity || sso || ntfy || forgejo || logs || gateway || monitoring || ci || backup-restore
   # Forgejo and zot need Kanidm's discovery document at start
   - paths: [platform/kanidm/**, scripts/onboard-user]
-    tests: identity || sso || (forgejo && deploy) || (gateway && zot) || woodpecker
+    tests: identity || sso || (forgejo && deploy) || (gateway && zot) || ci
   - paths: [platform/grafana/**]
     tests: grafana || logs || monitoring
   - paths: [platform/forgejo/**, platform/cloudnative-pg/**]
-    tests: forgejo || woodpecker || backup-restore
+    tests: forgejo || ci || backup-restore
   # lab infra forgejo sync and push (ForgejoDeploy); go.mod pins their SDKs
   - paths: [cli/internal/forgejo/**, cli/internal/secrets/**, cli/internal/cli/infra_forgejo*.go, cli/go.mod, cli/go.sum]
-    tests: forgejo || woodpecker
+    tests: forgejo || ci
   - paths: [platform/zot/**]
-    tests: zot || woodpecker
-  - paths: [platform/woodpecker/**]
-    tests: woodpecker
+    tests: zot || ci
+  # Step 10f: the golden path, its events, its controller and its UI's sign-in
+  - paths: [platform/argo-workflows/**, platform/argo-events/**, platform/ci/**]
+    tests: ci
   - paths: [platform/secrets-rotation/**, scripts/build-lab-image, cli/Dockerfile]
     tests: rotation
   - paths: [apps/actualbudget.yaml]

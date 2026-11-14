@@ -1,0 +1,352 @@
+{{- /*
+The golden path (step 10f, docs/how-to-guides/in-cluster-ci.md): the only template the Sensor starts (templates/sensor.yaml) and
+the only kind of Workflow the controller accepts (Strict template referencing). Clone the commit, read .ci.yaml
+(files/settings.sh), build with Buildah in a user namespace; on a push to the default branch also push to zot, make
+an SPDX SBOM, sign and attest through OpenBao's transit key (files/sign.sh). Forgejo shows the result as the commit
+status ci/pipeline (files/status.sh). Steps pass files on the run's own volume, deleted with the Workflow.
+*/ -}}
+{{- $domain := .Values.global.baseDomain }}
+{{- define "ci.podSecurity" -}}
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+{{- end }}
+{{- define "ci.containerSecurity" -}}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+{{- end }}
+{{- define "ci.env" -}}
+- {name: DOMAIN, value: {{ .Values.global.baseDomain | quote }}}
+- {name: REPO, value: "{{ "{{workflow.parameters.repo}}" }}"}
+- {name: SHA, value: "{{ "{{workflow.parameters.sha}}" }}"}
+{{- if .Values.devCA }}
+# The local CA: git, curl and Go (syft, cosign) read these
+- {name: GIT_SSL_CAINFO, value: /etc/homelab-dev-ca/ca.crt}
+- {name: CURL_CA_BUNDLE, value: /etc/homelab-dev-ca/ca.crt}
+- {name: SSL_CERT_DIR, value: /etc/ssl/certs:/etc/homelab-dev-ca}
+{{- end }}
+{{- end }}
+{{- define "ci.mounts" -}}
+- {name: work, mountPath: /work}
+{{- if .Values.devCA }}
+- {name: dev-ca, mountPath: /etc/homelab-dev-ca, readOnly: true}
+{{- end }}
+{{- end }}
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: pipeline
+  namespace: {{ .Release.Namespace }}
+spec:
+  entrypoint: main
+  onExit: report
+  serviceAccountName: ci-pipeline
+  arguments:
+    parameters:
+      - name: repo
+      - name: sha
+      - name: ref
+      - name: event
+      - name: default-branch
+  # Kept a week for the UI and the status' link; pods of steps that passed go at once, failed ones stay with it
+  ttlStrategy:
+    secondsAfterCompletion: 604800
+  podGC:
+    strategy: OnPodSuccess
+  # The run's volume goes when it ends, failed or not (Argo's default keeps a failed run's until its TTL): a failed
+  # step's pod keeps its logs, and a finished pod does not hold the claim
+  volumeClaimGC:
+    strategy: OnWorkflowCompletion
+  volumeClaimTemplates:
+    - metadata:
+        name: work
+        labels:
+          homelab/backup: none
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi
+  volumes:
+    # The sign step's OpenBao login: a token for audience openbao, and where the login leaves OpenBao's token
+    - name: openbao-sa-token
+      projected:
+        sources:
+          - serviceAccountToken:
+              audience: openbao
+              expirationSeconds: 600
+              path: token
+    - name: bao
+      emptyDir:
+        medium: Memory
+    {{- if .Values.devCA }}
+    - name: dev-ca
+      configMap:
+        name: homelab-dev-ca
+    # Buildah reads a registry's CA from certs.d/<host>/ca.crt
+    - name: registry-ca
+      configMap:
+        name: homelab-dev-ca
+    {{- end }}
+  templates:
+    - name: main
+      steps:
+        - - name: pending
+            template: status
+            arguments:
+              parameters:
+                - {name: state, value: pending}
+        - - name: clone
+            template: clone
+        - - name: settings
+            template: settings
+        - - name: build
+            template: build
+            when: "{{ "{{steps.settings.outputs.parameters.build}}" }} == true"
+            arguments:
+              parameters:
+                - {name: context, value: "{{ "{{steps.settings.outputs.parameters.context}}" }}"}
+                - {name: containerfile, value: "{{ "{{steps.settings.outputs.parameters.containerfile}}" }}"}
+                - {name: image, value: "{{ "{{steps.settings.outputs.parameters.image}}" }}"}
+                - {name: publish, value: "{{ "{{steps.settings.outputs.parameters.publish}}" }}"}
+        - - name: sbom
+            template: sbom
+            when: "{{ "{{steps.settings.outputs.parameters.publish}}" }} == true && {{ "{{steps.settings.outputs.parameters.build}}" }} == true"
+            arguments:
+              parameters:
+                - {name: image, value: "{{ "{{steps.settings.outputs.parameters.image}}" }}"}
+                - {name: digest, value: "{{ "{{steps.build.outputs.parameters.digest}}" }}"}
+        - - name: sign
+            template: sign
+            when: "{{ "{{steps.settings.outputs.parameters.publish}}" }} == true && {{ "{{steps.settings.outputs.parameters.build}}" }} == true"
+            arguments:
+              parameters:
+                - {name: image, value: "{{ "{{steps.settings.outputs.parameters.image}}" }}"}
+                - {name: digest, value: "{{ "{{steps.build.outputs.parameters.digest}}" }}"}
+                - {name: context, value: "{{ "{{steps.settings.outputs.parameters.context}}" }}"}
+                - {name: containerfile, value: "{{ "{{steps.settings.outputs.parameters.containerfile}}" }}"}
+
+    - name: report
+      steps:
+        - - name: status
+            template: status
+            arguments:
+              parameters:
+                - {name: state, value: "{{ "{{workflow.status}}" }}"}
+
+    - name: status
+      inputs:
+        parameters:
+          - name: state
+      {{- include "ci.podSecurity" . | nindent 6 }}
+      script:
+        image: {{ .Values.images.curl }}
+        command: [sh]
+        source: |
+          {{- .Files.Get "files/status.sh" | nindent 10 }}
+        env:
+          {{- include "ci.env" . | nindent 10 }}
+          - {name: STATE, value: "{{ "{{inputs.parameters.state}}" }}"}
+          - {name: WORKFLOW, value: "{{ "{{workflow.name}}" }}"}
+          - name: FORGEJO_TOKEN
+            valueFrom: {secretKeyRef: {name: forgejo, key: token}}
+        volumeMounts:
+          {{- if .Values.devCA }}
+          - {name: dev-ca, mountPath: /etc/homelab-dev-ca, readOnly: true}
+          {{- else }} []
+          {{- end }}
+        {{- include "ci.containerSecurity" . | nindent 8 }}
+        resources:
+          requests: {cpu: 10m, memory: 16Mi}
+
+    - name: clone
+      {{- include "ci.podSecurity" . | nindent 6 }}
+      script:
+        image: {{ .Values.images.git }}
+        command: [sh]
+        source: |
+          set -eu
+          rm -rf /work/src && mkdir /work/src && cd /work/src
+          git init -q
+          git -c "http.extraHeader=Authorization: token $FORGEJO_TOKEN" fetch -q --depth 1 "https://git.$DOMAIN/$REPO.git" "$SHA"
+          git -c advice.detachedHead=false checkout -q FETCH_HEAD
+          echo "clone: $REPO@$SHA"
+        env:
+          {{- include "ci.env" . | nindent 10 }}
+          - {name: HOME, value: /tmp}
+          - name: FORGEJO_TOKEN
+            valueFrom: {secretKeyRef: {name: forgejo, key: token}}
+        volumeMounts:
+          {{- include "ci.mounts" . | nindent 10 }}
+        {{- include "ci.containerSecurity" . | nindent 8 }}
+        resources:
+          requests: {cpu: 50m, memory: 64Mi}
+
+    - name: settings
+      {{- include "ci.podSecurity" . | nindent 6 }}
+      script:
+        image: {{ .Values.images.yq }}
+        command: [sh]
+        source: |
+          {{- .Files.Get "files/settings.sh" | nindent 10 }}
+        env:
+          {{- include "ci.env" . | nindent 10 }}
+          - {name: SRC, value: /work/src}
+          - {name: OUT, value: /tmp}
+          - {name: EVENT, value: "{{ "{{workflow.parameters.event}}" }}"}
+          - {name: REF, value: "{{ "{{workflow.parameters.ref}}" }}"}
+          - {name: DEFAULT_BRANCH, value: "{{ "{{workflow.parameters.default-branch}}" }}"}
+        volumeMounts:
+          {{- include "ci.mounts" . | nindent 10 }}
+        {{- include "ci.containerSecurity" . | nindent 8 }}
+        resources:
+          requests: {cpu: 10m, memory: 16Mi}
+      outputs:
+        parameters:
+          {{- range list "build" "publish" "context" "containerfile" "image" }}
+          - {name: {{ . }}, valueFrom: {path: /tmp/{{ . }}}}
+          {{- end }}
+
+    # Buildah as root in its own user namespace (hostUsers: false; Kyverno's restricted policy allows root there), under
+    # homelab/buildah.json, which templates/seccomp-policy.yaml gives this labelled pod only: no seccomp profile here
+    - name: build
+      metadata:
+        labels:
+          homelab/ci-step: build
+      podSpecPatch: '{"hostUsers": false}'
+      securityContext:
+        fsGroup: 65532
+      inputs:
+        parameters:
+          - name: context
+          - name: containerfile
+          - name: image
+          - name: publish
+      script:
+        image: {{ .Values.images.buildah }}
+        # Root only inside its own user namespace (hostUsers false), so it needs no setuid; its capabilities are that
+        # namespace's, which Pod Security baseline allows
+        securityContext:
+          allowPrivilegeEscalation: false
+        command: [sh]
+        source: |
+          set -eu
+          cd /work/src
+          image="registry.$DOMAIN/$IMAGE:$SHA"
+          buildah --storage-driver vfs build --isolation chroot -f "$CONTAINERFILE" -t "$image" "$CONTEXT"
+          if [ "$PUBLISH" = true ]; then
+            buildah --storage-driver vfs push --creds "$REGISTRY_USERNAME:$REGISTRY_PASSWORD" --digestfile /work/digest "$image"
+          else
+            : >/work/digest
+          fi
+          echo "build: $image (published: $PUBLISH)"
+        env:
+          {{- include "ci.env" . | nindent 10 }}
+          - {name: IMAGE, value: "{{ "{{inputs.parameters.image}}" }}"}
+          - {name: CONTEXT, value: "{{ "{{inputs.parameters.context}}" }}"}
+          - {name: CONTAINERFILE, value: "{{ "{{inputs.parameters.containerfile}}" }}"}
+          - {name: PUBLISH, value: "{{ "{{inputs.parameters.publish}}" }}"}
+          - name: REGISTRY_USERNAME
+            valueFrom: {secretKeyRef: {name: registry, key: username}}
+          - name: REGISTRY_PASSWORD
+            valueFrom: {secretKeyRef: {name: registry, key: password}}
+        volumeMounts:
+          {{- include "ci.mounts" . | nindent 10 }}
+          {{- if .Values.devCA }}
+          - {name: registry-ca, mountPath: "/etc/containers/certs.d/registry.{{ $domain }}", readOnly: true}
+          {{- end }}
+        resources:
+          requests: {cpu: 250m, memory: 256Mi}
+          limits: {memory: 2Gi}
+      outputs:
+        parameters:
+          - {name: digest, valueFrom: {path: /work/digest}}
+
+    - name: sbom
+      inputs:
+        parameters:
+          - name: image
+          - name: digest
+      {{- include "ci.podSecurity" . | nindent 6 }}
+      container:
+        image: {{ .Values.images.syft }}
+        # Argo's executor needs the command: without it the controller asks the registry, which its egress forbids
+        command: [/syft]
+        args:
+          - "registry:registry.{{ $domain }}/{{ "{{inputs.parameters.image}}" }}@{{ "{{inputs.parameters.digest}}" }}"
+          - --output
+          - spdx-json=/work/sbom.spdx.json
+        env:
+          {{- include "ci.env" . | nindent 10 }}
+          - {name: SYFT_REGISTRY_AUTH_AUTHORITY, value: "registry.{{ $domain }}"}
+          - name: SYFT_REGISTRY_AUTH_USERNAME
+            valueFrom: {secretKeyRef: {name: registry, key: username}}
+          - name: SYFT_REGISTRY_AUTH_PASSWORD
+            valueFrom: {secretKeyRef: {name: registry, key: password}}
+          - {name: SYFT_CHECK_FOR_APP_UPDATE, value: "false"}
+          # Its image has no writable /tmp or home for a non-root user: the run's volume holds its scratch and cache
+          - {name: TMPDIR, value: /work}
+          - {name: HOME, value: /work}
+          - {name: SYFT_CACHE_DIR, value: /work/.syft-cache}
+        volumeMounts:
+          {{- include "ci.mounts" . | nindent 10 }}
+        {{- include "ci.containerSecurity" . | nindent 8 }}
+        resources:
+          requests: {cpu: 100m, memory: 128Mi}
+
+    # As ci-signer, OpenBao's role that may only sign with ci-signing (platform/openbao); the init container logs in
+    # with the pod's token for audience openbao and leaves OpenBao's token in memory for cosign
+    - name: sign
+      serviceAccountName: ci-signer
+      inputs:
+        parameters:
+          - name: image
+          - name: digest
+          - name: context
+          - name: containerfile
+      {{- include "ci.podSecurity" . | nindent 6 }}
+      initContainers:
+        - name: openbao-login
+          image: {{ .Values.images.openbao }}
+          command: [sh, -c]
+          args:
+            - bao write -field=token auth/kubernetes/login role=ci-signer jwt=@/var/run/secrets/openbao/token >/bao/token
+          env:
+            - {name: BAO_ADDR, value: "http://openbao.openbao.svc.cluster.local:8200"}
+            - {name: HOME, value: /tmp}
+          volumeMounts:
+            - {name: openbao-sa-token, mountPath: /var/run/secrets/openbao, readOnly: true}
+            - {name: bao, mountPath: /bao}
+          {{- include "ci.containerSecurity" . | nindent 10 }}
+      script:
+        image: {{ .Values.images.cosign }}
+        command: [sh]
+        source: |
+          {{- .Files.Get "files/sign.sh" | nindent 10 }}
+        env:
+          {{- include "ci.env" . | nindent 10 }}
+          - {name: HOME, value: /tmp}
+          - {name: VAULT_ADDR, value: "http://openbao.openbao.svc.cluster.local:8200"}
+          - {name: SIGNED_REF, value: "registry.{{ $domain }}/{{ "{{inputs.parameters.image}}" }}@{{ "{{inputs.parameters.digest}}" }}"}
+          - {name: GIT_REF, value: "{{ "{{workflow.parameters.ref}}" }}"}
+          - {name: CONTEXT, value: "{{ "{{inputs.parameters.context}}" }}"}
+          - {name: CONTAINERFILE, value: "{{ "{{inputs.parameters.containerfile}}" }}"}
+          - {name: WORKFLOW, value: "{{ "{{workflow.name}}" }}"}
+          - {name: WORKFLOW_UID, value: "{{ "{{workflow.uid}}" }}"}
+          - {name: STARTED, value: "{{ "{{workflow.creationTimestamp.RFC3339}}" }}"}
+          - name: REGISTRY_USERNAME
+            valueFrom: {secretKeyRef: {name: registry, key: username}}
+          - name: REGISTRY_PASSWORD
+            valueFrom: {secretKeyRef: {name: registry, key: password}}
+        volumeMounts:
+          {{- include "ci.mounts" . | nindent 10 }}
+          - {name: bao, mountPath: /bao, readOnly: true}
+        {{- include "ci.containerSecurity" . | nindent 8 }}
+        resources:
+          requests: {cpu: 50m, memory: 64Mi}

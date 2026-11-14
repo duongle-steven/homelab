@@ -39,7 +39,7 @@ func TestCheckFindsMissingSecret(t *testing.T) {
 	write(t, root, "platform/infra-secrets/values.yaml", "secrets:\n  - path: new/infra\n    properties: [a]\n  - path: known/infra\n    properties: [a]\n")
 	write(t, root, "apps/newapp.yaml", "rawResources:\n  kanidm-client:\n    manifest:\n      kind: KanidmOAuth2Client\n")
 	write(t, root, "apps/plain.yaml", "controllers: {}\n")
-	entries, err := parse([]byte("- {name: known.generated, kind: generated}\n- {name: known.infra, kind: opentofu, paths: [known/infra]}\n- {name: forgejo.all, kind: forgejo-token, paths: [forgejo/deploy, argocd/forgejo, woodpecker/forgejo]}\n"))
+	entries, err := parse([]byte("- {name: known.generated, kind: generated}\n- {name: known.infra, kind: opentofu, paths: [known/infra]}\n- {name: forgejo.all, kind: forgejo-token, paths: [forgejo/deploy, argocd/forgejo, ci/forgejo-token]}\n"))
 	if err != nil {
 		t.Fatal(err)
 	}

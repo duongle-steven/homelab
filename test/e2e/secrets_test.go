@@ -340,49 +340,28 @@ var _ = Describe("SecretsGeneratedOnlyInOpenBao", Label("sandbox", "testbed", "s
 		}
 
 		// A rotation as docs/concepts/secrets-management.md does it: the destination deleted, the next push writes a new
-		// value, the readers' ExternalSecrets refreshed and the readers restarted; its server and agents must agree on it
-		// again (Woodpecker may run after this)
-		probe := hash("woodpecker/generated/agent", "secret")
-		admin(ctx, "kv", "metadata", "delete", "secret/woodpecker/generated/agent")
-		forceSync("woodpecker.agent")
-		rotated := hash("woodpecker/generated/agent", "secret")
+		// value, the reader's ExternalSecret refreshed; org ci's webhook secret, which Forgejo's hook and the EventSource
+		// must agree on again afterwards (lab infra forgejo sync, the EventSource restarted), as the catalog's steps say
+		probe := hash("ci/generated/webhook", "token")
+		admin(ctx, "kv", "metadata", "delete", "secret/ci/generated/webhook")
+		forceSync("ci.webhook")
+		rotated := hash("ci/generated/webhook", "token")
 		Expect(rotated).NotTo(Equal(probe), "the deleted destination was not written again")
-		for _, name := range []string{"woodpecker-secret", "woodpecker-agent"} {
-			_, err := kube.Kubectl(ctx, "woodpecker", "annotate", "externalsecret", name, fmt.Sprintf("force-sync=%d", time.Now().UnixNano()), "--overwrite")
-			Expect(err).NotTo(HaveOccurred())
-			Eventually(ctx, func() bool {
-				out, err := kube.Kubectl(ctx, "woodpecker", "get", "secret", name, "-o", "jsonpath={.data.WOODPECKER_AGENT_SECRET}")
-				if err != nil {
-					return false
-				}
-				value, err := base64.StdEncoding.DecodeString(out)
-				sum := sha256.Sum256(value)
-				return err == nil && hex.EncodeToString(sum[:]) == rotated
-			}).WithTimeout(2*time.Minute).WithPolling(2*time.Second).Should(BeTrue(), "Secret woodpecker/%s does not hold the rotated value", name)
-		}
-		out, err := kube.Kubectl(ctx, "woodpecker", "rollout", "restart", "statefulset/woodpecker-server")
-		Expect(err).NotTo(HaveOccurred(), out)
-		out, err = kube.Kubectl(ctx, "woodpecker", "rollout", "status", "statefulset/woodpecker-server", "--timeout=5m")
-		Expect(err).NotTo(HaveOccurred(), out)
-		// Then the agent starts again on a new claim, as lab's rotation does (workload.ResetClaims): the id on its old one
-		// is unknown to the server once the agent secret changed, and an agent registering while the server restarts
-		// keeps an id the new server does not know ("AgentID not found in database")
-		const claim = "agent-config-woodpecker-agent-0"
-		uid, err := kube.Kubectl(ctx, "woodpecker", "get", "pvc", claim, "-o", "jsonpath={.metadata.uid}")
-		Expect(err).NotTo(HaveOccurred(), uid)
-		out, err = kube.Kubectl(ctx, "woodpecker", "delete", "pvc", claim, "--wait=false")
-		Expect(err).NotTo(HaveOccurred(), out)
+		_, err = kube.Kubectl(ctx, "ci", "annotate", "externalsecret", "webhook", fmt.Sprintf("force-sync=%d", time.Now().UnixNano()), "--overwrite")
+		Expect(err).NotTo(HaveOccurred())
 		Eventually(ctx, func() bool {
-			if _, err := kube.Kubectl(ctx, "woodpecker", "delete", "pod", "woodpecker-agent-0", "--ignore-not-found", "--wait=false"); err != nil {
+			out, err := kube.Kubectl(ctx, "ci", "get", "secret", "webhook", "-o", "jsonpath={.data.token}")
+			if err != nil {
 				return false
 			}
-			current, err := kube.Kubectl(ctx, "woodpecker", "get", "pvc", claim, "--ignore-not-found", "-o", "jsonpath={.metadata.uid}")
-			return err == nil && current != uid
-		}).WithTimeout(5*time.Minute).WithPolling(5*time.Second).Should(BeTrue(), "claim %s was not replaced", claim)
-		// A pod created while the old claim was terminating may still hold it
-		out, err = kube.Kubectl(ctx, "woodpecker", "delete", "pod", "woodpecker-agent-0", "--ignore-not-found")
+			value, err := base64.StdEncoding.DecodeString(out)
+			sum := sha256.Sum256(value)
+			return err == nil && hex.EncodeToString(sum[:]) == rotated
+		}).WithTimeout(2*time.Minute).WithPolling(2*time.Second).Should(BeTrue(), "Secret ci/webhook does not hold the rotated value")
+		lab(ctx, "infra", "forgejo", "sync", "--env", labEnv)
+		out, err := kube.Kubectl(ctx, "ci", "rollout", "restart", "deployment", "-l", "eventsource-name=forgejo")
 		Expect(err).NotTo(HaveOccurred(), out)
-		out, err = kube.Kubectl(ctx, "woodpecker", "rollout", "status", "statefulset/woodpecker-agent", "--timeout=5m")
+		out, err = kube.Kubectl(ctx, "ci", "rollout", "status", "deployment", "-l", "eventsource-name=forgejo", "--timeout=5m")
 		Expect(err).NotTo(HaveOccurred(), out)
 	}, SpecTimeout(60*time.Minute))
 })

@@ -292,9 +292,9 @@ func TestRotateUnknownName(t *testing.T) {
 }
 
 func TestRotatePendingRefused(t *testing.T) {
-	pending := Entry{Name: "woodpecker.agent", Kind: KindWoodpeckerAgent, Pending: "Task 8 (per-agent tokens)"}
+	pending := Entry{Name: "example.pending", Kind: KindGenerated, Pending: "Task 8 (per-agent tokens)"}
 	r, calls, _ := rotator([]Entry{pending, generated("grafana.admin")}, nil)
-	if _, err := r.Plan(context.Background(), []string{"woodpecker.agent"}, Options{Now: now}); err == nil ||
+	if _, err := r.Plan(context.Background(), []string{"example.pending"}, Options{Now: now}); err == nil ||
 		!strings.Contains(err.Error(), "Task 8 (per-agent tokens)") {
 		t.Fatalf("Plan error = %v, want the pending reason", err)
 	}
@@ -310,7 +310,7 @@ func TestRotatePendingRefused(t *testing.T) {
 	if !strings.Contains(results[0].Outcome+results[1].Outcome, "Task 8 (per-agent tokens)") {
 		t.Fatalf("results = %+v", results)
 	}
-	if slices.ContainsFunc(*calls, func(c string) bool { return strings.HasPrefix(c, "woodpecker") }) {
+	if slices.ContainsFunc(*calls, func(c string) bool { return strings.HasPrefix(c, "example") }) {
 		t.Fatalf("calls = %v", *calls)
 	}
 }
@@ -378,7 +378,7 @@ func TestRotateSkipBackupCheckRecordsReason(t *testing.T) {
 
 func TestRotateWaitsForIdle(t *testing.T) {
 	entry := generated("registry.ci")
-	entry.Idle = "woodpecker"
+	entry.Idle = "ci"
 	t.Run("busy", func(t *testing.T) {
 		r, calls, _ := rotator([]Entry{entry}, nil)
 		var asked []string
@@ -387,14 +387,14 @@ func TestRotateWaitsForIdle(t *testing.T) {
 			return false, nil
 		}
 		results, err := r.Run(context.Background(), r.Entries, Options{Yes: true, Now: now})
-		if err == nil || results[0].Err == nil || !strings.Contains(results[0].Err.Error(), "Woodpecker") {
-			t.Fatalf("Run = %+v, %v; want a timeout naming Woodpecker", results, err)
+		if err == nil || results[0].Err == nil || !strings.Contains(results[0].Err.Error(), "golden path") {
+			t.Fatalf("Run = %+v, %v; want a timeout naming the golden path", results, err)
 		}
-		if len(asked) < 2 || asked[0] != "woodpecker" {
+		if len(asked) < 2 || asked[0] != "ci" {
 			t.Fatalf("Idle was asked %v", asked)
 		}
 		if len(*calls) != 0 {
-			t.Fatalf("calls = %v: it rotated while Woodpecker was busy", *calls)
+			t.Fatalf("calls = %v: it rotated while the CI was busy", *calls)
 		}
 	})
 	t.Run("idle after a while", func(t *testing.T) {
@@ -472,8 +472,8 @@ func TestScheduledFailsWhenOverdue(t *testing.T) {
 	ctx := context.Background()
 	o := Options{Scheduled: true, Yes: true, Now: now}
 	entries := []Entry{
-		{Name: "late", Kind: KindWoodpeckerAgent, Period: 90 * day, Pending: "Task 8"},
-		{Name: "just-due", Kind: KindWoodpeckerToken, Period: 90 * day, Pending: "Task 8"},
+		{Name: "late", Kind: KindGenerated, Period: 90 * day, Pending: "Task 8"},
+		{Name: "just-due", Kind: KindGenerated, Period: 90 * day, Pending: "Task 8"},
 	}
 	r, _, records := rotator(entries, nil)
 	records.records["late"] = Record{Phase: PhaseDone, At: now.Add(-(90 + 15) * day)}
@@ -509,10 +509,10 @@ func TestPlanOrderAll(t *testing.T) {
 		{Name: "manual", Kind: KindManual},
 		{Name: "tofu", Kind: KindOpenTofu},
 		{Name: "never", Kind: KindNever, Reason: "x"},
-		{Name: "registry", Kind: KindGenerated, Idle: "woodpecker"},
+		{Name: "registry", Kind: KindGenerated, Idle: "ci"},
 		{Name: "kanidm-client", Kind: KindKaniopClient},
 		{Name: "forgejo-token", Kind: KindForgejoToken},
-		{Name: "woodpecker-agent", Kind: KindWoodpeckerAgent, Idle: "woodpecker"},
+		{Name: "webhook", Kind: KindGenerated, Idle: "ci"},
 		{Name: "kanidm-admin", Kind: KindKanidmAdmin},
 		{Name: "ntfy", Kind: KindNtfyOverlap},
 		{Name: "forgejo-db", Kind: KindCNPG},
@@ -534,7 +534,7 @@ func TestPlanOrderAll(t *testing.T) {
 		"ntfy", "generated", "app-password", // generated secrets and ntfy, in catalog order
 		"forgejo-token", "forgejo-db", // Forgejo
 		"kanidm-client", "kanidm-admin", // Kanidm
-		"registry", "woodpecker-agent", // Woodpecker and zot
+		"registry", "webhook", // the CI's, after its idle wait
 		"tofu", "manual", // OpenTofu, then manual
 		"never", "automatic", "script", // listed and skipped
 	}
@@ -668,7 +668,7 @@ func TestOpenBaoRecordsBaselineWrittenOnce(t *testing.T) {
 }
 
 func TestFreshSecretNeitherDueNorOverdue(t *testing.T) {
-	fresh := Entry{Name: "fresh", Kind: KindWoodpeckerToken, Period: 90 * day, Pending: "Task 8"}
+	fresh := Entry{Name: "fresh", Kind: KindGenerated, Period: 90 * day, Pending: "Task 8"}
 	r, _, records := rotator([]Entry{fresh}, nil)
 	records.records["fresh"] = Record{Since: now.Add(-day)}
 	if due, _ := Due(fresh, records.records["fresh"]); !due.After(now) {

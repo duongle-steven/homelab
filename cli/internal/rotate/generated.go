@@ -25,7 +25,6 @@ type Readers interface {
 	RefreshExternalSecrets(ctx context.Context, namespace string, names []string) error
 	Restart(ctx context.Context, namespace string, workloads []workload.Ref) error
 	WaitReady(ctx context.Context, namespace string, workloads []workload.Ref) error
-	ResetClaims(ctx context.Context, namespace string, claims []string) error
 }
 
 // pendingKey holds the new value of a rotation under way, in the data of the entry's record path
@@ -236,7 +235,7 @@ func pick(n int) (int, error) {
 
 // checkGeneratorSettings keeps the catalog in step with platform/generated-secrets: each generator's catalog entry
 // has its key, length (32 by default), special and destinations; each generated or app-password entry has a
-// generator. Entries that never rotate, and woodpecker.agent (per-agent tokens, the plan's Task 8), are left out.
+// generator. Entries that never rotate are left out.
 func checkGeneratorSettings(root string, entries []Entry) []string {
 	files, err := valuesFiles(root, "platform/generated-secrets")
 	if err != nil {
@@ -250,7 +249,7 @@ func checkGeneratorSettings(root string, entries []Entry) []string {
 				name, _ := s["name"].(string)
 				seen[name] = true
 				e, err := Find(entries, name)
-				if err != nil || e.Kind == KindNever || e.Kind == KindWoodpeckerAgent {
+				if err != nil || e.Kind == KindNever {
 					continue // Check reports a missing entry
 				}
 				key, _ := s["key"].(string)

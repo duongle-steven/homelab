@@ -80,13 +80,12 @@ kubescape:
       resources:
         - argocd/ConfigMap/argocd-cm
         - forgejo/Deployment/forgejo
-        - woodpecker/StatefulSet/woodpecker-agent
         - istio-system/ConfigMap/istio-cni-config
         - monitoring-system/ConfigMap/prometheus-monitoring-system-kube-pro-prometheus-rulefiles-0
         - openbao/ConfigMap/openbao-config
         - trivy-operator/ConfigMap/trivy-operator-config
       reason: >-
-        C-0012 matches key names only. Read 2026-11-05: argocd-cm's application.instanceLabelKey is a label name and its oidc clientSecret a $reference; forgejo's env is GITEA_ADMIN_PASSWORD_MODE (a mode, the password comes from a Secret); woodpecker-agent's is WOODPECKER_BACKEND_K8S_ALLOW_NATIVE_SECRETS (a boolean); istio-cni-config's REPAIR_BROKEN_POD_LABEL_KEY is a label; Prometheus's rule file only talks about secrets; openbao-config's current_key is a file:// reference and its key id no key; trivy-operator-config's keys are switches and an empty list
+        C-0012 matches key names only. Read 2026-11-05: argocd-cm's application.instanceLabelKey is a label name and its oidc clientSecret a $reference; forgejo's env is GITEA_ADMIN_PASSWORD_MODE (a mode, the password comes from a Secret); istio-cni-config's REPAIR_BROKEN_POD_LABEL_KEY is a label; Prometheus's rule file only talks about secrets; openbao-config's current_key is a file:// reference and its key id no key; trivy-operator-config's keys are switches and an empty list
     - ids: [C-0002, C-0015, C-0035, C-0063, C-0065, C-0185, C-0186, C-0187, C-0188, C-0191, C-0278, C-0279, C-0280, C-0281, C-0282]
       resources:
         - /ClusterRoleBinding/cluster-admin
@@ -162,12 +161,6 @@ kubescape:
         - istio-system/RoleBinding/kiali-portforward
       reason: >-
         Kiali's read-only role lets it open port-forwards to Istio's pods, as it needs for its debug views; admins only
-    - ids: [C-0188, C-0267]
-      resources:
-        - woodpecker/RoleBinding/woodpecker-agent
-        - woodpecker/StatefulSet/woodpecker-agent
-      reason: >-
-        Woodpecker's agent creates a step's pods in its own namespace, which is how it runs pipelines; those pods are unprivileged (step 10e)
     - ids: [C-0002]
       resources:
         - ntfy/RoleBinding/secrets-rotation

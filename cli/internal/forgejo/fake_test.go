@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -26,6 +27,14 @@ type fakeTeam struct {
 	canCreateOrgRepo        bool
 	includesAllRepositories bool
 	units                   map[string]string
+	members                 []string
+}
+
+// fakeHook is an org's webhook; Forgejo stores its authorization header but never shows it
+type fakeHook struct {
+	org, url, kind, contentType, header string
+	events                              []string
+	active                              bool
 }
 
 type fakeApp struct {
@@ -53,12 +62,13 @@ type fakeForgejo struct {
 	protection map[string]any
 	orgTeams   map[int64]*fakeTeam
 	apps       map[int64]*fakeApp
+	hooks      map[int64]*fakeHook
 	writes     int
 	nextID     int64
 }
 
 func newFakeForgejo(t *testing.T) (*fakeForgejo, Endpoint) {
-	f := &fakeForgejo{admin: "admin-password", orgs: map[string]string{}, orgTeams: map[int64]*fakeTeam{}, apps: map[int64]*fakeApp{}, users: map[string]*fakeUser{}, collaborators: map[string]string{}, teams: map[string]string{}}
+	f := &fakeForgejo{admin: "admin-password", orgs: map[string]string{}, orgTeams: map[int64]*fakeTeam{}, apps: map[int64]*fakeApp{}, hooks: map[int64]*fakeHook{}, users: map[string]*fakeUser{}, collaborators: map[string]string{}, teams: map[string]string{}}
 	server := httptest.NewServer(f)
 	t.Cleanup(server.Close)
 	return f, Endpoint{URL: server.URL, HTTP: server.Client()}
@@ -179,6 +189,70 @@ func (f *fakeForgejo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		team.edit(body)
 		reply(http.StatusOK, team.json(id))
+	case len(parts) == 4 && parts[0] == "teams" && parts[2] == "members" && admin:
+		var id int64
+		_, _ = fmt.Sscan(parts[1], &id)
+		team := f.orgTeams[id]
+		if team == nil {
+			reply(http.StatusNotFound, nil)
+			return
+		}
+		switch r.Method {
+		case http.MethodPut:
+			if !slices.Contains(team.members, parts[3]) {
+				team.members = append(team.members, parts[3])
+			}
+		case http.MethodDelete:
+			team.members = slices.DeleteFunc(team.members, func(m string) bool { return m == parts[3] })
+		}
+		reply(http.StatusNoContent, nil)
+	case len(parts) == 3 && parts[0] == "teams" && parts[2] == "members" && r.Method == http.MethodGet && admin:
+		var id int64
+		_, _ = fmt.Sscan(parts[1], &id)
+		list := []map[string]any{}
+		if team := f.orgTeams[id]; team != nil {
+			for i, m := range team.members {
+				list = append(list, map[string]any{"id": i, "login": m})
+			}
+		}
+		reply(http.StatusOK, page(r, list))
+	case len(parts) == 3 && parts[0] == "orgs" && parts[2] == "hooks" && admin:
+		if r.Method == http.MethodPost {
+			f.nextID++
+			f.hooks[f.nextID] = &fakeHook{org: parts[1]}
+			f.hooks[f.nextID].edit(body)
+			reply(http.StatusCreated, f.hooks[f.nextID].json(f.nextID))
+			return
+		}
+		list := []map[string]any{}
+		for id, h := range f.hooks {
+			if h.org == parts[1] {
+				list = append(list, h.json(id))
+			}
+		}
+		reply(http.StatusOK, page(r, list))
+	case len(parts) == 4 && parts[0] == "orgs" && parts[2] == "hooks" && admin:
+		var id int64
+		_, _ = fmt.Sscan(parts[3], &id)
+		h := f.hooks[id]
+		if h == nil || h.org != parts[1] {
+			reply(http.StatusNotFound, nil)
+			return
+		}
+		if r.Method == http.MethodDelete {
+			delete(f.hooks, id)
+			reply(http.StatusNoContent, nil)
+			return
+		}
+		h.edit(body)
+		reply(http.StatusOK, h.json(id))
+	case strings.HasPrefix(path, "/user/applications/oauth2/") && r.Method == http.MethodDelete && admin:
+		var id int64
+		_, _ = fmt.Sscan(parts[len(parts)-1], &id)
+		delete(f.apps, id)
+		reply(http.StatusNoContent, nil)
+	case path == "/repos/search" && r.Method == http.MethodGet:
+		reply(http.StatusOK, map[string]any{"ok": true, "data": []any{}})
 	case path == "/user/applications/oauth2" && r.Method == http.MethodGet && admin:
 		// As Forgejo: the list never holds a secret
 		list := []map[string]any{}
@@ -313,6 +387,34 @@ func (t *fakeTeam) edit(body map[string]any) {
 	for k, v := range units {
 		t.units[k] = v.(string)
 	}
+}
+
+func (h *fakeHook) edit(body map[string]any) {
+	if kind, ok := body["type"].(string); ok {
+		h.kind = kind
+	}
+	if config, ok := body["config"].(map[string]any); ok {
+		h.url, _ = config["url"].(string)
+		h.contentType, _ = config["content_type"].(string)
+	}
+	if events, ok := body["events"].([]any); ok {
+		h.events = nil
+		for _, e := range events {
+			h.events = append(h.events, e.(string))
+		}
+	}
+	if active, ok := body["active"].(bool); ok {
+		h.active = active
+	}
+	if header, ok := body["authorization_header"].(string); ok && header != "" {
+		h.header = header
+	}
+}
+
+// As Forgejo: the header is not in the answer
+func (h *fakeHook) json(id int64) map[string]any {
+	return map[string]any{"id": id, "type": h.kind, "events": h.events, "active": h.active,
+		"config": map[string]string{"url": h.url, "content_type": h.contentType}}
 }
 
 func (t *fakeTeam) json(id int64) map[string]any {

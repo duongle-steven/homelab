@@ -58,7 +58,7 @@ func newInfraForgejoCmd() *cobra.Command {
 	}
 	sync := &cobra.Command{
 		Use:   "sync",
-		Short: "Provision orgs ops and ci on Forgejo: ops/homelab, deploy and argocd, master's protection, their tokens and Woodpecker's OAuth client in OpenBao",
+		Short: "Provision orgs ops and ci on Forgejo: ops/homelab, deploy and argocd, master's protection, org ci's bot and webhook to Argo Events, the tokens in OpenBao",
 		Long:  "Idempotent: what is right is kept, what is wrong is fixed, what is missing is created. On a first install it waits up to 30 minutes for OpenBao, Forgejo and its admin Secret, then up to 10 more for Argo CD's repository Secret. No secret is printed.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -90,7 +90,7 @@ func newInfraForgejoCmd() *cobra.Command {
 			}); err != nil {
 				return err
 			}
-			if err := forgejo.Sync(syncCtx, s.ep, password, s.store, "https://ci."+e.Domain+"/authorize"); err != nil {
+			if err := forgejo.Sync(syncCtx, s.ep, password, s.store); err != nil {
 				return err
 			}
 			argocd, err := s.store.Read(ctx, forgejo.ArgoCDPath)

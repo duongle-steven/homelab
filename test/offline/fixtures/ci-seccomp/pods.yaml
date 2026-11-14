@@ -1,0 +1,392 @@
+# Pods of namespace ci as Argo makes them (init and wait are argoexec, main is the step), for TestCISeccompPolicies
+apiVersion: v1
+kind: Pod
+metadata:
+  name: build
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: build-asks
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/buildah.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: build-digest
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: build-tag-digest
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: build-runtime-default
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: build-other-profile
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/other.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-users
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-users-asks
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/buildah.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sidecar
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5
+    - name: sidecar
+      image: docker.io/library/alpine:3.22.2
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sidecar-asks
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5
+    - name: sidecar
+      image: docker.io/library/alpine:3.22.2
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/buildah.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: init-other
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: docker.io/library/alpine:3.22.2
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: alpine
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: docker.io/library/alpine:3.22.2
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: alpine-asks
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: docker.io/library/alpine:3.22.2
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/buildah.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: no-label
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: no-label-asks
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable:v1.43.5
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/buildah.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: stable-evil
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable-evil:v1
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: stable-evil-asks
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io/buildah/stable-evil:v1
+  hostUsers: false
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: homelab/buildah.json
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: prefixed
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: evil.io/quay.io/buildah/stable:v1
+  hostUsers: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: registry-port
+  namespace: ci
+  labels:
+    workflows.argoproj.io/workflow: ci-x
+    homelab/ci-step: build
+spec:
+  initContainers:
+    - name: init
+      image: quay.io/argoproj/argoexec:v4.1.6
+  containers:
+    - name: wait
+      image: quay.io/argoproj/argoexec:v4.1.6
+    - name: main
+      image: quay.io:443/buildah/stable:v1
+  hostUsers: false

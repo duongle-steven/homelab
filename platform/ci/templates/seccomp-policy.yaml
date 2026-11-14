@@ -1,0 +1,100 @@
+{{- /*
+The golden path's Buildah step needs unshare and mount, which RuntimeDefault (the kubelet's seccomp-default) refuses: it
+gets the Localhost profile homelab/buildah.json (infra/_modules/metal/flake/seccomp, placed on every node), and nothing
+else in this namespace may name a Localhost profile (step 15h, moved here with step 10f). Native admission policies,
+not Kyverno's: the API server evaluates them itself, so they hold while Kyverno is down (its webhooks ignore failures),
+and a missed mutation leaves RuntimeDefault, where the build fails.
+
+A build: the pod templates/pipeline.yaml labels homelab/ci-step=build (only this repository's templates run here:
+Strict template referencing), whose container main is quay.io/buildah/stable (any tag or digest), whose other
+containers are Argo's argoexec (init and wait), in its own user namespace.
+*/ -}}
+{{- define "ci.image" -}}
+(IMAGE.split('@')[0].lastIndexOf(':') > IMAGE.split('@')[0].lastIndexOf('/')
+  ? IMAGE.split('@')[0].substring(0, IMAGE.split('@')[0].lastIndexOf(':'))
+  : IMAGE.split('@')[0])
+{{- end }}
+{{- define "ci.buildPod" -}}
+has(object.metadata.labels) && object.metadata.labels[?'homelab/ci-step'].orValue('') == 'build'
+&& has(object.spec.hostUsers) && object.spec.hostUsers == false
+&& object.spec.containers.exists(c, c.name == 'main')
+&& (object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers : [])).all(c,
+  c.name == 'main'
+    ? {{ include "ci.image" . | replace "IMAGE" "c.image" }} == 'quay.io/buildah/stable'
+    : {{ include "ci.image" . | replace "IMAGE" "c.image" }} == 'quay.io/argoproj/argoexec')
+{{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: ci-buildah-seccomp
+spec:
+  failurePolicy: Fail
+  reinvocationPolicy: Never
+  matchConstraints:
+    resourceRules:
+      - {apiGroups: [""], apiVersions: [v1], operations: [CREATE], resources: [pods]}
+  matchConditions:
+    - name: build
+      expression: |-
+        {{- include "ci.buildPod" . | nindent 8 }}
+    # A profile the pod names itself stays
+    - name: no-profile
+      expression: |-
+        !(has(object.spec.securityContext) && has(object.spec.securityContext.seccompProfile))
+        && (object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers : [])).all(c,
+          !(has(c.securityContext) && has(c.securityContext.seccompProfile)))
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: >-
+          Object{spec: Object.spec{securityContext: Object.spec.securityContext{seccompProfile:
+          Object.spec.securityContext.seccompProfile{type: "Localhost", localhostProfile: "homelab/buildah.json"}}}}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: ci-buildah-seccomp
+spec:
+  policyName: ci-buildah-seccomp
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ .Release.Namespace }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: ci-localhost-seccomp
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - {apiGroups: [""], apiVersions: [v1], operations: [CREATE], resources: [pods]}
+  variables:
+    # Every seccomp profile the pod names, its own and its containers'
+    - name: profiles
+      expression: |-
+        (has(object.spec.securityContext) && has(object.spec.securityContext.seccompProfile)
+          ? [object.spec.securityContext.seccompProfile] : [])
+        + (object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers : []))
+          .filter(c, has(c.securityContext) && has(c.securityContext.seccompProfile))
+          .map(c, c.securityContext.seccompProfile)
+  validations:
+    - expression: |-
+        variables.profiles.all(p, p.type != 'Localhost')
+        || (({{- include "ci.buildPod" . | nindent 10 }})
+          && variables.profiles.all(p, p.type != 'Localhost' || (has(p.localhostProfile) && p.localhostProfile == 'homelab/buildah.json')))
+      message: "only the golden path's Buildah step may use a Localhost seccomp profile (homelab/buildah.json)"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: ci-localhost-seccomp
+spec:
+  policyName: ci-localhost-seccomp
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ .Release.Namespace }}

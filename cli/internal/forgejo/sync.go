@@ -1,18 +1,17 @@
-// Package forgejo provisions the GitOps repository ops/homelab on Forgejo and deploys to it, and provisions
-// Woodpecker's org ci and OAuth client (upstream nixos's lab infra forgejo; its developers team lives in ci here, so
-// no team grants anything on ops/homelab).
+// Package forgejo provisions the GitOps repository ops/homelab on Forgejo and deploys to it, and provisions org ci, the
+// CI's (upstream nixos's lab infra forgejo; ci's teams live there, so no team grants anything on ops/homelab): its
+// bot and its webhook to Argo Events (step 10f).
 package forgejo
 
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/hex"
 	"fmt"
 	"net/http"
-	"net/url"
 	"reflect"
-	"strings"
 	"time"
 
 	sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -25,12 +24,21 @@ const (
 	DeployPath = "forgejo/deploy"
 	ArgoCDPath = "argocd/forgejo"
 
-	// CIOrg is the org whose members may sign in to Woodpecker (WOODPECKER_ORGS); Forgejo's Kanidm login source
-	// maps homelab-admins to its Owners and homelab-editors to CITeam
-	CIOrg          = "ci"
-	CITeam         = "developers"
-	WoodpeckerPath = "woodpecker/forgejo"
-	woodpeckerApp  = "woodpecker"
+	// CIOrg holds the repositories the golden path builds (platform/ci); Forgejo's Kanidm login source maps
+	// homelab-admins to its Owners and homelab-editors to CITeam
+	CIOrg  = "ci"
+	CITeam = "developers"
+	// CIBot clones every repository of org ci and reports the golden path's commit statuses, through team CIBotTeam;
+	// its token is namespace ci's (CIBotPath)
+	CIBot     = "ci-bot"
+	CIBotTeam = "pipeline"
+	CIBotPath = "ci/forgejo-token"
+	// WebhookPath holds org ci's webhook secret (platform/generated-secrets), WebhookAppliedPath which hook sync gave
+	// which secret (Forgejo never shows a hook's authorization header)
+	WebhookPath        = "ci/generated/webhook"
+	WebhookAppliedPath = "ci/forgejo-webhook"
+	// WebhookURL is Argo Events' EventSource (platform/ci's values.yaml: webhook.port and webhook.path)
+	WebhookURL = "http://forgejo-eventsource-svc.ci:12000/forgejo"
 )
 
 // Tokens is where Sync keeps the accounts' tokens (OpenBao).
@@ -45,16 +53,24 @@ type account struct {
 	token      string
 	scope      sdk.AccessTokenScope
 	path       string
+	// check is a path a valid token reads (GET /user needs read:user, which no account's scope has)
+	check string
 }
 
 var accounts = []account{
-	{name: "deploy", permission: sdk.AccessModeWrite, token: "lab", scope: sdk.AccessTokenScopeRepositoryWrite, path: DeployPath},
-	{name: "argocd", permission: sdk.AccessModeRead, token: "argocd", scope: sdk.AccessTokenScopeRepositoryRead, path: ArgoCDPath},
+	{name: "deploy", permission: sdk.AccessModeWrite, token: "lab", scope: sdk.AccessTokenScopeRepositoryWrite, path: DeployPath, check: opsCheck},
+	{name: "argocd", permission: sdk.AccessModeRead, token: "argocd", scope: sdk.AccessTokenScopeRepositoryRead, path: ArgoCDPath, check: opsCheck},
 }
 
-// Sync makes orgs ops and ci and Woodpecker's OAuth client (redirect woodpeckerCallback) match the design: what is
-// right is kept, what is wrong is fixed, what is missing is created. It waits for Forgejo until ctx ends.
-func Sync(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens, woodpeckerCallback string) error {
+const opsCheck = "/api/v1/repos/" + Org + "/" + Repo
+
+// ciBot's token writes the commit statuses of org ci's repositories (Forgejo asks for write on code)
+var ciBot = account{name: CIBot, token: "pipeline", scope: sdk.AccessTokenScopeRepositoryWrite, path: CIBotPath, check: "/api/v1/repos/search?limit=1"}
+
+// Sync makes orgs ops and ci match the design: what is right is kept, what is wrong is fixed, what is missing is
+// created. It waits for Forgejo, and for the webhook's secret in
+// OpenBao, until ctx ends.
+func Sync(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens) error {
 	if err := waitReady(ctx, ep); err != nil {
 		return err
 	}
@@ -84,7 +100,16 @@ func Sync(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens,
 	if err := ensureCIOrg(admin); err != nil {
 		return err
 	}
-	return ensureWoodpeckerClient(ctx, ep, admin, tokens, woodpeckerCallback)
+	if err := ensureUser(admin, CIBot); err != nil {
+		return err
+	}
+	if err := ensureCIBotTeam(admin); err != nil {
+		return err
+	}
+	if err := ensureToken(ctx, ep, admin, tokens, ciBot); err != nil {
+		return err
+	}
+	return ensureCIWebhook(ctx, admin, tokens)
 }
 
 func newClient(ctx context.Context, ep Endpoint, auth sdk.ClientOption) (*sdk.Client, error) {
@@ -260,9 +285,9 @@ func ensureProtection(c *sdk.Client) error {
 	return nil
 }
 
-// valid tells whether token still reads ops/homelab (both accounts' scopes allow it; GET /user needs read:user).
-func valid(ctx context.Context, ep Endpoint, token string) (bool, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ep.URL+"/api/v1/repos/"+Org+"/"+Repo, nil)
+// valid tells whether token still reads what its account reads (account.check).
+func valid(ctx context.Context, ep Endpoint, token, check string) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ep.URL+check, nil)
 	if err != nil {
 		return false, err
 	}
@@ -287,7 +312,7 @@ func ensureToken(ctx context.Context, ep Endpoint, admin *sdk.Client, tokens Tok
 		return err
 	}
 	if token := stored["token"]; token != "" {
-		ok, err := valid(ctx, ep, token)
+		ok, err := valid(ctx, ep, token, a.check)
 		if err != nil {
 			return err
 		}
@@ -334,15 +359,57 @@ func ensureCIOrg(c *sdk.Client) error {
 	if err := ensureOrg(c, CIOrg); err != nil {
 		return err
 	}
-	units := map[string]string{"repo.code": "write", "repo.pulls": "write"}
+	_, err := ensureTeam(c, CITeam, true, false, map[string]string{"repo.code": "write", "repo.pulls": "write"})
+	return err
+}
+
+// ensureCIBotTeam keeps org ci's team pipeline: write on code of every repository of the org (clones, commit
+// statuses), creating none, and ci-bot its only member
+func ensureCIBotTeam(c *sdk.Client) error {
+	id, err := ensureTeam(c, CIBotTeam, false, true, map[string]string{"repo.code": "write"})
+	if err != nil {
+		return err
+	}
+	var members []*sdk.User
+	for page := 1; ; page++ {
+		list, _, err := c.ListTeamMembers(id, sdk.ListTeamMembersOptions{ListOptions: sdk.ListOptions{Page: page, PageSize: 50}})
+		if err != nil {
+			return fmt.Errorf("members of team %s/%s: %w", CIOrg, CIBotTeam, err)
+		}
+		members = append(members, list...)
+		if len(list) < 50 {
+			break
+		}
+	}
+	bot := false
+	for _, m := range members {
+		if m.UserName == CIBot {
+			bot = true
+			continue
+		}
+		if _, err := c.RemoveTeamMember(id, m.UserName); err != nil {
+			return fmt.Errorf("remove %s from team %s/%s: %w", m.UserName, CIOrg, CIBotTeam, err)
+		}
+	}
+	if !bot {
+		if _, err := c.AddTeamMember(id, CIBot); err != nil {
+			return fmt.Errorf("add %s to team %s/%s: %w", CIBot, CIOrg, CIBotTeam, err)
+		}
+	}
+	return nil
+}
+
+// ensureTeam keeps org ci's team name with write on units, creating org repositories or not, on all of the org's
+// repositories or only those it is given; it returns the team's id
+func ensureTeam(c *sdk.Client, name string, canCreate, all bool, units map[string]string) (int64, error) {
 	var team *sdk.Team
 	for page := 1; team == nil; page++ {
 		teams, _, err := c.ListOrgTeams(CIOrg, sdk.ListTeamsOptions{ListOptions: sdk.ListOptions{Page: page, PageSize: 50}})
 		if err != nil {
-			return fmt.Errorf("teams of org %s: %w", CIOrg, err)
+			return 0, fmt.Errorf("teams of org %s: %w", CIOrg, err)
 		}
 		for _, t := range teams {
-			if t.Name == CITeam {
+			if t.Name == name {
 				team = t
 			}
 		}
@@ -351,93 +418,100 @@ func ensureCIOrg(c *sdk.Client) error {
 		}
 	}
 	if team == nil {
-		if _, _, err := c.CreateTeam(CIOrg, sdk.CreateTeamOption{Name: CITeam, Permission: sdk.AccessModeWrite, CanCreateOrgRepo: true, UnitsMap: units}); err != nil {
-			return fmt.Errorf("create team %s/%s: %w", CIOrg, CITeam, err)
+		created, _, err := c.CreateTeam(CIOrg, sdk.CreateTeamOption{Name: name, Permission: sdk.AccessModeWrite, CanCreateOrgRepo: canCreate,
+			IncludesAllRepositories: all, UnitsMap: units})
+		if err != nil {
+			return 0, fmt.Errorf("create team %s/%s: %w", CIOrg, name, err)
 		}
-		return nil
+		return created.ID, nil
 	}
-	if team.Permission == sdk.AccessModeWrite && team.CanCreateOrgRepo && !team.IncludesAllRepositories && reflect.DeepEqual(team.UnitsMap, units) {
-		return nil
+	if team.Permission == sdk.AccessModeWrite && team.CanCreateOrgRepo == canCreate && team.IncludesAllRepositories == all && reflect.DeepEqual(team.UnitsMap, units) {
+		return team.ID, nil
 	}
-	on, off := true, false
-	if _, err := c.EditTeam(team.ID, sdk.EditTeamOption{Name: CITeam, Permission: sdk.AccessModeWrite, CanCreateOrgRepo: &on, IncludesAllRepositories: &off, UnitsMap: units}); err != nil {
-		return fmt.Errorf("restore team %s/%s: %w", CIOrg, CITeam, err)
+	if _, err := c.EditTeam(team.ID, sdk.EditTeamOption{Name: name, Permission: sdk.AccessModeWrite, CanCreateOrgRepo: &canCreate,
+		IncludesAllRepositories: &all, UnitsMap: units}); err != nil {
+		return 0, fmt.Errorf("restore team %s/%s: %w", CIOrg, name, err)
 	}
-	return nil
+	return team.ID, nil
 }
 
-// ensureWoodpeckerClient keeps Forgejo's OAuth2 application woodpecker (forgejo_admin's) and its credentials in
-// OpenBao in step. Forgejo shows a client secret only when it issues one, so a client whose secret OpenBao lost, or
-// holds no longer (regenerated in Forgejo, or a write that failed after an update), is updated, which issues a new one.
-func ensureWoodpeckerClient(ctx context.Context, ep Endpoint, c *sdk.Client, tokens Tokens, callback string) error {
-	var found *sdk.Oauth2
-	for page := 1; ; page++ {
-		apps, _, err := c.ListOauth2(sdk.ListOauth2Option{ListOptions: sdk.ListOptions{Page: page, PageSize: 50}})
-		if err != nil {
-			return fmt.Errorf("OAuth2 applications: %w", err)
-		}
-		for _, app := range apps {
-			if app.Name != woodpeckerApp {
-				continue
-			}
-			if found != nil {
-				return fmt.Errorf("Forgejo has two OAuth2 applications named %s (ids %d and %d): delete one in forgejo_admin's settings", woodpeckerApp, found.ID, app.ID)
-			}
-			found = app
-		}
-		if len(apps) < 50 {
-			break
-		}
-	}
-	stored, err := tokens.Read(ctx, WoodpeckerPath)
+// ensureCIWebhook keeps org ci's webhook to Argo Events (WebhookURL): push and pull request events as JSON, with
+// Authorization: Bearer <WebhookPath's secret>, which the EventSource checks. Forgejo never shows the header, so
+// WebhookAppliedPath records which hook got which secret's hash: the hook is rewritten only when the secret or the
+// hook changed. Other hooks are left alone; a second hook to the same URL is deleted.
+func ensureCIWebhook(ctx context.Context, c *sdk.Client, tokens Tokens) error {
+	secret, err := webhookSecret(ctx, tokens)
 	if err != nil {
 		return err
 	}
-	desired := sdk.CreateOauth2Option{Name: woodpeckerApp, ConfidentialClient: true, RedirectURIs: []string{callback}}
-	if found != nil && found.ConfidentialClient && reflect.DeepEqual(found.RedirectURIs, desired.RedirectURIs) &&
-		stored["client_id"] == found.ClientID && stored["client_secret"] != "" && stored["redirect_uri"] == callback {
-		current, err := clientSecretCurrent(ctx, ep, stored["client_id"], stored["client_secret"], callback)
-		if err != nil || current {
-			return err
+	header := "Bearer " + secret
+	sum := sha256.Sum256([]byte(header))
+	hash := hex.EncodeToString(sum[:])
+	events := []string{"push", "pull_request"}
+	config := map[string]string{"url": WebhookURL, "content_type": "json"}
+
+	var ours []*sdk.Hook
+	for page := 1; ; page++ {
+		hooks, _, err := c.ListOrgHooks(CIOrg, sdk.ListHooksOptions{ListOptions: sdk.ListOptions{Page: page, PageSize: 50}})
+		if err != nil {
+			return fmt.Errorf("webhooks of org %s: %w", CIOrg, err)
+		}
+		for _, h := range hooks {
+			if h.Config["url"] == WebhookURL {
+				ours = append(ours, h)
+			}
+		}
+		if len(hooks) < 50 {
+			break
 		}
 	}
-	var app *sdk.Oauth2
-	if found == nil {
-		app, _, err = c.CreateOauth2(desired)
-	} else {
-		app, _, err = c.UpdateOauth2(found.ID, desired)
+	for _, extra := range ours[min(1, len(ours)):] {
+		if _, err := c.DeleteOrgHook(CIOrg, extra.ID); err != nil {
+			return fmt.Errorf("delete a second webhook of org %s to %s: %w", CIOrg, WebhookURL, err)
+		}
 	}
+	applied, err := tokens.Read(ctx, WebhookAppliedPath)
 	if err != nil {
-		return fmt.Errorf("OAuth2 application %s: %w", woodpeckerApp, err)
+		return err
 	}
-	if app.ClientID == "" || app.ClientSecret == "" {
-		return fmt.Errorf("Forgejo returned incomplete credentials for OAuth2 application %s", woodpeckerApp)
+	var id int64
+	if len(ours) == 0 {
+		created, _, err := c.CreateOrgHook(CIOrg, sdk.CreateHookOption{Type: sdk.HookTypeForgejo, Config: config, Events: events, Active: true,
+			AuthorizationHeader: header})
+		if err != nil {
+			return fmt.Errorf("create org %s's webhook: %w", CIOrg, err)
+		}
+		id = created.ID
+	} else {
+		hook := ours[0]
+		id = hook.ID
+		right := hook.Type == string(sdk.HookTypeForgejo) && hook.Active && reflect.DeepEqual(hook.Events, events) &&
+			hook.Config["content_type"] == "json" && applied["id"] == fmt.Sprint(id) && applied["header_sha256"] == hash
+		if right {
+			return nil
+		}
+		active := true
+		if _, err := c.EditOrgHook(CIOrg, id, sdk.EditHookOption{Config: config, Events: events, Active: &active, AuthorizationHeader: header}); err != nil {
+			return fmt.Errorf("restore org %s's webhook: %w", CIOrg, err)
+		}
 	}
-	return tokens.Write(ctx, WoodpeckerPath, map[string]string{"client_id": app.ClientID, "client_secret": app.ClientSecret, "redirect_uri": callback})
+	return tokens.Write(ctx, WebhookAppliedPath, map[string]string{"id": fmt.Sprint(id), "header_sha256": hash})
 }
 
-// clientSecretCurrent asks Forgejo's token endpoint whether secret is the client's: with a code that cannot exist,
-// Forgejo refuses either way, saying "invalid client secret" only for a wrong secret.
-func clientSecretCurrent(ctx context.Context, ep Endpoint, id, secret, callback string) (bool, error) {
-	form := url.Values{"grant_type": {"authorization_code"}, "code": {"lab-sync-probe"}, "redirect_uri": {callback},
-		"client_id": {id}, "client_secret": {secret}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ep.URL+"/login/oauth/access_token", strings.NewReader(form.Encode()))
-	if err != nil {
-		return false, err
+// webhookSecret waits for platform/generated-secrets to push the webhook's secret (a first install), until ctx ends
+func webhookSecret(ctx context.Context, tokens Tokens) (string, error) {
+	for {
+		stored, err := tokens.Read(ctx, WebhookPath)
+		if err != nil {
+			return "", err
+		}
+		if secret := stored["token"]; secret != "" {
+			return secret, nil
+		}
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("%s is not in OpenBao (platform/generated-secrets pushes it): %w", WebhookPath, ctx.Err())
+		case <-time.After(5 * time.Second):
+		}
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := ep.HTTP.Do(req)
-	if err != nil {
-		return false, fmt.Errorf("check %s's client secret against Forgejo: %w", woodpeckerApp, err)
-	}
-	defer resp.Body.Close()
-	var answer struct {
-		Error       string `json:"error"`
-		Description string `json:"error_description"`
-	}
-	_ = json.NewDecoder(resp.Body).Decode(&answer)
-	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnauthorized {
-		return false, fmt.Errorf("check %s's client secret against Forgejo: %s", woodpeckerApp, resp.Status)
-	}
-	return !strings.Contains(answer.Description, "invalid client secret"), nil
 }

@@ -1,0 +1,36 @@
+{{- /*
+Forgejo's org ci webhook (lab infra forgejo sync keeps it, with Authorization: Bearer <ci/generated/webhook>): a request
+without that secret is refused before it reaches the EventBus. Argo Events has no Forgejo source; the Sensor reads
+Forgejo's JSON itself. Its Service is forgejo-eventsource-svc, in-cluster only (no route)
+*/ -}}
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: forgejo
+  namespace: {{ .Release.Namespace }}
+spec:
+  template:
+    # Argo Events' image runs as root unless told otherwise (platform/argo-events)
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+    container:
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+  service:
+    ports:
+      - port: {{ .Values.webhook.port }}
+        targetPort: {{ .Values.webhook.port }}
+  webhook:
+    forgejo:
+      port: {{ .Values.webhook.port | quote }}
+      endpoint: {{ .Values.webhook.path }}
+      method: POST
+      authSecret:
+        name: webhook
+        key: token

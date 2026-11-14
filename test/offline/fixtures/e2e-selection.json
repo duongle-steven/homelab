@@ -83,8 +83,7 @@
     "TestbedSecretsEncrypted",
     "TestbedSynced",
     "TestbedVIPMoves",
-    "TrivyOperator",
-    "Woodpecker"
+    "TrivyOperator"
   ],
   "selection": {
     "full": [
@@ -155,8 +154,7 @@
       "SecurityLogsRulesLoaded",
       "Smoke",
       "SupplyChain",
-      "TrivyOperator",
-      "Woodpecker"
+      "TrivyOperator"
     ],
     "always": [
       "Smoke"
@@ -241,8 +239,7 @@
       "SecurityLogsRulesLoaded",
       "Smoke",
       "SupplyChain",
-      "TrivyOperator",
-      "Woodpecker"
+      "TrivyOperator"
     ],
     "system/istio-system/**": [
       "EgressAllowsListedNamespaces",
@@ -410,8 +407,7 @@
       "SecurityLogsOpenBao",
       "SecurityLogsQuietWhenIdle",
       "SecurityLogsRulesLoaded",
-      "Smoke",
-      "Woodpecker"
+      "Smoke"
     ],
     "platform/kanidm/**": [
       "ForgejoDeploy",
@@ -427,8 +423,7 @@
       "SSOOpenCloud",
       "SSOPaperless",
       "SSOZot",
-      "Smoke",
-      "Woodpecker"
+      "Smoke"
     ],
     "platform/grafana/**": [
       "LogsEvents",
@@ -455,26 +450,19 @@
       "ForgejoDeploy",
       "GatewayForgejoSSH",
       "SSOForgejo",
-      "Smoke",
-      "Woodpecker"
+      "Smoke"
     ],
     "cli/internal/forgejo/**": [
       "ForgejoArgoCDSyncs",
       "ForgejoDeploy",
       "GatewayForgejoSSH",
       "SSOForgejo",
-      "Smoke",
-      "Woodpecker"
+      "Smoke"
     ],
     "platform/zot/**": [
       "GatewayZotLargePush",
       "SSOZot",
-      "Smoke",
-      "Woodpecker"
-    ],
-    "platform/woodpecker/**": [
-      "Smoke",
-      "Woodpecker"
+      "Smoke"
     ],
     "platform/secrets-rotation/**": [
       "Rotation",

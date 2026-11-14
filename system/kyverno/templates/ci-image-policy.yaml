@@ -1,0 +1,51 @@
+{{- /*
+Images the golden path built (platform/ci, step 10f) live in zot (registry.<domain>): a pod running one must carry the
+signature of OpenBao's transit key ci-signing and its SLSA provenance and SPDX SBOM, attested with it. The public key
+is the ConfigMap ci/ci-signing-public-key, copied from OpenBao after every sync (the key never leaves OpenBao), read
+here at admission. No transparency log: the signing skips it (the registry is the homelab's). Audit, like every
+policy until step 15b-2 (docs/how-to-guides/supply-chain.md)
+*/ -}}
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
+metadata:
+  name: verify-ci-images
+spec:
+  validationActions: [Audit]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  matchImageReferences:
+    - glob: "registry.{{ .Values.global.baseDomain }}/*"
+  validationConfigurations:
+    mutateDigest: false
+    verifyDigest: false
+    required: true
+  attestors:
+    - name: ci
+      cosign:
+        key:
+          expression: >-
+            resource.Get("v1", "configmaps", "ci", "ci-signing-public-key").data["cosign.pub"]
+        ctlog:
+          insecureIgnoreTlog: true
+          insecureIgnoreSCT: true
+  attestations:
+    - name: provenance
+      intoto:
+        type: https://slsa.dev/provenance/v1
+    - name: sbom
+      intoto:
+        type: https://spdx.dev/Document
+  validations:
+    - expression: >-
+        images.containers.map(image, verifyImageSignatures(image, [attestors.ci])).all(e, e > 0)
+      message: an image of registry.<domain> is not signed by the golden path (OpenBao's ci-signing)
+    - expression: >-
+        images.containers.map(image, verifyAttestationSignatures(image, attestations.provenance, [attestors.ci])).all(e, e > 0)
+      message: an image of registry.<domain> has no provenance attested by the golden path
+    - expression: >-
+        images.containers.map(image, verifyAttestationSignatures(image, attestations.sbom, [attestors.ci])).all(e, e > 0)
+      message: an image of registry.<domain> has no SBOM attested by the golden path
