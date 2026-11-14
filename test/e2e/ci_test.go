@@ -30,7 +30,7 @@ func ciRepo(ctx context.Context, name string, files map[string]string) string {
 	return sha
 }
 
-// ciCommit adds a file to ci/<name> on branch (creating newBranch from it when newBranch is set) and returns the commit
+// ciCommit adds a new file (Forgejo refuses one that exists) to ci/<name> on branch (creating newBranch from it when newBranch is set) and returns the commit
 func ciCommit(ctx context.Context, name, branch, newBranch, path, content string) string {
 	GinkgoHelper()
 	var out struct {
@@ -173,7 +173,7 @@ var _ = Describe("CI", Label("sandbox", "ci"), func() {
 	It("builds a pull request without pushing, with a status on its head", func(ctx SpecContext) {
 		name := fmt.Sprint("ci-pr-", time.Now().Unix())
 		ciRepo(ctx, name, map[string]string{"Containerfile": "FROM docker.io/library/busybox:1.37.0\n"})
-		sha := ciCommit(ctx, name, "main", "feature", "Containerfile", "FROM docker.io/library/busybox:1.37.0\nRUN echo pr > /pr\n")
+		sha := ciCommit(ctx, name, "main", "feature", "change.txt", "a change\n")
 		Expect(forgejoAs(ctx, "", "POST", "/repos/ci/"+name+"/pulls", map[string]any{"head": "feature", "base": "main", "title": "a change"}, nil)).
 			To(Equal(http.StatusCreated))
 		phase, digest := ciWorkflowFor(ctx, name, sha, "pull_request")
@@ -185,7 +185,7 @@ var _ = Describe("CI", Label("sandbox", "ci"), func() {
 	It("runs two pushes in a row, each with its own status", func(ctx SpecContext) {
 		name := fmt.Sprint("ci-twice-", time.Now().Unix())
 		first := ciRepo(ctx, name, map[string]string{"Containerfile": "FROM docker.io/library/busybox:1.37.0\n"})
-		second := ciCommit(ctx, name, "main", "", "README.md", "two\n")
+		second := ciCommit(ctx, name, "main", "", "second.txt", "two\n")
 		for _, sha := range []string{first, second} {
 			phase, digest := ciWorkflowFor(ctx, name, sha, "push")
 			Expect(phase).To(Equal("Succeeded"), sha)
