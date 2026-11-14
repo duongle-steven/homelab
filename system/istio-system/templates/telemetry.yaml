@@ -1,0 +1,22 @@
+# The Gateways' spans and access logs (step OpenTelemetry): the providers are istiod's meshConfig (values.yaml);
+# ztunnel makes no spans, so inside the mesh only the Gateways trace
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: gateways
+  namespace: {{ .Release.Namespace }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public
+  tracing:
+    - providers:
+        - name: otel-tracing
+      randomSamplingPercentage: {{ .Values.tracingSamplingPercentage }}
+  accessLogging:
+    - providers:
+        - name: otel-json
