@@ -30,7 +30,7 @@ risks late. It is a living document: a step that adds an entry point updates it.
 - **A member of org `ci` or of `homelab-editors`** acting beyond their role, or whose account is taken over.
 - **Later, strangers running code on purpose** (the teaching app, 18b).
 
-Out of scope *(Claude's call)*: a targeted attacker with physical access to the house (the disks are unencrypted, an accepted risk since
+Out of scope *(user, 2026-11-14)*: a targeted attacker with physical access to the house (the disks are unencrypted, an accepted risk since
 15d), and the providers themselves (Cloudflare, GitHub, AWS, Kanidm's and Argo's maintainers).
 
 ## Entry points
