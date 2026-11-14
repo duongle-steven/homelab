@@ -23,6 +23,11 @@ base: &ambient
   profile: ambient
   global:
     platform: k3s
+    # Pod redirection through native nftables, not iptables-nft-restore under the node-wide xtables lock: after a
+    # node restart each meshed pod's add queued behind the others and, past about 33 on one node, all of them missed
+    # the CNI plugin's hard-coded 5 s and the mesh never recovered (2026-11-14). nftables commits per network
+    # namespace. On k3s this needs Istio 1.32 (istio#61078, fixed by istio#61079)
+    nativeNftables: true
 istiod:
   <<: *ambient
   # Pod Security restricted (system/kyverno)
