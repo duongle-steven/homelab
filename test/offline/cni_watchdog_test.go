@@ -121,3 +121,15 @@ func TestIstioCNIWatchdogFewCalls(t *testing.T) {
 	assert.Equal(t, "-n istio-system delete pod istio-cni-a --wait=false", deleted)
 	assert.LessOrEqual(t, calls, 5, "one call per query, not per event or pod")
 }
+
+// istio-cni writes each pod's redirection with native nftables, not iptables: iptables-nft-restore runs under the
+// node-wide xtables lock, so after a node restart every meshed pod's add queued behind the others and, past about 33
+// on one node, all of them missed the CNI plugin's hard-coded 5 s, were torn down and retried, and the mesh never
+// recovered (2026-11-14, the sandbox's power cut). nftables commits per network namespace. On k3s it needs Istio 1.32
+// (istio#61078, fixed by istio#61079)
+func TestCNINativeNftables(t *testing.T) {
+	for _, env := range []string{"", "dev"} {
+		assert.Equal(t, "true", renderVelero(t, "system/istio-system", env,
+			`select(.kind == "ConfigMap" and .metadata.name == "istio-cni-config") | .data.NATIVE_NFTABLES`), env)
+	}
+}
