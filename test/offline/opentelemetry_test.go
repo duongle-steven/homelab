@@ -106,3 +106,15 @@ func TestCollectorGatewayRender(t *testing.T) {
 		assert.Contains(t, senders, "argocd,grafana 4317,4318", env)
 	}
 }
+
+// The platform tools that export OTLP send their traces to the gateway Collector: Argo CD (its params) and Grafana
+// (grafana.ini)
+func TestToolsExportTraces(t *testing.T) {
+	for _, env := range []string{"", "dev"} {
+		assert.Equal(t, "gateway-collector.opentelemetry:4317 true", renderVelero(t, "system/argocd", env,
+			`select(.kind == "ConfigMap" and .metadata.name == "argocd-cmd-params-cm") | .data["otlp.address"] + " " + .data["otlp.insecure"]`), env)
+		ini := renderVelero(t, "platform/grafana", env, `select(.kind == "ConfigMap" and .metadata.name == "grafana") | .data["grafana.ini"]`)
+		assert.Contains(t, ini, "[tracing.opentelemetry.otlp]\naddress = gateway-collector.opentelemetry:4317", env)
+		assert.Contains(t, ini, "[tracing.opentelemetry]\npropagation = w3c", env)
+	}
+}

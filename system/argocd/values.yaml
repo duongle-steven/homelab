@@ -3,6 +3,9 @@ argo-cd:
     params:
       server.insecure: true
       controller.diff.server.side: true
+      # Traces to the gateway Collector (system/opentelemetry); plain inside the mesh, which encrypts it
+      otlp.address: gateway-collector.opentelemetry:4317
+      otlp.insecure: true
     cm:
       resource.ignoreResourceUpdatesEnabled: true
       resource.customizations.ignoreResourceUpdates.all: |
