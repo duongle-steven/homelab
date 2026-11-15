@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/duongle-steven/homelab/test/internal/render"
 	"github.com/duongle-steven/homelab/test/internal/repo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,10 @@ func renderVelero(t *testing.T, target, env, expr string, helmArgs ...string) st
 	t.Helper()
 	if env == "" {
 		env = "prod"
+	}
+	// The same render queried again is rendered once (render.Yq's cache): the package must fit go test's timeout
+	if len(helmArgs) == 0 {
+		return render.Yq(t, target, env, expr)
 	}
 	cmd := exec.Command("sh", append([]string{"-c", `scripts/render-chart "$@" | yq -N "$0"`, expr, target, env}, helmArgs...)...)
 	cmd.Dir = repo.Root()

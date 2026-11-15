@@ -182,3 +182,14 @@ func TestNoAlloy(t *testing.T) {
 	out, _ := cmd.Output()
 	assert.Empty(t, strings.TrimSpace(string(out)), "files still naming Alloy")
 }
+
+// The render cache keys on every environment variable the render scripts read: a variable they read that the cache
+// does not know would answer a test with another test's render
+func TestRenderCacheKnowsTheRenderEnv(t *testing.T) {
+	cmd := exec.Command("sh", "-c", `grep -ohE '\$\{?[A-Z][A-Z0-9_]{3,}' scripts/render-chart scripts/env-values | tr -d '${' | sort -u`)
+	cmd.Dir = repo.Root()
+	out, err := cmd.Output()
+	if assert.NoError(t, err) {
+		assert.Equal(t, []string{"BACKUP_S3_URL"}, strings.Fields(string(out)), "add the new ones to render.renderEnv")
+	}
+}
