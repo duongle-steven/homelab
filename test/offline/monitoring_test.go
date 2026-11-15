@@ -48,3 +48,19 @@ func TestOperatorAfterItsCRDs(t *testing.T) {
 		assert.ElementsMatch(t, strings.Split(want, "\n"), strings.Split(waves, "\n"), "env %q", env)
 	}
 }
+
+// k3s runs the API server, etcd, the controllers and the scheduler in the kubelet's process, and its kubelet port
+// serves all their metrics: the chart's kubelet job stored the API server's and etcd's series a second time (about
+// 120k of the sandbox's 140k kubelet series, 2026-11-15). The job drops them, and nothing the chart renders reads
+// them from it
+func TestKubeletJobOwnMetricsOnly(t *testing.T) {
+	const monitor = `select(.kind == "ServiceMonitor" and .metadata.name == "monitoring-system-kube-pro-kubelet") | .spec.endpoints[]`
+	for _, env := range []string{"", "dev"} {
+		drops := renderVelero(t, "system/monitoring-system", env, monitor+` | select(.path == null) | .metricRelabelings[] | select(.action == "drop") | .regex`)
+		assert.Contains(t, strings.Split(drops, "\n"), "(apiserver|etcd|workqueue|scheduler)_.+", "env %q", env)
+		assert.Contains(t, drops, "storage_operation_duration", "env %q: the chart's default drop is restated", env)
+		assert.Equal(t, "8", renderVelero(t, "system/monitoring-system", env, monitor+` | select(.path == "/metrics/cadvisor") | .metricRelabelings | length`), "env %q: cAdvisor keeps the chart's drops", env)
+	}
+	readers := renderVelero(t, "system/monitoring-system", "", `select(.kind == "PrometheusRule" or .kind == "ConfigMap") | .. | select(tag == "!!str") | select(test("(apiserver|etcd|workqueue|scheduler)_[a-z_]+\\{[^}]*kubelet"))`)
+	assert.Empty(t, readers, "a rule or dashboard reads a metric the kubelet job drops")
+}
