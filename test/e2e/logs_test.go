@@ -225,13 +225,19 @@ spec:
 `
 		Expect(kube.Apply(ctx, "loki", deny)).To(Succeed())
 		removed := false
+		// Retried until it is gone: a deny left behind (the API server restarting mid-spec, 2026-11-15) cut the agent
+		// off from Loki and failed every log spec after it
 		remove := func(ctx context.Context) {
-			if !removed {
-				Expect(kube.Delete(ctx, "loki", deny)).To(Succeed())
-				removed = true
+			if removed {
+				return
 			}
+			Eventually(ctx, func() error {
+				_, err := kube.Kubectl(ctx, "loki", "delete", "authorizationpolicy", "logs-test-outage", "--ignore-not-found")
+				return err
+			}).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(), "the outage's deny policy is still in loki")
+			removed = true
 		}
-		DeferCleanup(func(ctx SpecContext) { remove(ctx) }, NodeTimeout(time.Minute))
+		DeferCleanup(func(ctx SpecContext) { remove(ctx) }, NodeTimeout(11*time.Minute))
 		sleep(ctx, 15*time.Second) // ztunnel picks up the policy
 		// ztunnel checks policies when a connection opens: restart the agent so its keep-alive connection to Loki is a
 		// new, denied one

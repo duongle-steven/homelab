@@ -80,9 +80,11 @@ spec:
       filelog/pods:
         include: [/var/log/pods/*/*/*.log]
         include_file_path: true
-        # Every second, not the default 200ms: each poll fingerprints every file and writes the positions (about 105m
-        # of CPU at 27 lines a second against 32m at 1s, the sandbox, 2026-11-15), on the disk etcd uses
-        poll_interval: 1s
+        # Every 5s, not the default 200ms: each poll fingerprints every file and writes every file's position to the
+        # store, on the disk etcd uses. At 200ms the agent took about 105m of CPU; at 1s it still wrote 622KiB/s, the
+        # cluster's heaviest writer while k3s lost its lease under the suite; at 5s, 208KiB/s (271 pod logs, the
+        # sandbox, 2026-11-15). A line reaches Loki at most 5s later
+        poll_interval: 5s
         start_at: beginning
         storage: file_storage
         # A refused batch (memory_limiter) pauses the file instead of moving its offset past lines nothing sent
@@ -96,6 +98,7 @@ spec:
       # position kept, so a rotation neither rereads nor skips a line
       filelog/audit:
         include: [/var/log/kubernetes/audit/audit.log]
+        # One file: every second, for its alerts
         poll_interval: 1s
         start_at: beginning
         storage: file_storage

@@ -51,11 +51,12 @@ func TestCollectorAgentRender(t *testing.T) {
 		assert.Equal(t, "/var/log/pods/*/*/*.log", agent(config+`.receivers["filelog/pods"].include[]`), env)
 		assert.Equal(t, "container", agent(config+`.receivers["filelog/pods"].operators[0].type`), env)
 		assert.Equal(t, "/var/log/kubernetes/audit/audit.log", agent(config+`.receivers["filelog/audit"].include[]`), env)
+		// Each poll fingerprints every file and writes every file's position to the store, on the disk etcd uses: at the
+		// default 200ms the agent took about 105m of CPU, at 1s it still wrote 622KiB/s and was the cluster's heaviest
+		// writer while k3s lost its lease under the suite; at 5s, 208KiB/s (271 pod logs, the sandbox, 2026-11-15). The
+		// audit log is one file, polled every second for its alerts
+		assert.Equal(t, "5s 1s", agent(config+`.receivers | .["filelog/pods"].poll_interval + " " + .["filelog/audit"].poll_interval`), env)
 		for _, receiver := range []string{"filelog/pods", "filelog/audit"} {
-			// Every second, not the default 200ms: each poll fingerprints every file and writes the positions, which
-			// cost about 105m of CPU at 27 lines a second against 32m at 1s (the sandbox, 2026-11-15), and the writes
-			// share the disk with etcd
-			assert.Equal(t, "1s", agent(config+`.receivers["`+receiver+`"].poll_interval`), env, receiver)
 			// Positions persist: a restart or the API server's rotation neither rereads nor skips a line
 			assert.Equal(t, "beginning file_storage", agent(config+`.receivers["`+receiver+`"] | .start_at + " " + .storage`), env, receiver)
 		}
