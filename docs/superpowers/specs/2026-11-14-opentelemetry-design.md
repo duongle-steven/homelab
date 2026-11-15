@@ -143,3 +143,13 @@ volume at the chosen sampling, the Gateways' trace headers through Cloudflare.
 - The Collectors' resource requests, measured, and the attributes the agent drops (decision 12).
 - Whether Loki needs extra resource attributes indexed for a query the rewrite finds (keep the default set otherwise).
 - The production sampling rate.
+
+## Measured (the sandbox, 2026-11-15)
+
+- **Memory:** the agent used 365Mi (Alloy 220Mi), the gateway 56Mi, the Operator 71Mi, Tempo 189Mi: about 460Mi more
+  than Alloy. The node reached 92% under the suite and k3s restarted once; `GOMEMLIMIT` at about 80% of each limit and
+  smaller sandbox limits (the agent 256Mi, the gateway 128Mi, Tempo 256Mi) followed.
+- **Loki's volume:** an audit line averaged 1418 bytes (`k3s-audit`) and 1773 bytes (`openbao-audit`); OTLP added 213
+  and 448 bytes of labels and structured metadata (15% and 25% before compression). The receiver's scope and the file's
+  name (about 100 bytes a line) are dropped by the agent; what remains repeats line after line and compresses well, so
+  the audit streams' 60 days stay within step 15c's budget (7.3GiB of 10Gi) and the period is unchanged.

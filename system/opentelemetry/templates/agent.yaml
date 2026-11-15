@@ -122,12 +122,16 @@ spec:
             - tag_name: service.name
               key: app.kubernetes.io/name
               from: pod
-      # The file's path is in the pod's attributes already, and no query reads it: not kept in Loki
-      transform/pods:
+      # What no query reads is not stored with every line: the file's path and name (the pod's attributes say it) and
+      # the receiver's scope (about 100 of the 213 bytes each audit line carried, measured 2026-11-15)
+      transform/trim:
         log_statements:
           - context: log
             statements:
               - delete_key(attributes, "log.file.path")
+              - delete_key(attributes, "log.file.name")
+              - set(instrumentation_scope.name, "")
+              - set(instrumentation_scope.version, "")
       transform/openbao-audit:
         log_statements:
           - context: resource
@@ -155,7 +159,7 @@ spec:
       pipelines:
         logs/pods:
           receivers: [filelog/pods]
-          processors: [memory_limiter, k8sattributes, transform/pods]
+          processors: [memory_limiter, k8sattributes, transform/trim]
           exporters: [routing/openbao]
         logs/loki:
           receivers: [routing/openbao]
@@ -167,7 +171,7 @@ spec:
           exporters: [otlphttp/loki]
         logs/k3s-audit:
           receivers: [filelog/audit]
-          processors: [memory_limiter, transform/k3s-audit, batch]
+          processors: [memory_limiter, transform/trim, transform/k3s-audit, batch]
           exporters: [otlphttp/loki]
 ---
 # What k8sattributes reads: pods and namespaces, and the ReplicaSets that name a pod's Deployment

@@ -66,6 +66,14 @@ func TestCollectorAgentRender(t *testing.T) {
 		route := agent(config + `.connectors["routing/openbao"] | to_json(0)`)
 		assert.Contains(t, route, `k8s.namespace.name\"] == \"openbao\"`, env)
 		assert.Contains(t, route, `\"type\\\":\\\"(request|response)\\\"`, env)
+		// What no query reads is not stored with every line (the receiver's scope, the file's name: about 100 of the 213
+		// bytes each audit line carried, measured 2026-11-15)
+		trim := agent(config + `.processors["transform/trim"].log_statements[].statements[]`)
+		assert.Contains(t, trim, `delete_key(attributes, "log.file.name")`, env)
+		assert.Contains(t, trim, `set(instrumentation_scope.name, "")`, env)
+		for _, pipeline := range []string{"logs/pods", "logs/k3s-audit"} {
+			assert.Contains(t, agent(config+`.service.pipelines["`+pipeline+`"].processors[]`), "transform/trim", env, pipeline)
+		}
 		exporter := config + `.exporters["otlphttp/loki"]`
 		assert.Equal(t, "http://loki.loki:3100/otlp", agent(exporter+`.endpoint`), env)
 		assert.Equal(t, "file_storage", agent(exporter+`.sending_queue.storage`), env)
