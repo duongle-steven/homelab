@@ -23,6 +23,15 @@ pull the images from their registries (egress 443). In the sandbox one Job runs 
 (`values-dev.yaml`). Measured there: a scan Job peaks under 80Mi (the server does the work), the server at about
 100Mi, the operator at about 160Mi.
 
+The server answers `/healthz` only once its database is in place, and the chart's liveness probe (10 failures 10s apart,
+not configurable) used to kill it mid-download whenever the download took over 100s, so it downloaded again at every
+restart: 19 restarts and about 2GB written to the node's disk during one sandbox suite (2026-11-15), the disk etcd
+uses, until k3s lost its lease. `templates/server-startup-probe.yaml` fixes it without touching the chart: a native
+`MutatingAdmissionPolicy` gives the server's container a startup probe of up to 10 minutes, and liveness only starts
+after it. Set aside: the database on a PVC (the first kill leaves it half written, so every restart still downloads
+it), a StatefulSet of our own for the server (one more thing to keep), and a longer liveness timeout (the chart does
+not template it).
+
 ```sh
 kubectl get vulnerabilityreports -A                 # one per container image, with its counts
 kubectl get vulnerabilityreports -n <ns> <name> -o yaml
