@@ -143,7 +143,11 @@ spec:
             statements:
               - set(attributes["service.name"], "k3s-audit")
               - set(attributes["k8s.node.name"], "${env:K8S_NODE_NAME}")
-      batch: {}
+      # A request stays under Loki's burst (system/loki: 16MB): the default of 8192 lines made 13MB requests Loki
+      # refused forever, the backlog grew and the agent was OOM-killed in a loop (the sandbox, 2026-11-15)
+      batch:
+        send_batch_size: 1000
+        send_batch_max_size: 1000
     exporters:
       otlphttp/loki:
         endpoint: http://loki.loki:3100/otlp

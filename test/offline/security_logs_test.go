@@ -201,6 +201,8 @@ func TestSecurityLogsRetention(t *testing.T) {
 			assert.Equal(t, want[0], render.Loki(t, env, lokiConfig+` | .limits_config.retention_period`))
 			assert.Equal(t, `{service_name=~"k3s-audit|openbao-audit"} `+want[1], render.Loki(t, env, lokiConfig+
 				` | .limits_config.retention_stream | map(.selector + " " + .period) | join(",")`))
+			// The agent's catch-up after a restart fits: 8MB/s, bursts of 16MB (a request is 1000 lines, about 1.6MB)
+			assert.Equal(t, "8 16", render.Loki(t, env, lokiConfig+` | (.limits_config.ingestion_rate_mb | tostring) + " " + (.limits_config.ingestion_burst_size_mb | tostring)`))
 			// A query may span everything kept (Loki refuses longer than 721h by default)
 			assert.Equal(t, "1441h", render.Loki(t, env, lokiConfig+` | .limits_config.max_query_length`))
 		})

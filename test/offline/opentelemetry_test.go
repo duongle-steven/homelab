@@ -74,6 +74,9 @@ func TestCollectorAgentRender(t *testing.T) {
 		for _, pipeline := range []string{"logs/pods", "logs/k3s-audit"} {
 			assert.Contains(t, agent(config+`.service.pipelines["`+pipeline+`"].processors[]`), "transform/trim", env, pipeline)
 		}
+		// A request stays under Loki's burst: the batch processor's default of 8192 lines made 13MB requests that Loki
+		// refused forever (429), the backlog grew and the agent was OOM-killed in a loop (the sandbox, 2026-11-15)
+		assert.Equal(t, "1000 1000", agent(config+`.processors.batch | (.send_batch_size | tostring) + " " + (.send_batch_max_size | tostring)`), env)
 		exporter := config + `.exporters["otlphttp/loki"]`
 		assert.Equal(t, "http://loki.loki:3100/otlp", agent(exporter+`.endpoint`), env)
 		assert.Equal(t, "file_storage", agent(exporter+`.sending_queue.storage`), env)

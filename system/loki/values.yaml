@@ -20,6 +20,10 @@ loki:
             period: 24h
     limits_config:
       retention_period: 720h
+      # The OpenTelemetry agent's catch-up after a restart or an outage (requests of 1000 lines, about 1.6MB): Loki's
+      # defaults (4MB/s, bursts of 6MB) refused it and its backlog grew (the sandbox, 2026-11-15)
+      ingestion_rate_mb: 8
+      ingestion_burst_size_mb: 16
       # The audit logs (service_name k3s-audit and openbao-audit: docs/how-to-guides/security-logs.md) are kept 60 days: 90 would
       # not fit the 10Gi volume. The sandbox idling (2026-10-29): about 520MiB a day of audit lines, 370MiB of the rest,
       # compressed at least 5.7 times (measured), so about 5.4GiB for 60 days of audit and 1.9GiB for 30 days of the
