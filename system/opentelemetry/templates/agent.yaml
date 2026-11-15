@@ -34,6 +34,9 @@ spec:
       valueFrom:
         fieldRef:
           fieldPath: spec.nodeName
+    # The Go runtime collects before the container's limit (about 80% of it), as the Collector's docs advise
+    - name: GOMEMLIMIT
+      value: {{ .Values.agent.goMemLimit | quote }}
   volumes:
     - name: pod-logs
       hostPath:

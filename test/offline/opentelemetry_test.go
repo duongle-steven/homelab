@@ -73,6 +73,11 @@ func TestCollectorAgentRender(t *testing.T) {
 		assert.Contains(t, mounts, "/var/log/pods true", env)
 		assert.Contains(t, mounts, "/var/log/kubernetes/audit true", env)
 		assert.Contains(t, mounts, "/var/lib/otelcol false", env)
+		// The Go runtime collects before the container's limit (about 80% of it), as the Collector's docs advise: the
+		// sandbox's node reached 92% with the agent at 365Mi under a 512Mi limit
+		limit := agent(`.spec.resources.limits.memory`)
+		assert.Equal(t, map[string]string{"": "512Mi", "dev": "256Mi"}[env], limit, env)
+		assert.Equal(t, map[string]string{"": "400MiB", "dev": "200MiB"}[env], agent(`.spec.env[] | select(.name == "GOMEMLIMIT") | .value`), env)
 	}
 }
 

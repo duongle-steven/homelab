@@ -18,6 +18,7 @@ func TestTempoRender(t *testing.T) {
 		config := `select(.kind == "ConfigMap" and .metadata.name == "tempo") | .data["tempo.yaml"] | from_yaml`
 		assert.Equal(t, retention, render(config+` | .backend_worker.compaction.block_retention`), env)
 		assert.Contains(t, render(config+` | .distributor.receivers | keys | join(",")`), "otlp", env)
+		assert.Equal(t, map[string]string{"": "1Gi 800MiB", "dev": "256Mi 200MiB"}[env], render(`select(.kind == "StatefulSet") | .spec.template.spec.containers[] | select(.name == "tempo") | .resources.limits.memory + " " + (.env[] | select(.name == "GOMEMLIMIT") | .value)`), env)
 		policy := `select(.kind == "AuthorizationPolicy" and .metadata.name == "allow") | .spec.rules[] | ((.from[].source.principals // []) + (.from[].source.namespaces // []) | join(",")) + " " + ((.to // [] | .[].operation.ports // []) | join(","))`
 		rules := render(policy)
 		assert.Contains(t, rules, "cluster.local/ns/opentelemetry/sa/gateway-collector 4317", env)

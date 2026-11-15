@@ -86,7 +86,7 @@ var _ = Describe("LogsTargetsUp", Label("sandbox", "testbed", "logs"), func() {
 			if !loki || !agent || !gateway {
 				return false
 			}
-			sent, err := prometheusQuery(ctx, `sum(otelcol_exporter_sent_log_records_total{namespace="opentelemetry"}) > 0`)
+			sent, err := prometheusQuery(ctx, `sum(otelcol_exporter_sent_log_records{namespace="opentelemetry"}) > 0`)
 			return err == nil && len(sent) > 0
 		}).WithTimeout(20*time.Minute).WithPolling(30*time.Second).Should(BeTrue(), "Loki's or the Collectors' targets are not up, or no log record was sent")
 	}, SpecTimeout(25*time.Minute))

@@ -47,7 +47,7 @@ var _ = Describe("SecurityLogsK3sExec", Label("sandbox", "testbed", "security-lo
 		Expect(json.Unmarshal([]byte(entries[0].Line), &event)).To(Succeed())
 		Expect(event.User.Username).To(Equal("system:admin"), "the k3d kubeconfig's user")
 		Expect(event.Level).To(Equal("Metadata"))
-		Expect(entries[0].Labels["node"]).NotTo(BeEmpty())
+		Expect(entries[0].Labels["k8s_node_name"]).NotTo(BeEmpty())
 	}, SpecTimeout(15*time.Minute))
 })
 
