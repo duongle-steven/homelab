@@ -86,9 +86,11 @@ func TestCollectorAgentRender(t *testing.T) {
 		for _, receiver := range []string{"filelog/pods", "filelog/audit"} {
 			assert.Equal(t, "true 0", agent(config+`.receivers["`+receiver+`"].retry_on_failure | (.enabled | tostring) + " " + (.max_elapsed_time | tostring)`), env, receiver)
 		}
-		// The positions and the queue survive a power cut (the homelab's usual outage): synced writes, a corrupt store
-		// recreated rather than crash-looping, compacted after a long outage
-		assert.Equal(t, "true true true true", agent(config+`.extensions.file_storage | (.fsync | tostring) + " " + (.recreate | tostring) + " " + (.compaction.on_start | tostring) + " " + (.compaction.on_rebound | tostring)`), env)
+		// After a power cut (the homelab's usual outage) a store the cut left corrupt is recreated rather than
+		// crash-looping, and it is compacted after a long outage. Its writes are not synced: fsync on the agent's store
+		// raised etcd's WAL fsync p99 from 14.7ms to 25ms on the sandbox, idle (2026-11-15), where k3s lost its lease
+		// twice in a suite; a cut may re-send or lose the last second's lines instead
+		assert.Equal(t, "false true true true", agent(config+`.extensions.file_storage | ((.fsync // false) | tostring) + " " + (.recreate | tostring) + " " + (.compaction.on_start | tostring) + " " + (.compaction.on_rebound | tostring)`), env)
 		// Each node's audit lines are their own stream (service.instance.id is one of Loki's index labels): one stream
 		// for three nodes would make Loki refuse a node's backlog as too far behind after an outage
 		assert.Contains(t, agent(config+`.processors["transform/k3s-audit"].log_statements[].statements[]`),

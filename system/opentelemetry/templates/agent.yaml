@@ -62,13 +62,13 @@ spec:
     extensions:
       health_check:
         endpoint: 0.0.0.0:13133
-      # Read positions and the queue to Loki, on the node: they survive a restart of the pod and a power cut (the
-      # homelab's usual outage: synced writes; a store a cut left corrupt is recreated, re-reading rather than
-      # crash-looping), and shrink again after a long Loki outage
+      # Read positions and the queue to Loki, on the node: they survive a restart of the pod; a store a power cut left
+      # corrupt is recreated (re-reading rather than crash-looping), and it shrinks again after a long Loki outage.
+      # Not synced: fsync here raised etcd's WAL fsync p99 from 14.7ms to 25ms on the sandbox (2026-11-15), and the
+      # nodes' disks share it with etcd; a cut may re-send or lose the last second's lines instead
       file_storage:
         directory: /var/lib/otelcol
         create_directory: true
-        fsync: true
         recreate: true
         compaction:
           on_start: true
