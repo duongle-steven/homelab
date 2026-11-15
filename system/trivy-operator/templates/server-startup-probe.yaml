@@ -9,6 +9,9 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicy
 metadata:
   name: trivy-server-startup
+  # Before the server's pod: on a fresh cluster the pod made in the same sync 5s earlier had no probe
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   failurePolicy: Ignore
   reinvocationPolicy: Never
@@ -33,6 +36,8 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingAdmissionPolicyBinding
 metadata:
   name: trivy-server-startup
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   policyName: trivy-server-startup
   matchResources:

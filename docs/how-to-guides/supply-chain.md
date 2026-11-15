@@ -17,8 +17,9 @@ Manifests are Kyverno's ([Policy](policy.md)) and the cluster's configuration is
 ## The Trivy Operator
 
 The operator scans each image a workload runs, once, and again when the image changes or its report is a day old. One
-Trivy server in namespace `trivy-operator` keeps the vulnerability database (about 80 MB, from
-`ghcr.io/aquasecurity/trivy-db`, on an emptyDir: downloaded again when it restarts); the scan Jobs ask it. The scans
+Trivy server in namespace `trivy-operator` keeps the vulnerability database (from `ghcr.io/aquasecurity/trivy-db`:
+about 80 MB to download, 1.77 GB unpacked) on its own 4Gi volume, never backed up, so a new pod downloads it only when
+it is stale (on an emptyDir every new pod wrote it again); the scan Jobs ask it. The scans
 pull the images from their registries (egress 443). In the sandbox one Job runs at a time, with memory limits
 (`values-dev.yaml`). Measured there: a scan Job peaks under 80Mi (the server does the work), the server at about
 100Mi, the operator at about 160Mi.
@@ -28,9 +29,10 @@ not configurable) used to kill it mid-download whenever the download took over 1
 restart: 19 restarts and about 2GB written to the node's disk during one sandbox suite (2026-11-15), the disk etcd
 uses, until k3s lost its lease. `templates/server-startup-probe.yaml` fixes it without touching the chart: a native
 `MutatingAdmissionPolicy` gives the server's container a startup probe of up to 10 minutes, and liveness only starts
-after it. Set aside: the database on a PVC (the first kill leaves it half written, so every restart still downloads
-it), a StatefulSet of our own for the server (one more thing to keep), and a longer liveness timeout (the chart does
-not template it).
+after it. Set aside: the volume alone (the first kill leaves the database half written, so every restart still downloads it;
+the volume is kept for the other reason above), a StatefulSet of our own for the server (one more thing to keep), and a
+longer liveness timeout (the chart does not template it). The policy syncs one wave before the server, or a fresh
+cluster's first server pod is made without it.
 
 ```sh
 kubectl get vulnerabilityreports -A                 # one per container image, with its counts

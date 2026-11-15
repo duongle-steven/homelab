@@ -36,8 +36,11 @@ trivy-operator:
     # Every finding, fixed or not: an unfixed CVE cannot be bumped away and stays exploitable (step 15e, user)
     ignoreUnfixed: false
     severity: HIGH,CRITICAL
-    # The database on an emptyDir: downloaded again (about 80MB) when the server restarts, no volume to back up
-    storageClassEnabled: false
+    # The database on a volume (the chart's default): it downloads as about 80MB but is 1.77GB once unpacked, and on an
+    # emptyDir every new pod wrote it again (the sandbox, 2026-11-15); a new pod now downloads it only when stale.
+    # Never backed up (scripts/check-backup-groups: the chart cannot label its claim)
+    storageClassEnabled: true
+    storageSize: 4Gi
     server:
       podSecurityContext:
         runAsUser: 65534
