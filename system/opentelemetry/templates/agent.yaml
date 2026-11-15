@@ -80,6 +80,9 @@ spec:
       filelog/pods:
         include: [/var/log/pods/*/*/*.log]
         include_file_path: true
+        # Every second, not the default 200ms: each poll fingerprints every file and writes the positions (about 105m
+        # of CPU at 27 lines a second against 32m at 1s, the sandbox, 2026-11-15), on the disk etcd uses
+        poll_interval: 1s
         start_at: beginning
         storage: file_storage
         # A refused batch (memory_limiter) pauses the file instead of moving its offset past lines nothing sent
@@ -93,6 +96,7 @@ spec:
       # position kept, so a rotation neither rereads nor skips a line
       filelog/audit:
         include: [/var/log/kubernetes/audit/audit.log]
+        poll_interval: 1s
         start_at: beginning
         storage: file_storage
         retry_on_failure:

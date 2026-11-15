@@ -52,6 +52,10 @@ func TestCollectorAgentRender(t *testing.T) {
 		assert.Equal(t, "container", agent(config+`.receivers["filelog/pods"].operators[0].type`), env)
 		assert.Equal(t, "/var/log/kubernetes/audit/audit.log", agent(config+`.receivers["filelog/audit"].include[]`), env)
 		for _, receiver := range []string{"filelog/pods", "filelog/audit"} {
+			// Every second, not the default 200ms: each poll fingerprints every file and writes the positions, which
+			// cost about 105m of CPU at 27 lines a second against 32m at 1s (the sandbox, 2026-11-15), and the writes
+			// share the disk with etcd
+			assert.Equal(t, "1s", agent(config+`.receivers["`+receiver+`"].poll_interval`), env, receiver)
 			// Positions persist: a restart or the API server's rotation neither rereads nor skips a line
 			assert.Equal(t, "beginning file_storage", agent(config+`.receivers["`+receiver+`"] | .start_at + " " + .storage`), env, receiver)
 		}
