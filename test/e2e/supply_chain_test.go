@@ -5,10 +5,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/duongle-steven/homelab/test/internal/kube"
@@ -20,12 +24,45 @@ import (
 func cosign(ctx context.Context, env []string, stdin string, args ...string) string {
 	GinkgoHelper()
 	cmd := exec.CommandContext(ctx, "cosign", args...)
-	cmd.Env = append(os.Environ(), env...)
+	// cosign resolves the environment's hosts to 127.0.0.1, where only the workstation's localhost proxy listens (not
+	// GitHub Actions'): it goes through gatewayProxy, which dials them like the specs' own clients
+	proxy := "http://" + gatewayProxy()
+	cmd.Env = append(append(os.Environ(), env...), "HTTPS_PROXY="+proxy, "HTTP_PROXY="+proxy, "NO_PROXY=")
 	cmd.Stdin = strings.NewReader(stdin)
 	out, err := cmd.CombinedOutput()
 	Expect(err).NotTo(HaveOccurred(), "cosign %s:\n%s", args[0], out)
 	return string(out)
 }
+
+// gatewayProxy is an HTTP CONNECT proxy on a local port for the suite's external tools: it sends the environment's
+// hosts to the Gateway through dialGateway, and other hosts as they are
+var gatewayProxy = sync.OnceValue(func() string {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	Expect(err).NotTo(HaveOccurred())
+	go func() {
+		_ = http.Serve(listener, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodConnect {
+				http.Error(w, "CONNECT only", http.StatusMethodNotAllowed)
+				return
+			}
+			upstream, err := dialGateway(r.Context(), "tcp", r.Host)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadGateway)
+				return
+			}
+			client, _, err := w.(http.Hijacker).Hijack()
+			if err != nil {
+				upstream.Close()
+				return
+			}
+			_, _ = client.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+			go func() { _, _ = io.Copy(upstream, client); upstream.Close() }()
+			_, _ = io.Copy(client, upstream)
+			client.Close()
+		}))
+	}()
+	return listener.Addr().String()
+})
 
 // In the sandbox: Kyverno's image verification passes a pod whose image is signed by the policy's key and fails one
 // whose image is not (the production policy's keyless identity cannot sign here: TestLabImagePolicy checks it)
