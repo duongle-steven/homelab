@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/duongle-steven/homelab/test/internal/kube"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -54,13 +53,11 @@ var _ = Describe("TracesFromGateway", Label("sandbox", "traces"), func() {
 	}, SpecTimeout(25*time.Minute))
 })
 
-// The gateway Collector takes OTLP only from its named senders: a pod of another meshed namespace is refused
+// The gateway Collector takes OTLP only from its named senders: a meshed pod (an identity ztunnel authenticated) of a
+// namespace allow-otlp does not name is refused by policy, not merely for being outside the mesh
 var _ = Describe("OTLPRefusedFromOthers", Label("sandbox", "traces"), func() {
-	It("refuses OTLP from a namespace that has no reason to send", func(ctx SpecContext) {
-		logPod(ctx, "otlp")
-		out, _ := kube.Kubectl(ctx, logsNamespace, "exec", "otlp", "--", "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-			"--max-time", "10", "-X", "POST", "-H", "Content-Type: application/json", "-d", `{"resourceSpans":[]}`,
-			"http://gateway-collector.opentelemetry:4318/v1/traces")
-		Expect(strings.TrimSpace(out)).NotTo(HavePrefix("2"), "the gateway Collector accepted OTLP from %s", logsNamespace)
+	It("refuses OTLP from a meshed namespace that has no reason to send", func(ctx SpecContext) {
+		Expect(meshCurlIn(ctx, "default", "otlp-unlisted", "http://gateway-collector.opentelemetry:4318/v1/traces",
+			"istio.io/dataplane-mode=ambient")).To(Equal("000"), "the gateway Collector answered a meshed pod allow-otlp does not name")
 	}, SpecTimeout(10*time.Minute))
 })

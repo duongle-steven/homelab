@@ -62,10 +62,18 @@ spec:
     extensions:
       health_check:
         endpoint: 0.0.0.0:13133
-      # Read positions and the queue to Loki, on the node: they survive a restart of the pod
+      # Read positions and the queue to Loki, on the node: they survive a restart of the pod and a power cut (the
+      # homelab's usual outage: synced writes; a store a cut left corrupt is recreated, re-reading rather than
+      # crash-looping), and shrink again after a long Loki outage
       file_storage:
         directory: /var/lib/otelcol
         create_directory: true
+        fsync: true
+        recreate: true
+        compaction:
+          on_start: true
+          on_rebound: true
+          directory: /var/lib/otelcol
     receivers:
       # /var/log/pods/<namespace>_<pod>_<uid>/<container>/<n>.log in containerd's CRI format; the path gives the
       # pod's namespace, name, uid and container
@@ -74,6 +82,10 @@ spec:
         include_file_path: true
         start_at: beginning
         storage: file_storage
+        # A refused batch (memory_limiter) pauses the file instead of moving its offset past lines nothing sent
+        retry_on_failure:
+          enabled: true
+          max_elapsed_time: 0
         operators:
           - type: container
             id: container-parser
@@ -83,6 +95,9 @@ spec:
         include: [/var/log/kubernetes/audit/audit.log]
         start_at: beginning
         storage: file_storage
+        retry_on_failure:
+          enabled: true
+          max_elapsed_time: 0
     connectors:
       # OpenBao's audit device (platform/openbao) writes JSON requests and responses to its stdout: those records
       # alone move to their own pipeline; OpenBao's other output stays an ordinary pod log
@@ -143,6 +158,9 @@ spec:
             statements:
               - set(attributes["service.name"], "k3s-audit")
               - set(attributes["k8s.node.name"], "${env:K8S_NODE_NAME}")
+              # One stream per node (service.instance.id is one of Loki's index labels): with one stream for every
+              # server, Loki would refuse a node's backlog as too far behind another's after an outage
+              - set(attributes["service.instance.id"], "${env:K8S_NODE_NAME}")
       # A request stays under Loki's burst (system/loki: 16MB): the default of 8192 lines made 13MB requests Loki
       # refused forever, the backlog grew and the agent was OOM-killed in a loop (the sandbox, 2026-11-15)
       batch:

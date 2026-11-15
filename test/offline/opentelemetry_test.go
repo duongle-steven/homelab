@@ -77,6 +77,18 @@ func TestCollectorAgentRender(t *testing.T) {
 		// A request stays under Loki's burst: the batch processor's default of 8192 lines made 13MB requests that Loki
 		// refused forever (429), the backlog grew and the agent was OOM-killed in a loop (the sandbox, 2026-11-15)
 		assert.Equal(t, "1000 1000", agent(config+`.processors.batch | (.send_batch_size | tostring) + " " + (.send_batch_max_size | tostring)`), env)
+		// The readers pause a file instead of dropping lines when the pipeline refuses (memory_limiter): their offsets
+		// would otherwise move past lines nothing sent (the final review)
+		for _, receiver := range []string{"filelog/pods", "filelog/audit"} {
+			assert.Equal(t, "true 0", agent(config+`.receivers["`+receiver+`"].retry_on_failure | (.enabled | tostring) + " " + (.max_elapsed_time | tostring)`), env, receiver)
+		}
+		// The positions and the queue survive a power cut (the homelab's usual outage): synced writes, a corrupt store
+		// recreated rather than crash-looping, compacted after a long outage
+		assert.Equal(t, "true true true true", agent(config+`.extensions.file_storage | (.fsync | tostring) + " " + (.recreate | tostring) + " " + (.compaction.on_start | tostring) + " " + (.compaction.on_rebound | tostring)`), env)
+		// Each node's audit lines are their own stream (service.instance.id is one of Loki's index labels): one stream
+		// for three nodes would make Loki refuse a node's backlog as too far behind after an outage
+		assert.Contains(t, agent(config+`.processors["transform/k3s-audit"].log_statements[].statements[]`),
+			`set(attributes["service.instance.id"], "${env:K8S_NODE_NAME}")`, env)
 		exporter := config + `.exporters["otlphttp/loki"]`
 		assert.Equal(t, "http://loki.loki:3100/otlp", agent(exporter+`.endpoint`), env)
 		assert.Equal(t, "file_storage", agent(exporter+`.sending_queue.storage`), env)
