@@ -176,15 +176,31 @@ on a server (tuwunel) newer and less audited than the rest.
 Proposal: stays LAN only; publishing or federating it is its own step with an allow-list of servers, media size and quota limits, and
 sign-in through Kanidm only (as today).
 
+### G11. The nodes themselves, and files from outside
+
+Added 2026-11-15 *(user)*. Falco watches the nodes' syscalls, the audit logs and kube-bench cover the rest, and NixOS keeps
+the system declarative in a read-only store, so ClamAV or Wazuh on the nodes would cost more than they find (Wazuh's
+manager and indexer alone need several GB). What is left:
+
+- **Patches:** the nodes' kernel and packages come from the node flake's `flake.lock`; check that it is bumped on a
+  schedule (Renovate or a recipe) and rolled out with `lab cluster upgrade`, or the nodes age silently.
+- **Integrity:** a weekly `nix-store --verify --check-contents` from a systemd service and timer in `infra/_modules/metal`,
+  staggered per node and at `IOSchedulingClass=idle` (it reads the whole store, on etcd's disk), writing a `.prom` file
+  for node-exporter's textfile collector, with alerts on a failure and on no recent success; proven on the testbed.
+- **Files from outside:** one shared `clamd` for OpenCloud's uploads, paperless's consume and Transmission's finished
+  downloads (CLAUDE.md's Ideas).
+
 ## Order
 
 *(Claude's call)*, to debate:
 
-1. Before 12b-3 (the first production deploy): G2 (node ports, proven on the testbed) and G1's alert on new `fail` results.
+1. Before 12b-3 (the first production deploy): G2 (node ports, proven on the testbed), G1's alert on new `fail` results,
+   and LAN DNS (Blocky, with Tailscale's split DNS: the LAN apps' names resolve nowhere in production yet, and
+   publishing their private address in public DNS would leak the LAN's layout and meet routers' rebinding protection).
 2. After 12b-3, within about two weeks of production's reports and before step 13 at the latest: G1 (15b-2 Enforce) *(user, 2026-11-14)*.
 3. With step 13: G3 and G4, as preconditions of publishing Kanidm and starting the VPS.
 4. After 12b-3: G6 (admin path) as its own step; G9 with the backup bucket's next change.
-5. Ideas: G5 (segmentation), G10 (Matrix public).
+5. Ideas: G5 (segmentation), G10 (Matrix public), G11 (nodes, files from outside; patches checked before 12b-3).
 
 ## How it stays current
 
