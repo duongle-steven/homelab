@@ -4,7 +4,7 @@
 # changed since $BASE (default origin/dev; lab test charts).
 set -eu
 cd "$(git rev-parse --show-toplevel)"
-checks='render go cli infra docs mesh backup-groups rotation-catalog catalog env-config secret-stores lint leaks iac images policy workflows'
+checks='render go cli infra docs mesh backup-groups rotation-catalog catalog backstage env-config secret-stores lint leaks iac images policy workflows'
 
 check() {
 	case "$1" in
@@ -27,6 +27,13 @@ check() {
 		rotation-catalog) go -C cli run ./cmd/lab secrets check --root "$PWD" ;;
 		# Backstage's catalog and homepage's services, generated from each app's and component's description
 		catalog) go -C cli run ./cmd/lab catalog check ;;
+		# backstage/'s own checks (types, lint, unit tests), only when the branch changes it
+		backstage)
+			if git diff --quiet "${BASE:-origin/dev}...HEAD" -- backstage && git diff --quiet HEAD -- backstage; then
+				echo "backstage: unchanged"
+			else
+				(cd backstage && yarn install --immutable && yarn tsc && yarn lint:all && CI=true yarn test:all)
+			fi ;;
 		env-config) scripts/check-env-config ;;
 		secret-stores) scripts/check-secret-stores ;;
 		lint) scripts/lint ;;

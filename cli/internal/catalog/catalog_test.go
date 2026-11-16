@@ -213,3 +213,20 @@ func TestHomepageQuotesText(t *testing.T) {
 		t.Errorf("description %q", got)
 	}
 }
+
+// The repository's root holds the catalog's entry point: its Domain carries the docs (TechDocs reads mkdocs.yml from the
+// entity's own directory), and its Location the generated files
+func TestRootEntryPoint(t *testing.T) {
+	files, err := Generate(fixture(t))
+	must(t, err)
+	root := string(files["catalog-info.yaml"])
+	contains(t, root, "kind: Domain\n")
+	contains(t, root, "backstage.io/techdocs-ref: dir:.\n")
+	contains(t, root, "- ./catalog/apps.yaml\n")
+	if _, ok := files["catalog/all.yaml"]; ok {
+		t.Error("catalog/all.yaml is replaced by catalog-info.yaml")
+	}
+	if strings.Contains(string(files["catalog/systems.yaml"]), "kind: Domain") {
+		t.Error("the Domain moved to catalog-info.yaml")
+	}
+}
