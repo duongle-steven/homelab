@@ -81,6 +81,8 @@ kube-prometheus-stack:
       probeSelectorNilUsesHelmValues: false
   alertmanager:
     annotations: *afterOperator
+    # config below reads global.timezone
+    tplConfig: true
     alertmanagerSpec:
       # templates/ntfy-secret.yaml, mounted at /etc/alertmanager/secrets/ntfy/
       secrets: [ntfy]
@@ -116,6 +118,28 @@ kube-prometheus-stack:
             group_by:
               - alertname
               - user
+          # Runtime detection: a process doing this at night is worth waking for, whatever its severity
+          - receiver: ntfy
+            matchers:
+              - source="falco"
+          # One person is on call around the clock: anything below critical waits for the morning (a muted alert still
+          # firing is sent when the night ends; one that resolved during it is not). Critical always rings (ntfy's
+          # priority 5), and so do the security alerts above
+          - receiver: ntfy
+            matchers:
+              - severity!="critical"
+            mute_time_intervals:
+              - night
+      # The time zone is the environment's (global.timezone): tplConfig passes this config through Helm's templating
+      time_intervals:
+        - name: night
+          time_intervals:
+            - times:
+                - start_time: "22:00"
+                  end_time: "24:00"
+                - start_time: "00:00"
+                  end_time: "07:00"
+              location: '{{ .Values.global.timezone }}'
       receivers:
         - name: ntfy
           webhook_configs:
