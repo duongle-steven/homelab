@@ -1,0 +1,14 @@
+apiVersion: v2
+name: backstage
+version: 0.0.0
+dependencies:
+  - name: backstage
+    version: 2.10.2
+    repository: https://backstage.github.io/charts
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Backstage"
+  homelab/description: "The developer portal: the homelab's catalog, its docs and repository templates"
+  homelab/group: Development
+  homelab/icon: "backstage.svg"
+  homelab/host: backstage

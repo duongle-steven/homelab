@@ -1,0 +1,76 @@
+# Backstage (docs/superpowers/specs/2026-11-16-backstage-design.md), the app in backstage/: LAN only, signing in with
+# Kanidm (homelab-admins and homelab-editors), its catalog read from the repository Argo CD syncs
+host: backstage
+backstage:
+  backstage:
+    image:
+      registry: ghcr.io
+      repository: duongle-steven/homelab-backstage
+      # Pinned by digest after the first release builds it (.github/workflows/backstage-image.yaml): until then
+      # production excludes platform/backstage (system/argocd/values.yaml) and this placeholder never runs
+      digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    command: [node, --require, ./instrumentation.js, packages/backend]
+    args: [--config, app-config.yaml, --config, app-config.production.yaml]
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+    resources:
+      requests: {cpu: 100m, memory: 512Mi}
+      limits: {memory: 1Gi}
+    # Its pods carry the id the catalog's Kubernetes tab looks up (catalog/platform.yaml's label selector reads
+    # app.kubernetes.io/instance, which the chart sets)
+    podLabels:
+      backstage.io/kubernetes-id: backstage
+    extraEnvVars:
+      - {name: BACKSTAGE_BASE_URL, value: 'https://backstage.{{ .Values.global.baseDomain }}'}
+      - {name: HOMELAB_DOMAIN, value: '{{ .Values.global.baseDomain }}'}
+      - {name: ARGOCD_PUBLIC_URL, value: 'https://argocd.{{ .Values.global.baseDomain }}'}
+      - {name: GRAFANA_PUBLIC_URL, value: 'https://grafana.{{ .Values.global.baseDomain }}'}
+      - {name: HOMEPAGE_PUBLIC_URL, value: 'https://home.{{ .Values.global.baseDomain }}'}
+      - {name: ARGOCD_URL, value: http://argocd-server.argocd}
+      - {name: KANIDM_DOMAIN, value: 'auth.{{ .Values.global.baseDomain }}'}
+      - {name: KANIDM_ISSUER, value: 'https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/backstage'}
+      - {name: AUTH_OIDC_CLIENT_ID, value: backstage}
+      - name: AUTH_OIDC_CLIENT_SECRET
+        valueFrom: {secretKeyRef: {name: backstage-kanidm-oauth2-credentials, key: CLIENT_SECRET}}
+      # Kanidm's base DN is its domain's labels; its certificate names only auth.<domain>, and the mesh authenticates
+      # this in-cluster hop (platform/kanidm's allow admits only this ServiceAccount on 3636)
+      - {name: LDAP_URL, value: 'ldaps://kanidm.kanidm.svc:3636'}
+      - {name: LDAP_BASE_DN, value: '{{ include "backstage.ldapBaseDN" . }}'}
+      - {name: LDAP_BIND_DN, value: dn=token}
+      - name: LDAP_BIND_SECRET
+        valueFrom: {secretKeyRef: {name: backstage-ldap-token, key: token}}
+      - {name: FORGEJO_HOST, value: 'forgejo-http.forgejo:3000'}
+      - name: FORGEJO_TOKEN
+        valueFrom: {secretKeyRef: {name: backstage-forgejo, key: token}}
+      - name: ARGOCD_PASSWORD
+        valueFrom: {secretKeyRef: {name: backstage-argocd, key: password}}
+      - name: AUTH_SESSION_SECRET
+        valueFrom: {secretKeyRef: {name: backstage-session, key: secret}}
+      - name: BACKEND_SECRET
+        valueFrom: {secretKeyRef: {name: backstage-backend, key: secret}}
+      - {name: POSTGRES_HOST, value: backstage-db-rw}
+      - {name: POSTGRES_PORT, value: "5432"}
+      - name: POSTGRES_USER
+        valueFrom: {secretKeyRef: {name: backstage-db-app, key: username}}
+      - name: POSTGRES_PASSWORD
+        valueFrom: {secretKeyRef: {name: backstage-db-app, key: password}}
+      - {name: CATALOG_LOCATION, value: '{{ include "backstage.location" (dict "root" . "path" "catalog-info.yaml") }}'}
+      - {name: TEMPLATES_LOCATION, value: '{{ include "backstage.location" (dict "root" . "path" "backstage/templates/ci-repository/template.yaml") }}'}
+      # Traces to the gateway Collector (system/opentelemetry, senders)
+      - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: 'http://gateway-collector.opentelemetry:4318'}
+  serviceAccount:
+    create: true
+    name: backstage
+database:
+  # As forgejo-db's (platform/forgejo)
+  image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
+  size: 2Gi

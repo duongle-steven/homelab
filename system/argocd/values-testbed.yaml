@@ -82,6 +82,9 @@ argocd-apps:
                     timezone: '{{ .timezone }}'
                     seedRepository: '{{ .seed_repository }}'
                     backupS3Url: '{{ .metadata.annotations.backupS3Url }}'
+                    # The repository and revision this Application syncs (the cluster Secret's): what Backstage's catalog reads
+                    repository: '{{ .metadata.annotations.repository }}'
+                    revision: '{{ .metadata.annotations.revision }}'
                     addresses:
                       apiVIP: '{{ .vip }}'
                       router: '{{ .network.gateway }}'

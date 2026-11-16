@@ -155,6 +155,10 @@ catalog:
         bind:
           dn: ${LDAP_BIND_DN}
           secret: ${LDAP_BIND_SECRET}
+        # In-cluster (kanidm.kanidm.svc), where Kanidm's certificate (auth.<domain> only) cannot match: the mesh's mTLS
+        # authenticates the peer, and Kanidm admits only Backstage's ServiceAccount on this port
+        tls:
+          rejectUnauthorized: false
         users:
           - dn: ${LDAP_BASE_DN}
             options:
@@ -182,6 +186,21 @@ catalog:
 kubernetes:
   serviceLocatorMethod:
     type: multiTenant
+  # What platform/backstage's ClusterRole lets it read: no ConfigMaps (some hold configuration worth keeping), no
+  # Secrets, no logs
+  objectTypes:
+    - pods
+    - services
+    - deployments
+    - replicasets
+    - statefulsets
+    - daemonsets
+    - jobs
+    - cronjobs
+    - horizontalpodautoscalers
+    - ingresses
+    - limitranges
+    - resourcequotas
   clusterLocatorMethods:
     - type: config
       clusters:
