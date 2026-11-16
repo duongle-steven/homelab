@@ -213,6 +213,22 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   annotations:
+    argocd/app-name: opentelemetry
+    backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=opentelemetry
+    backstage.io/kubernetes-namespace: opentelemetry
+  description: 'The Collectors: pod and audit logs to Loki, traces to Tempo'
+  name: opentelemetry
+  title: OpenTelemetry
+spec:
+  lifecycle: production
+  owner: group:default/homelab-admins
+  system: homelab-system
+  type: platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  annotations:
     argocd/app-name: public-scan
     backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=public-scan
     backstage.io/kubernetes-namespace: public-scan
@@ -251,6 +267,22 @@ metadata:
   description: Each namespace's OpenBao SecretStore
   name: secret-store
   title: Secret stores
+spec:
+  lifecycle: production
+  owner: group:default/homelab-admins
+  system: homelab-system
+  type: platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  annotations:
+    argocd/app-name: tempo
+    backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=tempo
+    backstage.io/kubernetes-namespace: tempo
+  description: Traces
+  name: tempo
+  title: Tempo
 spec:
   lifecycle: production
   owner: group:default/homelab-admins

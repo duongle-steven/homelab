@@ -179,9 +179,10 @@ kubescape:
         istio-cni and ztunnel set up each pod's network from the node: the mesh's design
     - ids: [C-0016, C-0045, C-0048]
       resources:
-        - loki/DaemonSet/loki-alloy
+        - opentelemetry/DaemonSet/agent-collector
       reason: >-
-        Alloy reads pod and audit logs read-only; only its own /var/lib/alloy is writable, for its read positions (step 9)
+        The OpenTelemetry agent reads pod and audit logs read-only; only its own /var/lib/otelcol is writable, for its
+        read positions and its queue to Loki (step OpenTelemetry)
     - ids: [C-0016, C-0038, C-0041, C-0048, C-0275]
       resources:
         - monitoring-system/DaemonSet/monitoring-system-prometheus-node-exporter

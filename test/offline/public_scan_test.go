@@ -206,7 +206,7 @@ func TestPublicScanRuleRender(t *testing.T) {
 	require.Len(t, parsed.Groups[0].Rules, 1)
 	r := parsed.Groups[0].Rules[0]
 	assert.Equal(t, "PublicScanFinding", r.Alert)
-	assert.Contains(t, r.Expr, `namespace="public-scan"`)
+	assert.Contains(t, r.Expr, `k8s_namespace_name="public-scan"`)
 	assert.Contains(t, r.Expr, `sum by (template, host)`)
 	assert.Contains(t, r.Expr, `=~"medium|high|critical"`)
 	assert.Contains(t, r.Expr, `[1h]`)

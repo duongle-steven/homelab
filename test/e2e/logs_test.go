@@ -64,25 +64,31 @@ var _ = Describe("LogsGrafanaDataSource", Label("sandbox", "testbed", "logs"), f
 	}, SpecTimeout(25*time.Minute))
 })
 
-// Prometheus scrapes Loki and Alloy
+// Prometheus scrapes Loki and both Collectors, and the agent has sent log records to Loki
 var _ = Describe("LogsTargetsUp", Label("sandbox", "testbed", "logs"), func() {
-	It("scrapes Loki and Alloy", func(ctx SpecContext) {
+	It("scrapes Loki and the Collectors", func(ctx SpecContext) {
 		Eventually(ctx, func() bool {
-			metrics, err := prometheusQuery(ctx, `count by (job) (up{namespace="loki"} == 1)`)
+			metrics, err := prometheusQuery(ctx, `count by (namespace, job) (up{namespace=~"loki|opentelemetry"} == 1)`)
 			if err != nil {
 				return false
 			}
-			var loki, alloy bool
+			var loki, agent, gateway bool
 			for _, m := range metrics {
 				switch {
-				case strings.Contains(m["job"], "alloy"):
-					alloy = true
-				case strings.Contains(m["job"], "loki"):
+				case strings.Contains(m["job"], "agent-collector"):
+					agent = true
+				case strings.Contains(m["job"], "gateway-collector"):
+					gateway = true
+				case m["namespace"] == "loki" && strings.Contains(m["job"], "loki"):
 					loki = true
 				}
 			}
-			return loki && alloy
-		}).WithTimeout(20*time.Minute).WithPolling(30*time.Second).Should(BeTrue(), "Loki's and Alloy's targets are not up")
+			if !loki || !agent || !gateway {
+				return false
+			}
+			sent, err := prometheusQuery(ctx, `sum(otelcol_exporter_sent_log_records{namespace="opentelemetry"}) > 0`)
+			return err == nil && len(sent) > 0
+		}).WithTimeout(20*time.Minute).WithPolling(30*time.Second).Should(BeTrue(), "Loki's or the Collectors' targets are not up, or no log record was sent")
 	}, SpecTimeout(25*time.Minute))
 })
 
@@ -111,26 +117,26 @@ func printTo(ctx context.Context, pod, line string) {
 }
 
 func markerEntries(ctx context.Context, pod, marker string) []lokiEntry {
-	entries, err := lokiQuery(ctx, fmt.Sprintf(`{namespace=%q, pod=%q} |= %q`, logsNamespace, pod, marker), time.Hour)
+	entries, err := lokiQuery(ctx, fmt.Sprintf(`{k8s_namespace_name=%q, k8s_pod_name=%q} |= %q`, logsNamespace, pod, marker), time.Hour)
 	if err != nil {
 		return nil
 	}
 	return entries
 }
 
-// restartAlloy replaces Alloy's pods and waits for its DaemonSet
-func restartAlloy(ctx context.Context, wait bool) {
+// restartAgent replaces the OpenTelemetry agent's pods and waits for its DaemonSet
+func restartAgent(ctx context.Context, wait bool) {
 	GinkgoHelper()
-	out, err := kube.Kubectl(ctx, "loki", "delete", "pod", "-l", "app.kubernetes.io/name=alloy", "--wait=true")
+	out, err := kube.Kubectl(ctx, "opentelemetry", "delete", "pod", "-l", "app.kubernetes.io/name=agent-collector", "--wait=true")
 	Expect(err).NotTo(HaveOccurred(), out)
 	if wait {
-		waitForAlloy(ctx)
+		waitForAgent(ctx)
 	}
 }
 
-func waitForAlloy(ctx context.Context) {
+func waitForAgent(ctx context.Context) {
 	GinkgoHelper()
-	out, err := kube.Kubectl(ctx, "loki", "rollout", "status", "daemonset/loki-alloy", "--timeout=5m")
+	out, err := kube.Kubectl(ctx, "opentelemetry", "rollout", "status", "daemonset/agent-collector", "--timeout=5m")
 	Expect(err).NotTo(HaveOccurred(), out)
 }
 
@@ -149,15 +155,16 @@ var _ = Describe("LogsPodLines", Label("sandbox", "testbed", "logs"), func() {
 		entries = markerEntries(ctx, "lines", marker)
 		Expect(entries).To(HaveLen(1), "the marker arrived more than once")
 		labels := entries[0].Labels
-		Expect(labels["namespace"]).To(Equal(logsNamespace))
-		Expect(labels["pod"]).To(Equal("lines"))
-		Expect(labels["container"]).To(Equal("lines"))
-		Expect(labels["app"]).To(Equal("logs-test"))
-		Expect(labels["node"]).NotTo(BeEmpty())
+		// OpenTelemetry's labels (the node is structured metadata, which Loki returns with the stream's labels)
+		Expect(labels["k8s_namespace_name"]).To(Equal(logsNamespace))
+		Expect(labels["k8s_pod_name"]).To(Equal("lines"))
+		Expect(labels["k8s_container_name"]).To(Equal("lines"))
+		Expect(labels["service_name"]).To(Equal("logs-test"))
+		Expect(labels["k8s_node_name"]).NotTo(BeEmpty())
 	}, SpecTimeout(20*time.Minute))
 })
 
-// A restarted Alloy resumes from its positions: no line lost, none repeated
+// A restarted agent resumes from its positions (file_storage on the node): no line lost, none repeated
 var _ = Describe("LogsResumeAfterRestart", Label("sandbox", "testbed", "logs"), func() {
 	It("resumes from its positions", func(ctx SpecContext) {
 		logPod(ctx, "resume")
@@ -166,13 +173,13 @@ var _ = Describe("LogsResumeAfterRestart", Label("sandbox", "testbed", "logs"), 
 		Eventually(ctx, func() bool { return len(markerEntries(ctx, "resume", first)) > 0 }).
 			WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(BeTrue(), "the first marker did not reach Loki")
 
-		restartAlloy(ctx, false)
+		restartAgent(ctx, false)
 		second := fmt.Sprint("logs-second-", time.Now().UnixNano())
-		printTo(ctx, "resume", second) // written while Alloy restarts
-		waitForAlloy(ctx)
+		printTo(ctx, "resume", second) // written while the agent restarts
+		waitForAgent(ctx)
 		Eventually(ctx, func() bool { return len(markerEntries(ctx, "resume", second)) > 0 }).
 			WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(BeTrue(), "the line written during the restart was lost")
-		Expect(markerEntries(ctx, "resume", first)).To(HaveLen(1), "the restarted Alloy sent the first marker again")
+		Expect(markerEntries(ctx, "resume", first)).To(HaveLen(1), "the restarted agent sent the first marker again")
 	}, SpecTimeout(35*time.Minute))
 })
 
@@ -181,7 +188,7 @@ var _ = Describe("LogsEvents", Label("sandbox", "testbed", "logs"), func() {
 	It("delivers a pod's events", func(ctx SpecContext) {
 		logPod(ctx, "events")
 		Eventually(ctx, func() bool {
-			entries, err := lokiQuery(ctx, fmt.Sprintf(`{job="kubernetes-events", namespace=%q} |= "events"`, logsNamespace), time.Hour)
+			entries, err := lokiQuery(ctx, fmt.Sprintf(`{service_name="kubernetes-events"} |= %q |= "events"`, logsNamespace), time.Hour)
 			if err != nil {
 				return false
 			}
@@ -195,8 +202,8 @@ var _ = Describe("LogsEvents", Label("sandbox", "testbed", "logs"), func() {
 	}, SpecTimeout(20*time.Minute))
 })
 
-// Lines read while Loki is unreachable survive a restart of Alloy (its write-ahead log on the host) and arrive once
-// Loki is back
+// Lines read while Loki is unreachable survive a restart of the agent (its queue in file_storage on the node) and
+// arrive once Loki is back
 var _ = Describe("LogsSurviveLokiOutage", Label("sandbox", "testbed", "logs"), func() {
 	It("keeps lines read during an outage", func(ctx SpecContext) {
 		logPod(ctx, "outage")
@@ -214,27 +221,33 @@ spec:
   rules:
     - from:
         - source:
-            principals: ["cluster.local/ns/loki/sa/loki-alloy"]
+            principals: ["cluster.local/ns/opentelemetry/sa/agent-collector"]
 `
 		Expect(kube.Apply(ctx, "loki", deny)).To(Succeed())
 		removed := false
+		// Retried until it is gone: a deny left behind (the API server restarting mid-spec, 2026-11-15) cut the agent
+		// off from Loki and failed every log spec after it
 		remove := func(ctx context.Context) {
-			if !removed {
-				Expect(kube.Delete(ctx, "loki", deny)).To(Succeed())
-				removed = true
+			if removed {
+				return
 			}
+			Eventually(ctx, func() error {
+				_, err := kube.Kubectl(ctx, "loki", "delete", "authorizationpolicy", "logs-test-outage", "--ignore-not-found")
+				return err
+			}).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(), "the outage's deny policy is still in loki")
+			removed = true
 		}
-		DeferCleanup(func(ctx SpecContext) { remove(ctx) }, NodeTimeout(time.Minute))
+		DeferCleanup(func(ctx SpecContext) { remove(ctx) }, NodeTimeout(11*time.Minute))
 		sleep(ctx, 15*time.Second) // ztunnel picks up the policy
-		// ztunnel checks policies when a connection opens: restart Alloy so its keep-alive connection to Loki is a new,
-		// denied one
-		restartAlloy(ctx, true)
+		// ztunnel checks policies when a connection opens: restart the agent so its keep-alive connection to Loki is a
+		// new, denied one
+		restartAgent(ctx, true)
 
 		marker := fmt.Sprint("logs-outage-", time.Now().UnixNano())
 		printTo(ctx, "outage", marker)
-		sleep(ctx, 30*time.Second) // Alloy reads the line and moves its positions past it
+		sleep(ctx, 30*time.Second) // the agent reads the line, moves its positions past it and queues it
 		Expect(markerEntries(ctx, "outage", marker)).To(BeEmpty(), "the line reached Loki through the denied connection")
-		restartAlloy(ctx, true)
+		restartAgent(ctx, true)
 		remove(ctx)
 		Eventually(ctx, func() bool { return len(markerEntries(ctx, "outage", marker)) > 0 }).
 			WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(BeTrue(), "the line read during Loki's outage was lost")

@@ -23,6 +23,7 @@ var meshOptOuts = []string{
 	"cloudnative-pg/cloudnative-pg",
 	"kyverno/kyverno-admission-controller",
 	"kyverno/kyverno-cleanup-controller", // production only: the sandbox runs no cleanup controller
+	"opentelemetry/opentelemetry-operator",
 	"wireguard/wireguard",
 	"tailscale/tailscale",
 }

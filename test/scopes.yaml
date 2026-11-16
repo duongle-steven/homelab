@@ -67,6 +67,7 @@ labels:
   - ntfy
   - logs
   - security-logs
+  - traces
   - ci
   - matrix
   - seccomp
@@ -97,7 +98,7 @@ labels:
 always: smoke
 # Each runs by itself after the main run, in this order (#78)
 alone: [backup-restore, node-power-cut, node-restart, rotation]
-full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || ci || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
+full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || traces || ci || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
 groups:
   - paths:
       - justfile
@@ -144,6 +145,8 @@ groups:
     tests: rotation
   - paths: [system/loki/**]
     tests: logs
+  - paths: [system/opentelemetry/**, system/tempo/**, test/e2e/traces_test.go]
+    tests: logs || traces
   - paths: [system/kiali/**]
     tests: kiali
   - paths: [system/kyverno/**]

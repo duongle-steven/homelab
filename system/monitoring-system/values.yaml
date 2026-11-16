@@ -70,6 +70,22 @@ kube-prometheus-stack:
         uid: loki
         type: loki
         url: http://loki.loki:3100
+        jsonData:
+          # A log line's trace (the Istio Gateways' access logs carry it: system/istio-system's Telemetry) opens in Tempo
+          derivedFields:
+            - name: trace_id
+              matcherRegex: '"trace_id":"(\w+)"'
+              url: "$${__value.raw}"
+              datasourceUid: tempo
+      # Traces (system/tempo), linked back to the logs of the same trace
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        url: http://tempo.tempo:3200
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            filterByTraceID: true
   prometheus:
     # After the operator (prometheusOperator.annotations)
     annotations: &afterOperator

@@ -1,0 +1,12 @@
+tempo:
+  tempo:
+    retention: 24h
+    # The sandbox's node reached 92% under the suite (2026-11-15)
+    resources:
+      requests: {cpu: 20m, memory: 64Mi}
+      limits: {memory: 256Mi}
+    extraEnv:
+      - name: GOMEMLIMIT
+        value: 200MiB
+  persistence:
+    size: 2Gi

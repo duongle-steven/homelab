@@ -16,6 +16,8 @@ policyExceptions: true
 podMonitors: true
 # Sandbox only: pods resolve sandbox hostnames to the Gateway instead of their own loopback
 corednsRewrite: false
+# The share of the Gateways' requests traced (templates/telemetry.yaml): a tenth in production, for Tempo's volume
+tracingSamplingPercentage: 10
 # Ambient mesh (no sidecars): istio-cni redirects pods of labelled namespaces to the node's ztunnel.
 # The k3s profile also fits the k3d sandbox (its CNI plugins live in /var/lib/rancher/k3s/data/cni; Istio's k3d
 # profile still points at /bin)
@@ -33,6 +35,32 @@ istiod:
   # Pod Security restricted (system/kyverno)
   seccompProfile:
     type: RuntimeDefault
+  # What the Gateways' Telemetry (templates/telemetry.yaml) uses: spans to the gateway Collector (system/opentelemetry),
+  # and JSON access logs on stdout carrying the trace id, which the OpenTelemetry agent reads like any pod's log and
+  # Grafana opens a trace from (docs/how-to-guides/traces.md)
+  meshConfig:
+    extensionProviders:
+      - name: otel-tracing
+        opentelemetry:
+          service: gateway-collector.opentelemetry.svc.cluster.local
+          port: 4317
+      - name: otel-json
+        envoyFileAccessLog:
+          path: /dev/stdout
+          logFormat:
+            labels:
+              start_time: "%START_TIME%"
+              method: "%REQ(:METHOD)%"
+              authority: "%REQ(:AUTHORITY)%"
+              # Without the query string: it can carry credentials (OAuth codes, ntfy's ?auth=)
+              path: "%REQ_WITHOUT_QUERY(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+              protocol: "%PROTOCOL%"
+              response_code: "%RESPONSE_CODE%"
+              response_flags: "%RESPONSE_FLAGS%"
+              duration: "%DURATION%"
+              upstream_host: "%UPSTREAM_HOST%"
+              upstream_cluster: "%UPSTREAM_CLUSTER%"
+              trace_id: "%TRACE_ID%"
   pilot:
     # Two replicas on different nodes: a rebooted node's ztunnel gets its config at once instead of waiting for
     # istiod to come back on that node (docs/reference/architecture/networking.md, node restarts)

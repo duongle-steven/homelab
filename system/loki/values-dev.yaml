@@ -4,7 +4,7 @@ loki:
       retention_period: 168h
       # Restated whole (Helm replaces lists): the audit logs too
       retention_stream:
-        - selector: '{job=~"audit/.*"}'
+        - selector: '{service_name=~"k3s-audit|openbao-audit"}'
           priority: 1
           period: 168h
   singleBinary:

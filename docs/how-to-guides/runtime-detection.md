@@ -24,7 +24,7 @@ Its events are in Loki, beside the other logs ([Logs](logs.md)), and on the dash
 Grafana → Explore → data source Loki:
 
 ```logql
-{namespace="falco"} | json rule="rule", priority="priority", ns=`output_fields["k8s.ns.name"]` | __error__=""
+{k8s_namespace_name="falco"} | json rule="rule", priority="priority", ns=`output_fields["k8s.ns.name"]` | __error__=""
 ```
 
 Each line is one event: `rule`, `priority`, `output` (one sentence with the process, its command line, the user, the

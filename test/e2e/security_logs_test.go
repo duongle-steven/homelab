@@ -36,7 +36,7 @@ var _ = Describe("SecurityLogsK3sExec", Label("sandbox", "testbed", "security-lo
 		logPod(ctx, "audit")
 		printTo(ctx, "audit", fmt.Sprint("audit-exec-", time.Now().UnixNano()))
 		entries := auditEntries(ctx, fmt.Sprintf(
-			`{job="audit/k3s"} | json | objectRef_subresource="exec" | objectRef_namespace=%q | objectRef_name="audit"`, logsNamespace),
+			`{service_name="k3s-audit"} | json | objectRef_subresource="exec" | objectRef_namespace=%q | objectRef_name="audit"`, logsNamespace),
 			15*time.Minute)
 		var event struct {
 			User struct {
@@ -47,7 +47,7 @@ var _ = Describe("SecurityLogsK3sExec", Label("sandbox", "testbed", "security-lo
 		Expect(json.Unmarshal([]byte(entries[0].Line), &event)).To(Succeed())
 		Expect(event.User.Username).To(Equal("system:admin"), "the k3d kubeconfig's user")
 		Expect(event.Level).To(Equal("Metadata"))
-		Expect(entries[0].Labels["node"]).NotTo(BeEmpty())
+		Expect(entries[0].Labels["k8s_node_name"]).NotTo(BeEmpty())
 	}, SpecTimeout(15*time.Minute))
 })
 
@@ -62,17 +62,18 @@ var _ = Describe("SecurityLogsOpenBao", Label("sandbox", "testbed", "security-lo
 		Expect(err).NotTo(HaveOccurred())
 		Expect(got).To(Equal(value))
 
-		entries := auditEntries(ctx, `{job="audit/openbao"} |= "secret/data/smoke/audit-marker" | json | type="response" | request_operation="read"`, 15*time.Minute)
-		Expect(entries[0].Labels["namespace"]).To(Equal("openbao"))
+		entries := auditEntries(ctx, `{service_name="openbao-audit"} |= "secret/data/smoke/audit-marker" | json | type="response" | request_operation="read"`, 15*time.Minute)
+		Expect(entries[0].Labels["k8s_namespace_name"]).To(Equal("openbao"))
 
-		lines, err := lokiQuery(ctx, `{namespace="openbao"}`, 15*time.Minute)
+		lines, err := lokiQuery(ctx, `{k8s_namespace_name="openbao"}`, 15*time.Minute)
 		Expect(err).NotTo(HaveOccurred())
 		for _, l := range lines {
-			Expect(l.Line).NotTo(ContainSubstring(value), "a secret's value in Loki (%s)", l.Labels["job"])
+			Expect(l.Line).NotTo(ContainSubstring(value), "a secret's value in Loki (%s)", l.Labels["service_name"])
 		}
-		server, err := lokiQuery(ctx, `{job="pods", namespace="openbao"} |= "secret/data/smoke/audit-marker"`, 15*time.Minute)
+		// Every audit line went to openbao-audit; OpenBao's other output stays an ordinary pod log
+		server, err := lokiQuery(ctx, `{k8s_namespace_name="openbao", service_name!="openbao-audit"} |= "secret/data/smoke/audit-marker"`, 15*time.Minute)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(server).To(BeEmpty(), "audit lines left under job=pods")
+		Expect(server).To(BeEmpty(), "audit lines left among OpenBao's pod logs")
 	}, SpecTimeout(15*time.Minute))
 })
 
@@ -224,7 +225,7 @@ var _ = Describe("SecurityLogsNoSecretValues", Label("sandbox", "testbed", "secu
 			"forgejo/forgejo-admin": secretValue(ctx, "forgejo", "forgejo-admin", "password"),
 			"ntfy alerts token":     ntfyToken(ctx, "alerts"),
 		}
-		lines := lokiLines(ctx, `{job=~"audit/.*"}`, 2*time.Hour)
+		lines := lokiLines(ctx, `{service_name=~"k3s-audit|openbao-audit"}`, 2*time.Hour)
 		Expect(lines).NotTo(BeEmpty(), "no audit line in the last 2 hours")
 		GinkgoWriter.Printf("searched %d audit lines\n", len(lines))
 		var leaked []string
@@ -269,7 +270,7 @@ var _ = Describe("SecurityLogsLargeChange", Label("sandbox", "testbed", "securit
 			Expect(err).NotTo(HaveOccurred())
 		}, NodeTimeout(time.Minute))
 
-		entries := auditEntries(ctx, fmt.Sprintf(`{job="audit/k3s"} |= %q | json | objectRef_resource="roles" | verb="create"`, name), 15*time.Minute)
+		entries := auditEntries(ctx, fmt.Sprintf(`{service_name="k3s-audit"} |= %q | json | objectRef_resource="roles" | verb="create"`, name), 15*time.Minute)
 		var event struct {
 			Level       string            `json:"level"`
 			Annotations map[string]string `json:"annotations"`

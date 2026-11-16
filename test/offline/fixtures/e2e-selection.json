@@ -308,6 +308,22 @@
       "SecurityLogsRulesLoaded",
       "Smoke"
     ],
+    "system/opentelemetry/**": [
+      "LogsEvents",
+      "LogsGrafanaDataSource",
+      "LogsPodLines",
+      "LogsResumeAfterRestart",
+      "LogsSurviveLokiOutage",
+      "LogsTargetsUp",
+      "SecurityLogsExecAlert",
+      "SecurityLogsK3sExec",
+      "SecurityLogsLargeChange",
+      "SecurityLogsNoSecretValues",
+      "SecurityLogsOpenBao",
+      "SecurityLogsQuietWhenIdle",
+      "SecurityLogsRulesLoaded",
+      "Smoke"
+    ],
     "system/kiali/**": [
       "SSOKiali",
       "Smoke"

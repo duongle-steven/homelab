@@ -39,6 +39,7 @@ Out of scope *(user, 2026-11-14)*: a targeted attacker with physical access to t
 | --- | --- | --- | --- |
 | E1 | Public apps through the Cloudflare Tunnel (blog, excalidraw, ntfy) | only rendered (12b-3) | Kanidm for Headscale (13); Matrix if federated |
 | E2 | The LAN Gateway (every admin app, Kanidm, Forgejo SSH) | sandbox | production (12b-3) |
+| E2b | OTLP into the gateway Collector (traces from the Istio Gateways, Argo CD, Grafana) | sandbox (OpenTelemetry step) | inside the cluster only: `allow-otlp` names the senders, nothing routes to it |
 | E3 | The nodes' own ports from the LAN (SSH, the API server, etcd, the kubelet, flannel's VXLAN) | production's nodes | |
 | E4 | The step-13 VPS (SSH, WireGuard, Headscale, DERP/STUN on a public address) | none | 13 |
 | E5 | The supply chain (images, charts, Actions, Renovate's pull requests) | GitHub, the sandbox | |

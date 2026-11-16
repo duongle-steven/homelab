@@ -93,7 +93,7 @@ var _ = Describe("Falco", Label("sandbox", "falco"), func() {
 		}
 
 		namespace := falcoProbe(ctx)
-		query := fmt.Sprintf(`{job="pods", namespace="falco"} |= %q`, namespace)
+		query := fmt.Sprintf(`{k8s_namespace_name="falco"} |= %q`, namespace)
 		var rules map[string]string
 		Eventually(ctx, func() bool {
 			entries, err := lokiQuery(ctx, query, 15*time.Minute)

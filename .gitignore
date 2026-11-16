@@ -20,3 +20,6 @@ infra/_modules/metal/flake/cluster.json
 infra/_modules/metal/flake/authorized_keys
 infra/sandbox/cluster/registries.yaml
 test/reports/
+
+# The Ginkgo binary the e2e runs build
+test/e2e/e2e.test
