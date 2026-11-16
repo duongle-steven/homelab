@@ -64,3 +64,32 @@ func TestKubeletJobOwnMetricsOnly(t *testing.T) {
 	readers := renderVelero(t, "system/monitoring-system", "", `select(.kind == "PrometheusRule" or .kind == "ConfigMap") | .. | select(tag == "!!str") | select(test("(apiserver|etcd|workqueue|scheduler)_[a-z_]+\\{[^}]*kubelet"))`)
 	assert.Empty(t, readers, "a rule or dashboard reads a metric the kubelet job drops")
 }
+
+// One person is on call around the clock: below critical, alerts wait out the night in the environment's time zone,
+// except the security sources (audit logs, Falco) and the Watchdog, routed before the muted route. The sandbox and the
+// testbed keep the same hours on a date that never comes (the suite posts warnings at any hour)
+func TestAlertmanagerQuietHours(t *testing.T) {
+	const config = `select(.kind == "Secret" and .metadata.name == "alertmanager-monitoring-system-kube-pro-alertmanager") | .data."alertmanager.yaml" | @base64d | from_yaml`
+	routes := renderVelero(t, "system/monitoring-system", "", config+` | .route.routes[] | (.matchers | join(",")) + "=" + ((.mute_time_intervals // []) | join(","))`)
+	assert.Equal(t, strings.Join([]string{`alertname = "Watchdog"=`, `source="audit"=`, `source="falco"=`, `severity!="critical"=night`}, "\n"), routes)
+
+	night := func(env string) string {
+		return renderVelero(t, "system/monitoring-system", env, config+` | .time_intervals[] | select(.name == "night") | .time_intervals[0]`)
+	}
+	prod := night("")
+	assert.Contains(t, prod, "location: 'Asia/Ho_Chi_Minh'", "the environment's time zone (infra/production/cluster/config.json)")
+	assert.NotContains(t, prod, "months")
+	dev := night("dev")
+	assert.Contains(t, dev, "months:\n  - february")
+	assert.Contains(t, dev, "days_of_month:\n  - \"31\"")
+	strip := func(s string) string {
+		var keep []string
+		for _, line := range strings.Split(s, "\n") {
+			if !strings.HasPrefix(line, "months") && !strings.HasPrefix(line, "days_of_month") && !strings.HasPrefix(line, "  - february") && line != `  - "31"` {
+				keep = append(keep, line)
+			}
+		}
+		return strings.Join(keep, "\n")
+	}
+	assert.Equal(t, prod, strip(dev), "values-local.yaml's night differs from values.yaml's beyond its date")
+}

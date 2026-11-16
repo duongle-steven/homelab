@@ -15,6 +15,17 @@ Cloudflare Tunnel. Nothing is readable or writable without a user: `phone` reads
 iOS gets instant notifications through ntfy.sh, which only receives a poll request (a hash of the topic), never the
 message. The sandbox runs ntfy without it.
 
+Critical alerts arrive at ntfy's priority 5: in the app, let that priority bypass Do Not Disturb (the topic's
+notification settings), so they ring at night.
+
+## Quiet hours
+
+One person is on call around the clock, so from 22:00 to 07:00 in the environment's time zone (`global.timezone`)
+alerts below `critical` wait: one still firing at 07:00 is sent then, one that resolved during the night is not.
+Critical alerts, the security alerts (audit logs and Falco, whatever their severity) and the heartbeat are never held
+(`system/monitoring-system/values.yaml`, the route with `mute_time_intervals`). The sandbox and the testbed keep the
+same hours on a date that never comes, since nobody is on call there and the tests post warnings at any hour.
+
 ## Telegram, the second path (production)
 
 Every alert also goes to Telegram, so it still arrives while ntfy is down and the cluster is up (a cluster that is
