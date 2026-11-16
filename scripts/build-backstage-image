@@ -1,0 +1,9 @@
+#!/bin/sh
+# Builds Backstage's image from the checkout (backstage/Dockerfile) and puts it on the sandbox's node as
+# homelab-backstage:dev, the image platform/backstage's values-dev.yaml runs (production runs the one GitHub Actions
+# builds from master: .github/workflows/backstage-image.yaml). Run by just dev when Backstage is among the sandbox's
+# optional apps.
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+docker build --quiet -t homelab-backstage:dev backstage >/dev/null
+k3d image import --cluster homelab-dev homelab-backstage:dev

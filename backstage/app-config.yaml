@@ -176,8 +176,8 @@ catalog:
               name: name
               members: member
         schedule:
-          frequency: { minutes: 15 }
-          timeout: { minutes: 5 }
+          frequency: {minutes: 15}
+          timeout: {minutes: 5}
 
 kubernetes:
   serviceLocatorMethod:

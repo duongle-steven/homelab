@@ -51,7 +51,7 @@ kyverno:
         mountPath: /etc/homelab-dev-ca
         readOnly: true
 
-# Testbed and the sandbox run lab's image built from the checkout (scripts/build-lab-image), unsigned: TestSupplyChain
+# Testbed and the sandbox run lab's and Backstage's images built from the checkout (scripts/build-*-image), unsigned: TestSupplyChain
 # proves Kyverno's verification with its own signed image instead
-labImagePolicy:
+signedImages:
   enabled: false

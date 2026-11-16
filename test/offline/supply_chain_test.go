@@ -33,7 +33,7 @@ func renderKyverno(t *testing.T, env, expr string) string {
 // (verify-ci-images, the golden path's, runs everywhere: TestCISigningRender)
 func TestLabImagePolicy(t *testing.T) {
 	policy := `select(.kind == "ImageValidatingPolicy" and .metadata.name == "verify-lab-image")`
-	assert.Equal(t, "verify-ci-images\nverify-lab-image", renderKyverno(t, "", `select(.kind == "ImageValidatingPolicy") | .metadata.name`))
+	assert.Equal(t, "verify-ci-images\nverify-backstage-image\nverify-lab-image", renderKyverno(t, "", `select(.kind == "ImageValidatingPolicy") | .metadata.name`))
 	assert.Equal(t, labImage, renderKyverno(t, "", policy+` | .spec.matchImageReferences[].glob`))
 	assert.Equal(t, "Audit", renderKyverno(t, "", policy+` | .spec.validationActions | join(",")`))
 	identity := policy + ` | .spec.attestors[] | select(.name == "github") | .cosign.keyless.identities[0]`
@@ -47,4 +47,21 @@ func TestLabImagePolicy(t *testing.T) {
 	assert.Contains(t, validations, "verifyAttestationSignatures")
 
 	assert.Empty(t, renderKyverno(t, "dev", `select(.kind == "ImageValidatingPolicy" and .metadata.name == "verify-lab-image") | .metadata.name`))
+}
+
+// Backstage's image (platform/backstage) is built like lab's: signed keyless with its SBOM attested by
+// .github/workflows/backstage-image.yaml on master, which production's Kyverno checks; the sandbox runs its own build
+func TestBackstageImagePolicy(t *testing.T) {
+	policy := `select(.kind == "ImageValidatingPolicy" and .metadata.name == "verify-backstage-image")`
+	assert.Equal(t, "ghcr.io/duongle-steven/homelab-backstage*", renderKyverno(t, "", policy+` | .spec.matchImageReferences[].glob`))
+	assert.Equal(t, "Audit", renderKyverno(t, "", policy+` | .spec.validationActions | join(",")`))
+	identity := policy + ` | .spec.attestors[] | select(.name == "github") | .cosign.keyless.identities[0]`
+	assert.Equal(t, labImageIssuer, renderKyverno(t, "", identity+` | .issuer`))
+	assert.Equal(t, "https://github.com/duongle-steven/homelab/.github/workflows/backstage-image.yaml@refs/heads/master", renderKyverno(t, "", identity+` | .subject`))
+	assert.Equal(t, "null", renderKyverno(t, "", identity+` | .subjectRegExp`))
+	validations := renderKyverno(t, "", policy+` | [.spec.validations[].expression] | join(" ")`)
+	assert.Contains(t, validations, "verifyImageSignatures")
+	assert.Contains(t, validations, "verifyAttestationSignatures")
+
+	assert.Empty(t, renderKyverno(t, "dev", policy+` | .metadata.name`))
 }

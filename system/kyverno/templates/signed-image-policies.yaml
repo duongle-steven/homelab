@@ -1,11 +1,13 @@
-{{- if .Values.labImagePolicy.enabled }}
-# lab's image (platform/secrets-rotation) is signed keyless by .github/workflows/lab-image.yaml on master, with its
-# SBOM attested (SPDX): a pod running it must carry both, from that workflow on master only (no regex: a branch's run
-# would pass). Audit, like every policy until step 15b-2 (docs/how-to-guides/supply-chain.md)
+{{- if .Values.signedImages.enabled }}
+{{- range $name, $i := .Values.signedImages.images }}
+# {{ $i.what }} is signed keyless by .github/workflows/{{ $i.workflow }} on master, with its SBOM attested (SPDX): a pod
+# running it must carry both, from that workflow on master only (no regex: a branch's run would pass). Audit, like every
+# policy until step 15b-2 (docs/how-to-guides/supply-chain.md)
+---
 apiVersion: policies.kyverno.io/v1
 kind: ImageValidatingPolicy
 metadata:
-  name: verify-lab-image
+  name: verify-{{ $name }}-image
 spec:
   validationActions: [Audit]
   matchConstraints:
@@ -15,8 +17,8 @@ spec:
         operations: [CREATE, UPDATE]
         resources: [pods]
   matchImageReferences:
-    - glob: {{ .Values.labImagePolicy.image | quote }}
-  # Judge only: the image is pinned by digest already (platform/secrets-rotation/values.yaml)
+    - glob: {{ $i.image | quote }}
+  # Judge only: the image is pinned by digest already (its chart's production values)
   validationConfigurations:
     mutateDigest: false
     verifyDigest: true
@@ -27,7 +29,7 @@ spec:
         keyless:
           identities:
             - issuer: https://token.actions.githubusercontent.com
-              subject: https://github.com/duongle-steven/homelab/.github/workflows/lab-image.yaml@refs/heads/master
+              subject: https://github.com/duongle-steven/homelab/.github/workflows/{{ $i.workflow }}@refs/heads/master
         ctlog:
           url: https://rekor.sigstore.dev
   attestations:
@@ -37,8 +39,9 @@ spec:
   validations:
     - expression: >-
         images.containers.map(image, verifyImageSignatures(image, [attestors.github])).all(e, e > 0)
-      message: lab's image is not signed by lab-image.yaml on master
+      message: {{ $i.what }} is not signed by {{ $i.workflow }} on master
     - expression: >-
         images.containers.map(image, verifyAttestationSignatures(image, attestations.sbom, [attestors.github])).all(e, e > 0)
-      message: lab's image has no SBOM attested by lab-image.yaml on master
+      message: {{ $i.what }} has no SBOM attested by {{ $i.workflow }} on master
+{{- end }}
 {{- end }}

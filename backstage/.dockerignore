@@ -1,8 +1,10 @@
+# The build stage compiles from source: only what yarn and the build need
 .git
+node_modules
+packages/*/node_modules
+packages/*/dist
+packages/*/dist-types
+dist-types
 .yarn/cache
 .yarn/install-state.gz
-node_modules
-packages/*/src
-packages/*/node_modules
-plugins
 *.local.yaml
