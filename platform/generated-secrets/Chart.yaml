@@ -1,3 +1,7 @@
 apiVersion: v2
 name: generated-secrets
 version: 0.0.0
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Generated secrets"
+  homelab/description: "Random secrets generated into OpenBao"

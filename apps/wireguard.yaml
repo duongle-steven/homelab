@@ -136,3 +136,7 @@ rawResources:
         matchConditions:
           - name: wireguard
             expression: "object.metadata.namespace == 'wireguard' && object.metadata.name.startsWith('wireguard')"
+# One description per route (lab catalog generate: Backstage's catalog and homepage's services)
+homelab:
+  - name: "WireGuard"
+    description: "A VPN into the LAN"

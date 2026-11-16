@@ -5,3 +5,10 @@ dependencies:
   - name: grafana
     repository: https://grafana-community.github.io/helm-charts
     version: 13.5.1
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Grafana"
+  homelab/description: "Observability dashboards"
+  homelab/group: Development
+  homelab/icon: "grafana.svg"
+  homelab/host: grafana

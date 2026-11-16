@@ -190,3 +190,10 @@ rawResources:
         matchConditions:
           - name: paperless
             expression: "object.metadata.namespace == 'paperless' && object.metadata.name.startsWith('paperless')"
+# One description per route (lab catalog generate: Backstage's catalog and homepage's services)
+homelab:
+  - route: main
+    name: "Paperless"
+    description: "Document management system"
+    group: Popular
+    icon: paperless.svg

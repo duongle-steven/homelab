@@ -5,3 +5,10 @@ dependencies:
   - name: zot
     version: 0.1.128
     repository: https://zotregistry.dev/helm-charts
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Registry"
+  homelab/description: "Container registry"
+  homelab/group: Development
+  homelab/icon: "docker.svg"
+  homelab/host: registry

@@ -1,3 +1,7 @@
 apiVersion: v2
 name: public-scan
 version: 0.0.0
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Public scan"
+  homelab/description: "A weekly scan of the public apps (nuclei)"

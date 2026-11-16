@@ -69,3 +69,8 @@ rawResources:
         matchConditions:
           - name: blog
             expression: "object.metadata.namespace == 'blog' && object.metadata.name.startsWith('blog')"
+# One description per route (lab catalog generate: Backstage's catalog and homepage's services)
+homelab:
+  - route: main
+    name: "Blog"
+    description: "The public blog"

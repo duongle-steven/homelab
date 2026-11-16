@@ -108,3 +108,7 @@ rawResources:
         matchConditions:
           - name: tailscale
             expression: "object.metadata.namespace == 'tailscale' && object.metadata.name.startsWith('tailscale')"
+# One description per route (lab catalog generate: Backstage's catalog and homepage's services)
+homelab:
+  - name: "Tailscale"
+    description: "A subnet router into the LAN over Tailscale"

@@ -1,3 +1,7 @@
 apiVersion: v2
 name: egress
 version: 0.0.0
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Egress"
+  homelab/description: "Default-deny egress and what may reach the internet"

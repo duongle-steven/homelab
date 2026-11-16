@@ -17,3 +17,7 @@ dependencies:
   - name: snapshot-controller
     version: 5.4.0
     repository: https://piraeus.io/helm-charts
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Rook Ceph"
+  homelab/description: "Replicated storage on the nodes"

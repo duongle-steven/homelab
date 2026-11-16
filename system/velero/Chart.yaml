@@ -5,3 +5,7 @@ dependencies:
   - name: velero
     version: 12.2.1
     repository: https://vmware-tanzu.github.io/helm-charts
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Velero"
+  homelab/description: "Volume backups, off-site to R2"
