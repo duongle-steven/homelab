@@ -48,6 +48,19 @@ kube-prometheus-stack:
   kubeScheduler: *scrapedElsewhere
   kubeEtcd: *scrapedElsewhere
   kubeProxy: *scrapedElsewhere
+  kubelet:
+    serviceMonitor:
+      # k3s's kubelet port serves the whole process's metrics: the API server's and etcd's (jobs apiserver and
+      # kube-etcd keep them), the controllers' workqueues and the scheduler's. They were about 120k of the sandbox's
+      # 140k kubelet series; no rule or dashboard reads them from this job (TestKubeletJobOwnMetricsOnly)
+      metricRelabelings:
+        - action: drop
+          sourceLabels: [__name__]
+          regex: (apiserver|etcd|workqueue|scheduler)_.+
+        # The chart's default, restated: Helm replaces lists
+        - action: drop
+          sourceLabels: [__name__, le]
+          regex: (csi_operations|storage_operation_duration)_seconds_bucket;(0.25|2.5|15|25|120|600)(\.0)?
   grafana:
     enabled: false
     forceDeployDatasources: true
