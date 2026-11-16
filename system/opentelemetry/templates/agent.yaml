@@ -1,0 +1,230 @@
+{{- /*
+The agent: one Collector per node (a DaemonSet the Operator runs as agent-collector). It reads every pod's log and the
+API server's audit log on its node and sends them to Loki over OTLP itself, through a queue kept on the node with its
+read positions: lines read while Loki is down survive the agent's restart.
+Labels follow OpenTelemetry's conventions (Loki indexes service.name and the k8s.* resource attributes it knows).
+*/ -}}
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: agent
+  namespace: {{ .Release.Namespace }}
+spec:
+  mode: daemonset
+  {{- with .Values.agent.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  observability:
+    metrics:
+      enableMetrics: true
+  # Root reads the files root owns on the node (see templates/policy-exception.yaml); nothing else of root's rights
+  podSecurityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  env:
+    - name: K8S_NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    # The Go runtime collects before the container's limit (about 80% of it), as the Collector's docs advise
+    - name: GOMEMLIMIT
+      value: {{ .Values.agent.goMemLimit | quote }}
+  volumes:
+    - name: pod-logs
+      hostPath:
+        path: /var/log/pods
+    - name: audit-logs
+      hostPath:
+        path: /var/log/kubernetes/audit
+        type: DirectoryOrCreate
+    - name: storage
+      hostPath:
+        path: /var/lib/otelcol
+        type: DirectoryOrCreate
+  volumeMounts:
+    - name: pod-logs
+      mountPath: /var/log/pods
+      readOnly: true
+    - name: audit-logs
+      mountPath: /var/log/kubernetes/audit
+      readOnly: true
+    - name: storage
+      mountPath: /var/lib/otelcol
+  config:
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      # Read positions and the queue to Loki, on the node: they survive a restart of the pod; a store a power cut left
+      # corrupt is recreated (re-reading rather than crash-looping), and it shrinks again after a long Loki outage.
+      # Not synced: fsync here raised etcd's WAL fsync p99 from 14.7ms to 25ms on the sandbox (2026-11-15), and the
+      # nodes' disks share it with etcd; a cut may re-send or lose the last second's lines instead
+      file_storage:
+        directory: /var/lib/otelcol
+        create_directory: true
+        recreate: true
+        compaction:
+          on_start: true
+          on_rebound: true
+          directory: /var/lib/otelcol
+    receivers:
+      # /var/log/pods/<namespace>_<pod>_<uid>/<container>/<n>.log in containerd's CRI format; the path gives the
+      # pod's namespace, name, uid and container
+      filelog/pods:
+        include: [/var/log/pods/*/*/*.log]
+        include_file_path: true
+        # Every 5s, not the default 200ms: each poll fingerprints every file and writes every file's position to the
+        # store, on the disk etcd uses. At 200ms the agent took about 105m of CPU; at 1s it still wrote 622KiB/s, the
+        # cluster's heaviest writer while k3s lost its lease under the suite; at 5s, 208KiB/s (271 pod logs, the
+        # sandbox, 2026-11-15). A line reaches Loki at most 5s later
+        poll_interval: 5s
+        start_at: beginning
+        storage: file_storage
+        # A refused batch (memory_limiter) pauses the file instead of moving its offset past lines nothing sent
+        retry_on_failure:
+          enabled: true
+          max_elapsed_time: 0
+        operators:
+          - type: container
+            id: container-parser
+      # The API server's audit log (JSON lines, one event each), rotated by the server: followed by name, its
+      # position kept, so a rotation neither rereads nor skips a line
+      filelog/audit:
+        include: [/var/log/kubernetes/audit/audit.log]
+        # One file: every second, for its alerts
+        poll_interval: 1s
+        start_at: beginning
+        storage: file_storage
+        retry_on_failure:
+          enabled: true
+          max_elapsed_time: 0
+    connectors:
+      # OpenBao's audit device (platform/openbao) writes JSON requests and responses to its stdout: those records
+      # alone move to their own pipeline; OpenBao's other output stays an ordinary pod log
+      routing/openbao:
+        default_pipelines: [logs/loki]
+        table:
+          - context: log
+            condition: 'resource.attributes["k8s.namespace.name"] == "openbao" and IsMatch(body, "^\\{.*\"type\":\"(request|response)\"")'
+            pipelines: [logs/openbao-audit]
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      # The pod's metadata from the API, for this node's pods only
+      k8sattributes:
+        auth_type: serviceAccount
+        filter:
+          node_from_env_var: K8S_NODE_NAME
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.uid
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.node.name
+            - k8s.deployment.name
+            - k8s.statefulset.name
+            - k8s.daemonset.name
+            - k8s.cronjob.name
+            - k8s.job.name
+          labels:
+            # The app's name (app.kubernetes.io/name): Loki's service_name
+            - tag_name: service.name
+              key: app.kubernetes.io/name
+              from: pod
+      # What no query reads is not stored with every line: the file's path and name (the pod's attributes say it) and
+      # the receiver's scope (about 100 of the 213 bytes each audit line carried, measured 2026-11-15)
+      transform/trim:
+        log_statements:
+          - context: log
+            statements:
+              - delete_key(attributes, "log.file.path")
+              - delete_key(attributes, "log.file.name")
+              - set(instrumentation_scope.name, "")
+              - set(instrumentation_scope.version, "")
+      transform/openbao-audit:
+        log_statements:
+          - context: resource
+            statements:
+              - set(attributes["service.name"], "openbao-audit")
+      transform/k3s-audit:
+        log_statements:
+          - context: resource
+            statements:
+              - set(attributes["service.name"], "k3s-audit")
+              - set(attributes["k8s.node.name"], "${env:K8S_NODE_NAME}")
+              # One stream per node (service.instance.id is one of Loki's index labels): with one stream for every
+              # server, Loki would refuse a node's backlog as too far behind another's after an outage
+              - set(attributes["service.instance.id"], "${env:K8S_NODE_NAME}")
+      # A request stays under Loki's burst (system/loki: 16MB): the default of 8192 lines made 13MB requests Loki
+      # refused forever, the backlog grew and the agent was OOM-killed in a loop (the sandbox, 2026-11-15)
+      batch:
+        send_batch_size: 1000
+        send_batch_max_size: 1000
+    exporters:
+      otlphttp/loki:
+        endpoint: http://loki.loki:3100/otlp
+        sending_queue:
+          enabled: true
+          storage: file_storage
+        # Never give up while Loki is down: the queue on the node holds the lines
+        retry_on_failure:
+          enabled: true
+          max_elapsed_time: 0
+    service:
+      extensions: [health_check, file_storage]
+      pipelines:
+        logs/pods:
+          receivers: [filelog/pods]
+          processors: [memory_limiter, k8sattributes, transform/trim]
+          exporters: [routing/openbao]
+        logs/loki:
+          receivers: [routing/openbao]
+          processors: [batch]
+          exporters: [otlphttp/loki]
+        logs/openbao-audit:
+          receivers: [routing/openbao]
+          processors: [transform/openbao-audit, batch]
+          exporters: [otlphttp/loki]
+        logs/k3s-audit:
+          receivers: [filelog/audit]
+          processors: [memory_limiter, transform/trim, transform/k3s-audit, batch]
+          exporters: [otlphttp/loki]
+---
+# What k8sattributes reads: pods and namespaces, and the ReplicaSets that name a pod's Deployment
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opentelemetry-agent
+rules:
+  - apiGroups: [""]
+    resources: [pods, namespaces, nodes]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opentelemetry-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opentelemetry-agent
+subjects:
+  - kind: ServiceAccount
+    name: agent-collector
+    namespace: {{ .Release.Namespace }}

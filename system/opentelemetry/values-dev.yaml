@@ -1,0 +1,11 @@
+# The sandbox's node is one 12 GB k3d container that reached 92% under the suite (2026-11-15, k3s restarted): the agent
+# and the gateway kept small
+agent:
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 256Mi}
+  goMemLimit: 200MiB
+gateway:
+  resources:
+    requests: {cpu: 10m, memory: 48Mi}
+    limits: {memory: 128Mi}

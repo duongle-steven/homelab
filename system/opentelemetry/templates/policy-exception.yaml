@@ -3,20 +3,18 @@
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
-  name: alloy
+  name: agent
   namespace: {{ .Release.Namespace }}
   annotations:
     # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-    homelab/reason: "Alloy reads every pod's log files and the API server's audit log on its node (/var/log/pods, /var/log/kubernetes/audit: hostPath) as root"
+    homelab/reason: "The agent reads every pod's log files and the API server's audit log on its node (/var/log/pods, /var/log/kubernetes/audit: hostPath), which root owns, and keeps its positions and queue in /var/lib/otelcol (hostPath); every capability dropped"
 spec:
   policyRefs:
     - {name: disallow-host-path, kind: ValidatingPolicy}
-    - {name: disallow-privilege-escalation, kind: ValidatingPolicy}
     - {name: require-run-as-nonroot, kind: ValidatingPolicy}
     - {name: require-run-as-non-root-user, kind: ValidatingPolicy}
-    - {name: restrict-seccomp-strict, kind: ValidatingPolicy}
     - {name: restrict-volume-types, kind: ValidatingPolicy}
   matchConditions:
-    - name: alloy
-      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && (object.metadata.name.startsWith('loki-alloy'))"
+    - name: agent
+      expression: "object.metadata.namespace == '{{ .Release.Namespace }}' && object.metadata.name.startsWith('agent-collector')"

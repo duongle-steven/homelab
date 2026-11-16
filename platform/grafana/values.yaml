@@ -31,6 +31,11 @@ grafana:
   grafana.ini:
     server:
       root_url: https://grafana.{{ .Values.global.baseDomain }}
+    # Traces to the gateway Collector (system/opentelemetry); plain inside the mesh, which encrypts it
+    tracing.opentelemetry:
+      propagation: w3c
+    tracing.opentelemetry.otlp:
+      address: gateway-collector.opentelemetry:4317
     auth.generic_oauth:
       enabled: true
       allow_sign_up: true

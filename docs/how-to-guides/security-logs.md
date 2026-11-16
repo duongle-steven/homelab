@@ -6,8 +6,8 @@ every other alert ([Alerts](alerts.md)).
 
 | Stream | What | Kept |
 |---|---|---|
-| `{job="audit/k3s"}` | the API server's audit log: one JSON event per request (who, verb, object, response code) | 60 days (7 in the sandbox) |
-| `{job="audit/openbao"}` | OpenBao's audit device: every request and response (who, path, operation); secret values are HMACed | 60 days (7 in the sandbox) |
+| `{service_name="k3s-audit"}` | the API server's audit log: one JSON event per request (who, verb, object, response code) | 60 days (7 in the sandbox) |
+| `{service_name="openbao-audit"}` | OpenBao's audit device: every request and response (who, path, operation); secret values are HMACed | 60 days (7 in the sandbox) |
 
 ## Where they come from
 
@@ -18,10 +18,10 @@ every other alert ([Alerts](alerts.md)).
   other reads (get, list, watch) are not logged: controllers watching what they manage were 41% of the volume.
   Changes to RBAC, Kyverno's policies and exceptions, admission webhooks, namespaces and CRDs carry the body sent
   (Kyverno rewriting its own webhooks only `Metadata`). Everything else is `Metadata`. An event over 100KiB (a large
-  CRD) loses its bodies, keeping who and what (`audit.k8s.io/truncated`): Loki refuses a line over 256KB. Alloy reads the file on the node.
+  CRD) loses its bodies, keeping who and what (`audit.k8s.io/truncated`): Loki refuses a line over 256KB. The OpenTelemetry agent reads the file on the node.
 - **OpenBao**: a `file` audit device writing to stdout, declared in its config (`platform/openbao`), so OpenBao
-  creates it at every start. Alloy labels these lines `audit/openbao` and leaves OpenBao's server log under
-  `job="pods"`. If every audit device fails OpenBao refuses requests; stdout does not fill up.
+  creates it at every start. The OpenTelemetry agent routes these lines to `service_name="openbao-audit"` and leaves
+  OpenBao's server log an ordinary pod log (`k8s_namespace_name="openbao"`). If every audit device fails OpenBao refuses requests; stdout does not fill up.
 
 !!! warning "Command lines are logged"
     An exec's command is part of its request URL, which the audit log records. Pass a secret on stdin
@@ -38,14 +38,14 @@ The JSON fields come out with `| json` (`user_username`, `verb`, `objectRef_reso
 
 | Query | Shows |
 |---|---|
-| `{job="audit/k3s"} \| json \| objectRef_subresource=~"exec\|attach\|portforward"` | who opened a shell, attached or port-forwarded, into which pod |
-| `{job="audit/k3s"} \| json \| objectRef_resource="secrets" \| user_username!~"system:serviceaccount:.*"` | Secret reads by people |
-| `{job="audit/k3s"} \| json \| objectRef_resource=~".*rolebindings\|.*roles" \| verb!~"get\|list\|watch"` | RBAC changes, with the body |
-| `{job="audit/k3s"} \| json \| responseStatus_code=~"401\|403"` | refused requests |
-| `{job="audit/k3s"} \| json \| user_username="system:admin"` | everything done with the admin kubeconfig |
-| `{job="audit/openbao"} \| json \| type="request" \| auth_policies=~".*admin.*"` | OpenBao requests with the admin role |
-| `{job="audit/openbao"} \| json \| request_path=~"auth/.+/login" \| error!=""` | failed OpenBao logins |
-| `{job="audit/openbao"} \|= "secret/data/forgejo/"` | who read Forgejo's secrets |
+| `{service_name="k3s-audit"} \| json \| objectRef_subresource=~"exec\|attach\|portforward"` | who opened a shell, attached or port-forwarded, into which pod |
+| `{service_name="k3s-audit"} \| json \| objectRef_resource="secrets" \| user_username!~"system:serviceaccount:.*"` | Secret reads by people |
+| `{service_name="k3s-audit"} \| json \| objectRef_resource=~".*rolebindings\|.*roles" \| verb!~"get\|list\|watch"` | RBAC changes, with the body |
+| `{service_name="k3s-audit"} \| json \| responseStatus_code=~"401\|403"` | refused requests |
+| `{service_name="k3s-audit"} \| json \| user_username="system:admin"` | everything done with the admin kubeconfig |
+| `{service_name="openbao-audit"} \| json \| type="request" \| auth_policies=~".*admin.*"` | OpenBao requests with the admin role |
+| `{service_name="openbao-audit"} \| json \| request_path=~"auth/.+/login" \| error!=""` | failed OpenBao logins |
+| `{service_name="openbao-audit"} \|= "secret/data/forgejo/"` | who read Forgejo's secrets |
 
 ## Alerts
 
@@ -65,7 +65,7 @@ this is accepted, and Alertmanager groups the audit alerts by alert and user, so
 | `OpenBaoRootToken` | critical | root token generation started or went on (`sys/generate-root`); OpenBao's self-initialisation uses a root token of its own at every fresh start and revokes it, which does not alert | nothing needs a root token: find who and why, cancel the generation or revoke the token |
 | `OpenBaoManyFailedLogins` | warning | more than 10 failed logins at one auth path in 5 minutes | a misconfigured role or someone guessing |
 | `OpenBaoConfigChanged` | critical | a policy, an auth method or role, or an audit device changed (not with a root token: `OpenBaoRootToken` covers those) | expected only when a person changes OpenBao with the admin role (`docs/concepts/secrets-management.md`) |
-| `AuditLogsMissing` | critical | no line from k3s for 15 minutes, or from OpenBao for 2 hours | an audit trail stopped: check Alloy on the server nodes, the audit flags, `bao audit list` |
+| `AuditLogsMissing` | critical | no line from k3s for 15 minutes, or from OpenBao for 2 hours | an audit trail stopped: check the OpenTelemetry agent on the server nodes, the audit flags, `bao audit list` |
 
 ## Retention
 

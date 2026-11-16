@@ -169,7 +169,7 @@ func TestFalcoLokiRules(t *testing.T) {
 			seen[r.Alert] = true
 			assert.Equal(t, w.severity, r.Labels["severity"], r.Alert)
 			assert.Equal(t, "falco", r.Labels["source"], r.Alert)
-			for _, part := range []string{`{job="pods", namespace="falco"}`, "| json", `__error__=""`, "by (rule, namespace)", w.priority} {
+			for _, part := range []string{`{k8s_namespace_name="falco"}`, "| json", `__error__=""`, "by (rule, namespace)", w.priority} {
 				assert.Contains(t, r.Expr, part, r.Alert)
 			}
 			assert.NotRegexp(t, `\|\s*(event_)?namespace\s*(!=|=~|!~|=)`, r.Expr, "%s filters the event's namespace", r.Alert)

@@ -3,6 +3,7 @@ package render
 
 import (
 	"bytes"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -12,13 +13,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Renders caches each chart's render by directory and env: the tests query each render many times
+// Renders caches each chart's render by directory, env and the environment variables the render reads: the tests
+// query each render many times
 var Renders sync.Map
 
-// Yq renders a chart (scripts/render-chart, once per directory and env) and runs a yq expression on it
+// renderEnv are the environment variables scripts/render-chart and scripts/env-values read: a test that sets one
+// gets its own render
+var renderEnv = []string{"BACKUP_S3_URL"}
+
+// Yq renders a chart (scripts/render-chart, once per directory, env and renderEnv's values) and runs a yq expression
+// on it
 func Yq(t testing.TB, dir, env, expr string) string {
 	t.Helper()
 	key := dir + " " + env
+	for _, name := range renderEnv {
+		key += " " + name + "=" + os.Getenv(name)
+	}
 	cached, ok := Renders.Load(key)
 	if !ok {
 		cmd := exec.Command("scripts/render-chart", dir)

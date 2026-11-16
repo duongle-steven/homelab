@@ -36,7 +36,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (user) (count_over_time({job=\"audit/k3s\"} | json user=\"user.username\", sub=\"objectRef.subresource\" | sub=~\"exec|attach|portforward\" [$__auto]))",
+          "expr": "sum by (user) (count_over_time({service_name=\"k3s-audit\"} | json user=\"user.username\", sub=\"objectRef.subresource\" | sub=~\"exec|attach|portforward\" [$__auto]))",
           "legendFormat": "{{user}}",
           "queryType": "range"
         }
@@ -78,7 +78,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (user) (count_over_time({job=\"audit/k3s\"} | json user=\"user.username\", verb=\"verb\", resource=\"objectRef.resource\" | resource=\"secrets\" | verb=~\"get|list|watch\" | user!~\"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:k3s-.*|k3s-cloud-controller-manager|system:apiserver\" [$__auto]))",
+          "expr": "sum by (user) (count_over_time({service_name=\"k3s-audit\"} | json user=\"user.username\", verb=\"verb\", resource=\"objectRef.resource\" | resource=\"secrets\" | verb=~\"get|list|watch\" | user!~\"system:serviceaccount:.*|system:node:.*|system:kube-.*|system:k3s-.*|k3s-cloud-controller-manager|system:apiserver\" [$__auto]))",
           "legendFormat": "{{user}}",
           "queryType": "range"
         }
@@ -120,7 +120,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (source_ip) (count_over_time({job=\"audit/k3s\"} | json source_ip=\"sourceIPs[0]\", code=\"responseStatus.code\" | code=~\"401|403\" [$__auto]))",
+          "expr": "sum by (source_ip) (count_over_time({service_name=\"k3s-audit\"} | json source_ip=\"sourceIPs[0]\", code=\"responseStatus.code\" | code=~\"401|403\" [$__auto]))",
           "legendFormat": "{{source_ip}}",
           "queryType": "range"
         }
@@ -162,7 +162,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (role, failed) (count_over_time({job=\"audit/openbao\"} | json type=\"type\", path=\"request.path\", role=\"auth.metadata.role\", error=\"error\" | type=\"response\" | path=~\"auth/.+/login\" | label_format failed=`{{ if .error }}failed{{ else }}ok{{ end }}` [$__auto]))",
+          "expr": "sum by (role, failed) (count_over_time({service_name=\"openbao-audit\"} | json type=\"type\", path=\"request.path\", role=\"auth.metadata.role\", error=\"error\" | type=\"response\" | path=~\"auth/.+/login\" | label_format failed=`{{ if .error }}failed{{ else }}ok{{ end }}` [$__auto]))",
           "legendFormat": "{{role}} {{failed}}",
           "queryType": "range"
         }
@@ -204,7 +204,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{job=\"audit/k3s\"} | json verb=\"verb\", resource=\"objectRef.resource\" | verb=~\"create|update|patch|delete\" | resource=~\"roles|clusterroles|rolebindings|clusterrolebindings|policyexceptions|validatingwebhookconfigurations|mutatingwebhookconfigurations|namespaces|customresourcedefinitions\"",
+          "expr": "{service_name=\"k3s-audit\"} | json verb=\"verb\", resource=\"objectRef.resource\" | verb=~\"create|update|patch|delete\" | resource=~\"roles|clusterroles|rolebindings|clusterrolebindings|policyexceptions|validatingwebhookconfigurations|mutatingwebhookconfigurations|namespaces|customresourcedefinitions\"",
           "queryType": "range"
         }
       ],
@@ -236,7 +236,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{job=\"audit/openbao\"} | json type=\"type\", policies=\"auth.policies\" | type=\"request\" | policies!~\".*\\\"(apps|writer|infra|snapshot|rotator)\\\".*\"",
+          "expr": "{service_name=\"openbao-audit\"} | json type=\"type\", policies=\"auth.policies\" | type=\"request\" | policies!~\".*\\\"(apps|writer|infra|snapshot|rotator)\\\".*\"",
           "queryType": "range"
         }
       ],
@@ -392,7 +392,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (priority, rule, event_namespace) (count_over_time({job=\"pods\", namespace=\"falco\"} | json rule=\"rule\", priority=\"priority\", event_namespace=`output_fields[\"k8s.ns.name\"]` | __error__=\"\" [$__auto]))",
+          "expr": "sum by (priority, rule, event_namespace) (count_over_time({k8s_namespace_name=\"falco\"} | json rule=\"rule\", priority=\"priority\", event_namespace=`output_fields[\"k8s.ns.name\"]` | __error__=\"\" [$__auto]))",
           "legendFormat": "{{priority}} {{rule}} ({{event_namespace}})",
           "queryType": "range"
         }
@@ -434,7 +434,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{job=\"pods\", namespace=\"falco\"} | json output=\"output\", rule=\"rule\", priority=\"priority\", event_namespace=`output_fields[\"k8s.ns.name\"]` | __error__=\"\" | line_format \"{{.priority}} {{.rule}} ({{.event_namespace}}): {{.output}}\"",
+          "expr": "{k8s_namespace_name=\"falco\"} | json output=\"output\", rule=\"rule\", priority=\"priority\", event_namespace=`output_fields[\"k8s.ns.name\"]` | __error__=\"\" | line_format \"{{.priority}} {{.rule}} ({{.event_namespace}}): {{.output}}\"",
           "queryType": "range"
         }
       ],

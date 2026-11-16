@@ -6,10 +6,10 @@ groups:
     rules:
       - alert: PublicScanFinding
         expr: |
-          sum by (template, host) (count_over_time({job="pods", namespace="public-scan"} |= `"public_scan":"finding"` | json scan="public_scan", template="template", host="host", level="severity" | __error__="" | scan="finding" | level=~"medium|high|critical" [1h])) > 0
+          sum by (template, host) (count_over_time({k8s_namespace_name="public-scan"} |= `"public_scan":"finding"` | json scan="public_scan", template="template", host="host", level="severity" | __error__="" | scan="finding" | level=~"medium|high|critical" [1h])) > 0
         labels:
           severity: warning
           source: public-scan
         annotations:
           summary: 'The public scan found {{ $labels.template }} on {{ $labels.host }}'
-          description: 'Fix it, or accept it in system/public-scan/values.yaml with its reason (docs/how-to-guides/public-surface.md). Explore (Loki): {namespace="public-scan"} |= "finding"'
+          description: 'Fix it, or accept it in system/public-scan/values.yaml with its reason (docs/how-to-guides/public-surface.md). Explore (Loki): {k8s_namespace_name="public-scan"} |= "finding"'

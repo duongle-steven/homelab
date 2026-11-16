@@ -1,5 +1,5 @@
 # Runtime detection (docs/superpowers/specs/2026-11-10-runtime-detection-design.md, docs/how-to-guides/runtime-detection.md):
-# Falco watches every node's syscalls and only detects; its JSON events reach Loki through Alloy, and
+# Falco watches every node's syscalls and only detects; its JSON events reach Loki through the OpenTelemetry agent, and
 # system/loki/files/falco-rules.yaml alerts on them. Blocking is step 15g-2.
 falco:
   # CO-RE eBPF: no kernel module or headers (WSL's kernel and the NixOS nodes' have BTF)

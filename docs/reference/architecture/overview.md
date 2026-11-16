@@ -86,5 +86,5 @@ flowchart TD
   just[Run just infra deploy] -- 1 --> metal -- 2 --> system -. 3 .-> platform -. 4 .-> apps
 ```
 
-Logs: Alloy on every node reads the pods' logs and the cluster's events into Loki (`system/loki`), which Grafana queries
+Logs: the OpenTelemetry agent on every node reads the pods' and the API server's audit logs into Loki over OTLP, and the gateway Collector the cluster's events and every trace (`system/opentelemetry`, Loki in `system/loki`, traces in `system/tempo`), which Grafana queries
 ([logs](../../how-to-guides/logs.md)).

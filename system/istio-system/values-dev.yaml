@@ -3,3 +3,5 @@ corednsRewrite: true
 istiod:
   pilot:
     autoscaleMin: 1
+# Every request traced: the sandbox's traffic is the tests'
+tracingSamplingPercentage: 100
