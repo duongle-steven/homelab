@@ -1,0 +1,46 @@
+{{- /*
+The Trivy server downloads its vulnerability database when it starts and answers /healthz only once it is in place.
+The chart's liveness probe (10 failures 10s apart, not configurable) killed it mid-download whenever that took over
+100s, and every restart downloaded it again: 19 restarts and about 2GB written to the node's disk during one sandbox
+suite (2026-11-15), the disk etcd uses. A startup probe gives the download up to 10 minutes; liveness starts after it.
+Native, like 15h's seccomp policies; Ignore: a failed mutation leaves the server as the chart made it.
+*/ -}}
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: trivy-server-startup
+  # Before the server's pod: on a fresh cluster the pod made in the same sync 5s earlier had no probe
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  failurePolicy: Ignore
+  reinvocationPolicy: Never
+  matchConstraints:
+    resourceRules:
+      - {apiGroups: [""], apiVersions: [v1], operations: [CREATE], resources: [pods]}
+  matchConditions:
+    - name: server
+      expression: >-
+        object.metadata.name.startsWith('trivy-server-')
+        && object.spec.containers.exists(c, c.name == 'trivy-server' && !has(c.startupProbe))
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: >-
+          Object{spec: Object.spec{containers: [Object.spec.containers{name: "trivy-server",
+          startupProbe: Object.spec.containers.startupProbe{
+          httpGet: Object.spec.containers.startupProbe.httpGet{path: "/healthz", port: "trivy-http"},
+          periodSeconds: 10, failureThreshold: 60}}]}}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: trivy-server-startup
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  policyName: trivy-server-startup
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ .Release.Namespace }}

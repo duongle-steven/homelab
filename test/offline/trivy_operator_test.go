@@ -38,7 +38,8 @@ func TestTrivyOperatorRender(t *testing.T) {
 			trivy := `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-trivy-config") | .data`
 			assert.NotEqual(t, "true", renderTrivyOperator(t, e, trivy+` | .["trivy.ignoreUnfixed"]`), "unfixed findings are reported too")
 			assert.Equal(t, "HIGH,CRITICAL", renderTrivyOperator(t, e, trivy+` | .["trivy.severity"]`))
-			assert.Empty(t, renderTrivyOperator(t, e, `select(.kind == "PersistentVolumeClaim" or .kind == "StatefulSet") | .spec.volumeClaimTemplates[]?.metadata.name`))
+			// The server's database on its own volume (TestTrivyServerDatabaseOnAVolume), nothing else
+			assert.Equal(t, "data", renderTrivyOperator(t, e, `select(.kind == "PersistentVolumeClaim" or .kind == "StatefulSet") | .spec.volumeClaimTemplates[]?.metadata.name`))
 
 			// The operator reads Trivy's settings (the ignore file among them) only at start, and the chart's checksum
 			// covers only its own ConfigMap: the pod carries this one's hash, so a change restarts it
