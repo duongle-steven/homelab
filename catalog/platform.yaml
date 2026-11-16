@@ -36,6 +36,23 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   annotations:
+    argocd/app-name: backstage
+    backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=backstage
+    backstage.io/kubernetes-namespace: backstage
+    homelab/host: backstage
+  description: 'The developer portal: the homelab''s catalog, its docs and repository templates'
+  name: backstage
+  title: Backstage
+spec:
+  lifecycle: production
+  owner: group:default/homelab-admins
+  system: homelab-platform
+  type: platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  annotations:
     argocd/app-name: ci
     backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=ci
     backstage.io/kubernetes-namespace: ci

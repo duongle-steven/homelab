@@ -147,6 +147,10 @@ groups:
     tests: logs
   - paths: [system/opentelemetry/**, system/tempo/**, test/e2e/traces_test.go]
     tests: logs || traces
+  # Backstage (an optional component: just dev deploys it when these change); Backstage-1's task 6 gives it its own
+  # specs, until then sign-in, the mesh and policy
+  - paths: [backstage/**, platform/backstage/**, scripts/build-backstage-image]
+    tests: sso || mesh || policy
   - paths: [system/kiali/**]
     tests: kiali
   - paths: [system/kyverno/**]

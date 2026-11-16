@@ -24,6 +24,7 @@ internet:
   trivy-operator: [{port: 443}]  # the vulnerability database and the registries the scans read
   public-scan: [{port: 443}]  # the public hosts through Cloudflare, nuclei's templates on GitHub
   monitoring-system: [{port: 443}]  # Telegram: Alertmanager's second path (production; the sandbox has no bot)
+  backstage: [{port: 443}]  # GitHub: the sandbox's catalog and TechDocs (production reads Forgejo in the cluster)
 
 # Not granted (add a line when you use them): Actual Budget's bank sync (GoCardless/SimpleFIN, 443), paperless's mail
 # fetching (IMAP, 993), Grafana's update and news checks (443; it only logs errors)

@@ -29,6 +29,8 @@ backstage:
     # app.kubernetes.io/instance, which the chart sets)
     podLabels:
       backstage.io/kubernetes-id: backstage
+    # templates/env.yaml
+    extraEnvVarsCM: [backstage-env]
     extraEnvVars:
       - {name: BACKSTAGE_BASE_URL, value: 'https://backstage.{{ .Values.global.baseDomain }}'}
       - {name: HOMELAB_DOMAIN, value: '{{ .Values.global.baseDomain }}'}
@@ -70,6 +72,8 @@ backstage:
   serviceAccount:
     create: true
     name: backstage
+# The sandbox's local CA (values-dev.yaml)
+devCA: false
 database:
   # As forgejo-db's (platform/forgejo)
   image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie

@@ -142,6 +142,10 @@ argocd-apps:
                           - path: system/csi-hostpath
                             exclude: true
                           - path: platform/*
+                          # Until the first release builds its image and platform/backstage/values.yaml pins its digest
+                          # (CLAUDE.md, before the first production deploy)
+                          - path: platform/backstage
+                            exclude: true
                           # Behind the stage (the generator below)
                           - path: system/public-scan
                             exclude: true

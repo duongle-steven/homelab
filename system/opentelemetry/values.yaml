@@ -40,4 +40,4 @@ gateway:
     requests: {cpu: 20m, memory: 96Mi}
     limits: {memory: 512Mi}
   # Namespaces whose tools send OTLP traces (Task 6's tools; the Istio Gateways are named by identity)
-  senders: [argocd, grafana]
+  senders: [argocd, grafana, backstage]

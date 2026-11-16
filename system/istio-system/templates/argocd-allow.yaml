@@ -21,6 +21,13 @@ spec:
       to:
         - operation:
             ports: ["8080"]
+    # Backstage's Argo CD plugin (account backstage, role readonly): the API
+    - from:
+        - source:
+            principals: ["cluster.local/ns/backstage/sa/backstage"]
+      to:
+        - operation:
+            ports: ["8080"]
     # Prometheus: application controller, server, repo server and redis exporter metrics
     - from:
         - source:

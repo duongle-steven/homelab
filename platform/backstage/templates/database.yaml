@@ -1,0 +1,42 @@
+# Backstage's PostgreSQL, one instance: the catalog and search rebuild from their sources, and only scaffolder
+# history and user settings would be lost. CloudNativePG generates the Secret backstage-db-app (owner backstage)
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: backstage-db
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # Before Backstage, which waits for backstage-db-app (as forgejo-db)
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  imageName: {{ .Values.database.image }}
+  bootstrap:
+    initdb:
+      database: backstage
+      owner: backstage
+  storage:
+    size: {{ .Values.database.size }}
+  # Rebuilt from git and Kanidm: never backed up
+  inheritedMetadata:
+    labels:
+      homelab/backup: none
+---
+# The CloudNativePG operator stays out of the ambient mesh (the API server calls its webhooks), but it polls each
+# instance's status port in plaintext; strict mTLS would refuse it
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: backstage-db-status
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/cluster: backstage-db
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    "8000":
+      mode: PERMISSIVE
