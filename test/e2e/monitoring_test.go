@@ -60,6 +60,23 @@ var _ = Describe("MonitoringControlPlaneTargets", Label("sandbox", "testbed", "m
 	}, SpecTimeout(10*time.Minute))
 })
 
+// k3s's kubelet port serves the whole process's metrics: the kubelet job drops the API server's, etcd's, the
+// workqueues' and the scheduler's (their own jobs keep them), and keeps its own
+var _ = Describe("MonitoringKubeletOwnMetrics", Label("sandbox", "testbed", "monitoring"), func() {
+	It("keeps only the kubelet's metrics in its job", func(ctx SpecContext) {
+		present := func(query string) bool {
+			metrics, err := prometheusQuery(ctx, "count("+query+")")
+			return err == nil && len(metrics) > 0
+		}
+		Eventually(ctx, func() bool {
+			return present(`kubelet_running_pods{job="kubelet"}`) && present(`apiserver_request_total{job="apiserver"}`)
+		}).WithTimeout(5*time.Minute).WithPolling(30*time.Second).Should(BeTrue(), "the kubelet or apiserver job has no series")
+		Eventually(ctx, func() bool {
+			return present(`{job="kubelet", __name__=~"(apiserver|etcd|workqueue|scheduler)_.+"}`)
+		}).WithTimeout(5*time.Minute).WithPolling(30*time.Second).Should(BeFalse(), "the kubelet job still stores other components' metrics")
+	}, SpecTimeout(12*time.Minute))
+})
+
 // ClusterShutdownMarkerStuck reads the marker's metric: the rule loaded, and kube-state-metrics exports the ConfigMap
 var _ = Describe("MonitoringClusterShutdownMarker", Label("sandbox", "testbed", "monitoring"), func() {
 	It("exports the shutdown marker", func(ctx SpecContext) {
