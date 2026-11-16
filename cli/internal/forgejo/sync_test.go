@@ -165,8 +165,9 @@ func TestSyncCreatesCIOrg(t *testing.T) {
 	if len(teams) != 1 || !reflect.DeepEqual(teams[0], want) {
 		t.Fatalf("teams = %+v, want only %+v", teams, want)
 	}
-	// developers and the bot's pipeline (TestSyncCreatesCIBot), nothing else
-	if !reflect.DeepEqual(names, map[string]bool{CITeam: true, CIBotTeam: true}) {
+	// developers, the bot's pipeline (TestSyncCreatesCIBot) and Backstage's templates (TestSyncCreatesBackstageUser),
+	// nothing else
+	if !reflect.DeepEqual(names, map[string]bool{CITeam: true, CIBotTeam: true, BackstageTeam: true}) {
 		t.Fatalf("org ci's teams: %v", names)
 	}
 	before := f.writes
@@ -331,5 +332,48 @@ func TestSyncWaitsForTheWebhookSecret(t *testing.T) {
 	err := Sync(ctx, ep, f.admin, memoryTokens{})
 	if err == nil || !strings.Contains(err.Error(), WebhookPath) {
 		t.Fatalf("Sync() = %v", err)
+	}
+}
+
+// Backstage (platform/backstage) reads ops/homelab, the catalog and docs production runs, and its templates create
+// repositories in org ci (publish:gitea): a local, restricted user backstage, a read collaborator on ops/homelab, the
+// only member of org ci's team templates (creates repositories, holds no existing one), its token in OpenBao
+func TestSyncCreatesBackstageUser(t *testing.T) {
+	f, ep := newFakeForgejo(t)
+	tokens := ciTokens()
+	if err := Sync(context.Background(), ep, f.admin, tokens); err != nil {
+		t.Fatal(err)
+	}
+	if u := f.users[Backstage]; u == nil || !u.restricted || u.sourceID != 0 {
+		t.Fatalf("user %s: %+v", Backstage, u)
+	}
+	if got := f.collaborators[Backstage]; got != "read" {
+		t.Fatalf("%s on %s/%s: %q, want read", Backstage, Org, Repo, got)
+	}
+	var team *fakeTeam
+	for _, tm := range f.orgTeams {
+		if tm.org == CIOrg && tm.name == BackstageTeam {
+			team = tm
+		}
+	}
+	if team == nil || !team.canCreateOrgRepo || team.includesAllRepositories ||
+		!reflect.DeepEqual(team.members, []string{Backstage}) {
+		t.Fatalf("team %s/%s: %+v", CIOrg, BackstageTeam, team)
+	}
+	token := tokens[BackstagePath]["token"]
+	found := false
+	for _, tk := range f.users[Backstage].tokens {
+		found = found || (tk.sha1 == token && reflect.DeepEqual(tk.scopes, []string{"write:organization", "write:repository"}))
+	}
+	if !found {
+		t.Fatalf("%s holds %q, not backstage's token", BackstagePath, token)
+	}
+
+	// A second run changes nothing: the same token stays
+	if err := Sync(context.Background(), ep, f.admin, tokens); err != nil {
+		t.Fatal(err)
+	}
+	if tokens[BackstagePath]["token"] != token {
+		t.Fatal("a second sync replaced backstage's valid token")
 	}
 }

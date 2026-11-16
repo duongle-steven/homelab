@@ -1,0 +1,30 @@
+{{- /* Skipped by the offline bootstrap render, when external-secrets does not exist yet */}}
+{{- if .Capabilities.APIVersions.Has "external-secrets.io/v1/ExternalSecret" }}
+# Argo CD's local account backstage (system/argocd's accounts.backstage: login, role readonly): its password from
+# OpenBao, bcrypted into argocd-secret, which the bootstrap creates (Merge adds the key, leaving the rest to it).
+# Backstage's Argo CD plugin signs in with the same password (platform/generated-secrets' argocd.backstage-password)
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: argocd-backstage-account
+  namespace: argocd
+spec:
+  # bcrypt salts each run anew: write only when this changes (lab secrets rotate annotates it), not every refresh
+  refreshPolicy: OnChange
+  secretStoreRef:
+    kind: SecretStore
+    name: openbao
+  target:
+    name: argocd-secret
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      mergePolicy: Merge
+      data:
+        accounts.backstage.password: {{` "{{ .password | bcrypt }}" `}}
+  data:
+    - secretKey: password
+      remoteRef:
+        key: argocd/generated/backstage-password
+        property: password
+{{- end }}
