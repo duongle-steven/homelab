@@ -1,0 +1,3094 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://github.com/khuedoan/homelab/assets/27996771/d33be1af-3687-4712-a671-4370da13cc92">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Deferred minors - Khue's Homelab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#deferred-minors" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Khue&#39;s Homelab" class="md-header__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Khue's Homelab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Deferred minors
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Khue&#39;s Homelab" class="md-nav__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Khue's Homelab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/testbed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testbed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/staging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staging (optional)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/production/prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/production/external-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/production/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/post-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/vpn-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VPN setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/user-onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/secrets-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/certificate-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/development-shell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development shell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing infrastructure code
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-to guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-to guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/alternate-dns-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alternate DNS setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/expose-services-to-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expose services to the internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/backup-and-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup and restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/secrets-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rotating secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/security-logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/runtime-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runtime detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/kiali/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    See the mesh with Kiali
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy: Kyverno and Pod Security Admission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/supply-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/cluster-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/public-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/sandbox-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/deploy-to-forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy to Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/renovate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renovate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/in-cluster-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-cluster CI: Argo Workflows and Argo Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/backstage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backstage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/add-or-remove-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add or remove nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/single-node-cluster-adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single node cluster adjustments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/media-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/updating-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating documentation (this website)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_26" id="__nav_5_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Troubleshooting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to-guides/troubleshooting/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/architecture/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/architecture/decision-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="deferred-minors">Deferred minors</h1>
+<p>Review findings graded Minor and left open, collected from every PR (checked against the code on 2026-10-17; PRs #4
+to #29 had theirs fixed in the PR itself or in the cleanup PR #29). Every PR adds the minors it defers here and
+removes the lines it fixes. "When" names the step that must handle it, or "any" for a cleanup PR.</p>
+<table>
+<thead>
+<tr>
+<th>From</th>
+<th>Minor</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>#30 (7a)</td>
+<td><code>infra/_modules/k3d</code> destroy ignores a failed <code>k3d cluster delete</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>#30 (7a)</td>
+<td><code>docs/installation/sandbox.md</code> says <code>just dev</code> recreates the proxy; it is recreated only when the node address changes</td>
+<td>any</td>
+</tr>
+<tr>
+<td>#30 (7a)</td>
+<td><code>infra/_modules/argocd/bootstrap.sh</code>: the Forgejo check and its <code>yq \| kubectl</code> pipes run without pipefail</td>
+<td>any</td>
+</tr>
+<tr>
+<td>#30 (7a)</td>
+<td><code>just infra check</code> does not run <code>tofu validate</code> per module</td>
+<td>any</td>
+</tr>
+<tr>
+<td>#30 (7a)</td>
+<td><code>scripts/get-status</code>, <code>argocd-admin-password</code>, <code>onboard-user</code> default to production's kubeconfig</td>
+<td>any</td>
+</tr>
+<tr>
+<td>#31 (7b)</td>
+<td>Argo CD's <code>argocd-notifications-cm</code> keeps the chart default <code>argocdUrl: https://argocd.example.com</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>#31 (7b)</td>
+<td>Forgejo's <code>[server]</code> ConfigMap duplicates what the chart derives from the route host</td>
+<td>any</td>
+</tr>
+<tr>
+<td>#31 (7b)</td>
+<td><code>global.timezone</code> is read by no chart</td>
+<td>any</td>
+</tr>
+<tr>
+<td>#31 (7b)</td>
+<td>The tests hard-code <code>*.127-0-0-1.nip.io</code></td>
+<td>any (<code>testDomain</code> reads the environment where the testbed needs it)</td>
+</tr>
+<tr>
+<td>#31 (7b)</td>
+<td>woodpecker's and zot's config changes do not roll their pods (the woodpecker chart passes <code>podAnnotations</code> without <code>tpl</code>; Secrets ESO refreshes never would); 11b's rotations restart them explicitly, other changes still need a restart by hand</td>
+<td>any (Reloader)</td>
+</tr>
+<tr>
+<td>#31 (7b)</td>
+<td><code>scripts/check-env-config</code>'s untemplated-global check knows only four keys</td>
+<td>any</td>
+</tr>
+<tr>
+<td>#32 (7c)</td>
+<td><code>.direnv/</code> and <code>site/</code> are not git-ignored</td>
+<td>any</td>
+</tr>
+<tr>
+<td>#34 (8a)</td>
+<td><code>TestSecretsAudience</code> matches the plugin's "invalid audience" message</td>
+<td>any</td>
+</tr>
+<tr>
+<td>8b</td>
+<td><code>infra/_modules/secrets/wait-namespace.sh</code> names OpenBao and <code>platform/openbao</code> (copied) instead of <code>infra-secrets</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>8b</td>
+<td><code>apply-secrets.sh</code>'s kubectl errors are hidden (OpenTofu suppresses output when <code>MANIFEST</code> is sensitive)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>8b</td>
+<td>Losing <code>secrets/tfstate.json</code> on R2 (or the state passphrase) silently creates a new WireGuard key, which <code>Replace</code> pushes over OpenBao's (11a's backups hold volumes, not OpenTofu's state; 11b never rotates it)</td>
+<td>13</td>
+</tr>
+<tr>
+<td>8b</td>
+<td>Removing an <code>infra-secrets</code> entry leaves its Secret in the namespace; the docs' removal steps omit <code>kubectl delete secret</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>8b</td>
+<td><code>TestNtfyWatchdogScheduled</code> does not prove that heartbeats replace one scheduled message</td>
+<td>any</td>
+</tr>
+<tr>
+<td>8b</td>
+<td><code>InfoInhibitor</code> reaches phones: the Alertmanager config override drops the chart's <code>null</code> receiver</td>
+<td>any</td>
+</tr>
+<tr>
+<td>8b</td>
+<td><code>external-dns/cloudflare#zone_id</code> is pushed but never read (no <code>--zone-id-filter</code>)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>8b</td>
+<td>The 8b spec lists hashicorp/random, which the <code>secrets</code> module does not use</td>
+<td>any</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>docs/installation/sandbox.md</code> still says the sandbox has no Loki; CLAUDE.md's "production-only allows … only rendered" bullet still lists Loki</td>
+<td>any</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Production's first Alloy start reads every current pod log from the start: Loki refuses lines older than 7 days and may answer 429 to the burst (default <code>ingestion_rate_mb</code> 4)</td>
+<td>12 (Nodes)</td>
+</tr>
+<tr>
+<td>9 (chat)</td>
+<td><code>system/rook-ceph</code> pins Rook 1.13.5 (latest v1.21.0): upgrade when Ceph first runs</td>
+<td>12 (Nodes)</td>
+</tr>
+<tr>
+<td>mesh restart</td>
+<td><code>cni-watchdog.sh</code> logs "no running istio-cni pod" when a rollout briefly shows two istio-cni pods on a node (it skips that minute, which is safe)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>mesh restart</td>
+<td><code>TestIstioCNIWatchdog</code> never exercises the BusyBox <code>date -D</code> fallback offline (the host has GNU date; <code>TestNodeRestart</code> covers it in the image)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>mesh restart</td>
+<td>The mesh-restart spec's RED bullet says the test "fails at its 12-minute limit" without saying the limit was 12 then</td>
+<td>any</td>
+</tr>
+<tr>
+<td>mesh watchdog</td>
+<td><code>cni-watchdog.sh</code> keeps restarting istio-cni, then istio-cni and ztunnel, every few minutes on a node stuck for another reason (a broken istio-cni after a bump), with no alert of its own: the pods' own alerts fire</td>
+<td>any</td>
+</tr>
+<tr>
+<td>mesh watchdog</td>
+<td>A failed <code>kubectl delete</code> (one of the two pods already gone) ends the run under <code>set -e</code> and skips the later nodes: <code>--ignore-not-found</code> and a logged failure</td>
+<td>any</td>
+</tr>
+<tr>
+<td>mesh watchdog</td>
+<td>A failed <code>kubectl get events</code> turns the second signal off without a log line</td>
+<td>any</td>
+</tr>
+<tr>
+<td>mesh watchdog</td>
+<td>Events with only <code>eventTime</code> (no <code>lastTimestamp</code>, if the kubelet changes recorders) are skipped: fall back to <code>eventTime</code> without its fraction (BusyBox <code>date -D</code>)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>mesh watchdog</td>
+<td><code>TestIstioCNIWatchdog</code> runs the script with the host's <code>sh</code> and GNU <code>date</code>, not BusyBox's</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14a</td>
+<td>The test scopes spec's map table still lists <code>scripts/check-*</code>, <code>render-chart</code> and <code>cli/**</code> as Smoke only; <code>test/scopes.yaml</code> skips them</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14a</td>
+<td><code>lab test scope --check</code> covers only <code>components</code> globs: top-level files, <code>test/</code> non-test files, <code>metal/</code> and <code>cli/</code> are not checked (a new file there runs the whole suite)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14a</td>
+<td><code>scope.SplitTerms</code> ignores escaped parentheses and an alternation sign inside a character class; no term uses them yet</td>
+<td>any</td>
+</tr>
+<tr>
+<td>dev shell cleanup</td>
+<td><code>metal/roles/pxe_server/templates/dnsmasq.conf.j2</code> uses <code>ansible.netcommon.ipmath</code>, which nixpkgs' Ansible does not ship (it moved to <code>ansible.utils</code>): <code>metal/</code> fails before and after the cleanup</td>
+<td>12 (replaces <code>metal/</code>)</td>
+</tr>
+<tr>
+<td>8e</td>
+<td><code>just dev-fresh</code> on the workstation hits the main run's 60-minute <code>go test</code> timeout (the first sync's waits count inside the tests)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>8e</td>
+<td>Browser SSO tests flake on Kanidm's login page (OpenCloud, Grafana, paperless: "login page never loaded", <code>chrome-error</code>); a rerun passes</td>
+<td>any</td>
+</tr>
+<tr>
+<td>10e</td>
+<td>Woodpecker's server generates a temporary <code>WOODPECKER_GRPC_SECRET</code> at each start (agents sign in again with the agent secret; 11b's agent rotation restarts the server anyway)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>10e</td>
+<td><code>TestNodeRestart</code> once took about 23 minutes (more than its 20): the watchdog had to restart istio-cni three times; a rerun passed in 10</td>
+<td>12 (nodes)</td>
+</tr>
+<tr>
+<td>11a</td>
+<td>A whole-cluster restore takes the manual apps from their own pushes, another moment than OpenBao's: since 11b rotates generated secrets, a manual app restored from before a rotation holds the old value (rotate it again after such a restore)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>11b</td>
+<td><code>workload.WaitReady</code>: StatefulSets with <code>OnDelete</code> or a partitioned update never meet <code>CurrentRevision == UpdateRevision</code> (none in the repo), and a swallowed <code>Get</code> error leaves a timeout without its cause</td>
+<td>any</td>
+</tr>
+<tr>
+<td>11b</td>
+<td>ESO's <code>refreshTime</code> is in whole seconds: a refresh in the same second as the previous one is not seen (documented in <code>workload.go</code>)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>11b</td>
+<td>The catalog's ExternalSecret reference check matches any <code>name:</code>/<code>forceRename:</code>/<code>existingSecret:</code> value, and does not check reader workload names (rendering every chart would be slow)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>11b</td>
+<td>A lock renewal that reached the API server but whose answer was lost is now kept; one that times out on both the update and the re-read still aborts the run as "lost the lock" (fail-safe, resumable)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>11b</td>
+<td><code>lab secrets list</code> and the <code>--scheduled</code> plan write the first-seen baseline (a write from a read path)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>11b</td>
+<td><code>NtfyCheck</code> passes the token in <code>wget</code>'s arguments inside ntfy's own pod (where it is already in the environment)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>11b</td>
+<td><code>OpenTofu.Prepare</code> replaces again if it crashes between the apply and recording it (no overlap: harmless)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>11b</td>
+<td>lab's image is pinned by hand after a release: a release that changes the catalog and the CronJob's access together runs the old catalog until the digest is set; the GHCR package must be public</td>
+<td>12 (production)</td>
+</tr>
+<tr>
+<td>11b</td>
+<td><code>TestRotation</code>'s sub-tests read the "old" value after an earlier interrupted run may already hold the new one (handled for <code>woodpecker.agent</code> only)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>11c</td>
+<td><code>just dev-clean</code> is not idempotent: a second destroy of an already-clean sandbox fails (<code>argocd</code> reads <code>cluster</code>'s outputs, which no longer exist), so <code>just dev-fresh</code> stops there; <code>just dev --full</code> does the same on an empty sandbox</td>
+<td>any</td>
+</tr>
+<tr>
+<td>11c</td>
+<td>The prune ClusterRole may delete any <code>VolumeSnapshot</code>, the hourly restore points included (RBAC cannot select by label; a ValidatingAdmissionPolicy limiting it to <code>velero.io/backup-name</code> would)</td>
+<td>15 (security)</td>
+</tr>
+<tr>
+<td>11c</td>
+<td>A cut after Velero set a snapshot's content to <code>Retain</code> may leave the storage snapshot when prune deletes the <code>VolumeSnapshot</code> (both classes delete by default; unchecked on Ceph)</td>
+<td>12 (nodes)</td>
+</tr>
+<tr>
+<td>11c</td>
+<td>The "being rotated by" error suggests <code>lab secrets force-unlock &lt;name&gt; &lt;holder&gt;</code> without <code>--env</code> (the holder check refuses a wrong cluster's lock)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14d</td>
+<td><code>system/kiali</code> copies kiali-server 2.33.0's templates by hand: a Renovate bump of Kiali's image does not show changes the chart made to its config, RBAC or probes (compare with the chart's render when bumping)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14d</td>
+<td>No test that an anonymous visitor to Kiali is sent to Kanidm (the API without a session answers 401, checked by hand in the review)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15a</td>
+<td>The root <code>Dockerfile</code> (upstream's docs image) uses unpinned tags (<code>python:3.13-slim</code>, <code>nginx:1.27-alpine</code>); nothing here deploys it: pin or remove it</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15a</td>
+<td>The blog's image in zot (<code>registry.&lt;domain&gt;/blog</code>) is private: <code>images</code> cannot pull it once its tag is pinned; give the check zot's read credentials or skip that registry</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15a</td>
+<td><code>.trivyignore.yaml</code>'s 90-day expiry for CVEs is a convention, not checked</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15a</td>
+<td><code>check-leaks</code> scans only the merge-commit range's own diffs: a change made only in a merge commit is not scanned; run directly without BASE it scans one commit</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15a</td>
+<td><code>TestCheckIaC</code> uses a fake Trivy: the ignore file's effect is proven only by the real run in CI</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15a</td>
+<td><code>TestBackupRestore</code>'s one-app restore read (again in 15b's run) the repository back as 404 right after <code>lab backup restore forgejo</code> (a rerun passed): find whether Forgejo answered before its restored data was in place</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14e</td>
+<td><code>deployedNamespaces</code> counts every namespace as present after a failed list without saying so: print one line</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14e</td>
+<td><code>Rotator.Run</code> still checks <code>overdue</code> for an entry skipped as not deployed (harmless while no optional app's entry has a period)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14e</td>
+<td><code>just dev</code> counts a failed <code>git diff</code> (unknown base, shallow clone) as "changed" and deploys both optional apps silently: warn</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14e</td>
+<td><code>TestSetSandboxApps</code> does not assert the other documents unchanged or that a blank list is a no-op</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14e</td>
+<td><code>infra/_modules/argocd</code>'s hash covers <code>system/argocd</code> only: a change to <code>set-sandbox-apps.sh</code> (or <code>set-revision.sh</code>) does not re-run the bootstrap</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15b</td>
+<td><code>scripts/check-policy</code> takes about four minutes (every chart, both environments) on every pull request: limit it to the touched charts once policies are stable</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15b</td>
+<td><code>TestPolicy</code> judges only pods created a minute after the newest PolicyException (older reports keep the startup race's stale <code>fail</code>): on a fresh sandbox that is few pods; judge controller reports after a fresh scan before Enforce</td>
+<td>15b-2</td>
+</tr>
+<tr>
+<td>15b</td>
+<td>The Gateways (<code>gateway-istio</code>, <code>public-istio</code>) run without a seccomp profile (Istio generates their Deployments; excused): set it through the Gateways' <code>parametersRef</code></td>
+<td>15b-2</td>
+</tr>
+<tr>
+<td>15c</td>
+<td><code>AuditLogsMissing</code> fires only when every audit stream is silent: one server node whose Alloy or audit file stopped goes unseen (alert per <code>node</code>)</td>
+<td>12a</td>
+</tr>
+<tr>
+<td>15c</td>
+<td><code>OpenBaoConfigChanged</code> misses identity groups and entities, <code>sys/mounts</code> and a raft snapshot restore</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15c</td>
+<td><code>TestSecurityLogsQuietWhenIdle</code> runs only the critical rules on an idle sandbox: run the warnings too</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15c</td>
+<td><code>TestAuditPolicyRender</code> does not assert the level of a person's Secret or ConfigMap writes</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15c</td>
+<td><code>system/loki/values.yaml</code>'s sidecar comment says "no ruler here", stale since the ruler loads rules</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15c</td>
+<td>Alloy reads only the current <code>audit.log</code>, not its rotated files: Alloy down while the log rotates loses the tail</td>
+<td>any</td>
+</tr>
+<tr>
+<td>sandbox-memory</td>
+<td><code>infra/_modules/k3d/main.tf</code>'s address pinning: a failure between disconnect and connect leaves that container off the k3d network (the cluster is recreated on the next run; a cache waits for k3d to connect it again)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>sandbox-memory</td>
+<td><code>infra/_modules/k3d/main.tf</code> detects a dynamic address by Docker printing <code>&lt;nil&gt;</code> for <code>IPAMConfig</code>; another output would skip every container silently (test <code>.IPAMConfig.IPv4Address</code> instead)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>sandbox-memory</td>
+<td><code>infra/_modules/k3d/main.tf</code> restarts the k3d containers to pin their addresses in GitHub Actions too, where nothing restarts them (tens of seconds)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>restart fixes</td>
+<td>A run cut by go test's 60m timeout skips <code>TestRotation</code>'s deferred cleanup: its Leases and interrupted entries (ntfy's phase <code>done</code>) stay, and the next scheduled run fails until <code>lab secrets force-unlock</code> and the entries are finished by hand</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15e</td>
+<td><code>.trivyignore.yaml</code> and <code>system/trivy-operator/values.yaml</code>'s ignore file are kept in step by hand: assert the same ids and dates in <code>TestTrivyOperatorRender</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>15e</td>
+<td><code>TestWorkflowsCheck</code>'s reason check accepts an empty <code>#</code> and does not look at <code>rules: &lt;audit&gt;: disable:</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>15e</td>
+<td><code>TestSupplyChain</code> proves the signed pod by 30 s without a <code>fail</code>: wait for its PolicyReport to exist first</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15e</td>
+<td>The <code>homelab/trivy-config</code> hash comes from yq's <code>to_json(0)</code>: a yq bump can change it with no config change (the test prints the new value)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15e</td>
+<td><code>verify-lab-image</code> sets no <code>credentials</code>: if ghcr's <code>homelab-lab</code> package is private, verification ends <code>error</code>; check it is public at the first signed release</td>
+<td>12b</td>
+</tr>
+<tr>
+<td>15e</td>
+<td>The Security dashboard counts findings per workload: two workloads of one image in a namespace double its count</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15e</td>
+<td>In the sandbox, Trivy cannot scan zot's images (sandbox CA) nor lab's image built locally: their scan Jobs fail and log errors</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15e</td>
+<td>No check that each group test in <code>test/scopes.yaml</code> is also in <code>full</code> (SupplyChain and TrivyOperator were missing)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12a-1</td>
+<td>The nodes resolve through <code>8.8.8.8</code>/<code>1.1.1.1</code> over UDP 53 (<code>profiles/network.nix</code>), outside <code>config.json</code>, and the home ISP's modem intercepts UDP 53: resolvers in <code>config.json</code>, or DoT</td>
+<td>12b</td>
+</tr>
+<tr>
+<td>12a-1</td>
+<td><code>nixie</code> rewrites its hosts file with only the keys it knows when it records an install: a per-host <code>disk</code> in production's <code>hosts.json</code> is lost, so a disk other than <code>/dev/sda</code> needs another place</td>
+<td>12b</td>
+</tr>
+<tr>
+<td>12a-1</td>
+<td>On a fresh sandbox <code>ntfy-auth</code>'s ExternalSecret ran before <code>generated-secrets</code> pushed ntfy's values: ESO deleted the Secret (<code>SecretDeleted</code>) and waits for its 1h refresh, so ntfy stays in <code>CreateContainerConfigError</code> and <code>TestNtfy*</code> time out (a <code>force-sync</code> fixed it): a shorter refresh while the Secret is missing, or retry on missing keys</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12a-2</td>
+<td><code>TestTestbedPostgresFailover</code> is only reachable on a machine that lists <code>platform/cloudnative-pg</code>: it passed once, at 2 vCPUs, and nothing runs it here</td>
+<td>layer 3</td>
+</tr>
+<tr>
+<td>12a-2</td>
+<td>SSH to a VM once took over 240 s after boot, reachable right after: <code>scripts/testbed-trust</code> rides it out, the cause is unknown</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12a-2</td>
+<td><code>flake.lock</code> (pins <code>nixie</code>) is outside the testbed's gate: a bump every release would otherwise need a run</td>
+<td>12b</td>
+</tr>
+<tr>
+<td>12a-2</td>
+<td><code>labEnv</code> returns <code>testbed</code>, which <code>env.Load</code> refuses: matters once the list names Forgejo</td>
+<td>when it does</td>
+</tr>
+<tr>
+<td>12a-2</td>
+<td><code>just infra deploy production --break-glass … --skip-proof …</code> ignores the skip without recording its reason</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12a-2</td>
+<td><code>scripts/mark-proof</code> finds its repository with <code>gh repo view</code>, <code>verify</code> with <code>seed_repository</code>: a checkout whose <code>gh</code> default is another fork marks there</td>
+<td>16 (portability)</td>
+</tr>
+<tr>
+<td>12a-2</td>
+<td>Comments and docs that still say <code>values-dev.yaml</code> for what moved to <code>values-local.yaml</code> (<code>system/velero</code>, <code>system/kiali</code>, <code>set-backup-endpoint.sh</code>, <code>secrets-management.md</code>, <code>supply-chain.md</code>)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12a-3</td>
+<td><code>lab cluster upgrade</code>: a drain that fails leaves the node cordoned with its mon evicted, and the next run waits for a healthy cluster before draining, so it never starts until someone runs <code>kubectl uncordon</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>12a-3</td>
+<td>k3s stops itself once in a while right after a boot under load (a nil pointer in Flannel 0.28.4's <code>watchVXLANDevice</code>; <code>unable to initialize network policy controller: error getting node subnet</code>); systemd restarts it and the recovery goes on: check again with the next k3s</td>
+<td>12b</td>
+</tr>
+<tr>
+<td>12a-3</td>
+<td><code>lab cluster shutdown</code>: when ssh fails for one node the others still go off, etcd loses quorum, and a rerun fails at its first <code>kubectl</code> saying the nodes are up and to run <code>lab cluster startup</code>, which cannot work either; the first error names the node, to power off by hand</td>
+<td>12b</td>
+</tr>
+<tr>
+<td>12a-3</td>
+<td><code>cluster-startup</code> is <code>Type=oneshot</code> wanted by <code>multi-user.target</code>, so the target waits through <code>noout</code>'s 30 minutes; sshd and k3s are not behind it (<code>Type=exec</code> removes it; unchecked on a node)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12a-3</td>
+<td><code>TestPower*</code>'s "etcd whole" reads the node annotation <code>etcd.k3s.cattle.io/node-name</code>, which survives a cut: it only adds k3s being Ready; ask etcd's members</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12a-3</td>
+<td><code>startupBegan</code> stays in the marker when <code>lab cluster startup</code> is interrupted and shutdown runs again, so the next boot gives <code>noout</code> no 30 minutes for a slow OSD</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12a-3</td>
+<td>Stale comments: <code>profiles/kube-vip.nix</code> ("ServiceLB serves the others"), <code>profiles/k3s-server.nix</code> ("HTTP (ServiceLB"), and <code>cluster-shutdown-rule.yaml</code> (a marker past two hours also means a failed shutdown left with the nodes up)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12a-3</td>
+<td>Istio 1.31.2: a Gateway whose only pod's node goes keeps <code>Programmed=False</code> (<code>AddressNotAssigned</code>, no instances) once its pod is back, until istiod restarts (no event on the Gateway or Service clears it; same symptom as istio/istio#59501, closed): it serves, but Argo CD shows <code>istio-system</code> Progressing and <code>TestGatewayProgrammed</code>-like checks fail; measured once on the testbed</td>
+<td>check on the next Istio bump</td>
+</tr>
+<tr>
+<td>15d</td>
+<td><code>.cluster-scan-accepted.yaml</code> keys an RBAC finding by its binding (the last three fields of kubescape's resourceID), not its subject: a ServiceAccount added to an accepted binding (<code>cluster-admin</code>) passes the scan; 15c's alert on cluster-admin bindings outside Argo CD catches that one. Key bindings by subject too</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15d</td>
+<td><code>TestScanBench</code> waits for exactly <code>Complete</code> in the Job's conditions: a failed Job (or one that lists another condition first) costs the full 5 minutes per node before <code>.status.succeeded</code> reports it</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15d</td>
+<td>An accepted kubescape entry that no finding uses stays silently and could later accept a regression: report unused entries</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15d</td>
+<td>kubescape's guard proves it saw resources (500, ztunnel), not that its controls ran: also require one known finding (C-0185 on <code>/ClusterRoleBinding/cluster-admin</code>)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15d</td>
+<td><code>service-account-extend-token-expiration=false</code>: a client caching its projected token past an hour gets 401s; no test failed over the whole suite, but nobody read the audit log for ServiceAccount 401s over a long run</td>
+<td>before production</td>
+</tr>
+<tr>
+<td>15d</td>
+<td><code>TestBackupRestore</code>'s "push asks first" failed once right after the sandbox started (<code>lab backup push</code>: "ntfy has no mounted volume"): <code>VolumeBytes</code> reads the kubelets' stats summary, which has no volume figures for a pod until its first collection; the rerun passed. Retry for a minute, or read the claims' pods instead</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15d</td>
+<td><code>just testbed</code> from stopped VMs failed once in <code>lab cluster enroll</code> ("Waiting for homelab-2 to join": the API server's <code>etcd failed</code> while the VMs were still booting, homelab-3 pending); the rerun passed. Enroll should retry an unhealthy API server while the nodes come up</td>
+<td>12b</td>
+</tr>
+<tr>
+<td>15f</td>
+<td><code>system/public-scan/files/scan.sh</code> drops nuclei's own <code>[FTL]</code>/<code>[ERR]</code> lines when nuclei fails: the log says only that it failed</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15f</td>
+<td>The scan's last line <code>{"public_scan":"done","templates":N}</code> reports the last host's template count only</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15f</td>
+<td><code>docs/how-to-guides/public-surface.md</code> does not say how to import an existing <code>http_ratelimit</code> or <code>http_request_firewall_managed</code> entry point, if the first apply finds one</td>
+<td>the first production apply</td>
+</tr>
+<tr>
+<td>15f</td>
+<td>Gateway <code>public</code> enforces namespaces only; a route's hostnames are checked only in CI (<code>TestPublicRoutes</code>); one listener per host would enforce both</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15f</td>
+<td>The scan's pod has requests but no memory limit</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14f-2</td>
+<td><code>lab</code>/<code>labE</code>, <code>baoValueE</code>/<code>baoPut</code> (<code>sh -c</code>), <code>ssh</code>, <code>virsh</code> and <code>docker</code> set no <code>cmd.WaitDelay</code> nor a process group: a spec timeout kills <code>go run</code> but not its child (as before the move)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14f-2</td>
+<td><code>PowerCutPostgres</code>'s <code>SpecTimeout</code> (120m) equals <code>just test e2e</code>'s suite <code>--timeout 2h</code>: the suite's preempts it</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14f-2</td>
+<td><code>lab test scope --check</code> accepts a group filter that selects only testbed or production specs (on the sandbox it runs only <code>smoke</code>)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14f-2</td>
+<td><code>TestE2EKeepsSelection</code> rebuilds each group's filter itself instead of feeding <code>lab test scope</code>'s main and alone output</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14f-2</td>
+<td><code>PublicScan</code> and <code>MeshEnrolled</code> stop at their first finding where the old <code>assert</code>s reported all of them</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14f-2</td>
+<td>A global <code>Expect</code> inside an <code>Eventually</code> body (<code>gatewayAddress</code>, <code>kubectlJSON</code>, <code>woodpeckerRequest</code>, <code>bao</code>, …) fails at once instead of retrying a transient error (as <code>require</code> did)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14g</td>
+<td><code>ArgoCDClusterSecret</code> checks every Application in <code>argocd</code>: one a failed run left behind (<code>forgejo-sync-probe</code>) fails it; narrow it to those the ApplicationSets own</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14g</td>
+<td>No offline test proves server-side apply dropping a <code>homelab/app-*</code> label or the <code>revision</code> returning to the branch (the sandbox proved both by hand)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14g</td>
+<td>Forgejo's URL is in <code>infra/production/argocd/terragrunt.hcl</code> and <code>system/argocd-config/templates/forgejo-repository.yaml</code>, with no test that they agree</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14g</td>
+<td>A production <code>config.json</code> without <code>seed_repository</code> fails as "REPOSITORY is required" (a precondition in <code>main.tf</code> would name it)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14g</td>
+<td><code>backupS3Url</code> sits in the shared <code>&amp;values</code>, so R2's endpoint reaches every Application's <code>system/egress</code> and <code>system/secret-store</code> sources, not only the component's</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14g</td>
+<td><code>cluster-secret.sh</code> splits <code>OPTIONAL_APPS</code> unquoted without <code>set -f</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>14g</td>
+<td><code>infra/_modules/argocd</code>'s <code>triggers_replace</code> takes <code>optional_apps</code> unsorted: the same apps in another order run the bootstrap again</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14g</td>
+<td><code>TrivyOperator</code>'s first wait (a report for excalidraw, 45 minutes) lacks the touch-once its later wait has: the operator dropping excalidraw at start failed <code>just dev-fresh</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>14g</td>
+<td>The <code>SSO*</code> specs carry label <code>testbed</code>, whose layers run no Kanidm: <code>just test e2e --env testbed --labels argocd</code> (or <code>sso</code>) times out on them</td>
+<td>any</td>
+</tr>
+<tr>
+<td>14f-2</td>
+<td>The <code>BeforeSuite</code> waits only for Argo CD to settle: after a sandbox restart Argo CD can report Healthy while the mesh is still deadlocked (the watchdog clears it in 5 to 14 minutes), so the specs through the mesh fail; it could also wait for ztunnel and every managed pod Ready, as <code>NodeRestart</code> does</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15g</td>
+<td>Alertmanager groups by <code>namespace</code> only (<code>system/monitoring-system/values.yaml</code>): Falco's different rules in one namespace share a notification group, and events without a namespace join every other namespace-less alert; a route on <code>source="falco"</code> grouping by <code>alertname, rule, namespace</code>, like the audit route, would separate them</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15g</td>
+<td><code>SecretsGeneratedOnlyInOpenBao</code>'s <code>rollout status statefulset/woodpecker-agent</code> right after deleting the pod may return on the StatefulSet's old status, before the new agent is Ready; <code>kubectl wait --for=condition=Ready pod/woodpecker-agent-0</code> would not</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15g</td>
+<td><code>TestFalcoAccepted</code> renders only an <code>=</code> fixture: the real entries (an <code>in</code> with a nested list) are never rendered and checked, field, comp and value counts are not compared, <code>fields</code>/<code>values</code> are not <code>required</code>, and <code>accepted</code> in <code>values-dev.yaml</code>/<code>values-local.yaml</code> (which drops production's list) does not fail</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15g</td>
+<td>The Buildah memfd exception could also require <code>proc.aname</code> <code>buildah</code>, narrowing it further</td>
+<td>15g-2</td>
+</tr>
+<tr>
+<td>15g</td>
+<td>Falco's DaemonSet has no checksum annotation for <code>falco-accepted-rules</code>: a change relies on Falco's <code>watch_config_files</code> reload (it reloaded live in the sandbox)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15g</td>
+<td><code>TestFalcoRender</code> reads the chart's appVersion with <code>helm show chart --repo</code>, so the offline test needs the network</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15g</td>
+<td>The <code>Falco</code> spec runs its probe at once: right after <code>just dev</code> syncs a change to the rules, Falco may reload them (kubelet updates the ConfigMap within about a minute) after the probe ran, so the spec fails once; it could wait for the rendered rules in the pod first</td>
+<td>any</td>
+</tr>
+<tr>
+<td>15h</td>
+<td><code>woodpecker-localhost-seccomp</code> matches pod CREATE only: an ephemeral container (<code>pods/ephemeralcontainers</code>, <code>kubectl debug</code>) added to a running pod in <code>woodpecker</code> may name a <code>Localhost</code> profile unchecked; it needs the <code>pods/ephemeralcontainers</code> subresource in its rules, and only people who may update that subresource can try</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12b-1</td>
+<td>The testbed's VMs query <code>8.8.8.8</code>/<code>1.1.1.1</code> through NAT, which the ISP modem may intercept like production's (slow negative answers): give the testbed <code>network.dns</code> its libvirt gateway if its network serves DNS, and run <code>NodesResolveQuickly</code> there</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12b-1</td>
+<td><code>lab cluster upgrade</code> on production ran only with nothing to change: its first real upgrade (drain, <code>nixos-rebuild</code>, Ceph healthy) on the hardware comes with 12b-2's first node change</td>
+<td>12b-2</td>
+</tr>
+<tr>
+<td>12b-1</td>
+<td><code>scripts/metal-nixie</code> counts <code>"machine_id_hash": ""</code> as recorded while nixie treats it as unrecorded, and a missing <code>jq</code> falls through to a confusing message instead of failing</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12b-1</td>
+<td><code>ProductionVIPMoves</code> powers its node off before checking it can wake it (no workstation address in the nodes' /24 leaves the node off), and assumes a /24 rather than <code>config.json</code>'s <code>prefix_length</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>12b-1</td>
+<td><code>just test e2e --env production --labels &lt;broad filter&gt;</code> (e.g. <code>production</code>, <code>!kiali</code>) still selects <code>hardware-proof</code>: only the empty filter excludes it</td>
+<td>12b-2</td>
+</tr>
+<tr>
+<td>12b-1</td>
+<td><code>metalEnv()</code> treats any <code>ENV</code> other than <code>testbed</code> as production, and the production recipe leaves <code>ENV</code> as the shell has it: export <code>ENV=production</code> and fail on anything else</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12b-1</td>
+<td><code>TestProductionMetalUnit</code> and <code>TestProductionConfig</code> hard-code the machines' MACs, addresses and config values: replacing a machine means editing a test</td>
+<td>any</td>
+</tr>
+<tr>
+<td>12b-2</td>
+<td><code>EtcdLeaderChanges</code> overlaps kube-prometheus-stack's <code>etcdHighNumberOfLeaderChanges</code> and fires once per member: aggregate it (<code>max without (instance, pod)</code>) or keep only <code>EtcdSlowDisk</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>12b-2</td>
+<td><code>ProductionPowerCutWithData</code> reads OpenBao once after the cut; wrap it in <code>Eventually</code> like the PostgreSQL read</td>
+<td>12b-2</td>
+</tr>
+<tr>
+<td>12b-2</td>
+<td><code>TestStageGatesApps</code> passes trivially if no <code>apps</code> cluster generator is rendered: assert one for production and dev</td>
+<td>any</td>
+</tr>
+<tr>
+<td>Matrix (#89)</td>
+<td>The <code>Matrix</code> spec leaves a private room for <code>dev-admin</code> per run in the <code>daily</code> volume: leave and forget it in a <code>DeferCleanup</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>Matrix (#89)</td>
+<td>The <code>Matrix</code> spec finds tuwunel's "Continue sign-in" button by its text; a text or language change breaks it (its failure says where the browser stopped)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>Matrix (#89)</td>
+<td>tuwunel 2.0's <code>media.upload_min_free_space</code> (1 GiB) refuses uploads once about 4 GiB of <code>matrix-data</code>'s 5Gi is used: size it or note it</td>
+<td>12b-3</td>
+</tr>
+<tr>
+<td>Matrix (#89)</td>
+<td>Matrix joins the sandbox's default apps (requests 272Mi, limits about 1.1Gi) unmeasured under the full suite, and <code>Falco</code>'s clean baseline has not run with it</td>
+<td>any</td>
+</tr>
+<tr>
+<td>10f (Argo CI)</td>
+<td><code>infra/_modules/metal/flake/profiles/k3s-server.nix</code> and <code>infra/_modules/metal/flake/seccomp/README.md</code> still say Woodpecker's Buildah steps get <code>homelab/buildah.json</code> (the golden path's build does now): <code>infra/_modules/metal/**</code> gates releases on the testbed, so a comment is not worth a run (TestNoWoodpecker excludes them)</td>
+<td>the next change there</td>
+</tr>
+<tr>
+<td>10f (Argo CI)</td>
+<td><code>lab infra forgejo sync</code> compares the webhook's events with <code>reflect.DeepEqual</code>, but Forgejo expands <code>pull_request</code> into its whole group (assign, label, review, sync…), so every sync rewrites the hook and its applied-hash record; compare after normalising, and make the fake echo what Forgejo returns</td>
+<td>any</td>
+</tr>
+<tr>
+<td>10f (Argo CI)</td>
+<td>The build step has zot's <code>ci</code> credentials in its environment on every run, pull requests included, while the Containerfile's <code>RUN</code> steps run in that pod: move the push into its own step that runs only when publishing</td>
+<td>any</td>
+</tr>
+<tr>
+<td>10f (Argo CI)</td>
+<td><code>sign.sh</code> signs first and attests after: a failed attestation (e.g. a <code>context</code>/<code>containerfile</code> with <code>"</code>, which <code>settings.sh</code> allows and the heredoc JSON does not escape) leaves a signed image without provenance; restrict those values to a safe charset, or attest first</td>
+<td>any</td>
+</tr>
+<tr>
+<td>10f (Argo CI)</td>
+<td>Any repository in org <code>ci</code> may name <code>image: &lt;another repository's name&gt;</code> in <code>.ci.yaml</code> and get it published and signed under that name; <code>verify-ci-images</code> checks only that a signature exists: keep the repository's own name, or match the provenance's repository to the image path</td>
+<td>15b-2</td>
+</tr>
+<tr>
+<td>10f (Argo CI)</td>
+<td>A branch push and its open pull request's <code>synchronized</code> event build the same commit twice and both post <code>ci/pipeline</code> on it (the last to end wins): build pull requests and default-branch pushes only, or use distinct contexts</td>
+<td>any</td>
+</tr>
+<tr>
+<td>10f (Argo CI)</td>
+<td>The Sensor's string filters are unanchored regexes (<code>push</code> and <code>opened</code> match substrings); no Forgejo event misfires today, <code>^…$</code> costs nothing</td>
+<td>any</td>
+</tr>
+<tr>
+<td>10f (Argo CI)</td>
+<td>No spec shows <code>verify-ci-images</code> returning <code>pass</code> for a golden-path image (no pod in the sandbox runs one): run the CI-built image as a pod and assert its PolicyReport has no <code>fail</code> or <code>error</code></td>
+<td>15b-2</td>
+</tr>
+<tr>
+<td>10f (Argo CI)</td>
+<td><code>scripts/ci-check policy</code> cannot see Workflow templates' pods (a WorkflowTemplate is not a pod kind), so the build step's missing <code>allowPrivilegeEscalation</code> went unnoticed until the final review; render the golden path's step pods for the policy check</td>
+<td>15b-2</td>
+</tr>
+<tr>
+<td>10f (Argo CI)</td>
+<td>Argo CD's repo-server hung 27 minutes on an orphaned <code>git remote-https</code> to GitHub (parent killed, TCP established and idle, keepalive answered): every Application went Unknown until it was killed; find why it outlived its fetch and bound it (git's <code>http.lowSpeedTime</code>, Argo CD's exec timeout)</td>
+<td>any</td>
+</tr>
+<tr>
+<td>OpenTelemetry</td>
+<td><code>infra/_modules/metal/flake/profiles/k3s-server.nix</code> and <code>infra/_modules/k3d/k3d.yaml</code> still say Alloy sends the audit log to Loki (the OpenTelemetry agent does): the first gates releases on the testbed, the second recreates the sandbox's cluster when it changes, so a comment is not worth either (TestNoAlloy excludes them)</td>
+<td>the next change there</td>
+</tr>
+<tr>
+<td>OpenTelemetry</td>
+<td>The agent batches in the batch processor between the readers and the persistent queue: lines held there after the readers saved their positions are lost on an OOM kill, and 1000 records of up to 100KB audit events can exceed Loki's 16MB burst; batch in the exporter's <code>sending_queue</code> with a bytes sizer instead</td>
+<td>any</td>
+</tr>
+<tr>
+<td>OpenTelemetry</td>
+<td>The OpenBao route matches any pod in <code>openbao</code> (the snapshot jobs too), not only container <code>openbao</code> as Alloy did: add <code>k8s.container.name == "openbao"</code></td>
+<td>any</td>
+</tr>
+<tr>
+<td>OpenTelemetry</td>
+<td>Nothing alerts on one node's agent (down, 429 forever, queue growing): <code>AuditLogsMissing</code> covers the cluster only; alert on <code>up</code> of <code>agent-collector</code>, <code>otelcol_exporter_send_failed_log_records</code> or a growing <code>otelcol_exporter_queue_size</code></td>
+<td>12b-3</td>
+</tr>
+<tr>
+<td>OpenTelemetry</td>
+<td>The Operator's pod webhook sees every pod creation with a 10 s timeout: when its node loses power, pods wait until the endpoint goes; lower <code>admissionWebhooks.timeoutSeconds</code> to about 3</td>
+<td>any</td>
+</tr>
+<tr>
+<td>Backstage-1</td>
+<td>A component's open Alertmanager alerts: Roadie's <code>backstage-plugin-prometheus</code> has no new-frontend-system export; write the view in Backstage-2's own plugin</td>
+<td>Backstage-2</td>
+</tr>
+<tr>
+<td>Backstage-1</td>
+<td>The sandbox's SSO specs failed one at a time under load (SSOArgoWorkflows dev-admin, then SSOOpenCloud dev-editor) while k3s lost its lease twice in 40 minutes: watch whether they pass on a calm sandbox</td>
+<td>sandbox stability</td>
+</tr>
+<tr>
+<td>Backstage-1</td>
+<td>backstage-db's CloudNativePG status reads "HTTP communication issue" (the operator polling the instance's port 8000 through the mesh) though the database works: check <code>backstage-db-status</code>'s PeerAuthentication as <code>forgejo-db-status</code>'s</td>
+<td>Backstage-2</td>
+</tr>
+<tr>
+<td>Backstage-1</td>
+<td>Production's egress table opens 443 for namespace backstage, which only the sandbox needs (GitHub): the table has no environment</td>
+<td>egress per environment</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020 - 2024 Khue Doan
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.expand", "navigation.instant", "navigation.sections", "search.highlight", "search.share"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

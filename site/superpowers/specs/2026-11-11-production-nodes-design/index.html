@@ -1,0 +1,2613 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://github.com/khuedoan/homelab/assets/27996771/d33be1af-3687-4712-a671-4370da13cc92">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Step 12b-1: production's nodes on the hardware - Khue's Homelab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#step-12b-1-productions-nodes-on-the-hardware" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-header__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Khue's Homelab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Step 12b-1: production's nodes on the hardware
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-nav__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Khue's Homelab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/testbed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testbed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/staging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staging (optional)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/external-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/post-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/vpn-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VPN setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/user-onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/secrets-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/certificate-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/development-shell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development shell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing infrastructure code
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-to guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-to guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alternate-dns-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alternate DNS setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/expose-services-to-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expose services to the internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backup-and-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup and restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/secrets-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rotating secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/security-logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/runtime-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runtime detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/kiali/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    See the mesh with Kiali
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy: Kyverno and Pod Security Admission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/supply-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/cluster-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/public-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/sandbox-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/deploy-to-forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy to Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/renovate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renovate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/in-cluster-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-cluster CI: Argo Workflows and Argo Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backstage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backstage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/add-or-remove-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add or remove nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/single-node-cluster-adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single node cluster adjustments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/media-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/updating-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating documentation (this website)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_26" id="__nav_5_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Troubleshooting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/troubleshooting/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/decision-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#intent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Intent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-hardware-user-read-by-the-spike" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The hardware (user, read by the spike)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anti-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Anti-goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-before-the-install-the-bios-on-every-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Before the install: the BIOS, on every machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-pxe-from-the-workstation-spike-2026-11-11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. PXE from the workstation (spike 2026-11-11)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-the-disk-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The disk path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-dns-claudes-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. DNS (Claude's call)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-the-production-ssh-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. The production SSH key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-boot-order-the-install-record-and-never-reinstalling-a-live-node-claudes-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Boot order, the install record, and never reinstalling a live node (Claude's call)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-productions-ssh-host-keys-claudes-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Production's SSH host keys (Claude's call)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-what-runs-on-the-cluster-in-this-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. What runs on the cluster in this step
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proofs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proofs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bios-as-found-ready-2026-11-11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BIOS as found ready (2026-11-11)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="step-12b-1-productions-nodes-on-the-hardware">Step 12b-1: production's nodes on the hardware</h1>
+<p>Status: designed in chat 2026-11-11, with a PXE spike on the hardware the same day. Decisions marked <em>(user)</em> were made in chat;
+<em>(Claude's call)</em> marks the builder's own, open to review. Builds on 12a (<code>docs/installation/testbed.md</code>,
+<code>docs/superpowers/specs/2026-11-02-testbed-design.md</code>, <code>docs/superpowers/specs/2026-11-04-power-design.md</code>): the same node
+flake (<code>infra/_modules/metal</code>), <code>nixie</code>, <code>lab cluster enroll|kubeconfig|upgrade|shutdown|startup</code>, now on real machines.</p>
+<h2 id="intent">Intent</h2>
+<p>Step 12b brings production up on the three mini PCs, split so each part changes one thing <em>(user)</em>:</p>
+<ul>
+<li><strong>12b-1 (this spec): the nodes.</strong> NixOS installed from the network, one k3s cluster of three servers behind the API's VIP,
+  and the machine-level proofs that only real hardware gives: the disks' fsync latency, a node going away, every node losing
+  power at once.</li>
+<li>12b-2: the platform through Argo CD (Ceph, Istio, OpenBao, Kanidm, monitoring, backups to R2), with the power cut repeated
+  with Ceph before any real data.</li>
+<li>12b-3: every app, the public path (Cloudflare Tunnel), the first <code>just infra deploy production</code>, then <code>lab backup enable</code>.</li>
+</ul>
+<p>Production is "ok" when every app in the plan runs there, including those the sandbox and the testbed never ran for lack
+of resources (Matrix, Jellyfin, cloudflared, WireGuard, Tailscale, Renovate, the blog) <em>(user)</em>. Immich, the teaching app
+(step 18), a NAS or a second disk come after <em>(user)</em>.</p>
+<h2 id="the-hardware-user-read-by-the-spike">The hardware <em>(user, read by the spike)</em></h2>
+<p>All three are cabled to the TP-Link Archer C64 (<code>192.168.0.0/24</code>, its DHCP <code>.100</code>–<code>.249</code>), on mains power, no UPS.</p>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Machine</th>
+<th>CPU</th>
+<th>RAM</th>
+<th>Disk</th>
+<th>MAC (<code>eno1</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>homelab-1</code> (<code>192.168.0.11</code>, <code>init_host</code>)</td>
+<td>HP EliteDesk 800 G4 DM 35W</td>
+<td>i5-8500T, 6 cores</td>
+<td>16 GB</td>
+<td><code>/dev/nvme0n1</code>, SK hynix BC901 256 GB</td>
+<td><code>38:22:e2:2c:dc:35</code></td>
+</tr>
+<tr>
+<td><code>homelab-2</code> (<code>192.168.0.12</code>)</td>
+<td>HP EliteDesk 800 G3 DM 35W</td>
+<td>i5-7500T, 4 cores</td>
+<td>16 GB</td>
+<td><code>/dev/nvme0n1</code>, Samsung MZAL8256HDJD 256 GB</td>
+<td><code>10:62:e5:16:d2:ca</code></td>
+</tr>
+<tr>
+<td><code>homelab-3</code> (<code>192.168.0.13</code>)</td>
+<td>HP EliteDesk 800 G3 DM 35W</td>
+<td>i5-7500T, 4 cores</td>
+<td>16 GB</td>
+<td><code>/dev/nvme0n1</code>, Samsung MZAL8256HDJD 256 GB</td>
+<td><code>10:e7:c6:0f:63:a0</code></td>
+</tr>
+</tbody>
+</table>
+<p>Names, addresses and <code>init_host</code> are <em>(Claude's call)</em>: the G4 starts the cluster because it carries it alone for its first
+minutes; afterwards the three are equal servers. Both disk models are DRAM-less OEM NVMe drives without power-loss
+protection.</p>
+<p>One disk per node stays for now; a second disk is decided together with the NAS idea <em>(user)</em>. The layout stays upstream's
+(<code>infra/_modules/metal/flake/disks.nix</code>): ESP 1 GB, root 64 GB (NixOS, k3s, etcd, images, logs), the rest (173.5 GB, measured) a
+raw partition <code>rook-data</code> for Ceph in 12b-2. No LVM: Ceph takes a raw block device.</p>
+<h2 id="goals">Goals</h2>
+<ul>
+<li><code>just infra deploy production</code>'s metal path, i.e. the unit <code>infra/production/metal</code> (written in this step, like
+  <code>infra/testbed/metal</code>), installs the three machines from the network with <code>nixie</code>, enrolls them into one k3s cluster and
+  writes <code>infra/production/kubeconfig.yaml</code>. In this step it runs alone (<code>terragrunt apply</code> in that unit), not the whole
+  deploy.</li>
+<li>The nodes resolve names quickly despite the ISP modem's DNS interception (below), and so do pods through CoreDNS.</li>
+<li>The fio numbers that decide whether etcd and Ceph can share one disk.</li>
+<li>A node going away moves the API's VIP; the cluster keeps answering.</li>
+<li>Every node cut at once comes back by itself.</li>
+<li>kube-bench on the hardware (<code>just testbed-scan</code>'s Job, on production's kubeconfig), the before-production list's item.</li>
+</ul>
+<h2 id="non-goals">Non-goals</h2>
+<ul>
+<li>Ceph, Argo CD and everything above k3s: 12b-2 <em>(Claude's call: production's Argo CD syncs the whole platform at once,
+  with no layer allow-list like the testbed's, and adding one only for this step would fork production's config)</em>.</li>
+<li>A UPS (its own step) and a second disk or NAS.</li>
+<li>Secure Boot with signed boot (<code>lanzaboote</code>): later, if wanted; with disks unencrypted it protects little.</li>
+<li>A BIOS administrator password: none <em>(user agreed after the trade-off)</em>. Anyone at the machine can take the NVMe out and
+  read it (LUKS set aside in 15d), so the password guards little and a forgotten HP password is hard to reset.</li>
+</ul>
+<h2 id="anti-goals">Anti-goals</h2>
+<ul>
+<li>Wiping a disk that is not one of these three: <code>nixie</code> serves PXE on the home LAN, so only <code>hosts.json</code>'s MACs may be
+  installed, and the run is started by hand.</li>
+<li>Leaving the workstation's Hyper-V firewall open after the install.</li>
+<li>A docs line implying the testbed proved the hardware path, or that the cut proves Ceph (12b-2 repeats it).</li>
+</ul>
+<h2 id="decisions">Decisions</h2>
+<h3 id="1-before-the-install-the-bios-on-every-machine">1. Before the install: the BIOS, on every machine</h3>
+<p>A checklist in the installation docs, done by hand:</p>
+<ul>
+<li>BIOS updated to HP's latest for the model (G4: <code>Q21</code>, G3: <code>P21</code>). Found on <code>homelab-3</code>: <code>P21 Ver. 02.15</code> (2018-01-31),
+  which kept no change made in F10 (Secure Boot, Power State); updated to <code>02.50</code> (2024-07-14), it kept them.</li>
+<li>Secure Boot off ("Legacy Support Disable and Secure Boot Disable"): <code>nixie</code>'s iPXE is unsigned and the firmware refused it
+  ("Selected boot image did not authenticate"). <code>homelab-1</code> and <code>homelab-2</code> had it off already.</li>
+<li>Network boot (UEFI IPv4) and Wake-on-LAN on <em>(user: done)</em>, Wake-on-LAN booting to the network and the NVMe first in the
+  normal boot order (decision 6).</li>
+<li>After Power Loss: Previous State (Last State), so a cut machine boots when power returns (12a-3).</li>
+<li>F12 starts a network boot by hand on these HP machines, if Wake-on-LAN does not (the startup menu ignored one USB keyboard).</li>
+</ul>
+<h3 id="2-pxe-from-the-workstation-spike-2026-11-11">2. PXE from the workstation <em>(spike 2026-11-11)</em></h3>
+<p><code>nixie</code> runs in WSL (mirrored networking) on the laptop, which reaches the Archer over Wi-Fi. It answers as ProxyDHCP beside
+the Archer's DHCP (UDP 67, 69, 4011; TCP 80 and its API on 5000). WSL sees no LAN broadcast until Hyper-V firewall rules
+for WSL (VM creator <code>{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}</code>) allow those ports inbound; with them, a ProxyDHCP server
+booted the flake's installer into RAM on <code>homelab-1</code> and <code>homelab-2</code>, about 500 MB over Wi-Fi in under two minutes.</p>
+<ul>
+<li>The docs give the two <code>New-NetFirewallHyperVRule</code> commands (UDP 67, 69, 4011; TCP 80, 5000) before the install and
+  <code>Remove-NetFirewallHyperVRule</code> after it, run by the person in an administrator PowerShell.</li>
+<li><code>nixie</code> gets the laptop's LAN address (<code>--address</code>), as the testbed gives it the bridge's.</li>
+<li>The person starts the run; <code>nixie</code> wakes the machines and installs them in parallel (the testbed goes one at a time only
+  because three installs at once ran WSL out of memory; real machines install from their own memory).</li>
+</ul>
+<h3 id="3-the-disk-path">3. The disk path</h3>
+<p>The disk's path goes in the environment's <code>config.json</code> (a field such as <code>disk</code>, <code>/dev/nvme0n1</code> for production), which
+<code>disks.nix</code> reads after a node's own <code>hostConfig.disk</code> and before the default <code>/dev/sda</code>. <code>hosts.json</code> stays <code>nixie</code>'s file:
+<code>nixie</code> keeps only <code>mac_address</code>, <code>ip</code> and <code>machine_id_hash</code> when it rewrites it, so any other field there would be lost.
+This settles the before-production note about disks other than <code>/dev/sda</code>. The docs' <code>hosts.json</code> example, which shows
+<code>disk</code>, is corrected.</p>
+<h3 id="4-dns-claudes-call">4. DNS <em>(Claude's call)</em></h3>
+<p>The ISP's ZTE modem intercepts every UDP/53 query leaving the LAN: negative answers come back REFUSED after 6–13 s. The Archer
+(<code>192.168.0.1</code>) forwards over DoH and answers in about 50 ms. <code>network.nix</code> gives the nodes <code>8.8.8.8</code> and <code>1.1.1.1</code> over UDP,
+and k3s's CoreDNS forwards to the node's resolvers, so both nodes and pods would hit the 6-second answers.</p>
+<ul>
+<li>The nodes' DNS comes from <code>config.json</code> (<code>network.dns</code>, a list): production names the Archer (<code>["192.168.0.1"]</code>). Without
+  the field the nodes keep today's servers, so the testbed is unchanged (its NAT has no interception).</li>
+<li>CoreDNS reads the node's <code>resolv.conf</code>, so it follows.</li>
+<li>The proof is a measurement: an NXDOMAIN and an AAAA-less name answer in under a second from a node and from a pod.</li>
+<li>Fallback, if the Archer's single DoH upstream proves unreliable: DNS over TLS from the nodes (systemd-resolved) and
+  CoreDNS forwarding over TLS. Not built now.</li>
+</ul>
+<h3 id="5-the-production-ssh-key">5. The production SSH key</h3>
+<p><code>infra/production/metal/authorized_keys</code> gets production's own key: a new ed25519 key with a passphrase, made by the person
+(<code>ssh-keygen</code>), loaded into the agent (<code>ssh-add</code>) for the install, <code>lab cluster</code> and the specs. It replaces the placeholder.</p>
+<h3 id="6-boot-order-the-install-record-and-never-reinstalling-a-live-node-claudes-call">6. Boot order, the install record, and never reinstalling a live node <em>(Claude's call)</em></h3>
+<ul>
+<li><strong>Boot order</strong> <em>(upstream's option 2, <code>docs/installation/production/prerequisites.md</code>)</em>:</li>
+<li>Wake-on-LAN boots from the network (HP: S4/S5 Wake on LAN = "Boot to Network"), and the normal boot order puts the NVMe
+    first. <code>nixie</code> wakes the machines it has not recorded and installs them with no one pressing F12. A machine switched on
+    by its button, or by power returning after a cut, boots its NixOS.</li>
+<li>A woken node that finds no <code>nixie</code> must fall back to its NVMe. The VIP spec below wakes a node and checks that it does,
+    which is the thorough test upstream asks for.</li>
+<li><strong>The install record</strong> <em>(upstream's way)</em>: <code>nixie</code> writes each machine's <code>machine_id_hash</code> into the repository's
+  <code>infra/production/metal/hosts.json</code>, and the person commits it after the install. <code>infra/_modules/metal</code> already leaves
+  that field out of the flake's input. A recorded host is skipped even when it is unreachable, and <code>nixie</code> does not start
+  when every host is recorded, so the record in git is what keeps a live node from being reinstalled, from any checkout.</li>
+<li>The testbed keeps its record in <code>.state/testbed/</code> (<code>scripts/testbed-nixie</code>), because its VMs are reinstalled often and
+    a commit per reinstall would mean nothing. Production installs rarely, and its record must outlive the workstation.</li>
+<li>Production therefore needs no copy of <code>hosts.json</code>; the disk's path lives in <code>config.json</code> (decision 3).</li>
+<li>Reinstalling a node is deliberate: delete its <code>machine_id_hash</code>, commit, then run.</li>
+</ul>
+<h3 id="7-productions-ssh-host-keys-claudes-call">7. Production's SSH host keys <em>(Claude's call)</em></h3>
+<p>The keys are trusted on first contact, as on the testbed, but only during the install and only for <code>hosts.json</code>'s
+addresses on the home LAN. The accepted risk is someone on the LAN impersonating a node in the minutes between the
+install and the first contact. Generating host keys ahead of time and installing them with <code>nixos-anywhere</code> would add key
+material to keep and rotate, which this does not justify. The docs say how to check a key's fingerprint on the machine's
+console later (<code>ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</code>).</p>
+<h3 id="8-what-runs-on-the-cluster-in-this-step">8. What runs on the cluster in this step</h3>
+<p>k3s with this repository's flags, kube-vip for the API's VIP (<code>192.168.0.10</code>), nothing from Argo CD. Production's
+<code>config.json</code> has no <code>slow_control_plane</code>: the hardware runs k3s's defaults. That is the point of measuring here.</p>
+<h2 id="proofs">Proofs</h2>
+<ul>
+<li><strong>The install:</strong> <code>terragrunt apply</code> in <code>infra/production/metal</code> installs the three nodes and writes the kubeconfig, and all
+  three are Ready. The first run is the RED: nothing is installed.</li>
+<li><strong>The nodes:</strong> the testbed's node specs run on production: the nodes, secrets encrypted in etcd, and the seccomp
+  profile's file and flag. They are labelled <code>testbed</code> today. The builder decides how they run against production: shared
+  specs labelled for both, or production specs reusing the same helpers.</li>
+<li><strong>The VIP moving</strong> <em>(Claude's call)</em>: production's version of <code>TestbedVIPMoves</code> stops a node over SSH, and Wake-on-LAN
+  from the workstation starts it again. That proves Wake-on-LAN over the laptop's Wi-Fi, a before-production item.</li>
+<li>If the node does not wake, the spec fails and names Wake-on-LAN as the cause; the person presses the power button.</li>
+<li>It and the power cut stop nodes, so they carry a label that <code>just test e2e --env production</code> never selects by
+    default (for example <code>hardware-proof</code>). Once 12b-2 and 12b-3 hold real data, a routine run against production must
+    never power off a node.</li>
+<li><strong>DNS:</strong> the measurement above, as a spec.</li>
+<li><strong>fio,</strong> by hand and recorded in the docs, per node:</li>
+<li>etcd's pattern (<code>fio --rw=write --ioengine=sync --fdatasync=1 --bs=2300 --size=22m</code>), whose 99th percentile fdatasync
+    must stay under 10 ms;</li>
+<li>sequential and random 4k throughput on the <code>rook-data</code> partition, before Ceph takes it.</li>
+</ul>
+<p>A node over 10 ms is a finding: 12b-2 then decides between etcd's tuning, a second disk, or Ceph's limits before sharing.
+- <strong>kube-bench:</strong> <code>just testbed-scan</code>'s Job against production, its FAILs against <code>.cluster-scan-accepted.yaml</code>.
+- <strong>A power cut:</strong> the person switches off the three machines' power strip, and switches it on again. Every node boots by
+  itself (Last State), etcd and the API at its VIP come back, and <code>lab cluster</code> sees three Ready nodes. Measured: how long.
+  Acknowledged writes are checked in 12b-2, with Ceph and a database.</p>
+<h2 id="docs">Docs</h2>
+<ul>
+<li><code>docs/installation/production/</code>:</li>
+<li>the BIOS checklist;</li>
+<li>the Hyper-V firewall commands;</li>
+<li>the SSH key;</li>
+<li>the disk's path in <code>config.json</code>, and <code>hosts.json</code>'s committed record;</li>
+<li>the DNS field;</li>
+<li>the fio numbers.</li>
+<li><code>docs/concepts/pxe-boot.md</code>: PXE from WSL (mirrored) and the firewall rules.</li>
+<li><code>CLAUDE.md</code>:</li>
+<li>12b-1 done;</li>
+<li>the before-production items this settles: PXE on a real LAN with a router's DHCP, Wake-on-LAN, UEFI boot order, the
+    disk path, kube-bench on hardware;</li>
+<li>what stays for 12b-2.</li>
+</ul>
+<h2 id="bios-as-found-ready-2026-11-11">BIOS as found ready <em>(2026-11-11)</em></h2>
+<p>All three on HP's latest BIOS the person found, with Secure Boot off (read from the installer: <code>SecureBoot = 0</code>):
+<code>homelab-1</code> <code>Q21 Ver. 02.33.00</code> (2026-02-03), <code>homelab-2</code> and <code>homelab-3</code> <code>P21 Ver. 02.50</code> (2024-07-14). After Power Loss,
+Wake-on-LAN and the boot order were set as decision 1 says.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020 - 2024 Khue Doan
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.expand", "navigation.instant", "navigation.sections", "search.highlight", "search.share"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,2519 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://github.com/khuedoan/homelab/assets/27996771/d33be1af-3687-4712-a671-4370da13cc92">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Buildah seccomp profile Implementation Plan - Khue's Homelab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#buildah-seccomp-profile-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-header__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Khue's Homelab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Buildah seccomp profile Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-nav__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Khue's Homelab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/testbed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testbed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/staging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staging (optional)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/external-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/post-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/vpn-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VPN setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/user-onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/secrets-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/certificate-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/development-shell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development shell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing infrastructure code
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-to guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-to guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alternate-dns-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alternate DNS setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/expose-services-to-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expose services to the internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backup-and-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup and restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/secrets-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rotating secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/security-logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/runtime-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runtime detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/kiali/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    See the mesh with Kiali
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy: Kyverno and Pod Security Admission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/supply-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/cluster-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/public-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/sandbox-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/deploy-to-forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy to Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/renovate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renovate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/in-cluster-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-cluster CI: Argo Workflows and Argo Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backstage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backstage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/add-or-remove-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add or remove nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/single-node-cluster-adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single node cluster adjustments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/media-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/updating-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating documentation (this website)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_26" id="__nav_5_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Troubleshooting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/troubleshooting/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/decision-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#global-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-focus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review Focus
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Review Focus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-1-the-profile-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 1: The profile, measured
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-2-the-flag-and-the-file-on-k3d-and-the-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 2: The flag and the file on k3d and the nodes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-3-the-mutation-and-the-guard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 3: The mutation and the guard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-4-the-sandbox-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 4: The sandbox spec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-5-the-whole-sandbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 5: The whole sandbox
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-6-the-testbed-by-hand-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 6: The testbed, by hand once
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-7-docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 7: Docs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="buildah-seccomp-profile-implementation-plan">Buildah seccomp profile Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Turn on the kubelet's <code>seccomp-default</code> everywhere. Woodpecker's Buildah steps keep building under a <code>Localhost</code> profile (<code>homelab/buildah.json</code>) that nothing else may use.</p>
+<p><strong>Architecture:</strong>
+- <strong>The profile:</strong> a JSON file, containerd's <code>RuntimeDefault</code> plus measured additions. It ships to the nodes the way <code>audit-policy.yaml</code> does: NixOS tmpfiles on the nodes, a k3d <code>--volume</code> in the sandbox.
+- <strong>The mutation:</strong> a native <code>MutatingAdmissionPolicy</code> puts the profile on Woodpecker's Buildah step pods.
+- <strong>The guard:</strong> a native <code>ValidatingAdmissionPolicy</code> refuses that profile, and any other <code>Localhost</code> one, in namespace <code>woodpecker</code> for pods that are not all Buildah.
+- Both policies are in-tree (<code>admissionregistration.k8s.io/v1</code>, served by k3s 1.37.1): no webhook, no Kyverno dependency.</p>
+<p><strong>Tech Stack:</strong> k3s 1.37.1 (containerd embedded), NixOS flake <code>infra/_modules/metal</code>, OpenTofu module <code>infra/_modules/k3d</code>, Helm wrapper chart <code>platform/woodpecker</code>, Go tests (<code>test/offline</code> with testify, <code>test/e2e</code> with Ginkgo).</p>
+<p><strong>Spec:</strong> <code>docs/superpowers/specs/2026-11-11-buildah-seccomp-design.md</code></p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li>The flag is exactly <code>--kubelet-arg=seccomp-default=true</code>, in <code>infra/_modules/k3d/k3d.yaml</code> (<code>nodeFilters: [server:*]</code>) and <code>infra/_modules/metal/flake/profiles/k3s-server.nix</code>.</li>
+<li>The profile's path is <code>&lt;kubelet seccomp root&gt;/homelab/buildah.json</code>, which is <code>/var/lib/kubelet/seccomp/homelab/buildah.json</code>. Pods reference <code>localhostProfile: homelab/buildah.json</code>.</li>
+<li>The source file is <code>infra/_modules/metal/flake/seccomp/buildah.json</code>, one file for the nodes and k3d.</li>
+<li>The profile's base is the <code>RuntimeDefault</code> of the containerd embedded in k3s v1.37.1. The file records the k3s and containerd versions it came from.</li>
+<li>No syscall is added unless Buildah was seen to need it. Each addition is listed with what needed it.</li>
+<li>Image match: repository <code>quay.io/buildah/stable</code>, any tag or digest.</li>
+<li>A failure never widens access. A missed mutation leaves <code>RuntimeDefault</code>, so the build fails.</li>
+<li>Pipelines need no <code>backend_options</code> line.</li>
+<li>Commits end with the session's <code>Co-Authored-By</code> and <code>Claude-Session</code> lines. Never commit to <code>dev</code> or <code>master</code>.</li>
+</ul>
+<h2 id="review-focus">Review Focus</h2>
+<ol>
+<li><strong>The guard must not refuse what the mutation produces.</strong> Woodpecker's real Buildah step pod may carry more than the step's container: an init container, or a clone step's image. Task 4's sandbox spec runs the real pipeline, not a hand-made pod.</li>
+<li><strong>A pod that sets its own profile.</strong></li>
+<li>A step whose author sets <code>RuntimeDefault</code> keeps it: the mutation does not override it (offline fixture in Task 3, sandbox in Task 4).</li>
+<li>A container-level <code>Localhost</code> profile on a non-Buildah pod is refused, not only a pod-level one (Task 3 fixture, Task 4 spec).</li>
+<li><strong>Image references with a digest or a registry port</strong>, such as <code>quay.io/buildah/stable@sha256:…</code> or <code>quay.io/buildah/stable:v1.43.5</code>, match. <code>quay.io/buildah/stable-evil</code> and <code>evil.io/quay.io/buildah/stable</code> do not. Task 3 covers each in its CEL tests.</li>
+<li><strong>Pods outside <code>woodpecker</code>, and its server and agent pods, are untouched by both policies</strong> (Task 3 fixtures, Task 5's full suite).</li>
+<li><strong>A newer kernel taking other syscall paths</strong> (<code>clone3</code>, the new mount API) on NixOS's kernel 7.0+. Task 6 builds on the testbed.</li>
+</ol>
+<hr />
+<h3 id="task-1-the-profile-measured">Task 1: The profile, measured</h3>
+<p><strong>Files:</strong>
+- Create: <code>infra/_modules/metal/flake/seccomp/buildah.json</code>
+- Create: <code>infra/_modules/metal/flake/seccomp/README.md</code>: where the base came from, the additions with what needed each, and how to regenerate it.
+- Test: <code>test/offline/seccomp_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: the file path above, and the profile name <code>homelab/buildah.json</code>. Tasks 2, 3, 4 and 6 use both.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Find the base.</strong></li>
+<li>Read containerd's version from k3s v1.37.1's <code>go.mod</code>, tag <code>v1.37.1+k3s1</code>.</li>
+<li>Generate the JSON of <code>contrib/seccomp.DefaultProfile</code> for a spec with containerd's default capability set (no <code>CAP_SYS_ADMIN</code>). Use a throwaway <code>go run</code> in the scratchpad against that containerd module version.</li>
+<li>
+<p>Check that nixpkgs' <code>k3s_1_37</code> (the nodes' flake lock) is the same k3s patch. If not, ledger a ruling naming the version used.</p>
+</li>
+<li class="task-list-item">
+<p><input type="checkbox" disabled/> <strong>Step 2: Measure the additions in the sandbox.</strong></p>
+</li>
+<li>Copy the base with <code>defaultAction: SCMP_ACT_LOG</code> into the running k3d node, by hand at <code>/var/lib/kubelet/seccomp/homelab/measure.json</code>.</li>
+<li>Run a throwaway pod in namespace <code>woodpecker</code>:<ul>
+<li>image <code>quay.io/buildah/stable:v1.43.5</code>;</li>
+<li><code>hostUsers: false</code>, as Woodpecker's step pods have;</li>
+<li><code>localhostProfile: homelab/measure.json</code>;</li>
+<li>command: <code>TestWoodpecker</code>'s build (<code>buildah --storage-driver vfs build --isolation chroot</code> of a two-line Containerfile).</li>
+</ul>
+</li>
+<li>Collect the logged syscalls: <code>dmesg</code>/kmsg <code>type=1326</code> lines with the pod's processes. If WSL's kernel does not log them, fall back to trial: base profile with <code>SCMP_ACT_ERRNO</code>, add each syscall the build fails on.</li>
+<li>The additions are the logged syscalls that the base does not allow unconditionally.</li>
+<li>
+<p>Expected: a short list such as <code>unshare</code>, <code>mount</code>, <code>umount2</code>, <code>pivot_root</code>, <code>setns</code>, <code>clone</code> with namespace flags, possibly <code>clone3</code>. Delete the throwaway pod and file.</p>
+</li>
+<li class="task-list-item">
+<p><input type="checkbox" disabled/> <strong>Step 3: Write the failing test <code>TestBuildahSeccompProfile</code></strong> in <code>test/offline/seccomp_test.go</code>. It parses the file and asserts:</p>
+</li>
+<li><code>defaultAction</code> is <code>SCMP_ACT_ERRNO</code>;</li>
+<li>every addition from the README's list is allowed (<code>SCMP_ACT_ALLOW</code>, with no <code>includes.caps</code> condition);</li>
+<li>a fixed sample of the base stays refused: <code>bpf</code>, <code>kexec_load</code>, <code>init_module</code>, <code>ptrace</code>, <code>perf_event_open</code>, <code>keyctl</code>, <code>add_key</code>, <code>open_by_handle_at</code>;</li>
+<li><code>README.md</code> names the k3s and containerd versions.</li>
+</ul>
+<p>Run <code>go test ./test/offline -run TestBuildahSeccompProfile</code>. Expected: FAIL (file missing).</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4:</strong> Write <code>buildah.json</code>: the base, with the additions as their own <code>syscalls</code> entries (provenance goes in the README: seccomp JSON has no comments).</li>
+<li>
+<p>Prove it works. Copy it to the node as <code>homelab/buildah.json</code>, run the Step 2 pod with it: the build passes. Run the same pod with <code>RuntimeDefault</code>: it fails on <code>unshare</code>.</p>
+</li>
+<li class="task-list-item">
+<p><input type="checkbox" disabled/> <strong>Step 5:</strong> Run the test. Expected: PASS. Commit <code>feat(seccomp): Buildah's Localhost profile, RuntimeDefault plus what its chroot isolation needs</code>.</p>
+</li>
+</ul>
+<h3 id="task-2-the-flag-and-the-file-on-k3d-and-the-nodes">Task 2: The flag and the file on k3d and the nodes</h3>
+<p><strong>Files:</strong>
+- Modify: <code>infra/_modules/k3d/k3d.yaml</code>: the flag, and the comment that says "not seccomp-default".
+- Modify: <code>infra/_modules/k3d/main.tf</code>:
+  - a variable <code>seccomp_profiles</code> (the directory <code>infra/_modules/metal/flake/seccomp</code>);
+  - <code>--volume "${var.seccomp_profiles}/buildah.json:/var/lib/kubelet/seccomp/homelab/buildah.json@server:*"</code>;
+  - its <code>filesha1</code> in <code>triggers_replace</code>.
+- Modify: <code>infra/sandbox/cluster/terragrunt.hcl</code>: pass it, like <code>audit_policy</code>.
+- Modify: <code>infra/_modules/metal/flake/profiles/k3s-server.nix</code>:
+  - the flag, and replace its "not seccomp-default" comment;
+  - a tmpfiles rule <code>L+ /var/lib/kubelet/seccomp/homelab/buildah.json - - - - ${../seccomp/buildah.json}</code> with <code>d /var/lib/kubelet/seccomp/homelab 0755 root root -</code>.
+  - The kubelet reads a Localhost profile at each container start, so no restart trigger is needed.
+- Test: <code>test/offline/scan_test.go</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> Change <code>TestScanHardeningFlags</code>:</li>
+<li>Move <code>--kubelet-arg=seccomp-default=true</code> into the asserted list, and drop the two <code>NotContains</code>.</li>
+<li>Add assertions that <code>k3s-server.nix</code> contains <code>/var/lib/kubelet/seccomp/homelab/buildah.json</code> and <code>../seccomp/buildah.json</code>, and that <code>main.tf</code> mounts <code>:/var/lib/kubelet/seccomp/homelab/buildah.json@server:*</code>.</li>
+</ul>
+<p>Run it. Expected: FAIL.
+- [ ] <strong>Step 2:</strong> Make the changes above. Run <code>go test ./test/offline -run TestScanHardeningFlags</code>, <code>just infra check</code> and <code>nix flake check</code> (or the eval the flake's checks run). Expected: PASS.
+- [ ] <strong>Step 3:</strong> Commit <code>feat(seccomp): seccomp-default on k3d and the nodes, Buildah's profile beside the kubelet</code>.</p>
+<h3 id="task-3-the-mutation-and-the-guard">Task 3: The mutation and the guard</h3>
+<p><strong>Files:</strong>
+- Create: <code>platform/woodpecker/templates/seccomp-policy.yaml</code>. It holds:
+  - <code>MutatingAdmissionPolicy</code> <code>woodpecker-buildah-seccomp</code> with its binding;
+  - <code>ValidatingAdmissionPolicy</code> <code>woodpecker-localhost-seccomp</code> with its binding (<code>validationActions: [Deny]</code>);
+  - <code>failurePolicy: Fail</code> on both;
+  - binding <code>matchResources.namespaceSelector</code> on <code>kubernetes.io/metadata.name: {{ .Release.Namespace }}</code>;
+  - policy <code>matchConstraints</code> on pods <code>CREATE</code>.
+- Test: <code>test/offline/woodpecker_seccomp_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: policy names <code>woodpecker-buildah-seccomp</code> and <code>woodpecker-localhost-seccomp</code>. Task 4 reads them in failure messages.</p>
+<p><strong>The rules, which the CEL must implement:</strong>
+- <em>Buildah pod:</em>
+  - every container and init container image, after stripping a <code>@digest</code> and then a <code>:tag</code> after the last <code>/</code>, equals <code>quay.io/buildah/stable</code>;
+  - the pod has label <code>woodpecker-ci.org/step</code> or whatever the step-pod label the Kubernetes backend sets. Read it off a live step pod (<code>TestWoodpecker</code>'s pipeline) and ledger it.
+- <em>Mutation:</em> on a Buildah pod with no pod-level <code>seccompProfile</code> and no container-level one, set <code>spec.securityContext.seccompProfile</code> to <code>{type: Localhost, localhostProfile: homelab/buildah.json}</code> (<code>patchType: ApplyConfiguration</code>, <code>reinvocationPolicy: Never</code>).
+- <em>Guard:</em> refuse a pod where the pod or any container (init included) has <code>seccompProfile.type == 'Localhost'</code>, unless it is a Buildah pod and every such profile is <code>homelab/buildah.json</code>.
+  - Message: <code>"only Woodpecker's Buildah steps may use a Localhost seccomp profile (homelab/buildah.json)"</code>.
+- Annotate both policies with why they are native, not Kyverno: in-tree, they hold while Kyverno is down. They need no <code>SkipDryRunOnMissingResource</code>, since the kinds are built in.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the failing test <code>TestWoodpeckerSeccompPolicies</code>.</strong></li>
+<li>It renders <code>platform/woodpecker</code> for both environments (<code>render.Yq</code>) and asserts both policies, both bindings, <code>failurePolicy: Fail</code>, <code>[Deny]</code> and the namespace selector.</li>
+<li>It evaluates the two CEL rules over fixtures with <code>k8s.io/apiserver</code>'s CEL libraries or <code>github.com/google/cel-go</code> with the Kubernetes CEL environment. If neither is practical in <code>test/go.mod</code>, assert the expressions' presence here and leave behavior to Task 4. Ledger the ruling.</li>
+<li>Fixtures:<ul>
+<li>(a) Buildah step pod, no profile → mutated, admitted;</li>
+<li>(b) <code>alpine</code> step pod → unchanged, admitted;</li>
+<li>(c) Buildah pod with <code>RuntimeDefault</code> → unchanged;</li>
+<li>(d) <code>alpine</code> with pod-level <code>Localhost homelab/buildah.json</code> → denied;</li>
+<li>(e) <code>alpine</code> with a container-level one → denied;</li>
+<li>(f) Buildah with <code>Localhost other.json</code> → denied;</li>
+<li>(g) a Buildah container plus an <code>alpine</code> init container → not mutated, and denied if it asks;</li>
+<li>(h) image refs <code>quay.io/buildah/stable@sha256:…</code>, <code>quay.io/buildah/stable:v1.43.5</code> match; <code>quay.io/buildah/stable-evil</code>, <code>evil.io/quay.io/buildah/stable</code> do not.</li>
+</ul>
+</li>
+</ul>
+<p>Run it. Expected: FAIL.
+- [ ] <strong>Step 2:</strong> Write the template. Run the test, <code>scripts/ci-check render</code>, <code>scripts/ci-check policy</code> and <code>scripts/ci-check mesh</code>. Expected: PASS.
+- [ ] <strong>Step 3:</strong> Commit <code>feat(woodpecker): native admission policies give Buildah steps their seccomp profile, and only them</code>.</p>
+<h3 id="task-4-the-sandbox-spec">Task 4: The sandbox spec</h3>
+<p><strong>Files:</strong>
+- Create: <code>test/e2e/seccomp_test.go</code>
+- Modify: <code>test/scopes.yaml</code>:
+  - label <code>seccomp</code> in <code>labels:</code>;
+  - <code>full</code> gains <code>|| seccomp</code>;
+  - a group with paths <code>infra/_modules/metal/flake/seccomp/**</code>, <code>platform/woodpecker/templates/seccomp-policy.yaml</code> and <code>infra/_modules/k3d/**</code>, with tests <code>seccomp || woodpecker</code>. Merge into an existing group if the k3d paths already have one.
+  - <code>TestE2EKeepsSelection</code> must still pass.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write <code>Describe("WoodpeckerSeccomp", Label("sandbox", "woodpecker", "seccomp"), …)</code></strong> with these Its:</li>
+<li><strong>"puts Buildah's profile on its step pods":</strong> run <code>TestWoodpecker</code>'s pipeline helper, or watch its step pods while <code>Woodpecker</code> runs if reusing it is simpler. The Buildah step pod's <code>spec.securityContext.seccompProfile</code> is <code>Localhost homelab/buildah.json</code>, and the pipeline succeeds.</li>
+<li><strong>"refuses unshare to other images":</strong> a pod in <code>woodpecker</code> with the step-pod label, image <code>quay.io/buildah/stable</code> replaced by the busybox the suite already uses, <code>hostUsers: false</code>, running <code>unshare -U true</code>. It terminates non-zero with <code>Operation not permitted</code>. Use the label, so it is shaped like a step.</li>
+<li><strong>"refuses the profile to other images":</strong> creating that pod with pod-level, then container-level, <code>Localhost homelab/buildah.json</code> fails with the guard's message.</li>
+<li><strong>"refuses Unconfined":</strong> the same pod with <code>Unconfined</code> fails with Pod Security's <code>baseline</code> message.</li>
+<li><strong>"the node runs with seccomp-default":</strong> a pod in <code>woodpecker</code> with no profile, as the API server stores it, still has none (so the mutation did not add one), and <code>grep Seccomp /proc/self/status</code> inside it reads <code>Seccomp: 2</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: RED.</strong> Commit the test and the scopes. Run <code>just dev --tests 'seccomp'</code> from <code>/home/nixos/homelab</code> (the sandbox is running). The sandbox's k3d still lacks the flag and the profile, since the cluster is rebuilt only by <code>just dev-fresh</code>, but it now has the policies. Expected: FAIL on the profile or the node's <code>Seccomp</code> line. Record which.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: GREEN.</strong> <code>just dev-fresh</code> (Task 5) rebuilds k3d with the mount and the flag. The spec passes there.</li>
+</ul>
+<h3 id="task-5-the-whole-sandbox">Task 5: The whole sandbox</h3>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> Check C: has 30 GB free, and that the testbed is stopped. Run <code>just dev-fresh</code> from <code>/home/nixos/homelab</code> in the background, its output to a file.</li>
+<li>Expected: every spec passes, <code>WoodpeckerSeccomp</code> and <code>Woodpecker</code> included.</li>
+<li>A failure elsewhere is checked for a <code>RuntimeDefault</code> cause first: a pod in <code>kube-system</code> or a Gateway now under a filter. Fix the cause or ledger a ruling.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Falco baseline.</strong> In Loki, list Falco events of priority <code>warning</code> and up since the run started, by rule and namespace (the query <code>docs/how-to-guides/runtime-detection.md</code> gives).</li>
+<li>Expected: only the spec's own events, plus what 15g's baseline already had.</li>
+<li>A new Critical or Error from Buildah's <code>unshare</code> gets an entry in <code>system/falco/values.yaml</code>'s <code>accepted</code>, narrowed like <code>buildah-chroot-reexec</code> (namespace, image, process), with its reason. <code>TestFalcoAccepted</code> covers its shape.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3:</strong> Commit any fix, and rerun the specs it touches.</li>
+</ul>
+<h3 id="task-6-the-testbed-by-hand-once">Task 6: The testbed, by hand once</h3>
+<p><strong>Files:</strong>
+- Modify: <code>test/e2e/testbed_test.go</code>: <code>Describe("TestbedSeccomp", Label("testbed", "proof"), …)</code>.</p>
+<p><strong>The spec:</strong>
+- On every node, over SSH as the other testbed specs do, <code>/var/lib/kubelet/seccomp/homelab/buildah.json</code> equals the repository's file.
+- The k3s unit's command line has <code>seccomp-default=true</code>.
+- A <code>hostUsers: false</code> busybox pod in a scratch namespace with no profile fails <code>unshare -U true</code>.
+- A Buildah pod with the <code>Localhost</code> profile builds a two-line Containerfile with <code>--isolation chroot</code> and <code>vfs</code>.
+  - The guard is only in <code>woodpecker</code>, which the testbed does not run, so the scratch namespace has no policy.
+  - Label <code>proof</code>: it checks node settings, as <code>TestbedSecretsEncrypted</code> does, and costs about a minute.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> Write the spec and commit it.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: RED.</strong> Stop the sandbox (<code>k3d cluster stop homelab-dev</code>), then start the testbed with the nodes still on <code>dev</code>'s flake (<code>just testbed</code>). Run <code>just test e2e --env testbed --focus TestbedSeccomp</code>. Expected: FAIL (no file).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: GREEN.</strong></li>
+<li>Pre-build the three nodes' closures (<code>nix build path:infra/_modules/metal/flake#nixosConfigurations.homelab-N.config.system.build.toplevel</code>) before <code>lab cluster upgrade</code>, so its hook does not build under memory pressure.</li>
+<li>Upgrade, then rerun the spec. Expected: PASS.</li>
+<li>A syscall needed only on NixOS's kernel goes into <code>buildah.json</code> and its README as "needed on NixOS's kernel", then back through Task 1's test.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4:</strong> Stop the testbed. Commit any profile change.</li>
+</ul>
+<h3 id="task-7-docs">Task 7: Docs</h3>
+<p><strong>Files:</strong>
+- Modify: <code>docs/how-to-guides/cluster-scan.md</code>: 4.2.14 fixed (row and text).
+- Modify: <code>docs/how-to-guides/woodpecker.md</code>: Buildah steps get <code>homelab/buildah.json</code> by themselves. Other images run under <code>RuntimeDefault</code> and cannot <code>unshare</code>. No step may name a <code>Localhost</code> profile, nor <code>Unconfined</code>.
+- Modify: <code>CLAUDE.md</code>:
+  - roadmap 15h done, with its key facts;
+  - 15d's "not <code>seccomp-default</code>" text;
+  - production list: the profile was derived from k3s 1.37.1's containerd and measured on the testbed's kernel, so review it at a k3s minor bump. Woodpecker's Buildah steps on the hardware are its first real run.
+- Modify: <code>docs/superpowers/deferred-minors.md</code>: remove the 15d row, add this branch's.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> Write them. Run <code>mkdocs build --strict</code> and <code>scripts/ci-check all</code>. Expected: PASS.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> Commit <code>docs(15h): seccomp-default on, Buildah's profile</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020 - 2024 Khue Doan
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.expand", "navigation.instant", "navigation.sections", "search.highlight", "search.share"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

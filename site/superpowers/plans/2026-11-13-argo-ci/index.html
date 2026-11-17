@@ -1,0 +1,2504 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://github.com/khuedoan/homelab/assets/27996771/d33be1af-3687-4712-a671-4370da13cc92">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Step 10f: Argo Workflows and Argo Events replace Woodpecker — Implementation Plan - Khue's Homelab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#step-10f-argo-workflows-and-argo-events-replace-woodpecker-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-header__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Khue's Homelab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Step 10f: Argo Workflows and Argo Events replace Woodpecker — Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-nav__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Khue's Homelab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/testbed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testbed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/staging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staging (optional)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/external-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/post-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/vpn-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VPN setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/user-onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/secrets-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/certificate-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/development-shell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development shell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing infrastructure code
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-to guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-to guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alternate-dns-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alternate DNS setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/expose-services-to-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expose services to the internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backup-and-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup and restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/secrets-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rotating secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/security-logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/runtime-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runtime detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/kiali/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    See the mesh with Kiali
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy: Kyverno and Pod Security Admission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/supply-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/cluster-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/public-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/sandbox-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/deploy-to-forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy to Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/renovate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renovate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/in-cluster-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-cluster CI: Argo Workflows and Argo Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backstage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backstage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/add-or-remove-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add or remove nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/single-node-cluster-adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single node cluster adjustments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/media-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/updating-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating documentation (this website)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_26" id="__nav_5_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Troubleshooting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/troubleshooting/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/decision-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#global-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-focus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review Focus
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Review Focus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-1-platformargo-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 1: platform/argo-workflows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-2-platformargo-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 2: platform/argo-events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-3-platformci-events-and-secrets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 3: platform/ci: events and secrets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-4-the-golden-path-and-its-seccomp-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 4: the golden path and its seccomp policies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-5-signing-in-openbao-verification-in-kyverno" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 5: signing in OpenBao, verification in Kyverno
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-6-lab-forgejo-sync-rotation-idle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 6: lab: Forgejo sync, rotation, idle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-7-woodpecker-removed-everywhere-else" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 7: Woodpecker removed everywhere else
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-8-e2e-specs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 8: e2e specs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-9-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 9: documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-10-the-sandbox-needs-the-persons-go-ahead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 10: the sandbox (needs the person's go-ahead)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="step-10f-argo-workflows-and-argo-events-replace-woodpecker-implementation-plan">Step 10f: Argo Workflows and Argo Events replace Woodpecker — Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Forgejo org <code>ci</code>'s repositories build, sign and attest their images through Argo Events and Argo Workflows' golden path; Woodpecker is gone.</p>
+<p><strong>Architecture:</strong> Three wrapper charts: <code>platform/argo-workflows</code> (controller and SSO server), <code>platform/argo-events</code> (controller), <code>platform/ci</code> (EventBus, Forgejo EventSource and Sensor, the <code>WorkflowTemplate</code>s, secrets, seccomp policies). <code>lab infra forgejo sync</code> keeps org <code>ci</code>'s webhook and bot user; OpenBao signs through transit; Kyverno audits the signatures.</p>
+<p><strong>Tech Stack:</strong> Helm wrapper charts synced by Argo CD, argo-workflows 2.0.18 (v4.1.6), argo-events 2.4.28 (v1.9.11), Buildah, cosign (<code>hashivault://</code>), Syft or Trivy for SPDX, OpenBao transit, Kyverno, Go (<code>cli/</code>, <code>test/</code>).</p>
+<p><strong>Spec:</strong> <code>docs/superpowers/specs/2026-11-13-argo-ci-design.md</code></p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li>Latest stable releases, pinned exactly; every image by tag or digest (Kyverno's pinned-images policy).</li>
+<li>Hosts as <code>&lt;host&gt;.{{ .Values.global.baseDomain }}</code>; no domain or IP in a chart (<code>scripts/check-env-config</code>).</li>
+<li>Every workload: RuntimeDefault seccomp, no privilege escalation, non-root where the image allows, or a <code>PolicyException</code> with <code>homelab/reason</code>.</li>
+<li>Every meshed namespace has an <code>allow</code>; webhooks' pods carry <code>istio.io/dataplane-mode: none</code>; <code>scripts/check-mesh-policies</code> passes.</li>
+<li>Every PVC carries <code>homelab/backup</code> (<code>scripts/check-backup-groups</code>); every secret has a catalog entry (<code>lab secrets check</code>).</li>
+<li>Secrets via ExternalSecrets from SecretStore <code>openbao</code>, keys under the reading namespace; generated ones under <code>&lt;namespace&gt;/generated/</code>.</li>
+<li>New components get <code>test/scopes.yaml</code> entries in the same change.</li>
+<li><code>just dev</code> only from <code>/home/nixos/homelab</code> (never this worktree); never beside the testbed.</li>
+<li>Commits end with the Co-Authored-By and Claude-Session lines.</li>
+</ul>
+<h2 id="review-focus">Review Focus</h2>
+<ol>
+<li>A Forgejo push whose payload lacks fields the Sensor reads (a tag push, a branch deletion with an all-zero <code>after</code>): no Workflow, or one that ends <code>error</code> with a status, never a crash loop of the Sensor.</li>
+<li>A <code>.ci.yaml</code> that is not YAML or names <code>image</code> with a path outside the repository's name (<code>../other</code>): the run fails with a <code>failure</code> status, nothing pushed.</li>
+<li>The signing step on a pull request or a non-default branch: never signs (only default-branch pushes reach zot).</li>
+<li>A Workflow submitted through the UI by an editor with an inline template: refused by <code>templateReferencing: Strict</code>.</li>
+<li>Two pushes in a row to the same repository: both run; the second's status lands on its own commit.</li>
+</ol>
+<p>Task 4 pins 1–3 and 5 in its offline template tests where a render can show them and in the <code>CI</code> e2e spec otherwise; Task 1 pins 4 (render) and Task 8 (e2e).</p>
+<hr />
+<h3 id="task-1-platformargo-workflows">Task 1: <code>platform/argo-workflows</code></h3>
+<p><strong>Files:</strong>
+- Create: <code>platform/argo-workflows/{Chart.yaml,values.yaml,values-local.yaml}</code>, <code>templates/{controller-config.yaml,kanidm-client.yaml,httproute.yaml,authorization-policy.yaml,sso-rbac.yaml}</code>
+- Modify: <code>system/argocd/values-dev.yaml</code> (sandbox list), <code>platform/kanidm/values.yaml</code> (<code>oauth2ClientNamespaces</code>), <code>apps/homepage.yaml</code> (tile), <code>test/scopes.yaml</code>
+- Test: <code>test/offline/argo_workflows_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: namespace <code>argo-workflows</code>; the controller manages only namespace <code>ci</code>; ServiceAccounts <code>ci-admin</code>, <code>ci-editor</code>, <code>ci-viewer</code> (namespace <code>argo-workflows</code>, <code>workflows.argoproj.io/rbac-rule</code> on <code>homelab-admins</code>, <code>homelab-editors</code>, <code>homelab-users</code>) bound in <code>ci</code> (Task 3 creates the namespace's RoleBindings' targets); Kanidm client <code>argo-workflows</code> (Secret <code>argo-workflows-kanidm-oauth2-credentials</code>); UI <code>https://ci.&lt;domain&gt;</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write <code>TestArgoWorkflowsRender</code></strong> asserting on both renders (production and <code>dev</code>): the controller ConfigMap has <code>workflowRestrictions.templateReferencing: Strict</code>, <code>sso.issuer</code> equal to Kiali's issuer pattern with client <code>argo-workflows</code>, <code>sso.redirectUrl: https://ci.&lt;baseDomain&gt;/oauth2/callback</code>, <code>sso.customGroupClaimName: homelab_groups</code>, <code>sso.rbac.enabled: true</code>; the controller's args or values limit it to namespace <code>ci</code>; the server runs <code>--auth-mode=sso</code> only; the HTTPRoute's host is <code>ci.&lt;baseDomain&gt;</code> on <code>istio-system/gateway</code>; the three rbac-rule annotations; no rendered string contains <code>woodpecker</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run</strong> <code>direnv exec . go -C test test ./offline -run TestArgoWorkflowsRender</code> — Expected: FAIL (no chart).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Write the chart.</strong> The chart's own controller ConfigMap is off (<code>controller.configMap.create: false</code>): <code>templates/controller-config.yaml</code> renders it with the issuer and redirect from <code>global.baseDomain</code> (a subchart value cannot template them). Kanidm client like <code>system/kiali/templates/kanidm-client.yaml</code> (confidential, <code>homelab_groups</code> claimMap, <code>homelab-admins|editors|users</code> scope map; PKCE as Argo Server's OIDC client supports — check its code or docs, and set kaniop's PKCE opt-out only if it sends none, with the reason). Server and controller: securityContext per Global Constraints; <code>values-local.yaml</code> gives the server <code>SSL_CERT_DIR</code> with <code>homelab-dev-ca</code> as Grafana does. <code>allow</code>: the Gateway to the server's port, Prometheus to metrics.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Run</strong> the test, <code>scripts/render-chart platform/argo-workflows dev</code>, <code>scripts/check-env-config</code>, <code>scripts/check-mesh-policies</code>, <code>scripts/ci-check policy</code> — Expected: PASS.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong> <code>feat(ci): Argo Workflows with Kanidm SSO, templates only, workflows in ci</code>.</li>
+</ul>
+<h3 id="task-2-platformargo-events">Task 2: <code>platform/argo-events</code></h3>
+<p><strong>Files:</strong>
+- Create: <code>platform/argo-events/{Chart.yaml,values.yaml}</code>, <code>templates/authorization-policy.yaml</code>
+- Modify: <code>system/argocd/values-dev.yaml</code>, <code>test/scopes.yaml</code>
+- Test: <code>test/offline/argo_events_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: namespace <code>argo-events</code>; the controller watches EventBus, EventSource and Sensor in every namespace (Task 3's live in <code>ci</code>).</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write <code>TestArgoEventsRender</code></strong>: no ValidatingWebhookConfiguration (<code>webhook.enabled: false</code>), the controller's securityContext per Global Constraints, CRDs installed.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run</strong> it — Expected: FAIL.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Write the chart</strong> (argo-events 2.4.28; <code>allow</code> for Prometheus on metrics).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Run</strong> the test and the checks of Task 1 Step 4 — Expected: PASS.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong> <code>feat(ci): Argo Events' controller</code>.</li>
+</ul>
+<h3 id="task-3-platformci-events-and-secrets">Task 3: <code>platform/ci</code>: events and secrets</h3>
+<p><strong>Files:</strong>
+- Create: <code>platform/ci/{Chart.yaml,values.yaml,values-dev.yaml}</code>, <code>templates/{eventbus.yaml,eventsource.yaml,sensor.yaml,external-secrets.yaml,rbac.yaml,authorization-policy.yaml}</code>
+- Modify: <code>platform/generated-secrets/values.yaml</code> (webhook secret, <code>registry.ci</code> destinations), <code>system/egress/values.yaml</code> (<code>ci: [{port: 80}, {port: 443}]</code>), <code>system/argocd/values-dev.yaml</code>, <code>scripts/check-mesh-policies</code> (<code>EXTRA</code>: Forgejo → EventSource; <code>ci</code> → Forgejo, zot, OpenBao), <code>test/scopes.yaml</code>
+- Test: <code>test/offline/ci_events_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: Task 1's ServiceAccounts (RoleBindings here), Task 2's CRDs.
+- Produces: EventSource Service <code>forgejo-eventsource-svc.ci</code> (port and path <code>/forgejo</code> recorded in values as <code>webhook.port</code>, <code>webhook.path</code> for Task 6); the Sensor creates Workflows from <code>workflowTemplateRef: {name: pipeline}</code> with parameters <code>repo</code> (<code>owner/name</code>), <code>clone-url</code>, <code>sha</code>, <code>ref</code>, <code>event</code> (<code>push</code>|<code>pull_request</code>), <code>default-branch</code>; Secrets in <code>ci</code>: <code>webhook</code> (key <code>token</code>), <code>forgejo</code> (key <code>token</code>), <code>registry</code> (keys <code>username</code>, <code>password</code>); OpenBao paths <code>ci/generated/webhook</code>, <code>ci/forgejo-token</code>, <code>ci/generated/registry</code> (same value as <code>zot/generated/ci</code>).</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write <code>TestCIEventsRender</code></strong>: the EventSource's <code>authSecret</code> is <code>webhook/token</code>; the Sensor's filters admit <code>push</code> with a non-zero <code>after</code> on a branch ref and <code>pull_request</code> with action <code>opened|synchronized|reopened</code>, and nothing else (Review Focus 1); its trigger's Workflow references <code>pipeline</code> only; the EventBus is JetStream with <code>homelab/backup: none</code> on any claim; the Sensor's ServiceAccount may only create Workflows in <code>ci</code>; <code>generated-secrets</code> pushes <code>registry.ci</code> to both <code>zot/generated/ci</code> and <code>ci/generated/registry</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run</strong> it — Expected: FAIL.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Write the templates.</strong> JetStream replicas: the EventBus CRD's minimum (check the v1.9.11 CRD or controller validation; record it in values with the reason). The Sensor's data filters read Forgejo's JSON (<code>ref</code>, <code>after</code>, <code>repository.full_name</code>, <code>repository.clone_url</code>, <code>repository.default_branch</code>, <code>pull_request.head.sha</code>, <code>action</code>); Forgejo sends <code>X-Forgejo-Event</code>, which the EventSource exposes as headers if the filter needs the event type.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Run</strong> the test, <code>scripts/check-secret-stores</code>, <code>scripts/check-env-config</code>, <code>scripts/check-mesh-policies</code>, <code>scripts/check-backup-groups</code> — Expected: PASS.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong> <code>feat(ci): Forgejo's webhook through Argo Events into Workflows</code>.</li>
+</ul>
+<h3 id="task-4-the-golden-path-and-its-seccomp-policies">Task 4: the golden path and its seccomp policies</h3>
+<p><strong>Files:</strong>
+- Create: <code>platform/ci/templates/{pipeline.yaml,seccomp-policy.yaml,policy-exception.yaml}</code>, <code>platform/ci/files/*.sh</code> (step scripts, if a step outgrows a line)
+- Delete: <code>platform/woodpecker/templates/seccomp-policy.yaml</code> (moved), <code>test/offline/woodpecker_seccomp_test.go</code>, <code>test/offline/fixtures/woodpecker-seccomp/</code>
+- Create: <code>test/offline/ci_pipeline_test.go</code>, <code>test/offline/fixtures/ci-seccomp/pods.yaml</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: Task 3's parameters and Secrets; Task 5's OpenBao role <code>ci-signer</code> and key <code>ci-signing</code> (the template names them; Task 5 creates them).
+- Produces: <code>WorkflowTemplate</code> <code>pipeline</code>; pod label <code>homelab/ci-step: build</code> on the build step only; the build step's pod <code>hostUsers: false</code>; image <code>registry.&lt;domain&gt;/&lt;repo-name&gt;:&lt;sha&gt;</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the failing tests.</strong> <code>TestCIPipelineRender</code>: <code>pipeline</code> has <code>volumeClaimTemplates</code> (one <code>ReadWriteOnce</code> claim, <code>homelab/backup: none</code>), <code>ttlStrategy.secondsAfterCompletion: 604800</code>, <code>podGC.strategy: OnPodSuccess</code>, an <code>onExit</code> handler posting the status; the sign, SBOM and push steps run <code>when</code> <code>event == push &amp;&amp; ref == refs/heads/&lt;default-branch&gt;</code> (Review Focus 3); the settings step's script rejects unknown keys and an <code>image</code> other than <code>[a-z0-9][a-z0-9._-]*</code> (Review Focus 2: test it by running the script on fixtures with <code>sh</code>); the build step has the label and <code>hostUsers: false</code>; images pinned. <code>TestCISeccompPolicies</code> (from <code>TestWoodpeckerSeccompPolicies</code>): against <code>fixtures/ci-seccomp/pods.yaml</code> (an Argo build pod with argoexec <code>init</code>/<code>wait</code> containers and the Buildah main container; a build-labelled pod whose main image is not Buildah; a plain <code>ci</code> pod naming <code>Localhost</code>), the mutation gives only the first <code>homelab/buildah.json</code> and the validation refuses the third — with the CEL evaluated the way the old test did.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run</strong> them — Expected: FAIL.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Write the template and policies.</strong> Steps: clone (<code>git</code> image, token from Secret <code>forgejo</code>), settings (<code>.ci.yaml</code>; defaults <code>.</code>, <code>Containerfile</code> else <code>Dockerfile</code>, the repository's name), build (<code>quay.io/buildah/stable</code> at the version 15h measured; chroot, vfs; pull requests build only), push (default branch), SBOM (SPDX JSON of the pushed digest), sign and attest (cosign <code>--key hashivault://ci-signing</code> after <code>bao write auth/kubernetes/login role=ci-signer</code> with a projected token of audience <code>openbao</code>; attest the SBOM and an SLSA provenance predicate with builder id <code>https://ci.&lt;domain&gt;</code>, the template, the parameters and the materials), and the exit handler (Forgejo <code>POST /api/v1/repos/{repo}/statuses/{sha}</code>, context <code>ci/pipeline</code>, <code>target_url</code> the run in the UI). The policies are 15h's, bound to namespace <code>ci</code>, matching the label instead of "every container is Buildah"; <code>PolicyException</code>s per Global Constraints with reasons.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Run</strong> the tests and <code>scripts/ci-check policy</code> — Expected: PASS.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong> <code>feat(ci): the golden path: clone, build in a user namespace, push, SBOM, sign and attest through OpenBao</code>.</li>
+</ul>
+<h3 id="task-5-signing-in-openbao-verification-in-kyverno">Task 5: signing in OpenBao, verification in Kyverno</h3>
+<p><strong>Files:</strong>
+- Modify: <code>platform/openbao/values.yaml</code> (initialize: transit engine, key <code>ci-signing</code> (ecdsa-p256), policy and role <code>ci-signer</code>: sign with <code>ci-signing</code> and read its public key, bound to ServiceAccount <code>ci-signer</code> in <code>ci</code>, audience <code>openbao</code>)
+- Create: <code>platform/ci/templates/public-key.yaml</code> (a Job on Argo CD's <code>PostSync</code> hook, ServiceAccount <code>ci-signer</code>, writing the transit key's public key as ConfigMap <code>ci-signing-public-key</code> in <code>ci</code>), <code>system/kyverno/templates/verify-ci-images.yaml</code> (Audit; images <code>registry.&lt;domain&gt;/*</code>; key from that ConfigMap through a context entry; attestations <code>https://slsa.dev/provenance/v1</code> and <code>https://spdx.dev/Document</code>)
+- Test: <code>test/offline/ci_signing_test.go</code>, existing <code>TestOpenBao*</code> render tests extended</p>
+<p><strong>Interfaces:</strong>
+- Produces: role <code>ci-signer</code>, key <code>ci-signing</code>, ConfigMap <code>ci/ci-signing-public-key</code> key <code>cosign.pub</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write <code>TestCISigningRender</code></strong>: OpenBao's initialize enables <code>transit</code>, creates <code>ci-signing</code>, and its <code>ci-signer</code> policy allows only <code>transit/sign/ci-signing*</code> and <code>transit/keys/ci-signing</code> read; the role binds <code>ci-signer</code>@<code>ci</code> with audience <code>openbao</code>; the Kyverno policy is Audit, matches <code>registry.&lt;domain&gt;/*</code>, reads the ConfigMap and requires both attestations; production-only like <code>verify-lab-image</code> if the sandbox cannot satisfy it (the sandbox's e2e spec decides; record which).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run</strong> — Expected: FAIL.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Implement</strong> the stanzas, the Job (image <code>openbao</code> pinned as the server; <code>kubectl</code> from the image <code>lab</code> uses or a pinned kubectl image) and the policy.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Run</strong> the test and <code>scripts/check-secret-stores</code>, <code>scripts/ci-check policy</code> — Expected: PASS.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong> <code>feat(ci): images signed by OpenBao's transit key, audited by Kyverno</code>.</li>
+</ul>
+<h3 id="task-6-lab-forgejo-sync-rotation-idle">Task 6: <code>lab</code>: Forgejo sync, rotation, idle</h3>
+<p><strong>Files:</strong>
+- Modify: <code>cli/internal/forgejo/sync.go</code> (+ test): drop <code>ensureWoodpeckerClient</code> and <code>WoodpeckerPath</code>, delete an OAuth2 application <code>woodpecker</code> if present; add <code>ensureCIBot</code> (local user <code>ci-bot</code>, member of <code>ci</code>'s team <code>developers</code>, refused if its login source is Kanidm, token with scopes <code>write:repository</code> written to <code>ci/forgejo-token</code>) and <code>ensureCIWebhook</code> (org <code>ci</code> webhook, type <code>forgejo</code>, events <code>push</code> and <code>pull_request</code>, URL <code>http://forgejo-eventsource-svc.ci:&lt;port&gt;&lt;path&gt;</code>, header <code>Authorization: Bearer &lt;ci/generated/webhook&gt;</code>, active; replaced when its URL, events or header differ)
+- Modify: <code>cli/internal/cli/infra_forgejo.go</code> (+ test) for the new arguments
+- Modify: <code>cli/internal/rotate/{catalog.yaml,catalog.go,rotate.go,forgejo.go,generated.go,check.go}</code> (+ tests): remove kinds <code>woodpecker-agent</code>, <code>woodpecker-token</code>, <code>generated-org-secret</code> and entries <code>woodpecker.agent</code>, <code>woodpecker.admin-token</code>, <code>forgejo.woodpecker-oauth</code>; delete <code>woodpecker.go</code> and its test; <code>registry.ci</code> becomes <code>generated</code> with readers <code>zot</code> and <code>ci</code> (Secret <code>registry</code>, no workload), <code>idle: ci</code>; new <code>ci.webhook</code> (generated, class 1, readers <code>ci</code> EventSource Deployment; after the value changes, the rotation runs <code>forgejo sync</code>'s webhook step with the new header — through the same function), <code>forgejo.ci-bot-token</code> (<code>forgejo-token</code>, <code>settings: {account: ci-bot}</code>, readers <code>ci</code>'s ExternalSecret <code>forgejo</code>), <code>kanidm-client.argo-workflows</code> (<code>kaniop-client</code>, class 2, Deployment <code>argo-workflows-server</code>), <code>ci.signing-key</code> (<code>manual</code>, the reason from the spec)
+- Modify: <code>cli/internal/cli/secrets.go</code> (+ test): idle <code>ci</code>: no Pending or Running pod with label <code>workflows.argoproj.io/workflow</code> in <code>ci</code>; drop <code>woodpecker</code>
+- Modify: <code>cli/internal/backup/restore.go</code>, <code>cli/internal/workload/workload.go</code> (+ tests): drop Woodpecker's references
+- Modify: <code>platform/secrets-rotation/{values.yaml,templates/rbac.yaml}</code>, OpenBao's <code>rotator</code> policy, as <code>lab secrets check</code> requires</p>
+<p><strong>Interfaces:</strong>
+- Consumes: Task 3's paths, port and path; Task 1's Deployment name.
+- Produces: <code>forgejo.Sync(ctx, ep, adminPassword, tokens, webhook WebhookTarget) error</code> with <code>type WebhookTarget struct{ URL, Secret string }</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the failing tests</strong>: <code>TestSyncCIBot</code> (creates, keeps, refuses a Kanidm-sourced <code>ci-bot</code>), <code>TestSyncCIWebhook</code> (creates, leaves an equal one, replaces a different one, ignores other hooks), <code>TestSyncDeletesWoodpeckerClient</code>, <code>TestIdleCI</code>, catalog tests for the new entries and that no kind or entry names Woodpecker; existing tests updated.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run</strong> <code>just cli::test</code> — Expected: the new ones FAIL.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Implement.</strong></li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Run</strong> <code>just cli::test cli::check</code> and <code>scripts/ci-check rotation-catalog</code> — Expected: PASS.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong> <code>feat(lab): org ci's webhook and bot, the CI's secrets in the catalog, Woodpecker's gone</code>.</li>
+</ul>
+<h3 id="task-7-woodpecker-removed-everywhere-else">Task 7: Woodpecker removed everywhere else</h3>
+<p><strong>Files:</strong>
+- Delete: <code>platform/woodpecker/</code>, <code>test/offline/woodpecker_test.go</code>, <code>test/e2e/woodpecker_sandbox_test.go</code>, <code>docs/how-to-guides/woodpecker.md</code>
+- Modify: <code>system/falco/values.yaml</code> (the memfd exception's namespace <code>ci</code>), <code>system/kyverno/values.yaml</code> (user-namespace note), <code>system/egress/values.yaml</code> (drop <code>woodpecker</code>), <code>.cluster-scan-accepted.yaml</code> (Woodpecker's rows → Argo's controller and the Sensor's Workflow creation, with reasons, if kubescape flags them), <code>platform/forgejo/values.yaml</code> (comment: org <code>ci</code> serves Argo), <code>platform/openbao/values.yaml</code> (drop <code>woodpecker/generated/agent</code>), <code>platform/generated-secrets/values.yaml</code> (drop <code>woodpecker.agent</code>), <code>scripts/check-backup-groups</code> (drop <code>platform/woodpecker:data</code>), <code>scripts/check-mesh-policies</code>, <code>system/csi-hostpath/templates/driver.yaml</code>, <code>infra/_modules/k3d/k3d.yaml</code>, <code>infra/_modules/metal/flake/profiles/k3s-server.nix</code>, <code>infra/_modules/metal/flake/seccomp/README.md</code> (comments: Argo's build pods), <code>test/offline/{external_secrets_render_test.go,secrets_rotation_render_test.go,velero_test.go,scan_test.go}</code>, <code>test/offline/fixtures/e2e-selection.json</code>, <code>test/scopes.yaml</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write <code>TestNoWoodpecker</code></strong>: <code>git grep -il woodpecker</code> outside <code>docs/superpowers/</code> and this test lists nothing.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run</strong> — Expected: FAIL with the list.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Remove and rewrite</strong> each reference (changing a nix comment does not change the nodes' build: check <code>nix flake check</code> if the file is evaluated).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Run</strong> <code>scripts/ci-check all</code> — Expected: PASS.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong> <code>refactor(ci): Woodpecker removed</code>.</li>
+</ul>
+<h3 id="task-8-e2e-specs">Task 8: e2e specs</h3>
+<p><strong>Files:</strong>
+- Create: <code>test/e2e/ci_test.go</code> (<code>CI</code>, <code>CIRestrictions</code>), <code>test/e2e/sso_argo_workflows_test.go</code> (<code>SSOArgoWorkflows</code>)
+- Modify: <code>test/e2e/seccomp_test.go</code> (<code>WoodpeckerSeccomp</code> → <code>CISeccomp</code>), <code>test/e2e/{forgejo_test.go,secrets_test.go,secrets_rotation_test.go,testbed_test.go}</code>, <code>test/scopes.yaml</code> (labels <code>ci</code>, <code>sso</code>), <code>test/offline/fixtures/e2e-selection.json</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the specs</strong> as the spec's Testing section lists them, plus Review Focus 4 (an inline-template Workflow refused) and 5 (two pushes, two statuses on their own commits). The fixture repository is created by the spec in <code>ci</code> through Forgejo's API as <code>forgejo_admin</code> and deleted after; images verified with <code>cosign verify --key</code> the ConfigMap's key and <code>cosign verify-attestation --type slsaprovenance1|spdxjson</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run</strong> <code>go vet ./test/...</code> and <code>TestE2EKeepsSelection</code> — Expected: PASS (the specs need the sandbox to run).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Commit</strong> <code>test(ci): the golden path, its restrictions, SSO and seccomp in the sandbox</code>.</li>
+</ul>
+<h3 id="task-9-documentation">Task 9: documentation</h3>
+<p><strong>Files:</strong>
+- Create: <code>docs/how-to-guides/in-cluster-ci.md</code>
+- Modify: <code>mkdocs.yml</code>, <code>docs/reference/architecture/overview.md</code>, <code>docs/how-to-guides/{secrets-rotation,supply-chain,runtime-detection,cluster-scan,backup-and-restore,deploy-to-forgejo,public-surface}.md</code>, <code>docs/concepts/secrets-management.md</code>, <code>docs/installation/sandbox.md</code>, <code>docs/reference/roadmap.md</code>, <code>README.md</code>, <code>CLAUDE.md</code> (roadmap 10f done when merged; the order "10f → OpenTelemetry → Backstage → blog with Rollouts, then 12b"; Ideas' tracing line moves to the roadmap; the production list trades Woodpecker's points for Argo's: two-node builds on Ceph, <code>ci</code>'s pods reaching <code>git.</code>/<code>registry.</code> through public DNS, the signing key's first export), <code>docs/superpowers/deferred-minors.md</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write them</strong>; <code>mkdocs build --strict</code> — Expected: PASS.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Commit</strong> <code>docs(ci): Argo's guide replaces Woodpecker's; roadmap and production list</code>.</li>
+</ul>
+<h3 id="task-10-the-sandbox-needs-the-persons-go-ahead">Task 10: the sandbox (needs the person's go-ahead)</h3>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: STOP and report</strong>: the sandbox is needed (<code>just dev-fresh</code> from <code>/home/nixos/homelab</code> once, since OpenBao's initialize stanzas changed). The person decides when, given Windows' RAM.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> <code>just dev-fresh</code> (or <code>just dev --apps all</code> on a fresh cluster) — Expected: the scoped specs pass, <code>CI</code>, <code>CISeccomp</code>, <code>CIRestrictions</code>, <code>SSOArgoWorkflows</code> included; Falco's baseline has no new unaccepted event.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3:</strong> final whole-branch review, fixes, PR into <code>dev</code> (the person approves the merge).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020 - 2024 Khue Doan
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.expand", "navigation.instant", "navigation.sections", "search.highlight", "search.share"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

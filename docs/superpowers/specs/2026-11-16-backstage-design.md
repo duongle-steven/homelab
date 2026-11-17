@@ -62,7 +62,7 @@ repository's rules if they fit.
   and only `homelab-admins` may execute templates (`fetch:*`, `publish:gitea`, `catalog:register`, and `debug:log` at
   most; no `fs:delete` outside the workspace, no shell action).
 - A Backstage credential that can write to the cluster or to Argo CD: the Kubernetes and Argo CD plugins read only.
-- Daily `just dev` paying Backstage's memory: in the sandbox it is an optional component *(user)*.
+- *(user, 2026-11-16, reversed 2026-11-17)*: first an optional component in the sandbox; then always deployed there, since about 600 MB fits and paperless and OpenCloud, rarely needed, are the optional ones (each `just dev` builds the image, Docker reusing unchanged layers).
 - Two lists of apps kept by hand (homepage's and the catalog's) that drift apart.
 
 ## Constraints
@@ -131,9 +131,8 @@ creates, not by Backstage itself.
 - Secrets in OpenBao through ESO, each with its rotation-catalog entry: the auth session secret, the backend's service
   token keys, the Forgejo token, the Argo CD token (the Kanidm client's secret is kaniop's, the database's
   CloudNativePG's).
-- In the sandbox an optional component: synced only when the cluster Secret carries `homelab/app-backstage`, which
-  `just dev --apps backstage|all` or a change under `backstage/` or `platform/backstage/` sets (the justfile's
-  `optional_apps` learns paths outside `apps/`); Actions' release, retarget and on-demand sandboxes run `--apps all`.
+- Always synced in the sandbox (`system/argocd/values-dev.yaml`), its image built by every `just dev`
+  (`scripts/build-backstage-image`) *(user, 2026-11-17)*.
 - Traces: the OpenTelemetry Node SDK in the backend, exporting OTLP to `gateway-collector.opentelemetry:4318`;
   `backstage` joins the gateway's `senders`.
 - Egress: in the sandbox, GitHub (443) for the catalog and TechDocs (below); production needs none (everything it reads
@@ -186,8 +185,7 @@ creates, not by Backstage itself.
 
 ## Testing
 
-Specs labelled `backstage` (in `test/scopes.yaml` with `backstage/**` and `platform/backstage/**`), skipped when the
-optional component is absent and failing when the list names it:
+Specs labelled `backstage` (in `test/scopes.yaml` with `backstage/**` and `platform/backstage/**`, and in `full`):
 
 - signing in through Kanidm (the browser tests' path) lands on the home page for an admin and for an editor; a user
   only in `homelab-users` is refused;

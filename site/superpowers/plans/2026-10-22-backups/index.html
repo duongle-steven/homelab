@@ -1,0 +1,2934 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://github.com/khuedoan/homelab/assets/27996771/d33be1af-3687-4712-a671-4370da13cc92">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Step 11a: Backups Implementation Plan - Khue's Homelab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#step-11a-backups-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-header__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Khue's Homelab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Step 11a: Backups Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-nav__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Khue's Homelab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/testbed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testbed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/staging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staging (optional)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/external-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/post-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/vpn-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VPN setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/user-onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/secrets-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/certificate-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/development-shell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development shell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing infrastructure code
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-to guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-to guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alternate-dns-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alternate DNS setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/expose-services-to-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expose services to the internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backup-and-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup and restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/secrets-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rotating secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/security-logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/runtime-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runtime detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/kiali/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    See the mesh with Kiali
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy: Kyverno and Pod Security Admission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/supply-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/cluster-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/public-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/sandbox-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/deploy-to-forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy to Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/renovate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renovate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/in-cluster-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-cluster CI: Argo Workflows and Argo Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backstage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backstage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/add-or-remove-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add or remove nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/single-node-cluster-adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single node cluster adjustments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/media-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/updating-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating documentation (this website)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_26" id="__nav_5_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Troubleshooting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/troubleshooting/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/decision-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#global-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-focus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review Focus
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Review Focus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-0-spec-changes-found-while-planning-needs-the-users-approval-before-task-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 0: Spec changes found while planning (needs the user's approval before Task 1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-1-volsync-removed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 1: VolSync removed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-2-forgejo-on-cloudnativepg-in-the-sandbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 2: Forgejo on CloudNativePG in the sandbox
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-3-spike-restore-under-the-operators-throwaway-by-hand-on-the-sandbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 3: Spike: restore under the operators (throwaway, by hand, on the sandbox)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-4-backup-groups-on-every-pvc-and-their-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 4: Backup groups on every PVC, and their check
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-5-the-bucket-and-its-credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 5: The bucket and its credentials
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-6-systemvelero-and-the-sandboxs-storage-and-s3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 6: system/velero, and the sandbox's storage and S3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-7-lab-backup-core-listing-picking-and-enabling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 7: lab backup core: listing, picking and enabling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-8-lab-backup-push" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 8: lab backup push
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-9-lab-backup-restore-and-testbackup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 9: lab backup restore, and TestBackup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-10-docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 10: Docs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-11-final-review-and-pr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 11: Final review and PR
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="step-11a-backups-implementation-plan">Step 11a: Backups Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Volume data that is not in git survives mistakes (hourly local snapshots) and the loss of every node (daily
+copies on R2), and comes back only by a command.</p>
+<p><strong>Architecture:</strong>
+- <strong>Velero</strong> (<code>system/velero</code>) backs up labelled PVCs only, through CSI snapshots and its data mover (Kopia), to an
+  S3 bucket: R2 in production, an in-cluster S3 server in the sandbox.
+- <strong>Local snapshots:</strong> an hourly CronJob takes plain <code>VolumeSnapshot</code>s and prunes them, with no dependency on the
+  internet.
+- <strong>The sandbox gets CSI snapshots</strong> from csi-driver-host-path and runs Forgejo on CloudNativePG, so the sandbox
+  proves the same path production uses.
+- <strong><code>lab backup</code></strong> (<code>cli/internal/backup</code>) pushes, lists, enables and restores.</p>
+<p><strong>Tech Stack:</strong>
+- Velero with <code>velero-plugin-for-aws</code>;
+- csi-driver-host-path and snapshot-controller (sandbox);
+- versitygw (sandbox S3);
+- CloudNativePG;
+- OpenTofu (<code>infra/_modules/backup</code>, Cloudflare provider);
+- Go: cobra, client-go dynamic, fake clients in tests;
+- the Go sandbox tests in <code>test/</code>.</p>
+<p><strong>Spec:</strong> <code>docs/superpowers/specs/2026-10-22-backups-design.md</code> (the changes of Task 0 are written into it first).</p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li><strong>Versions:</strong> latest stable release of every chart, image and tool, pinned exactly. Pin a digest when an image has
+  no version tag. If Velero's chart ships an older app version than Velero's latest release, pin the image to the
+  latest release.</li>
+<li><strong>Scope:</strong> backups hold PersistentVolumeClaims and their data only, never other Kubernetes resources.</li>
+<li><strong>Groups:</strong></li>
+<li><code>daily</code> (off-site every day, plus local snapshots): OpenBao, Kanidm, Forgejo (<code>forgejo-data</code> and <code>forgejo-db</code>),
+    Woodpecker's server, ntfy, Matrix (Dendrite and its PostgreSQL).</li>
+<li><code>manual</code> (off-site only through <code>lab backup push</code>, plus local snapshots): Actual Budget, paperless, OpenCloud.</li>
+<li><code>none</code>: zot, Loki, ollama, jellyfin, and everything else.</li>
+<li><strong>Local snapshots:</strong> hourly, kept 48 hours, taken and restored without the internet.</li>
+<li><strong>Off-site retention:</strong> 30 copies kept per schedule and per app (a count, never an age: see Task 0).</li>
+<li><strong>Restore:</strong> only by command. OpenBao and the apps come from the same backup run, and Forgejo's two volumes from
+  the same run, snapshotted one right after the other.</li>
+<li><strong>Uploads of group <code>manual</code>:</strong> never without the person seeing the size first.</li>
+<li><strong>Credentials:</strong> the Kopia repository password and the R2 credentials live in OpenTofu's state on R2, never only in
+  OpenBao.</li>
+<li><strong>Mesh and egress rules from CLAUDE.md hold</strong> (AuthorizationPolicy <code>allow</code>, port 15008 in a chart's
+  NetworkPolicies, the webhook pod label). Velero's namespace gets egress 443 in production only.</li>
+<li><strong>No VolSync left anywhere:</strong> <code>system/volsync-system</code>, the <code>privileged-movers</code> annotation, the <code>scopes.yaml</code>
+  entries, the docs.</li>
+</ul>
+<h2 id="review-focus">Review Focus</h2>
+<ol>
+<li><strong>A fresh install that is never restored and never enabled must keep its backups.</strong> A fresh install sees the
+   bucket's old backups. Nothing may delete them, whether by expiry, prune or a schedule (Task 7's prune test and
+   Task 9's <code>TestBackup</code> step "fresh state is read-only").</li>
+<li><strong>A restore must not pick a backup the new cluster made of its own empty volumes.</strong> The default is the newest
+   backup that completed before this cluster's creation (<code>kube-system</code>'s <code>creationTimestamp</code>) (Task 9,
+   <code>TestPickBackupIgnoresOwnBackups</code>).</li>
+<li><strong>Argo CD must not undo a restore in progress.</strong> It must not scale the app back up or recreate an empty PVC while
+   <code>lab</code> replaces it (Task 9, <code>TestRestorePausesSync</code>, and <code>TestBackup</code>).</li>
+<li><strong>A PVC added later without a group</strong> must fail the basic checks, not silently stay out of the backups (Task 4,
+   <code>scripts/check-backup-groups</code> with a fixture).</li>
+<li><strong>The size prompt with no TTY or with <code>--yes</code>:</strong> <code>lab backup push</code> without a terminal and without <code>--yes</code> must
+   refuse, not upload (Task 9, <code>TestPushRefusesWithoutConfirmation</code>).</li>
+</ol>
+<hr />
+<h3 id="task-0-spec-changes-found-while-planning-needs-the-users-approval-before-task-1">Task 0: Spec changes found while planning (needs the user's approval before Task 1)</h3>
+<p><strong>Files:</strong>
+- Modify: <code>docs/superpowers/specs/2026-10-22-backups-design.md</code>
+- Modify: <code>CLAUDE.md</code> (roadmap line 11a)</p>
+<p>Write these into the spec. These deviations were found while planning:</p>
+<ol class="task-list">
+<li><strong>Read-only by default instead of <code>make infra restore=1</code></strong> (decision 8).</li>
+<li>Velero is synced by Argo CD from git as soon as a cluster exists, before anyone can pass a flag. A forgotten
+     flag would let a fresh install's Velero expire the old backups.</li>
+<li>So in git the backup location is <code>ReadOnly</code> and every schedule <code>paused</code>, and Argo CD ignores those two fields.</li>
+<li><code>lab backup enable</code> switches them once: on a brand-new homelab, or after a restore was checked.
+     <code>lab backup disable</code> switches back.</li>
+<li>A PrometheusRule fires when no backup succeeded for 26 hours. That also catches a cluster never enabled.</li>
+<li><strong>Retention by count, not by age:</strong></li>
+<li>Velero's own expiry is set far out (<code>ttl: 87600h</code>).</li>
+<li>A prune CronJob keeps the newest 30 completed backups per schedule and per app, and runs only while the
+     location is <code>ReadWrite</code>.</li>
+<li>A cluster dead for months therefore loses nothing.</li>
+<li><strong>Kanidm</strong> goes through Velero like every other volume (crash-consistent SQLite).</li>
+<li>kaniop 0.19's own backups (<code>KanidmBackupSchedule</code>) require their own S3 repository: a second restore path, as
+     with CloudNativePG.</li>
+<li>If Task 2's spike shows kaniop cannot take a restored volume, fall back to kaniop's backups and say so in the
+     PR.</li>
+<li>
+<p><strong>The sandbox gets CSI snapshots</strong> from csi-driver-host-path, its default StorageClass. Its S3 server is
+   versitygw. Local snapshots and Velero's CSI data mover then run in the sandbox too; only Ceph's specifics stay on
+   the production checklist.</p>
+</li>
+<li class="task-list-item">
+<p><input type="checkbox" disabled checked/> <strong>Step 1:</strong> Write the four changes into the spec's decisions 5, 8 and 9 and into its non-goals, and mark the
+  spec "amended 2026-10-22 (planning)". Update CLAUDE.md's 11a line: replace <code>make infra env=production restore=1
+  keeps the backups read-only</code> with <code>read-only until lab backup enable, 30 copies kept by count</code>.</p>
+</li>
+<li class="task-list-item"><input type="checkbox" disabled checked/> <strong>Step 2:</strong> Commit <code>docs: 11a's spec amended (read-only by default, retention by count, CSI in the sandbox)</code>.</li>
+</ol>
+<h3 id="task-1-volsync-removed">Task 1: VolSync removed</h3>
+<p><strong>Files:</strong>
+- Delete: <code>system/volsync-system/</code>
+- Modify: <code>system/argocd/values.yaml</code> (the <code>volsync.backube/privileged-movers</code> annotation and its comment; drop
+  <code>annotations:</code> if it ends up empty)
+- Modify: <code>test/scopes.yaml</code> (the <code>system/volsync-system/**</code> line)
+- Modify: <code>system/argocd/values-dev.yaml</code> and <code>values-seed.yaml</code>, if they restate it</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> <code>git grep -n -i volsync</code> lists only <code>docs/superpowers/</code> history and <code>docs/how-to-guides/backup-and-restore.md</code>, which Task 10 rewrites.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> <code>scripts/ci-check all</code> passes, with no VolSync render left in <code>lab test charts</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3:</strong> Commit <code>refactor: VolSync removed (step 11a uses Velero)</code>.</li>
+</ul>
+<h3 id="task-2-forgejo-on-cloudnativepg-in-the-sandbox">Task 2: Forgejo on CloudNativePG in the sandbox</h3>
+<p><strong>Files:</strong>
+- Modify: <code>platform/forgejo/values-dev.yaml</code>:
+  - drop <code>database.cnpg.enabled: false</code>;
+  - set <code>database.cnpg.instances: 1</code> and <code>size: 1Gi</code>;
+  - drop the <code>DB_TYPE: sqlite3</code> override and <code>additionalConfigFromEnvs: []</code>.
+- Modify: <code>system/argocd/values-dev.yaml</code>: add <code>platform/cloudnative-pg</code> to <code>root</code>'s directories.
+- Modify: <code>platform/cloudnative-pg/values.yaml</code>: comment "the sandbox uses SQLite and does not sync it" →
+  "production and the sandbox".
+- Modify: <code>test/scopes.yaml</code>: <code>platform/cloudnative-pg/**</code> maps to the Forgejo group.
+- Modify: <code>CLAUDE.md</code>:
+  - the sandbox section "Forgejo runs on SQLite in the sandbox and PostgreSQL … in production" → PostgreSQL in
+    both;
+  - the production checklist line "CloudNativePG and Forgejo on PostgreSQL were only rendered": keep only "three
+    instances".</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Measure before.</strong> Record <code>free -m</code>, the k3d node's memory (<code>docker stats --no-stream</code>) and the sum of
+  <code>kubectl top pods -A</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> <code>scripts/render-chart platform/forgejo dev</code> shows a <code>Cluster</code> <code>forgejo-db</code> with one instance, and
+  Forgejo's <code>app.ini</code> source has <code>DB_TYPE = postgres</code>. <code>scripts/check-mesh-policies</code> passes.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3:</strong> Commit, then <code>make dev tests='Test(Forgejo|Woodpecker|Secrets)'</code> passes: TestForgejo,
+  TestForgejoDeploy, TestWoodpecker, TestSecrets*.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Measure after</strong> and write both measurements into the PR body notes
+  (<code>scratchpad/pr-11a.md</code>).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5:</strong> Commit <code>feat(forgejo): the sandbox runs Forgejo on CloudNativePG, as production does</code>.</li>
+</ul>
+<h3 id="task-3-spike-restore-under-the-operators-throwaway-by-hand-on-the-sandbox">Task 3: Spike: restore under the operators (throwaway, by hand, on the sandbox)</h3>
+<p>Nothing from this task is committed except its findings. It answers the questions the later tasks depend on.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> By hand, on the sandbox:</li>
+<li>install csi-driver-host-path, which ships its VolumeSnapshotClass;</li>
+<li>install snapshot-controller with its CRDs;</li>
+<li>install versitygw (<code>posix</code> backend on an emptyDir, static credentials);</li>
+<li>install Velero (CSI feature, node agent, the AWS plugin, data mover) pointing at versitygw;</li>
+<li>make a hostpath StorageClass the default, then recreate Forgejo's namespace so its PVCs land on it.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Forgejo.</strong> Push a repository and open an issue. Back up namespace <code>forgejo</code> with
+  <code>snapshotMoveData: true</code>, labelled PVCs only. Then:</li>
+<li>pause Argo CD's automated sync on Application <code>forgejo</code>;</li>
+<li>scale Forgejo to 0 and hibernate the CNPG cluster (<code>cnpg.io/hibernation=on</code>);</li>
+<li>delete both PVCs;</li>
+<li><code>velero restore create --include-resources persistentvolumeclaims,persistentvolumes</code>;</li>
+<li>un-hibernate, scale up, resume sync.</li>
+</ul>
+<p>Record:
+  - Does CNPG start on the restored volume (system identifier, the <code>forgejo-db-app</code> password)?
+  - Does Forgejo show the repository and the issue?
+  - Does Argo CD stay synced?
+- [ ] <strong>Step 3: Kanidm.</strong> Create a person, back up, restore the same way. Is Kanidm's StatefulSet scaled by kaniop, so
+  Kanidm's <code>replicas: 0</code> must be patched instead? Does kaniop reconcile its admin and OAuth2 secrets against the
+  restored database?
+- [ ] <strong>Step 4: OpenBao.</strong> Write a key, then:
+  1. <code>bao operator raft snapshot save</code> from inside the pod, with a token from a role bound to the pod's own
+     projected token with audience <code>openbao</code>;
+  2. delete the key;
+  3. restore the PVC and run <code>bao operator raft snapshot restore -force</code>.</p>
+<p>Is the key back, and does it unseal by itself?
+- [ ] <strong>Step 5: Local path.</strong> Delete a PVC and recreate it with <code>dataSource</code> set to a <code>VolumeSnapshot</code>. Does Argo CD
+  report a diff?
+- [ ] <strong>Step 6:</strong> Write the answers into the plan under "Spike findings" (below), adjust Tasks 6–9 where an answer
+  differs from what they assume, commit <code>docs: 11a's spike findings</code>, and <code>make dev-clean &amp;&amp; make dev</code> to drop the
+  hand-made changes.</p>
+<p><strong>Spike findings</strong> (2026-10-22, sandbox, Velero 1.18.4, CloudNativePG 1.30.1, kaniop 0.19.0, csi-driver-host-path
+1.19.0, versitygw 1.9.0):</p>
+<ol>
+<li><strong>The CSI data mover works against versitygw.</strong> Backup <code>spike-1</code> of <code>forgejo-data</code> and <code>forgejo-db-1</code> (PVCs and
+   PVs only, label selector) completed with 4 items; its snapshots were cleaned up after the move.</li>
+<li><strong>A restore with the workloads stopped needs <code>restorePVC.ignoreDelayBinding: true</code></strong> in the node agent's ConfigMap
+   (<code>--node-agent-configmap</code>). Without it, <code>WaitForFirstConsumer</code> classes keep each DataDownload waiting for a
+   consumer pod.</li>
+<li><strong>The short name <code>backup</code> is CloudNativePG's <code>Backup</code>.</strong> lab, tests and docs use <code>backups.velero.io</code> and
+   <code>restores.velero.io</code>.</li>
+<li><strong>Pausing one Application:</strong> <code>ignoreApplicationDifferences: [{jsonPointers: [/spec/syncPolicy/automated]}]</code> on its
+   ApplicationSet keeps the pause. Without it, the ApplicationSet restores <code>automated</code> within seconds.</li>
+<li><strong>CloudNativePG:</strong> the volume restores, but Velero drops the PVC's <code>ownerReferences</code>, and without them CNPG
+   declares the cluster "unrecoverable" (pausing its reconciliation does not help). The order that works:</li>
+<li><code>cnpg.io/hibernation=on</code>;</li>
+<li>wait for no pods;</li>
+<li><code>cnpg.io/reconciliationLoop=disabled</code>;</li>
+<li>delete the PVCs;</li>
+<li>restore;</li>
+<li>set each PVC's controller <code>ownerReference</code> to the <code>Cluster</code> (its current uid);</li>
+<li>remove the reconciliation annotation, then the hibernation annotation;</li>
+<li>restart Forgejo's pod, whose init container crash-looped while the database was down.</li>
+</ol>
+<p>Forgejo then showed the repository, its commit and its issue, and Argo CD stayed Synced and Healthy (Velero's
+   extra labels make no diff).
+6. <strong>Kanidm:</strong> Velero restores its volume. Kanidm is stopped through kaniop's <code>Kanidm</code> CR
+   (<code>spec.replicaGroups[0].replicas: 0</code>, then back to 1). The deleted person came back, so kaniop's own backups are
+   not needed.
+7. <strong>kaniop writes <code>kanidm-admin-passwords</code> and every <code>&lt;client&gt;-kanidm-oauth2-credentials</code> only when the Secret is
+   missing.</strong>
+   - When Kanidm's data is replaced, the Secrets keep stale values: the idm_admin login fails and every app's SSO
+     breaks.
+   - So after a Kanidm restore, lab deletes those Secrets in every namespace and restarts their readers. kaniop
+     recreates them from Kanidm's data within seconds; verified by comparing hashes.
+8. <strong>OpenBao:</strong> <code>bao operator raft snapshot save</code> and <code>restore -force</code> work with the admin role, and OpenBao stays
+   unsealed (static seal).
+   - Velero's hooks run only for pods in the backup, and backups hold PVCs only, so the snapshot cannot be a hook.
+   - Instead, a CronJob in namespace <code>openbao</code>, hourly at :55, uses OpenBao's image, service account
+     <code>openbao-snapshot</code> and a new role <code>snapshot</code> (projected token, audience <code>openbao</code>, policy <code>read</code> on
+     <code>sys/storage/raft/snapshot</code>). It writes <code>raft.snap</code> into its own PVC <code>openbao-snapshots</code> (group <code>daily</code>). The
+     raft volume <code>data-openbao-0</code> is group <code>none</code>.
+   - Restore means restoring <code>openbao-snapshots</code>, then a Job (service account <code>openbao-admin</code>, role <code>admin</code>) runs
+     <code>bao operator raft snapshot restore -force</code> against <code>http://openbao.openbao:8200</code>.
+9. <strong>The local path:</strong> a PVC recreated with the old one's labels, annotations and <code>ownerReferences</code> plus
+   <code>dataSource: VolumeSnapshot</code> restored Forgejo, through the same CNPG order as finding 5. Argo CD reported no diff.
+10. <strong>Velero's CSI support requires the VolumeSnapshotClass label <code>velero.io/csi-volumesnapshot-class: "true"</code>.</strong>
+    Rook's class needs it too (<code>cephBlockPoolsVolumeSnapshotClass.labels</code>).</p>
+<p>Effect on the later tasks:
+- <strong>Task 6:</strong>
+  - the node agent's ConfigMap (finding 2);
+  - the class label (finding 10);
+  - the OpenBao snapshot CronJob, its role and its PVC (finding 8), instead of the hook;
+  - <code>csi-hostpath</code>'s classes as in the spike.
+- <strong>Task 9:</strong>
+  - <code>RestoreApp</code> follows findings 5, 6, 7 and 9 per kind of workload;
+  - OpenBao follows finding 8;
+  - all names are <code>backups.velero.io</code>/<code>restores.velero.io</code>.
+- <strong>Task 4:</strong> OpenBao's <code>daily</code> is its <code>openbao-snapshots</code> PVC.</p>
+<h3 id="task-4-backup-groups-on-every-pvc-and-their-check">Task 4: Backup groups on every PVC, and their check</h3>
+<p><strong>Files:</strong>
+- Create: <code>scripts/check-backup-groups</code>.
+  - It renders every chart and app in production and dev, as <code>scripts/check-mesh-policies</code> does.
+  - It fails when a <code>PersistentVolumeClaim</code>, a StatefulSet's <code>volumeClaimTemplates</code> entry, a CNPG <code>Cluster</code>
+    (<code>inheritedMetadata.labels</code>) or a kaniop <code>Kanidm</code> (its <code>volumeClaimTemplate</code>) lacks the label <code>homelab/backup</code>
+    with a value of <code>daily</code>, <code>manual</code> or <code>none</code>.
+  - It fails when the label's value differs from the table in Global Constraints. The table is restated in the
+    script as <code>EXPECTED</code> (component → group); everything else is <code>none</code>.
+- Create: <code>test/fixtures/backup-groups/</code> with one chart missing the label; <code>test/backup_groups_test.go</code>
+  (<code>TestCheckBackupGroups</code>, offline) runs the script against it and expects failure, and against the repository and
+  expects success.
+- Modify: every chart and app holding a PVC to set the label. Known holders: <code>platform/openbao</code>, <code>platform/kanidm</code>,
+  <code>platform/forgejo</code> (data and <code>database.yaml</code>), <code>platform/woodpecker</code>, <code>platform/zot</code>, <code>system/loki</code>,
+  <code>apps/{ntfy,actualbudget,paperless,opencloud,jellyfin,ollama,homepage,wireguard}.yaml</code>, <code>apps/matrix</code>. The script
+  finds the rest.
+- Modify: <code>scripts/ci-check</code> (run it with the other <code>check-*</code>) and <code>.github/workflows/checks.yaml</code>:
+  - a job <code>backup-groups</code> like <code>mesh</code>;
+  - add it to <code>checks</code>' <code>needs</code>.
+- Modify: <code>test/scopes.yaml</code>: the script and fixture, as the other check scripts are mapped.
+- Modify: CLAUDE.md's Rules or Sandbox section, one line: "every PVC carries <code>homelab/backup: daily|manual|none</code>
+  (<code>scripts/check-backup-groups</code>)".</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> Write <code>TestCheckBackupGroups</code>. It runs <code>scripts/check-backup-groups --root test/fixtures/backup-groups</code> and expects exit 1 with the PVC's name in stderr.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> <code>go test ./... -run TestCheckBackupGroups</code> (in <code>test/</code>) fails because the script does not exist.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3:</strong> Write the script and label every holder.</li>
+<li>A StatefulSet's <code>volumeClaimTemplates</code> change cannot be applied to an existing StatefulSet. Note in CLAUDE.md's
+    sandbox section that a sandbox built before 11a needs <code>make dev-fresh</code> once. Production has never run.</li>
+<li>If a chart cannot label its PVC, set the label from a wrapper template (CLAUDE.md's pattern). If neither works,
+    list it in the script's <code>UNLABELLED</code> with the reason, and Task 6 selects it by name.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4:</strong> The test passes; <code>scripts/ci-check all</code> passes.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5:</strong> Commit <code>feat: every PVC declares its backup group (homelab/backup), checked</code>.</li>
+</ul>
+<h3 id="task-5-the-bucket-and-its-credentials">Task 5: The bucket and its credentials</h3>
+<p><strong>Files:</strong>
+- Create: <code>infra/_modules/backup/{main.tf,outputs.tf,variables.tf,versions.tf}</code> from upstream <code>nixos</code>'s
+  <code>infra/_modules/backup</code>, with our conventions:
+  - the account from <code>data "cloudflare_accounts"</code> as <code>infra/_modules/cloudflare</code> does, with no
+    <code>cloudflare_account_id</code> variable;
+  - the provider versions of <code>infra/_modules/cloudflare/versions.tf</code>;
+  - a postcondition that the permission group "Workers R2 Storage Bucket Item Write" exists;
+  - <code>prevent_destroy</code> on the bucket and on the password.
+- The module's outputs:
+  - <code>secrets</code> = <code>{"velero/repository" = {cloud = &lt;AWS credentials file&gt;}, "velero/encryption" = {password =
+    &lt;random_password&gt;}}</code>;
+  - <code>location</code> = <code>{bucket, endpoint}</code>.
+- Create: <code>infra/production/backup/terragrunt.hcl</code> (<code>resource_prefix = "homelab-production"</code>).
+- Modify: <code>infra/production/secrets/terragrunt.hcl</code>: a <code>dependency "backup"</code> (mock outputs as for <code>cloudflare</code>), its
+  <code>secrets</code> merged into <code>inputs.secrets</code>.
+- Modify: <code>platform/infra-secrets/values.yaml</code>: <code>velero/repository</code> (<code>[cloud]</code>) and <code>velero/encryption</code>
+  (<code>[password]</code>).
+- Modify: <code>scripts/check-secret-stores</code>, if it lists infra secrets.
+- The location's bucket and endpoint are not secrets. They reach <code>system/velero</code> through
+  <code>infra/production/cluster/config.json</code> as <code>backup.bucket</code> and <code>backup.endpoint</code>, the account id staying out of
+  git: the endpoint is <code>https://&lt;account&gt;.r2.cloudflarestorage.com</code>.
+  - Instead of the endpoint, put it in <code>velero/repository</code> as a second property <code>endpoint</code>, read by an
+    ExternalSecret-templated BSL config. The builder picks whichever <code>scripts/check-env-config</code> accepts.
+  - If the endpoint goes into the secret, <code>config.json</code> gets only <code>backup.bucket</code>.
+- Test: <code>make -C infra check</code> validates the new unit. <code>test/state_scripts_test.go</code> or a new offline test checks that
+  <code>terragrunt hcl validate</code> covers <code>infra/production/backup</code>, where the existing tests enumerate units.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> Write the module and unit; <code>make -C infra check</code> passes.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> <code>scripts/ci-check all</code> passes, including <code>check-secret-stores</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3:</strong> Commit <code>feat(infra): the backup bucket on R2, its write-only token and Kopia's password</code>.</li>
+</ul>
+<h3 id="task-6-systemvelero-and-the-sandboxs-storage-and-s3">Task 6: <code>system/velero</code>, and the sandbox's storage and S3</h3>
+<p><strong>Files:</strong>
+- Create: <code>system/velero/</code> (Chart.yaml with chart <code>velero</code> latest from <code>https://vmware-tanzu.github.io/helm-charts</code>,
+  values.yaml, values-dev.yaml, templates/).
+  - <strong>Plugin:</strong> <code>velero-plugin-for-aws</code>, latest, pinned, as upstream's initContainer.
+  - <strong>Server:</strong> <code>configuration.features: EnableCSI</code>, <code>deployNodeAgent: true</code>, <code>snapshotsEnabled: false</code>.
+  - <strong>Credentials:</strong> ExternalSecrets <code>velero-credentials</code> (<code>velero/repository</code>) and <code>velero-repo-credentials</code>
+    (<code>velero/encryption</code> → key <code>repository-password</code>).
+  - <strong>Backup location <code>default</code>:</strong> <code>accessMode: ReadOnly</code> in git, with the Application's <code>ignoreDifferences</code> on
+    <code>/spec/accessMode</code> of <code>BackupStorageLocation</code>. Add it to the <code>root</code> ApplicationSet's <code>templatePatch</code> for
+    <code>velero</code>, since <code>RespectIgnoreDifferences=true</code> is already on.
+  - <strong>Schedule <code>daily</code>:</strong> <code>0 2 * * *</code> in <code>global.timezone</code>, <code>paused: true</code> in git (ignored the same way),
+    <code>template.ttl: 87600h</code>, <code>snapshotMoveData: true</code>, <code>labelSelector: {matchLabels: {homelab/backup: daily}}</code>,
+    <code>includedResources: [persistentvolumeclaims, persistentvolumes]</code>.
+    - Plus whatever the data mover needs. The spike tells whether <code>volumesnapshots</code> must be included.
+  - <strong>Velero's pre-backup hook for OpenBao:</strong> a <code>bao operator raft snapshot save</code> into
+    <code>/openbao/data/snapshots/raft.snap</code>.
+    - It is declared as pod annotations on OpenBao (<code>pre.hook.backup.velero.io/*</code>) in <code>platform/openbao/values.yaml</code>.
+      The pod is not in the backup, so if Velero runs hooks only on included pods, the spike's way applies instead:
+      a CronJob five minutes before the schedule, in namespace <code>openbao</code>.
+    - It logs in with a new role <code>snapshot</code>, bound to <code>openbao</code>'s service account, with a projected token of
+      audience <code>openbao</code> and a policy reading <code>sys/storage/raft/snapshot</code>. Add both to <code>initialize</code>.
+  - <strong>Prune CronJob <code>prune</code>:</strong> hourly, image <code>alpine/kubectl</code> pinned as in <code>system/istio-system</code>, script
+    <code>files/prune.sh</code>.
+    - It does nothing unless <code>BackupStorageLocation/default</code> is <code>ReadWrite</code>.
+    - Otherwise it groups completed Backups by the label <code>velero.io/schedule-name</code>, or <code>homelab/app</code> for manual
+      ones, keeps the newest 30 of each, and deletes the rest by creating <code>DeleteBackupRequest</code>s.
+  - <strong>Snapshot CronJob <code>snapshots</code>:</strong> hourly, same image, <code>files/snapshots.sh</code>.
+    - For each PVC labelled <code>homelab/backup</code> in (<code>daily</code>, <code>manual</code>), sorted so a namespace's PVCs are taken one right
+      after the other, it creates <code>VolumeSnapshot</code> <code>&lt;pvc&gt;-&lt;yyyymmddhh&gt;</code> with labels <code>homelab/snapshot: hourly</code>,
+      <code>homelab/pvc: &lt;pvc&gt;</code>.
+    - It deletes that label's snapshots older than 48 hours.
+    - ClusterRole: PVCs get/list; volumesnapshots get/list/create/delete.
+  - <strong>Metrics and alert:</strong> a ServiceMonitor, and a <code>PrometheusRule</code> <code>VeleroNoRecentBackup</code>: <code>time() -
+    max(velero_backup_last_successful_timestamp{schedule="daily"}) &gt; 26*3600</code>, or the metric absent, for 1h.
+    Alertmanager's existing route sends it to ntfy.
+  - <strong>Mesh:</strong>
+    - <code>templates/authorization-policy.yaml</code> <code>allow</code>: Prometheus on the metrics ports, plus the node agent's
+      in-namespace calls.
+    - The node agent and the data mover's pods: check whether they need <code>istio.io/dataplane-mode: none</code> (they are
+      not webhooks). <code>scripts/check-mesh-policies</code> passes.
+- Modify: <code>system/egress/values.yaml</code>: <code>velero</code> → 443, production only (CLAUDE.md's internet table and
+  <code>scripts/check-env-config</code>).
+- Create (sandbox only):
+  - <strong><code>system/csi-hostpath/</code>:</strong> csi-driver-host-path's deploy manifests vendored as templates at a pinned release,
+    plus snapshot-controller and its CRDs (the piraeus chart that <code>system/rook-ceph</code> already uses, same version).
+  - <strong>Its classes:</strong> StorageClass <code>csi-hostpath</code> with the default annotation, and a default VolumeSnapshotClass.
+  - <strong>The sandbox node's StorageClass:</strong> <code>infra/_modules/k3d/k3d.yaml</code> keeps local-path but drops its default
+    annotation (k3s <code>--disable=local-storage</code> would remove it; keep it for anything created before Argo CD).
+- Modify: <code>system/velero/values-dev.yaml</code>:
+  - versitygw as <code>templates/s3-dev.yaml</code>, rendered when <code>.Values.devS3.enabled</code>: a Deployment and Service <code>s3</code> in
+    namespace <code>velero</code>, posix backend on a 2Gi PVC labelled <code>homelab/backup: none</code>;
+  - its credentials from a generated secret <code>velero.s3</code> (destinations <code>velero/generated/s3</code>) added through
+    <code>platform/generated-secrets/values-dev.yaml</code>'s <code>extraSecrets</code>, with a sandbox-only Kopia password the same way;
+  - the BSL pointing at <code>http://s3.velero:7070</code>;
+  - no egress.
+- Modify:
+  - <code>system/argocd/values-dev.yaml</code>: <code>system/velero</code> and <code>system/csi-hostpath</code>;
+  - <code>test/scopes.yaml</code>: a <code>Backup</code> group (velero, csi-hostpath, the openbao hook, <code>cli/internal/backup</code>, the tests),
+    with <code>full</code> and the related groups;
+  - Argo CD's sync-wave or retry notes if csi-hostpath must exist before other PVCs. On a fresh sandbox every PVC
+    must land on <code>csi-hostpath</code>, not on local-path: Argo CD retries a PVC whose StorageClass does not exist yet only
+    if no default is set. Decide from the spike and write the reason next to the setting.
+- Test (offline): <code>test/velero_test.go</code> <code>TestVeleroRender</code>, which renders production and dev and asserts:
+  - the BSL is <code>ReadOnly</code>, and the schedule <code>paused</code> with ttl <code>87600h</code>, <code>snapshotMoveData</code>, and the selector
+    <code>homelab/backup: daily</code>;
+  - no schedule includes anything but PVC-related kinds;
+  - the prune and snapshot CronJobs exist;
+  - dev has <code>s3</code> and production does not;
+  - production's egress for <code>velero</code> is 443.</p>
+<p>Add it to <code>scripts/ci-check</code>'s offline tests.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> Write <code>TestVeleroRender</code>; it fails.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> Write the charts until it passes; <code>scripts/ci-check all</code> passes.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3:</strong> Shell-test the two scripts.</li>
+<li><code>test/velero_scripts_test.go</code> runs <code>prune.sh</code> and <code>snapshots.sh</code> against a fake <code>kubectl</code> on <code>PATH</code>, as
+    <code>test/cni_watchdog_test.go</code> does.</li>
+<li><strong>Prune:</strong><ul>
+<li>with <code>ReadOnly</code> it deletes nothing;</li>
+<li>with <code>ReadWrite</code> and 32 completed backups of one schedule plus 3 manual ones of one app, it deletes exactly
+  the 2 oldest scheduled ones;</li>
+<li>a failed backup is never counted among the kept 30, and is never the only one left.</li>
+</ul>
+</li>
+<li><strong>Snapshots:</strong> it creates one per labelled PVC and deletes only ones older than 48 hours.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4:</strong> Commit, <code>make dev scope=full</code> on a fresh sandbox (<code>make dev-fresh</code>), all green. Measure memory again
+  and add it to the PR notes.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5:</strong> Commit <code>feat(velero): Velero backs up labelled volumes; hourly local snapshots; CSI snapshots and S3 in the sandbox</code>.</li>
+</ul>
+<h3 id="task-7-lab-backup-core-listing-picking-and-enabling">Task 7: <code>lab backup</code> core: listing, picking and enabling</h3>
+<p><strong>Files:</strong>
+- Create: <code>cli/internal/backup/backup.go</code>, <code>backup_test.go</code> (fake dynamic client).
+- Create: <code>cli/internal/cli/backup.go</code>, <code>backup_test.go</code>; register <code>newBackupCmd()</code> in <code>root.go</code>.</p>
+<p><strong>Interfaces (produced):</strong>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">backup</span>
+<span class="kd">type</span><span class="w"> </span><span class="nx">Client</span><span class="w"> </span><span class="kd">struct</span><span class="p">{</span><span class="w"> </span><span class="cm">/* dynamic.Interface, kubernetes.Interface */</span><span class="w"> </span><span class="p">}</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">New</span><span class="p">(</span><span class="nx">dyn</span><span class="w"> </span><span class="nx">dynamic</span><span class="p">.</span><span class="nx">Interface</span><span class="p">,</span><span class="w"> </span><span class="nx">kube</span><span class="w"> </span><span class="nx">kubernetes</span><span class="p">.</span><span class="nx">Interface</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span>
+<span class="kd">type</span><span class="w"> </span><span class="nx">Run</span><span class="w"> </span><span class="kd">struct</span><span class="p">{</span><span class="w"> </span><span class="nx">Name</span><span class="w"> </span><span class="kt">string</span><span class="p">;</span><span class="w"> </span><span class="nx">Schedule</span><span class="p">,</span><span class="w"> </span><span class="nx">App</span><span class="w"> </span><span class="kt">string</span><span class="p">;</span><span class="w"> </span><span class="nx">Started</span><span class="p">,</span><span class="w"> </span><span class="nx">Completed</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">;</span><span class="w"> </span><span class="nx">Phase</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">}</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">Runs</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span><span class="w"> </span><span class="p">([]</span><span class="nx">Run</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w">              </span><span class="c1">// Velero Backups, newest first</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">ClusterCreated</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="c1">// kube-system&#39;s creationTimestamp</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">PickRun</span><span class="p">(</span><span class="nx">runs</span><span class="w"> </span><span class="p">[]</span><span class="nx">Run</span><span class="p">,</span><span class="w"> </span><span class="nx">created</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">Run</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w">  </span><span class="c1">// name &quot;&quot; = newest Completed before created</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">Mode</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">readOnly</span><span class="w"> </span><span class="kt">bool</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">SetMode</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">readOnly</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w">     </span><span class="c1">// BSL accessMode and every Schedule&#39;s paused</span>
+</code></pre></div>
+- <strong>Commands:</strong>
+  - <code>lab backup list</code> (runs, then local snapshots by PVC);
+  - <code>lab backup enable</code>, <code>lab backup disable</code>.
+- <strong><code>enable</code></strong> prints the newest run and asks for confirmation (<code>--yes</code> skips; no TTY without <code>--yes</code> refuses).</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> Write the tests:</li>
+<li><code>TestPickBackupIgnoresOwnBackups</code>: runs at T-2d (Completed), T-1d (Failed) and T+1h (Completed, after
+    <code>created</code>=T); <code>PickRun(runs, T, "")</code> returns the T-2d run.</li>
+<li><code>TestPickBackupByName</code>;</li>
+<li><code>TestPickBackupNoneBefore</code> (an error naming <code>--backup</code>);</li>
+<li><code>TestSetModeEnables</code>: the BSL's <code>accessMode</code> becomes <code>ReadWrite</code> and both Schedules' <code>paused</code> false;</li>
+<li><code>TestEnableRefusesWithoutConfirmation</code> (no TTY, no <code>--yes</code> → error, nothing patched).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> <code>make -C cli test</code> fails.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3:</strong> Implement. Velero's GVRs are <code>velero.io/v1</code> <code>backups</code>, <code>schedules</code> and <code>backupstoragelocations</code> in
+  namespace <code>velero</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4:</strong> <code>make -C cli test check</code> passes.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5:</strong> Commit <code>feat(lab): lab backup list, enable and disable</code>.</li>
+</ul>
+<h3 id="task-8-lab-backup-push">Task 8: <code>lab backup push</code></h3>
+<p><strong>Files:</strong> <code>cli/internal/backup/push.go</code>, <code>push_test.go</code>; the command in <code>cli/internal/cli/backup.go</code>.</p>
+<p><strong>Interfaces:</strong>
+<div class="highlight"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">Size</span><span class="w"> </span><span class="kd">struct</span><span class="p">{</span><span class="w"> </span><span class="nx">Volumes</span><span class="w"> </span><span class="kt">int64</span><span class="p">;</span><span class="w"> </span><span class="nx">Bucket</span><span class="w"> </span><span class="kt">int64</span><span class="p">;</span><span class="w"> </span><span class="nx">FreeTier</span><span class="w"> </span><span class="kt">int64</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="c1">// bytes; FreeTier = 10e9</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">VolumeBytes</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">namespace</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">int64</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="c1">// kubelet stats/summary usedBytes of the namespace&#39;s PVCs labelled daily|manual</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">BucketBytes</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">int64</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w">                    </span><span class="c1">// S3 ListObjectsV2 sum, credentials and endpoint from Secret velero/velero-credentials and the BSL</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">Push</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">app</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">Run</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w">                 </span><span class="c1">// Backup homelab-&lt;app&gt;-&lt;yyyymmddhhmm&gt;, label homelab/app=&lt;app&gt;, includedNamespaces [app], selector homelab/backup in (daily,manual), snapshotMoveData; waits for Completed</span>
+</code></pre></div>
+- <strong>Pushing:</strong>
+  - <code>lab backup push &lt;app&gt;</code> prints volumes, bucket and their sum against 10 GB, then asks.
+  - It refuses while the location is <code>ReadOnly</code>, naming <code>lab backup enable</code>.
+- <strong>The sandbox's bucket:</strong>
+  - The sandbox's S3 is reached through a client-go port-forward to Service <code>velero/s3</code>.
+  - R2 is reached directly.
+  - The port-forward lives in <code>BucketBytes</code>, chosen when the BSL's <code>s3Url</code> is cluster-local.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> Write the tests:</li>
+<li><code>TestPushPrintsSizeAndAsks</code>: the output contains <code>volumes 1.2 GB</code>, <code>bucket 3.0 GB</code>, <code>after 4.2 GB of 10 GB free</code>,
+    and no Backup is created when the answer is <code>n</code>;</li>
+<li><code>TestPushRefusesWithoutConfirmation</code>;</li>
+<li><code>TestPushRefusesReadOnly</code>;</li>
+<li><code>TestPushCreatesLabelledBackup</code> (name, label, namespace, selector).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> It fails. <strong>Step 3:</strong> Implement. <strong>Step 4:</strong> <code>make -C cli test check</code> passes.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5:</strong> Commit <code>feat(lab): lab backup push shows the size before uploading</code>.</li>
+</ul>
+<h3 id="task-9-lab-backup-restore-and-testbackup">Task 9: <code>lab backup restore</code>, and <code>TestBackup</code></h3>
+<p><strong>Files:</strong>
+- Create: <code>cli/internal/backup/restore.go</code>, <code>restore_test.go</code>; the command in <code>cli/internal/cli/backup.go</code>.
+- Modify: <code>system/argocd/values.yaml</code> (both ApplicationSets): <code>ignoreApplicationDifferences</code> with
+  <code>jsonPointers: [/spec/syncPolicy/automated]</code>, so <code>lab</code> can pause one Application's sync and the ApplicationSet
+  does not put it back. Restate it in <code>values-dev.yaml</code> and <code>values-seed.yaml</code> if those restate the
+  ApplicationSets.
+- Create: <code>test/backup_test.go</code> (<code>TestBackup</code>, sandbox); <code>test/scopes.yaml</code> maps it.</p>
+<p><strong>Interfaces:</strong>
+<div class="highlight"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">Source</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="c1">// &quot;offsite&quot; | &quot;local&quot;</span>
+<span class="kd">type</span><span class="w"> </span><span class="nx">Plan</span><span class="w"> </span><span class="kd">struct</span><span class="p">{</span><span class="w"> </span><span class="nx">Run</span><span class="w"> </span><span class="nx">Run</span><span class="p">;</span><span class="w"> </span><span class="nx">Apps</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="c1">// Apps ordered: &quot;openbao&quot; first</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">PlanCluster</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">run</span><span class="w"> </span><span class="nx">Run</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">Plan</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w">           </span><span class="c1">// every namespace with a volume in the run</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">RestoreApp</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">app</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">src</span><span class="w"> </span><span class="nx">Source</span><span class="p">,</span><span class="w"> </span><span class="nx">at</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span><span class="w"> </span><span class="nx">run</span><span class="w"> </span><span class="nx">Run</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">RestoreCluster</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">p</span><span class="w"> </span><span class="nx">Plan</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span>
+</code></pre></div>
+- <strong>What <code>RestoreApp</code> does:</strong>
+  1. Pause the Application's automated sync.
+  2. Stop the app's workloads. Deployments and StatefulSets go to 0; a CNPG <code>Cluster</code> is hibernated; for a kaniop
+     <code>Kanidm</code>, follow the spike's finding.
+  3. Wait for the pods to be gone.
+  4. Delete the PVCs, keeping their labels and annotations.
+  5. Restore them:
+     - <code>offsite</code>: a Velero Restore of <code>persistentvolumeclaims,persistentvolumes</code> from the run, namespace <code>app</code>;
+     - <code>local</code>: new PVCs with the old metadata and <code>dataSource</code> = that PVC's newest <code>VolumeSnapshot</code> at or before
+       <code>at</code>.
+  6. For OpenBao, <code>bao operator raft snapshot restore -force</code> from the restored file, through exec with the admin
+     role, as the docs' commands do.
+  7. Un-hibernate and scale back up.
+  8. Resume the sync, and wait for the Application to be Synced and Healthy.</p>
+<p>On error it stops and prints what remains paused. It never resumes the sync over a half-restored volume.
+- <strong>What <code>RestoreCluster</code> does:</strong>
+  1. Refuses unless the location is <code>ReadOnly</code>.
+  2. Restores <code>openbao</code> first, then the rest.
+  3. Then force-syncs every ExternalSecret (annotation <code>force-sync</code>) and restarts every Deployment and StatefulSet
+     outside <code>openbao</code>, <code>kube-system</code> and <code>argocd</code>, so every reader takes the restored secrets.
+  4. Prints the checks from the docs and <code>lab backup enable</code>.
+- <strong>Commands:</strong>
+  - <code>lab backup restore [--backup &lt;name&gt;] [--yes]</code> (the whole cluster);
+  - <code>lab backup restore &lt;app&gt; [--from local|offsite] [--at &lt;RFC 3339&gt;] [--backup &lt;name&gt;] [--yes]</code>.
+  - The default for one app is <code>local</code> at now, which is <code>offsite</code>'s newest run when no snapshot exists.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> Write the unit tests:</li>
+<li><code>TestRestorePausesSync</code>: the order of the fake client's actions is pause → scale 0 → delete PVC → restore →
+    scale up → resume;</li>
+<li><code>TestRestoreStopsPausedOnError</code>: a failing restore leaves the sync paused and returns an error naming it;</li>
+<li><code>TestRestoreClusterOpenBaoFirst</code>;</li>
+<li><code>TestRestoreClusterRefusesReadWrite</code>;</li>
+<li><code>TestRestoreLocalPicksSnapshotAt</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> It fails. <strong>Step 3:</strong> Implement. <strong>Step 4:</strong> <code>make -C cli test check</code> passes.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Write <code>TestBackup</code></strong>, which runs alone after the others, like <code>TestNodeRestart</code>, because it rolls back
+  OpenBao. Wire it into <code>make dev</code>'s second phase and the workflows' equivalent.</li>
+<li><strong>Fresh state is read-only:</strong> the BSL is <code>ReadOnly</code>, the schedule paused, and a prune Job run by hand deletes
+     nothing.</li>
+<li>Push a repository with one commit to a new repository in org <code>ci</code>, open an issue on it, and write
+     <code>secret/smoke/backup-marker</code> in OpenBao.</li>
+<li><code>lab backup enable --yes</code>; run the schedule now (<code>velero backup create --from-schedule daily</code>, or the Go
+     equivalent); wait for Completed. Also trigger the snapshot CronJob once and see a <code>VolumeSnapshot</code> for
+     <code>forgejo-data</code> and for <code>forgejo-db</code>'s PVC.</li>
+<li>Delete the repository, the issue and the key.</li>
+<li><code>lab backup disable --yes</code>; <code>lab backup restore --backup &lt;that run&gt; --yes</code>.</li>
+<li>The repository has its commit (git clone over HTTPS with <code>dev-admin</code>), the issue is back, the key reads its
+     value, Forgejo's <code>/api/healthz</code> is ok, and every Argo CD Application is Synced and Healthy.</li>
+<li><strong>Local path:</strong> delete the issue again, <code>lab backup restore forgejo --from local --yes</code>, the issue is back.</li>
+<li><strong>Push:</strong> <code>lab backup push ntfy</code> without <code>--yes</code> and without a TTY refuses. With <code>--yes</code> it creates a
+     <code>homelab-ntfy-…</code> Backup that completes.</li>
+<li><strong>Cleanup:</strong> <code>lab backup disable --yes</code> is left as found, and the test repository is deleted.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 6:</strong> Commit, then <code>make dev tests='TestBackup'</code> passes, then <code>make dev scope=full</code> passes (TestNodeRestart
+  included).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 7:</strong> Commit <code>feat(lab): lab backup restore, one app or the whole cluster; TestBackup</code>.</li>
+</ul>
+<h3 id="task-10-docs">Task 10: Docs</h3>
+<p><strong>Files:</strong>
+- Rewrite <code>docs/how-to-guides/backup-and-restore.md</code>, covering:
+  - the three layers and the failures each covers;
+  - the groups, and how to label a new PVC;
+  - <code>lab backup list</code>, <code>push</code>, <code>enable</code> and <code>disable</code>;
+  - checking R2 usage;
+  - restoring one app, local or off-site;
+  - restoring the whole cluster on new hardware, end to end:
+    1. the passphrase and <code>make infra env=production</code>;
+    2. the cluster comes up read-only;
+    3. <code>lab backup restore</code>;
+    4. checks;
+    5. <code>lab backup enable</code>;
+  - Kanidm's and Forgejo's specific checks (<code>forgejo doctor check --all</code>);
+  - what the alert <code>VeleroNoRecentBackup</code> means.
+- <code>docs/reference/architecture/decision-records.md</code>: "Use Velero for volumes only". It covers upstream's context,
+  our differences (no resources, read-only by default, retention by count), and why there is no point-in-time
+  recovery (the spec's reason, one paragraph).
+- <code>docs/concepts/secrets-management.md</code>: the Kopia password and the R2 token live in OpenTofu's state;
+  <code>velero/repository</code> and <code>velero/encryption</code> go through <code>infra-secrets</code>.
+- <code>docs/how-to-guides/alerts.md</code>: the new alert.
+- <code>mkdocs.yml</code>, if a page is added.
+- CLAUDE.md:
+  - 11a <code>(done)</code>;
+  - the sandbox section's <code>make dev</code> test list gains <code>Backup</code>, run alone like NodeRestart;
+  - csi-hostpath is the sandbox's default StorageClass;
+  - the production checklist: Ceph snapshots and their space, Velero's data mover on Ceph, R2 and its token, the
+    first <code>lab backup enable</code> after the first deploy, Matrix's PostgreSQL restore only rendered;
+  - remove "OpenBao … Its data has no backup until step 11" and "backups of <code>forgejo-db</code> and <code>forgejo-data</code> come in
+    step 11";
+  - in the 11b line, "(after 11a, so a failed rotation can be restored)" stays true.
+- <code>docs/superpowers/deferred-minors.md</code>: for #34 and the 8b WireGuard line, decide per line whether 11a fixes it
+  (#34: a full restore takes every destination from one run, so it is fixed for a full restore; a partial restore of
+  one app still drifts, so it stays open with that narrower wording) and update it.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> Write the docs; <code>mkdocs build --strict</code> and <code>scripts/ci-check all</code> pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> Commit <code>docs: backups and restore (step 11a)</code>.</li>
+</ul>
+<h3 id="task-11-final-review-and-pr">Task 11: Final review and PR</h3>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> <code>scripts/ci-check all</code> passes; <code>make dev scope=full</code> on a fresh sandbox passed (from Task 9).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> One fresh reviewer, on the most capable model, reviews the whole branch against the spec and this
+  plan. Fix Critical and Important findings, and re-run the affected tests.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3:</strong> Push <code>feat/backups</code>, and open a PR into <code>dev</code>. Its body contains:</li>
+<li>why, what changes, and the proof with measurements;</li>
+<li>rulings, with the cost if wrong;</li>
+<li>the review's findings and fixes;</li>
+<li>the minors fixed and deferred, with <code>deferred-minors.md</code> updated.</li>
+</ul>
+<p>Label it <code>sandbox</code>: it changes the first install (default StorageClass, CNPG in the sandbox).
+- [ ] <strong>Step 4:</strong> Ask the user which minors to fix. Merge only on "merge".</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020 - 2024 Khue Doan
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.expand", "navigation.instant", "navigation.sections", "search.highlight", "search.share"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

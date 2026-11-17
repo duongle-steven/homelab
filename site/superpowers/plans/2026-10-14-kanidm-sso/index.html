@@ -1,0 +1,2828 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://github.com/khuedoan/homelab/assets/27996771/d33be1af-3687-4712-a671-4370da13cc92">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>SSO directly with Kanidm (step 5a) Implementation Plan - Khue's Homelab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#sso-directly-with-kanidm-step-5a-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-header__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Khue's Homelab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              SSO directly with Kanidm (step 5a) Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-nav__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Khue's Homelab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/testbed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testbed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/staging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staging (optional)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/external-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/post-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/vpn-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VPN setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/user-onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/secrets-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/certificate-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/development-shell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development shell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing infrastructure code
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-to guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-to guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alternate-dns-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alternate DNS setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/expose-services-to-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expose services to the internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backup-and-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup and restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/secrets-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rotating secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/security-logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/runtime-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runtime detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/kiali/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    See the mesh with Kiali
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy: Kyverno and Pod Security Admission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/supply-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/cluster-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/public-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/sandbox-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/deploy-to-forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy to Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/renovate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renovate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/in-cluster-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-cluster CI: Argo Workflows and Argo Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backstage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backstage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/add-or-remove-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add or remove nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/single-node-cluster-adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single node cluster adjustments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/media-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/updating-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating documentation (this website)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_26" id="__nav_5_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Troubleshooting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/troubleshooting/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/decision-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#global-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-focus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review Focus
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-1-tests-talk-to-kanidm-tdd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 1: Tests talk to Kanidm (TDD)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-2-kanidm-groups-client-namespaces-sandbox-smoke-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 2: Kanidm groups, client namespaces, sandbox smoke client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-3-grafana" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 3: Grafana
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-4-argo-cd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 4: Argo CD
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-5-zot-public-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 5: zot (public client)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-6-sandbox-ca-parameter-for-app-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 6: Sandbox CA parameter for app files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-7-actual-budget-sso" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 7: Actual Budget SSO
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-8-paperless-sso-and-sandbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 8: paperless SSO and sandbox
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-9-remove-dex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 9: Remove Dex
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-10-docs-and-pre-pr-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 10: Docs and pre-PR checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-11-pr-merge-sandbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 11: PR, merge, sandbox
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="sso-directly-with-kanidm-step-5a-implementation-plan">SSO directly with Kanidm (step 5a) Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Remove Dex: Grafana, Argo CD and zot log in with their own Kanidm OAuth2 clients (roles unchanged), and Actual Budget and paperless get Kanidm SSO limited to <code>homelab-budget</code> and <code>homelab-documents</code>.</p>
+<p><strong>Architecture:</strong> Each app declares a kaniop <code>KanidmOAuth2Client</code> in its own namespace (wrapper chart template, or <code>rawResources</code> in an app file). The admin tools keep the <code>homelab_groups</code> claim map; the personal-data apps are gated by a <code>scopeMap</code> on their access group. kaniop's generated Secret <code>&lt;client&gt;-kanidm-oauth2-credentials</code> replaces the <code>dex.*</code> global secrets. Tests talk to Kanidm directly with the sandbox client <code>smoke</code> and PKCE.</p>
+<p><strong>Tech Stack:</strong> Kanidm 1.11.2, kaniop 0.19.0, Grafana 13.5.1, Argo CD (argo-cd 10.10.3), zot 0.1.128, Actual Budget 26.10.0, paperless-ngx 3.3.1, Go tests (chromedp v0.16.0, terratest).</p>
+<p><strong>Spec:</strong> <code>docs/superpowers/specs/2026-10-14-kanidm-sso-design.md</code></p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li>Branch <code>feat/kanidm-sso</code> (spec committed). PR into <code>dev</code>; merge only with the user's go-ahead. Commits end with:
+  <div class="highlight"><pre><span></span><code>Co-Authored-By: Claude Opus 5.5 &lt;noreply@anthropic.com&gt;
+Claude-Session: https://claude.ai/code/session_01GZDRNK1oUcGXXSC3R6dhN2
+</code></pre></div></li>
+<li>Dev shell; no <code>rm</code> with variables or in <code>sh -c</code>.</li>
+<li>Kanidm endpoints (domain <code>D</code> = <code>khuedoan.com</code> prod, <code>127-0-0-1.nip.io</code> sandbox): authorize <code>https://auth.D/ui/oauth2</code>, token <code>https://auth.D/oauth2/token</code>, issuer and discovery <code>https://auth.D/oauth2/openid/&lt;client&gt;</code> (<code>/.well-known/openid-configuration</code>), userinfo <code>https://auth.D/oauth2/openid/&lt;client&gt;/userinfo</code>. Kanidm puts claim-map claims in both the ID token and userinfo.</li>
+<li>Every client: <code>kanidmRef: {name: kanidm, namespace: kanidm}</code>, <code>disableConsentPrompt: true</code>, <code>preferShortUsername: true</code>, <code>strictRedirectUrl: true</code>. PKCE is mandatory for every client.</li>
+<li>Role groups <code>homelab-admins</code>, <code>homelab-editors</code>, <code>homelab-users</code>; access groups <code>homelab-budget</code>, <code>homelab-documents</code>. Claim <code>homelab_groups</code> (array of short names), as in today's Dex client.</li>
+<li>Secret of a confidential client: <code>&lt;metadata.name&gt;-kanidm-oauth2-credentials</code>, keys <code>CLIENT_ID</code>, <code>CLIENT_SECRET</code>.</li>
+<li>Client namespaces allowed by the <code>Kanidm</code> CR: <code>argocd</code>, <code>grafana</code>, <code>zot</code>, <code>actualbudget</code>, <code>paperless</code>, and <code>kanidm</code> (sandbox client <code>smoke</code>).</li>
+<li>Sandbox members: <code>homelab-budget</code> = <code>dev-admin</code>, <code>dev-viewer</code>; <code>homelab-documents</code> = <code>dev-admin</code>, <code>dev-editor</code>. Production groups set no <code>members</code>.</li>
+<li>App files (<code>apps/*.yaml</code>) get the sandbox CA through <code>global.devCA</code> (<code>"true"</code> in <code>system/argocd/values-dev.yaml</code>, <code>""</code> in prod and seed) and an optional <code>custom</code> volume of ConfigMap <code>homelab-dev-ca</code> (app-template rejects <code>optional</code> on <code>configMap</code> volumes).</li>
+<li>Offline test pattern: <code>TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady</code>.</li>
+</ul>
+<h2 id="review-focus">Review Focus</h2>
+<ol>
+<li><strong>kaniop ignores clients outside its namespace selector</strong> (no error on the client, just never reconciled, no Secret). → Task 2 renders the selector; the SSO tests (Task 11) fail fast through <code>waitForSecret</code>.</li>
+<li><strong>Bootstrap renders <code>system/argocd</code> offline before kaniop's CRDs exist.</strong> → Task 4 guards the Argo CD client with <code>.Capabilities.APIVersions.Has</code>, and checks the offline render has no <code>KanidmOAuth2Client</code>.</li>
+<li><strong>Actual Budget makes the first OpenID user the server owner.</strong> → sandbox test order logs in <code>dev-admin</code> first; CLAUDE.md production note.</li>
+<li><strong>Group claim name drift:</strong> apps that still read <code>groups</code> would see SPNs/UUIDs and deny everyone. → each app task greps its render for <code>groups</code> vs <code>homelab_groups</code>; SSO tests check every role.</li>
+<li><strong>Kanidm refuses non-PKCE token requests:</strong> the smoke client and every app must send PKCE. → <code>TestIdentityPKCE</code> (offline) checks the S256 challenge; app settings enable PKCE explicitly where it is optional (Grafana, Argo CD, paperless).</li>
+</ol>
+<hr />
+<h2 id="file-structure">File Structure</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>platform/kanidm/templates/{groups.yaml,kanidm.yaml}</code>, <code>templates/smoke-client.yaml</code> (new), <code>values.yaml</code>, <code>values-dev.yaml</code></td>
+<td>groups, client namespace selector, sandbox <code>smoke</code> client</td>
+</tr>
+<tr>
+<td><code>platform/grafana/{values.yaml,values-dev.yaml,templates/kanidm-client.yaml,templates/secret.yaml}</code></td>
+<td>Grafana client and OAuth settings</td>
+</tr>
+<tr>
+<td><code>system/argocd/{values.yaml,values-dev.yaml,templates/kanidm-client.yaml,templates/oidc-secret.yaml}</code></td>
+<td>Argo CD client, OIDC and RBAC; <code>apps</code> parameters <code>global.devCA</code>; allowlists</td>
+</tr>
+<tr>
+<td><code>platform/zot/{values.yaml,values-dev.yaml,templates/kanidm-client.yaml,templates/auth-secret.yaml}</code></td>
+<td>zot public client</td>
+</tr>
+<tr>
+<td><code>apps/actualbudget.yaml</code>, <code>apps/paperless.yaml</code></td>
+<td>clients (<code>rawResources</code>), OIDC settings, sandbox CA</td>
+</tr>
+<tr>
+<td><code>platform/dex/</code></td>
+<td>deleted</td>
+</tr>
+<tr>
+<td><code>platform/global-secrets/values.yaml</code></td>
+<td>drop <code>dex.*</code></td>
+</tr>
+<tr>
+<td><code>test/identity_helpers_test.go</code>, <code>test/identity_test.go</code>, <code>test/sso_test.go</code>, <code>test/smoke_test.go</code>, <code>test/apps_test.go</code></td>
+<td>tests</td>
+</tr>
+<tr>
+<td><code>docs/**</code>, <code>CLAUDE.md</code></td>
+<td>docs</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="task-1-tests-talk-to-kanidm-tdd">Task 1: Tests talk to Kanidm (TDD)</h3>
+<p><strong>Files:</strong> <code>test/identity_helpers_test.go</code>, <code>test/identity_test.go</code>, <code>test/sso_test.go</code>, <code>test/smoke_test.go</code>, <code>test/apps_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: <code>func pkcePair() (verifier, challenge string)</code>; <code>func waitForSecret(t, namespace, name string) map[string][]byte</code>; <code>browserAuthorize</code> and <code>exchangeCode</code> against Kanidm with PKCE; <code>func smokeClientSecret(t) string</code> reading <code>kanidm/smoke-kanidm-oauth2-credentials</code>; tests <code>TestIdentityPKCE</code> (offline), <code>TestSSOActualBudget</code>, <code>TestSSOPaperless</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Failing offline test.</strong> Append to <code>test/identity_test.go</code>:</li>
+</ul>
+<p><div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">TestIdentityPKCE</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">verifier</span><span class="p">,</span><span class="w"> </span><span class="nx">challenge</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pkcePair</span><span class="p">()</span>
+<span class="w">    </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Regexp</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="s">`^[A-Za-z0-9_-]{43,128}$`</span><span class="p">,</span><span class="w"> </span><span class="nx">verifier</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">sum</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sha256</span><span class="p">.</span><span class="nx">Sum256</span><span class="p">([]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">verifier</span><span class="p">))</span>
+<span class="w">    </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Equal</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">base64</span><span class="p">.</span><span class="nx">RawURLEncoding</span><span class="p">.</span><span class="nx">EncodeToString</span><span class="p">(</span><span class="nx">sum</span><span class="p">[:]),</span><span class="w"> </span><span class="nx">challenge</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">other</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pkcePair</span><span class="p">()</span>
+<span class="w">    </span><span class="nx">assert</span><span class="p">.</span><span class="nx">NotEqual</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">verifier</span><span class="p">,</span><span class="w"> </span><span class="nx">other</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+(add imports <code>crypto/sha256</code>, <code>encoding/base64</code>). Run <code>cd test &amp;&amp; go test -run TestIdentityPKCE ./...</code> → FAIL: <code>undefined: pkcePair</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Implement</strong> in <code>test/identity_helpers_test.go</code>:</li>
+</ul>
+<p><div class="highlight"><pre><span></span><code><span class="c1">// pkcePair returns a random PKCE verifier and its S256 challenge; Kanidm requires PKCE for every client.</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">pkcePair</span><span class="p">()</span><span class="w"> </span><span class="p">(</span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">raw</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">rand</span><span class="p">.</span><span class="nx">Read</span><span class="p">(</span><span class="nx">raw</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb">panic</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">verifier</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">base64</span><span class="p">.</span><span class="nx">RawURLEncoding</span><span class="p">.</span><span class="nx">EncodeToString</span><span class="p">(</span><span class="nx">raw</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">sum</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sha256</span><span class="p">.</span><span class="nx">Sum256</span><span class="p">([]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">verifier</span><span class="p">))</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">verifier</span><span class="p">,</span><span class="w"> </span><span class="nx">base64</span><span class="p">.</span><span class="nx">RawURLEncoding</span><span class="p">.</span><span class="nx">EncodeToString</span><span class="p">(</span><span class="nx">sum</span><span class="p">[:])</span>
+<span class="p">}</span>
+</code></pre></div>
+(<code>crypto/rand</code> is already imported; add <code>crypto/sha256</code>). Rerun → PASS.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Kanidm instead of Dex.</strong> In <code>test/identity_helpers_test.go</code>:</li>
+<li>delete <code>dexURL</code>; keep <code>kanidmURL</code>, <code>smokeRedirect</code>.</li>
+<li><code>browserAuthorize</code>: build <code>verifier, challenge := pkcePair()</code>; authorize URL <code>kanidmURL + "/ui/oauth2?" + url.Values{client_id: smoke, redirect_uri: smokeRedirect, response_type: code, scope: "openid email profile groups", state: identity-test, code_challenge: challenge, code_challenge_method: S256}</code>; return the verifier as a third value (<code>(code, page, verifier string)</code>); update the doc comment ("logs in through Kanidm").</li>
+<li><code>exchangeCode(t, code, secret, verifier string)</code>: POST to <code>kanidmURL + "/oauth2/token"</code> with form <code>grant_type=authorization_code</code>, <code>code</code>, <code>redirect_uri</code>, <code>code_verifier</code>; basic auth <code>smoke</code>/secret.</li>
+<li><code>waitForIdentityStack</code>: wait for Secret <code>kanidm/smoke-kanidm-oauth2-credentials</code> and <code>kanidmURL + "/oauth2/openid/smoke/.well-known/openid-configuration"</code> (200); message "Kanidm is not ready"; update its comment.</li>
+<li><code>smokeClientSecret</code>: <code>string(waitForSecret(t, "kanidm", "smoke-kanidm-oauth2-credentials")["CLIENT_SECRET"])</code>.</li>
+<li>Add:</li>
+</ul>
+<p><div class="highlight"><pre><span></span><code><span class="c1">// waitForSecret waits for a Secret that an operator creates (kaniop client credentials) and returns its data.</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">waitForSecret</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">,</span><span class="w"> </span><span class="nx">namespace</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">][]</span><span class="kt">byte</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">options</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">k8s</span><span class="p">.</span><span class="nx">NewKubectlOptions</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">namespace</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">options</span><span class="p">.</span><span class="nx">Logger</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">logger</span><span class="p">.</span><span class="nx">Discard</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">data</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">][]</span><span class="kt">byte</span>
+<span class="w">    </span><span class="nx">require</span><span class="p">.</span><span class="nx">Eventually</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="kd">func</span><span class="p">()</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">secret</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">k8s</span><span class="p">.</span><span class="nx">GetSecretE</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">options</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="p">)</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="nx">data</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">secret</span><span class="p">.</span><span class="nx">Data</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">    </span><span class="p">},</span><span class="w"> </span><span class="mi">20</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Minute</span><span class="p">,</span><span class="w"> </span><span class="mi">15</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Secret %s/%s does not exist&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">namespace</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="p">)</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">data</span>
+<span class="p">}</span>
+</code></pre></div>
+  - <code>appLogin</code>'s comment: "logs in through Kanidm".
+- [ ] <strong>Step 4: Identity assertions.</strong> In <code>TestIdentityLogin</code>: <code>code, page, verifier := browserAuthorize(...)</code>, <code>claims := exchangeCode(t, code, secret, verifier)</code>, log and assert <code>claims["homelab_groups"]</code> equals <code>[]any{account.group}</code>. Other callers of <code>browserAuthorize</code> (<code>TestIdentityDenied</code>, <code>TestIdentityDeniedNeedsLogin</code>) ignore the verifier.
+- [ ] <strong>Step 5: New SSO tests.</strong> In <code>test/sso_test.go</code> add hosts <code>budgetHost = "budget.127-0-0-1.nip.io"</code>, <code>paperlessHost = "paperless.127-0-0-1.nip.io"</code> and:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">TestSSOActualBudget</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">skipUnlessSandbox</span><span class="p">(</span><span class="nx">t</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">base</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;https://&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">budgetHost</span>
+<span class="w">    </span><span class="nx">waitForApp</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">base</span><span class="o">+</span><span class="s">&quot;/account/login-methods&quot;</span><span class="p">)</span>
+
+<span class="w">    </span><span class="c1">// dev-admin first: the first OpenID user becomes the server owner</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="p">[]</span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">account</span><span class="w"> </span><span class="kt">string</span>
+<span class="w">        </span><span class="nx">allowed</span><span class="w"> </span><span class="kt">bool</span>
+<span class="w">    </span><span class="p">}{{</span><span class="s">&quot;dev-admin&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="s">&quot;dev-viewer&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="s">&quot;dev-editor&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">}}</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">t</span><span class="p">.</span><span class="nx">Run</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">account</span><span class="p">,</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kd">var</span><span class="w"> </span><span class="nx">start</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nx">Data</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="nx">ReturnURL</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;returnUrl&quot;`</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="s">`json:&quot;data&quot;`</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="nx">require</span><span class="p">.</span><span class="nx">Equal</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">http</span><span class="p">.</span><span class="nx">StatusOK</span><span class="p">,</span><span class="w"> </span><span class="nx">getJSON</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;POST&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">base</span><span class="o">+</span><span class="s">&quot;/account/login&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">{</span><span class="s">&quot;loginMethod&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;openid&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;returnUrl&quot;</span><span class="p">:</span><span class="w"> </span><span class="nx">base</span><span class="p">},</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">start</span><span class="p">))</span>
+<span class="w">            </span><span class="nx">token</span><span class="p">,</span><span class="w"> </span><span class="nx">page</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">actualOpenIDLogin</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">account</span><span class="p">,</span><span class="w"> </span><span class="nx">ensureCredentials</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">account</span><span class="p">),</span><span class="w"> </span><span class="nx">start</span><span class="p">.</span><span class="nx">Data</span><span class="p">.</span><span class="nx">ReturnURL</span><span class="p">,</span><span class="w"> </span><span class="nx">base</span><span class="p">)</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">!</span><span class="nx">c</span><span class="p">.</span><span class="nx">allowed</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Empty</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">token</span><span class="p">)</span>
+<span class="w">                </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">page</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Access Denied&quot;</span><span class="p">)</span>
+<span class="w">                </span><span class="k">return</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="nx">require</span><span class="p">.</span><span class="nx">NotEmpty</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">token</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;no Actual token for %s; page:\n%s&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">account</span><span class="p">,</span><span class="w"> </span><span class="nx">page</span><span class="p">)</span>
+<span class="w">            </span><span class="kd">var</span><span class="w"> </span><span class="nx">me</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nx">Data</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="nx">UserName</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;userName&quot;`</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="s">`json:&quot;data&quot;`</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Equal</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">http</span><span class="p">.</span><span class="nx">StatusOK</span><span class="p">,</span><span class="w"> </span><span class="nx">getJSON</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;GET&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">base</span><span class="o">+</span><span class="s">&quot;/account/validate&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">me</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;X-ACTUAL-TOKEN&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">token</span><span class="p">))</span>
+<span class="w">            </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Equal</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">account</span><span class="p">,</span><span class="w"> </span><span class="nx">me</span><span class="p">.</span><span class="nx">Data</span><span class="p">.</span><span class="nx">UserName</span><span class="p">)</span>
+<span class="w">        </span><span class="p">})</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">TestSSOPaperless</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">skipUnlessSandbox</span><span class="p">(</span><span class="nx">t</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">base</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;https://&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">paperlessHost</span>
+<span class="w">    </span><span class="nx">waitForApp</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">base</span><span class="o">+</span><span class="s">&quot;/accounts/login/&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="p">[]</span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">account</span><span class="w">          </span><span class="kt">string</span>
+<span class="w">        </span><span class="nx">allowed</span><span class="p">,</span><span class="w"> </span><span class="nx">superus</span><span class="w"> </span><span class="kt">bool</span>
+<span class="w">    </span><span class="p">}{{</span><span class="s">&quot;dev-admin&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="s">&quot;dev-editor&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="s">&quot;dev-viewer&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">}}</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">t</span><span class="p">.</span><span class="nx">Run</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">account</span><span class="p">,</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nx">start</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">base</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;/accounts/oidc/kanidm/login/?process=login&quot;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">!</span><span class="nx">c</span><span class="p">.</span><span class="nx">allowed</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">page</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">browserDenied</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">account</span><span class="p">,</span><span class="w"> </span><span class="nx">ensureCredentials</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">account</span><span class="p">),</span><span class="w"> </span><span class="nx">start</span><span class="p">)</span>
+<span class="w">                </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">page</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Access Denied&quot;</span><span class="p">)</span>
+<span class="w">                </span><span class="k">return</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="nx">cookies</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">appLogin</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">account</span><span class="p">,</span><span class="w"> </span><span class="nx">ensureCredentials</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">account</span><span class="p">),</span><span class="w"> </span><span class="nx">start</span><span class="p">,</span><span class="w"> </span><span class="nx">paperlessHost</span><span class="p">)</span>
+<span class="w">            </span><span class="kd">var</span><span class="w"> </span><span class="nx">me</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nx">Username</span><span class="w">    </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:&quot;username&quot;`</span>
+<span class="w">                </span><span class="nx">IsSuperuser</span><span class="w"> </span><span class="kt">bool</span><span class="w">   </span><span class="s">`json:&quot;is_superuser&quot;`</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="nx">require</span><span class="p">.</span><span class="nx">Equal</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">http</span><span class="p">.</span><span class="nx">StatusOK</span><span class="p">,</span><span class="w"> </span><span class="nx">getJSON</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;GET&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">base</span><span class="o">+</span><span class="s">&quot;/api/profile/&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">cookies</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">me</span><span class="p">))</span>
+<span class="w">            </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Equal</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">account</span><span class="p">,</span><span class="w"> </span><span class="nx">me</span><span class="p">.</span><span class="nx">Username</span><span class="p">)</span>
+<span class="w">            </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Equal</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">superus</span><span class="p">,</span><span class="w"> </span><span class="nx">me</span><span class="p">.</span><span class="nx">IsSuperuser</span><span class="p">)</span>
+<span class="w">        </span><span class="p">})</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>with helpers in <code>test/identity_helpers_test.go</code>:
+  - <code>actualOpenIDLogin(t, account, c, idpURL, appBase string) (token, page string)</code>: new browser, navigate to <code>idpURL</code>, wait <code>input#username</code>, <code>kanidmLogin</code>, then wait (30 s, like <code>browserAuthorize</code>) for a request to <code>appBase + "/openid-cb"</code> (listen to <code>network.EventRequestWillBeSent</code>) and return its <code>token</code> query parameter, or the page text when Kanidm shows "Access Denied".
+  - <code>browserDenied(t, account, c, startURL string) (string, string)</code>: navigate to <code>startURL</code>, wait <code>input#username</code>, <code>kanidmLogin</code>, poll the page text for "Access Denied" (30 s) and return it.
+  - If paperless shows allauth's confirmation page before redirecting (a form with a submit button on <code>/accounts/oidc/kanidm/login/</code>), <code>appLogin</code> and <code>browserDenied</code> click <code>button[type=submit]</code> first when <code>input#username</code> is not visible within 5 s. Implement this as an optional step in a shared <code>openLogin(ctx, startURL)</code> helper used by both.
+  - Superuser check: if <code>/api/profile/</code> does not return <code>is_superuser</code>, read it from <code>/api/ui_settings/</code> (<code>user.is_superuser</code>) instead; the assertion stays the same.
+- [ ] <strong>Step 6: Smoke lists.</strong> <code>smokeApps("dev")</code>: drop <code>{"dex", "dex"}</code>, add <code>{"paperless", "paperless"}</code>; same in <code>TestSmokeAppsForEnv</code>.
+- [ ] <strong>Step 7: Verify offline:</strong> <code>cd test &amp;&amp; gofmt -l . &amp;&amp; go vet ./... &amp;&amp; go test -run 'TestSmokeAppsForEnv|TestIdentity(HasGroup|TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady' ./...</code> → ok.
+- [ ] <strong>Step 8: Commit:</strong> <code>test: identity and SSO tests talk to Kanidm directly; Actual Budget and paperless SSO tests</code>.</p>
+<hr />
+<h3 id="task-2-kanidm-groups-client-namespaces-sandbox-smoke-client">Task 2: Kanidm groups, client namespaces, sandbox <code>smoke</code> client</h3>
+<p><strong>Files:</strong> <code>platform/kanidm/templates/groups.yaml</code>, <code>templates/kanidm.yaml</code>, <code>templates/smoke-client.yaml</code> (new), <code>values.yaml</code>, <code>values-dev.yaml</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Groups.</strong> In <code>groups.yaml</code>, range over <code>homelab-admins homelab-editors homelab-users homelab-budget homelab-documents</code>. Add to <code>values-dev.yaml</code> <code>groupMembers</code>: <code>homelab-budget: [dev-admin, dev-viewer]</code>, <code>homelab-documents: [dev-admin, dev-editor]</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Client namespaces.</strong> In <code>kanidm.yaml</code>, replace the <code>oauth2ClientNamespaceSelector</code> (today only <code>dex</code>) with:</li>
+</ul>
+<p><div class="highlight"><pre><span></span><code><span class="w">  </span><span class="c1"># Each app declares its own OAuth2 client in its namespace</span>
+<span class="w">  </span><span class="nt">oauth2ClientNamespaceSelector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchExpressions</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kubernetes.io/metadata.name</span>
+<span class="w">        </span><span class="nt">operator</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">In</span>
+<span class="w">        </span><span class="nt">values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{{</span><span class="w"> </span><span class="nv">toYaml .Values.oauth2ClientNamespaces | nindent 10</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+</code></pre></div>
+and in <code>values.yaml</code>:
+<div class="highlight"><pre><span></span><code><span class="c1"># Namespaces whose KanidmOAuth2Clients kaniop reconciles</span>
+<span class="nt">oauth2ClientNamespaces</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">argocd</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">grafana</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">zot</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">actualbudget</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">paperless</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<code>values-dev.yaml</code> restates the list with <code>kanidm</code> added (sandbox client <code>smoke</code>).
+- [ ] <strong>Step 3: <code>smoke</code> client.</strong> Create <code>templates/smoke-client.yaml</code>, rendered only when <code>.Values.smokeClient</code> (true in <code>values-dev.yaml</code> only):</p>
+<p><div class="highlight"><pre><span></span><code><span class="p p-Indicator">{{</span><span class="nv">- if .Values.smokeClient</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="c1"># Sandbox-only client used by the identity tests (test/identity_test.go)</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kaniop.rs/v1beta1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">KanidmOAuth2Client</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smoke</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{{</span><span class="w"> </span><span class="nv">.Release.Namespace</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">kanidmRef</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kanidm</span>
+<span class="w">  </span><span class="nt">displayname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Smoke test</span>
+<span class="w">  </span><span class="nt">origin</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://smoke.{{ .Values.kanidm.domain | trimPrefix &quot;auth.&quot; }}</span>
+<span class="w">  </span><span class="nt">redirectUrl</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://smoke.{{ .Values.kanidm.domain | trimPrefix &quot;auth.&quot; }}/callback</span>
+<span class="w">  </span><span class="nt">disableConsentPrompt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">preferShortUsername</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">strictRedirectUrl</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">claimMap</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">homelab_groups</span>
+<span class="w">      </span><span class="nt">joinStrategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">array</span>
+<span class="w">      </span><span class="nt">valuesMap</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">{{</span><span class="nv">- range list &quot;homelab-admins&quot; &quot;homelab-editors&quot; &quot;homelab-users&quot;</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{{</span><span class="w"> </span><span class="nv">.</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="w">          </span><span class="nt">values</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{{</span><span class="w"> </span><span class="nv">.</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="w">        </span><span class="p p-Indicator">{{</span><span class="nv">- end</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="w">  </span><span class="nt">scopeMap</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">{{</span><span class="nv">- range list &quot;homelab-admins&quot; &quot;homelab-editors&quot; &quot;homelab-users&quot;</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{{</span><span class="w"> </span><span class="nv">.</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="w">      </span><span class="nt">scopes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">openid</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">profile</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">email</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">groups</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="p p-Indicator">{{</span><span class="nv">- end</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="p p-Indicator">{{</span><span class="nv">- end</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+</code></pre></div>
+- [ ] <strong>Step 4: Verify:</strong> <code>scripts/render-chart platform/kanidm dev | yq 'select(.kind=="KanidmGroup" or .kind=="KanidmOAuth2Client") | .kind + "/" + .metadata.name'</code> lists 5 groups and <code>smoke</code>; prod lists 5 groups, no client; <code>yq 'select(.kind=="Kanidm") | .spec.oauth2ClientNamespaceSelector'</code> shows the lists.
+- [ ] <strong>Step 5: Commit:</strong> <code>feat(kanidm): access groups, per-app client namespaces, sandbox smoke client</code>.</p>
+<hr />
+<h3 id="task-3-grafana">Task 3: Grafana</h3>
+<p><strong>Files:</strong> <code>platform/grafana/values.yaml</code>, <code>values-dev.yaml</code>, <code>templates/kanidm-client.yaml</code> (new), <code>templates/secret.yaml</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Client.</strong> <code>templates/kanidm-client.yaml</code>: <code>KanidmOAuth2Client</code> <code>grafana</code> (common settings), <code>origin: https://{{ .Values.host }}</code>, <code>redirectUrl: [https://{{ .Values.host }}/login/generic_oauth]</code>, <code>claimMap</code> <code>homelab_groups</code> and <code>scopeMap</code> for the three role groups as in Task 2 Step 3. Add <code>host: grafana.khuedoan.com</code> to <code>values.yaml</code> and <code>host: grafana.127-0-0-1.nip.io</code> to <code>values-dev.yaml</code> (top level, next to <code>grafana:</code>).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: OAuth settings</strong> (<code>grafana.grafana.ini.auth.generic_oauth</code> in both files; dev restates the URLs):</li>
+</ul>
+<p><div class="highlight"><pre><span></span><code><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Kanidm</span>
+<span class="w">      </span><span class="nt">client_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">grafana</span>
+<span class="w">      </span><span class="nt">client_secret</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">$__env{CLIENT_SECRET}</span>
+<span class="w">      </span><span class="nt">scopes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openid profile email groups</span>
+<span class="w">      </span><span class="nt">auth_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth.khuedoan.com/ui/oauth2</span>
+<span class="w">      </span><span class="nt">token_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth.khuedoan.com/oauth2/token</span>
+<span class="w">      </span><span class="nt">api_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth.khuedoan.com/oauth2/openid/grafana/userinfo</span>
+<span class="w">      </span><span class="nt">use_pkce</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">role_attribute_path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;contains(homelab_groups[*],</span><span class="nv"> </span><span class="s">&#39;homelab-admins&#39;)</span><span class="nv"> </span><span class="s">&amp;&amp;</span><span class="nv"> </span><span class="s">&#39;GrafanaAdmin&#39;</span><span class="nv"> </span><span class="s">||</span><span class="nv"> </span><span class="s">contains(homelab_groups[*],</span><span class="nv"> </span><span class="s">&#39;homelab-editors&#39;)</span><span class="nv"> </span><span class="s">&amp;&amp;</span><span class="nv"> </span><span class="s">&#39;Editor&#39;</span><span class="nv"> </span><span class="s">||</span><span class="nv"> </span><span class="s">contains(homelab_groups[*],</span><span class="nv"> </span><span class="s">&#39;homelab-users&#39;)</span><span class="nv"> </span><span class="s">&amp;&amp;</span><span class="nv"> </span><span class="s">&#39;Viewer&#39;&quot;</span>
+</code></pre></div>
+  (keep <code>enabled</code>, <code>allow_sign_up</code>, <code>role_attribute_strict</code>, <code>allow_assign_grafana_admin</code>, <code>login_attribute_path</code>). <code>envFromSecrets</code>: replace <code>grafana-secrets</code> with <code>grafana-kanidm-oauth2-credentials</code>; delete <code>templates/secret.yaml</code> if it only held the Dex secret (the admin password lives in <code>grafana-admin</code>).
+- [ ] <strong>Step 3: Verify:</strong> both renders contain the client; <code>grep -c 'groups\[\*\]'</code> on the rendered <code>grafana.ini</code> is 0 and <code>homelab_groups[*]</code> appears; no <code>dex</code> string in either render.
+- [ ] <strong>Step 4: Commit:</strong> <code>feat(grafana): log in with Kanidm directly</code>.</p>
+<hr />
+<h3 id="task-4-argo-cd">Task 4: Argo CD</h3>
+<p><strong>Files:</strong> <code>system/argocd/values.yaml</code>, <code>values-dev.yaml</code>, <code>templates/kanidm-client.yaml</code> (new), <code>templates/oidc-secret.yaml</code> (delete)</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Client</strong> guarded for the offline bootstrap render:</li>
+</ul>
+<p><div class="highlight"><pre><span></span><code><span class="p p-Indicator">{{</span><span class="nv">- /* Skipped by the offline bootstrap render</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">when kaniop does not exist yet */</span><span class="p p-Indicator">}}</span>
+<span class="p p-Indicator">{{</span><span class="nv">- if .Capabilities.APIVersions.Has &quot;kaniop.rs/v1beta1/KanidmOAuth2Client&quot;</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kaniop.rs/v1beta1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">KanidmOAuth2Client</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">argocd</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{{</span><span class="w"> </span><span class="nv">.Release.Namespace</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># ...common settings, claimMap homelab_groups, scopeMap for the three role groups</span>
+<span class="w">  </span><span class="nt">origin</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://{{ index .Values &quot;argo-cd&quot; &quot;global&quot; &quot;domain&quot; }}</span>
+<span class="w">  </span><span class="nt">redirectUrl</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://{{ index .Values &quot;argo-cd&quot; &quot;global&quot; &quot;domain&quot; }}/auth/callback</span>
+<span class="w">  </span><span class="nt">secretTemplate</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Argo CD only resolves $secret:key references in Secrets with this label</span>
+<span class="w">      </span><span class="nt">app.kubernetes.io/part-of</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">argocd</span>
+<span class="p p-Indicator">{{</span><span class="nv">- end</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+</code></pre></div>
+  (kaniop 0.19's <code>secretTemplate</code> has <code>labels</code> and <code>annotations</code> at its top level.)
+- [ ] <strong>Step 2: OIDC and RBAC.</strong> <code>oidc.config</code> (prod and dev; dev uses the sandbox domain):</p>
+<p><div class="highlight"><pre><span></span><code><span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Kanidm</span>
+<span class="w">        </span><span class="nt">issuer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth.khuedoan.com/oauth2/openid/argocd</span>
+<span class="w">        </span><span class="nt">clientID</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">argocd</span>
+<span class="w">        </span><span class="nt">clientSecret</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">$argocd-kanidm-oauth2-credentials:CLIENT_SECRET</span>
+<span class="w">        </span><span class="nt">enablePKCEAuthentication</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">requestedScopes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">openid</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">profile</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">email</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">groups</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+  <code>rbac.scopes: '[homelab_groups]'</code>. Delete <code>templates/oidc-secret.yaml</code>. Remove the dev <code>SSL_CERT_DIR</code> comment's mention of Dex ("for calls to Kanidm").
+- [ ] <strong>Step 3: Verify:</strong> <code>scripts/render-chart system/argocd dev</code> has the client; <code>helm template argocd system/argocd -f system/argocd/values.yaml -f system/argocd/values-dev.yaml | grep -c KanidmOAuth2Client</code> (no <code>--api-versions</code>, as the bootstrap renders) is 0; <code>grep -c dex</code> on both renders counts only <code>dex.enabled: false</code> of the chart.
+- [ ] <strong>Step 4: Commit:</strong> <code>feat(argocd): log in with Kanidm directly</code>.</p>
+<hr />
+<h3 id="task-5-zot-public-client">Task 5: zot (public client)</h3>
+<p><strong>Files:</strong> <code>platform/zot/values.yaml</code>, <code>values-dev.yaml</code>, <code>templates/kanidm-client.yaml</code> (new), <code>templates/auth-secret.yaml</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Client</strong> <code>zot</code>: common settings, <code>public: true</code>, <code>origin: https://{{ .Values.host }}</code>, <code>redirectUrl: [https://{{ .Values.host }}/zot/auth/callback/oidc]</code>, <code>claimMap</code> <code>homelab_groups</code>, <code>scopeMap</code> for the role groups; <code>host</code> values as in Task 3.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Provider</strong> (prod and dev):</li>
+</ul>
+<p><div class="highlight"><pre><span></span><code><span class="w">            </span><span class="nt">oidc</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Kanidm</span>
+<span class="w">              </span><span class="nt">issuer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth.khuedoan.com/oauth2/openid/zot</span>
+<span class="w">              </span><span class="c1"># Public client: no secret, zot uses PKCE</span>
+<span class="w">              </span><span class="nt">clientid</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">zot</span>
+<span class="w">              </span><span class="nt">scopes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">openid</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">profile</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">email</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">groups</span><span class="p p-Indicator">]</span>
+<span class="w">              </span><span class="nt">claimMapping</span><span class="p">:</span>
+<span class="w">                </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preferred_username</span>
+<span class="w">                </span><span class="nt">groups</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">homelab_groups</span>
+</code></pre></div>
+  Comment above <code>apikey</code>: "People log in to the UI through Kanidm and create API keys for docker/crane". In <code>templates/auth-secret.yaml</code> drop the <code>client_secret</code> data and the <code>oidc-credentials.json</code> key (keep <code>htpasswd</code>).
+- [ ] <strong>Step 3: Verify:</strong> render has no <code>credentialsFile</code>, no <code>dex</code>, <code>groups: homelab_groups</code>; the client has <code>public: true</code>.
+- [ ] <strong>Step 4: Commit:</strong> <code>feat(zot): public Kanidm client with PKCE</code>.</p>
+<hr />
+<h3 id="task-6-sandbox-ca-parameter-for-app-files">Task 6: Sandbox CA parameter for app files</h3>
+<p><strong>Files:</strong> <code>system/argocd/values.yaml</code>, <code>values-dev.yaml</code>, <code>values-seed.yaml</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> Add parameter <code>global.devCA</code> to the <code>apps</code> ApplicationSet source: <code>""</code> in prod and seed, <code>"true"</code> in dev (with a comment: app files trust the sandbox CA ConfigMap when set). Verify the three renders list it. Commit <code>feat(argocd): global.devCA parameter for app files</code>.</li>
+</ul>
+<hr />
+<h3 id="task-7-actual-budget-sso">Task 7: Actual Budget SSO</h3>
+<p><strong>Files:</strong> <code>apps/actualbudget.yaml</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> add</li>
+</ul>
+<p><div class="highlight"><pre><span></span><code><span class="nt">rawResources</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">kanidm-client</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">forceRename</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actualbudget</span>
+<span class="w">    </span><span class="nt">manifest</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kaniop.rs/v1beta1</span>
+<span class="w">      </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">KanidmOAuth2Client</span>
+<span class="w">      </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">kanidmRef</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kanidm</span>
+<span class="w">          </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kanidm</span>
+<span class="w">        </span><span class="nt">displayname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Actual Budget</span>
+<span class="w">        </span><span class="nt">origin</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;https://budget.{{</span><span class="nv"> </span><span class="s">.Values.global.domain</span><span class="nv"> </span><span class="s">}}&#39;</span>
+<span class="w">        </span><span class="nt">redirectUrl</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&#39;https://budget.{{</span><span class="nv"> </span><span class="s">.Values.global.domain</span><span class="nv"> </span><span class="s">}}/openid/callback&#39;</span>
+<span class="w">        </span><span class="nt">disableConsentPrompt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">preferShortUsername</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">strictRedirectUrl</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="c1"># Actual Budget does not verify ES256 id tokens</span>
+<span class="w">        </span><span class="nt">jwtLegacyCryptoEnable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">scopeMap</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">homelab-budget</span>
+<span class="w">            </span><span class="nt">scopes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">openid</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">profile</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">email</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">groups</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+  (<code>forceRename</code> sets the object name; checked with a render.)
+- [ ] <strong>Step 2:</strong> container env:</p>
+<p><div class="highlight"><pre><span></span><code><span class="w">          </span><span class="nt">ACTUAL_OPENID_DISCOVERY_URL</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;https://auth.{{</span><span class="nv"> </span><span class="s">.Values.global.domain</span><span class="nv"> </span><span class="s">}}/oauth2/openid/actualbudget/.well-known/openid-configuration&#39;</span>
+<span class="w">          </span><span class="nt">ACTUAL_OPENID_SERVER_HOSTNAME</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;https://budget.{{</span><span class="nv"> </span><span class="s">.Values.global.domain</span><span class="nv"> </span><span class="s">}}&#39;</span>
+<span class="w">          </span><span class="nt">ACTUAL_OPENID_CLIENT_ID</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actualbudget</span>
+<span class="w">          </span><span class="nt">ACTUAL_OPENID_CLIENT_SECRET</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">valueFrom</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">secretKeyRef</span><span class="p">:</span>
+<span class="w">                </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actualbudget-kanidm-oauth2-credentials</span>
+<span class="w">                </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CLIENT_SECRET</span>
+<span class="w">          </span><span class="c1"># Only OpenID; members of homelab-budget get an account on first login</span>
+<span class="w">          </span><span class="nt">ACTUAL_OPENID_ENFORCE</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;true&quot;</span>
+<span class="w">          </span><span class="nt">ACTUAL_USER_CREATION_MODE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">login</span>
+<span class="w">          </span><span class="nt">NODE_EXTRA_CA_CERTS</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;{{</span><span class="nv"> </span><span class="s">if</span><span class="nv"> </span><span class="s">.Values.global.devCA</span><span class="nv"> </span><span class="s">}}/etc/homelab-dev-ca/ca.crt{{</span><span class="nv"> </span><span class="s">end</span><span class="nv"> </span><span class="s">}}&#39;</span>
+</code></pre></div>
+  and persistence:</p>
+<p><div class="highlight"><pre><span></span><code><span class="w">  </span><span class="nt">dev-ca</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># The sandbox CA from trust-manager; absent in production, so the volume is optional</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+<span class="w">    </span><span class="nt">volumeSpec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">configMap</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">homelab-dev-ca</span>
+<span class="w">        </span><span class="nt">optional</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">globalMounts</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/etc/homelab-dev-ca</span>
+<span class="w">        </span><span class="nt">readOnly</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+- [ ] <strong>Step 3: Verify:</strong> prod and dev renders: client with <code>homelab-budget</code>, env with the right domain, <code>NODE_EXTRA_CA_CERTS</code> empty in prod and set in dev, no literal <code>{{ .Values</code>.
+- [ ] <strong>Step 4: Commit:</strong> <code>feat(actualbudget): Kanidm SSO for homelab-budget</code>.</p>
+<hr />
+<h3 id="task-8-paperless-sso-and-sandbox">Task 8: paperless SSO and sandbox</h3>
+<p><strong>Files:</strong> <code>apps/paperless.yaml</code>, <code>system/argocd/values-dev.yaml</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> client in <code>rawResources</code> like Task 7 (name <code>paperless</code>, redirect <code>https://paperless.{{ .Values.global.domain }}/accounts/oidc/kanidm/login/callback/</code>, <code>scopeMap</code> for <code>homelab-documents</code>, <code>claimMap</code> <code>homelab_groups</code> with values for <code>homelab-admins</code> and <code>homelab-documents</code>, no legacy crypto).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> env (the provider id <code>kanidm</code> sets the callback path):</li>
+</ul>
+<p><div class="highlight"><pre><span></span><code><span class="w">          </span><span class="nt">PAPERLESS_APPS</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">allauth.socialaccount.providers.openid_connect</span>
+<span class="w">          </span><span class="nt">CLIENT_SECRET</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">valueFrom</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">secretKeyRef</span><span class="p">:</span>
+<span class="w">                </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">paperless-kanidm-oauth2-credentials</span>
+<span class="w">                </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CLIENT_SECRET</span>
+<span class="w">          </span><span class="nt">PAPERLESS_SOCIALACCOUNT_PROVIDERS</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;-</span>
+<span class="w">            </span><span class="no">{&quot;openid_connect&quot;: {&quot;OAUTH_PKCE_ENABLED&quot;: true, &quot;SCOPE&quot;: [&quot;openid&quot;, &quot;profile&quot;, &quot;email&quot;, &quot;groups&quot;],</span>
+<span class="w">            </span><span class="no">&quot;APPS&quot;: [{&quot;provider_id&quot;: &quot;kanidm&quot;, &quot;name&quot;: &quot;Kanidm&quot;, &quot;client_id&quot;: &quot;paperless&quot;,</span>
+<span class="w">            </span><span class="no">&quot;secret&quot;: &quot;$(CLIENT_SECRET)&quot;,</span>
+<span class="w">            </span><span class="no">&quot;settings&quot;: {&quot;server_url&quot;: &quot;https://auth.{{ .Values.global.domain }}/oauth2/openid/paperless&quot;}}]}}</span>
+<span class="w">          </span><span class="nt">PAPERLESS_SOCIAL_AUTO_SIGNUP</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;true&quot;</span>
+<span class="w">          </span><span class="nt">PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;true&quot;</span>
+<span class="w">          </span><span class="nt">PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS_CLAIM</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">homelab_groups</span>
+<span class="w">          </span><span class="nt">PAPERLESS_SOCIAL_ACCOUNT_SYNC_SUPERUSER_GROUP</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">homelab-admins</span>
+<span class="w">          </span><span class="nt">REQUESTS_CA_BUNDLE</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;{{</span><span class="nv"> </span><span class="s">if</span><span class="nv"> </span><span class="s">.Values.global.devCA</span><span class="nv"> </span><span class="s">}}/etc/homelab-dev-ca/ca.crt{{</span><span class="nv"> </span><span class="s">end</span><span class="nv"> </span><span class="s">}}&#39;</span>
+</code></pre></div>
+  Kubernetes expands <code>$(VAR)</code> only from earlier env entries; app-template renders an env map in alphabetical order, so <code>CLIENT_SECRET</code> precedes <code>PAPERLESS_SOCIALACCOUNT_PROVIDERS</code> (checked). Add the optional <code>dev-ca</code> volume of Task 7.
+- [ ] <strong>Step 3: Sandbox.</strong> In <code>system/argocd/values-dev.yaml</code>, add <code>apps/paperless.yaml</code> to the <code>apps</code> generator files.
+- [ ] <strong>Step 4: Verify:</strong> prod and dev renders: client, env order, JSON valid after substitution (<code>yq ... | .value</code> piped through <code>python3 -c 'import json,sys; json.loads(sys.stdin.read())'</code> with <code>$(CLIENT_SECRET)</code> present), <code>REQUESTS_CA_BUNDLE</code> empty in prod.
+- [ ] <strong>Step 5: Commit:</strong> <code>feat(paperless): Kanidm SSO for homelab-documents, in the sandbox</code>.</p>
+<hr />
+<h3 id="task-9-remove-dex">Task 9: Remove Dex</h3>
+<p><strong>Files:</strong> <code>platform/dex/</code> (delete), <code>platform/global-secrets/values.yaml</code>, <code>system/argocd/values-dev.yaml</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <code>git rm -r platform/dex</code> (then literal <code>rm -r platform/dex</code> for ignored leftovers); drop <code>dex.grafana</code>, <code>dex.gitea</code>, <code>dex.argocd</code>, <code>dex.zot</code> (and <code>dex.smoke</code> from dev extras if listed) from <code>global-secrets</code>; drop <code>platform/dex</code> from the sandbox <code>root</code> allowlist. Verify <code>grep -rn -i dex --include=*.yaml system platform apps metal | grep -v '/charts/'</code> shows only Argo CD's <code>dex.enabled: false</code>. Commit <code>chore: remove Dex</code>.</li>
+</ul>
+<hr />
+<h3 id="task-10-docs-and-pre-pr-checks">Task 10: Docs and pre-PR checks</h3>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Docs:</strong> <code>docs/getting-started/user-onboarding.md</code> (groups incl. <code>homelab-budget</code>/<code>homelab-documents</code>, grant with <code>scripts/onboard-user</code>); <code>docs/installation/sandbox.md</code> (Identity section without Dex; test accounts and groups; remove the <code>dex</code> RAM row; render examples use another chart); <code>docs/concepts/secrets-management.md</code> (the Dex restart example); <code>CLAUDE.md</code> (Sandbox: drop the Dex lines — <code>smoke</code> client is a Kanidm client, groups claim is <code>homelab_groups</code> from each app's client, no Dex restart; add the per-app client rule and access groups; production checklist: first Actual Budget OpenID user becomes the owner — add yourself to <code>homelab-budget</code> and log in first).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Checks:</strong> render prod and dev of <code>platform/kanidm</code>, <code>platform/grafana</code>, <code>system/argocd</code> (also <code>seed</code>), <code>platform/zot</code>, <code>platform/global-secrets</code>, <code>apps/actualbudget.yaml</code>, <code>apps/paperless.yaml</code>; no <code>FAIL</code>, no literal <code>{{ .Values</code> in app renders, no <code>dex</code> outside <code>dex.enabled</code>; offline tests; <code>mkdocs build --strict</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> Commit <code>docs: SSO directly with Kanidm</code>.</li>
+</ul>
+<hr />
+<h3 id="task-11-pr-merge-sandbox">Task 11: PR, merge, sandbox</h3>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> PR into <code>dev</code>; ask before merging.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> After the merge: <code>make dev</code> (expect the new SSO tests, 50 + new tests); if a client never gets a Secret, check <code>kubectl -n kanidm logs deploy/kanidm-kaniop</code> for namespace-selector messages.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <code>make dev-clean &amp;&amp; make dev</code>; measure memory (Prometheus per namespace, <code>docker stats</code>); report if above about 8 GiB.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> Mark step 5a done in <code>CLAUDE.md</code> (small PR).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020 - 2024 Khue Doan
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.expand", "navigation.instant", "navigation.sections", "search.highlight", "search.share"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,7 +1,6 @@
 package offline
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,10 +42,9 @@ func TestBackstageRender(t *testing.T) {
 	assert.Equal(t, "https://github.com/duongle-steven/homelab/blob/sandbox/backstage/templates/ci-repository/template.yaml", env("dev", "TEMPLATES_LOCATION"))
 	assert.Equal(t, "https://backstage.127-0-0-1.nip.io", env("dev", "BACKSTAGE_BASE_URL"))
 
-	// The sandbox syncs it only when the cluster Secret asks (just dev --apps backstage)
-	root := renderVelero(t, "system/argocd", "dev", `select(.kind == "ApplicationSet" and .metadata.name == "root") | .spec.generators | @json`)
-	i := strings.Index(root, `"path":"platform/backstage"`)
-	if assert.GreaterOrEqual(t, i, 0, "the sandbox's root ApplicationSet never selects platform/backstage") {
-		assert.Contains(t, root[max(0, i-400):i], `"homelab/app-backstage":"true"`, "platform/backstage without its label")
-	}
+	// The sandbox always syncs it (decided 2026-11-17); production waits for its first release
+	assert.Contains(t, renderVelero(t, "system/argocd", "dev", `select(.kind == "ApplicationSet" and .metadata.name == "root") | .spec.generators | @json`),
+		`"path":"platform/backstage"`)
+	assert.NotContains(t, renderVelero(t, "system/argocd", "dev", `select(.kind == "ApplicationSet" and .metadata.name == "root") | .spec.generators | @json`),
+		`homelab/app-backstage`)
 }

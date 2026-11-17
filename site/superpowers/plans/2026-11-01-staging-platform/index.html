@@ -1,0 +1,2522 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://github.com/khuedoan/homelab/assets/27996771/d33be1af-3687-4712-a671-4370da13cc92">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Staging platform (12a-2) Implementation Plan - Khue's Homelab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#staging-platform-12a-2-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-header__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Khue's Homelab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Staging platform (12a-2) Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-nav__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Khue's Homelab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/testbed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testbed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/staging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staging (optional)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/external-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/post-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/vpn-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VPN setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/user-onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/secrets-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/certificate-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/development-shell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development shell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing infrastructure code
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-to guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-to guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alternate-dns-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alternate DNS setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/expose-services-to-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expose services to the internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backup-and-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup and restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/secrets-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rotating secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/security-logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/runtime-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runtime detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/kiali/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    See the mesh with Kiali
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy: Kyverno and Pod Security Admission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/supply-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/cluster-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/public-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/sandbox-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/deploy-to-forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy to Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/renovate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renovate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/in-cluster-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-cluster CI: Argo Workflows and Argo Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backstage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backstage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/add-or-remove-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add or remove nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/single-node-cluster-adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single node cluster adjustments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/media-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/updating-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating documentation (this website)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_26" id="__nav_5_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Troubleshooting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/troubleshooting/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/decision-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#global-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-focus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review Focus
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Review Focus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-1-the-shared-values-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 1: The shared values layer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-2-tests-that-know-their-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 2: Tests that know their environment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-3-stagings-argo-cd-and-its-seed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 3: Staging's Argo CD and its seed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-4-lab-infra-forgejo-env-staging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 4: lab infra forgejo --env staging
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-5-staging-runs-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 5: Staging runs, measured
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-6-the-mark-and-the-release-gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 6: The mark and the release gate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-7-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 7: Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="staging-platform-12a-2-implementation-plan">Staging platform (12a-2) Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Argo CD, the platform and as many apps as fit run on staging through production's deploy path, and a
+release that changes what staging runs needs staging's mark.</p>
+<p><strong>Architecture:</strong> A shared values layer (<code>values-local.yaml</code>) gives staging and the sandbox the local CA and the
+tests' fixtures; staging's Argo CD is production's set minus an exclusion list in <code>system/argocd/values-staging.yaml</code>,
+bootstrapped from GitHub branch <code>staging</code>, then switched to <code>ops/homelab</code> on staging's Forgejo. <code>make staging</code> runs the
+suite there and writes a GitHub commit status <code>staging</code>; <code>lab infra forgejo verify</code> derives the gated paths and looks
+for that mark.</p>
+<p><strong>Tech Stack:</strong> Helm, Argo CD ApplicationSets, OpenTofu/Terragrunt, Go (<code>cli/</code>, <code>test/</code>), POSIX sh, yq, <code>gh</code>.</p>
+<p><strong>Spec:</strong> <code>docs/superpowers/specs/2026-11-01-staging-platform-design.md</code></p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li>Prerequisite: the pull request removing ollama is merged into <code>dev</code>, and this branch is rebased on it.</li>
+<li>Ideally staging is production; the reduction is one exclusion list, nothing else differs except
+  <code>values-staging.yaml</code> where staging must.</li>
+<li>Layers: production <code>values.yaml</code>; staging <code>values.yaml</code>, <code>values-local.yaml</code>, <code>values-staging.yaml</code>; sandbox
+  <code>values.yaml</code>, <code>values-local.yaml</code>, <code>values-dev.yaml</code>.</li>
+<li>The sandbox's renders are identical before and after the split.</li>
+<li>Fallback order: drop apps; squeeze the core (Ceph's OSD toward 900 MB, Prometheus off); 3.75 GB per VM with WSL at
+  12 GB; WSL at 13 GB. Three nodes and Istio stay. Whatever is left out goes in the exclusion list; 12a-2 ships with
+  what fits.</li>
+<li>Gated paths: <code>infra/staging/release-paths.yaml</code> plus every component and app staging deploys (production's set
+  minus the proved commit's exclusion list). Compared against <code>ops/homelab</code>'s <code>master</code> on Forgejo; no Forgejo: all
+  changed.</li>
+<li>The mark needs every test green, the destructive ones included (<code>TestBackupRestore</code>, <code>TestNodeRestart</code>,
+  <code>TestRotation</code>).</li>
+<li>CLAUDE.md's rules: pinned latest versions, <code>config.json</code> for environment settings, the secrets catalog, backup
+  labels, PolicyExceptions, mesh policies, <code>test/scopes.yaml</code>, deferred minors. Never print secrets; never run
+  <code>make staging</code> or <code>make dev</code> from a worktree; staging and the sandbox never run together.</li>
+</ul>
+<h2 id="review-focus">Review Focus</h2>
+<ul>
+<li>A release where only a docs file changed after the mark: <code>verify</code> passes without a rerun (Task 6's
+  <code>TestStagingGateAcceptsEarlierMark</code>).</li>
+<li>A release that changes an excluded app only: no mark needed; a release that empties the exclusion list:
+  every component counts (Task 6's <code>TestStagingGateExcludedApp</code>, <code>TestStagingGateUsesProvedExclusions</code>).</li>
+<li>A first production install with no Forgejo: everything counts as changed, so the mark is required (Task 6's
+  <code>TestStagingGateNoDeployedCommit</code>).</li>
+<li><code>--skip-staging</code> with an empty or blank reason: refused (Task 6's <code>TestSkipStagingNeedsReason</code>).</li>
+<li>A staging run interrupted after the switch to Forgejo: the next <code>make staging</code> keeps Argo CD on Forgejo, never back
+  to the seed (Task 3: <code>choose-values.sh</code>'s existing rule, asserted by <code>TestStagingBootstrapKeepsForgejo</code>).</li>
+</ul>
+<hr />
+<h3 id="task-1-the-shared-values-layer">Task 1: The shared values layer</h3>
+<p><strong>Files:</strong>
+- Create: <code>&lt;component&gt;/values-local.yaml</code> for each of the 17 components with a <code>values-dev.yaml</code>, holding what both
+  non-production environments need: the local CA and its trust (cert-manager's <code>homelab-dev-ca</code> issuer named
+  <code>letsencrypt-prod</code>, trust-manager's bundle, <code>SSL_CERT_DIR</code>), the tests' fixtures (Kanidm's <code>smoke</code> client and
+  <code>dev-admin</code>, Woodpecker's admin, the rotation CronJob on lab's image built from the checkout), and the S3 stand-in
+  for Velero (versitygw). What only the one-node sandbox needs (retentions, sizes, worker counts, the hostpath CSI, the
+  CoreDNS rewrite of <code>*.127-0-0-1.nip.io</code>, retries) stays in <code>values-dev.yaml</code>.
+- Modify: <code>scripts/render-chart</code> (load <code>values-local.yaml</code> for every env but <code>prod</code>, before <code>values-&lt;env&gt;.yaml</code>),
+  <code>scripts/env-values</code> (accept <code>staging</code>), <code>system/argocd/values-dev.yaml</code> (root's <code>valueFiles</code>: <code>values.yaml</code>,
+  <code>values-local.yaml</code>, <code>values-dev.yaml</code>), <code>scripts/check-*</code> that list values files
+- Create: <code>scripts/compare-renders</code> (renders every component and app for an env at two revisions with
+  <code>scripts/render-chart</code>, prints differing names; exit 1 on any)
+- Test: <code>test/values_layers_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: <code>scripts/render-chart &lt;dir&gt; staging</code> renders <code>values.yaml</code>, <code>values-local.yaml</code>, <code>values-staging.yaml</code>;
+  <code>scripts/env-values &lt;prod|dev|staging&gt; &lt;root|apps&gt;</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the failing test</strong></li>
+</ul>
+<p><code>TestValuesLayers</code>: for <code>system/cert-manager</code>, <code>scripts/render-chart</code> with env <code>staging</code> contains the <code>homelab-dev-ca</code>
+issuer and with env <code>prod</code> does not; for <code>system/monitoring-system</code>, the <code>staging</code> render keeps production's
+Prometheus retention while the <code>dev</code> render keeps the sandbox's one day (assert both values from the files).</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run it</strong>: <code>cd test &amp;&amp; direnv exec .. go test -run TestValuesLayers -count=1 .</code> → FAIL (no layer).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Split the 17 files and teach the scripts and <code>values-dev.yaml</code> the layer.</strong></li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Run</strong> <code>TestValuesLayers</code> → PASS; <code>scripts/compare-renders dev origin/dev HEAD</code> → no differences.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Run</strong> <code>direnv exec . scripts/ci-check all</code> (sandbox stopped) → exit 0.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 6: Commit</strong> <code>refactor(values): values-local.yaml, the layer staging and the sandbox share</code>.</li>
+</ul>
+<h3 id="task-2-tests-that-know-their-environment">Task 2: Tests that know their environment</h3>
+<p><strong>Files:</strong>
+- Create: <code>test/env_test.go</code>
+- Modify: every test with a hard-coded <code>127-0-0-1.nip.io</code> host, and the <code>*SandboxOnly</code> gates
+- Test: <code>test/env_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: <code>testDomain(t) string</code> (<code>domain</code> of <code>infra/&lt;sandbox|staging&gt;/cluster/config.json</code> from <code>ENV</code>
+  <code>dev|staging</code>); <code>localOnly(t)</code> (skips unless <code>ENV</code> is <code>dev</code> or <code>staging</code>); <code>sandboxOnly(t)</code> (skips unless <code>dev</code>,
+  for k3d, docker, the hostpath CSI and the localhost proxy), each skip naming why.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the failing test</strong> <code>TestTestDomain</code>: with <code>ENV=dev</code> it returns <code>127-0-0-1.nip.io</code>, with
+  <code>ENV=staging</code> <code>192-168-100-2.nip.io</code>, with <code>ENV=prod</code> it fails the test.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run it</strong> → FAIL (undefined).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Implement the helpers; replace hosts with <code>"&lt;app&gt;." + testDomain(t)</code>; move each gate to
+  <code>localOnly</code> unless the test needs k3d (docker, <code>sandboxAddress</code>, the hostpath CSI, the proxy), which keeps
+  <code>sandboxOnly</code>.</strong></li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Run</strong> <code>go vet ./... &amp;&amp; go test -run 'TestTestDomain|TestValuesLayers' .</code> → PASS; with <code>ENV=dev</code>, a
+  scoped <code>make dev</code> → the same tests pass as before.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong> <code>test: the suite reads its domain and gates from ENV, staging included</code>.</li>
+</ul>
+<h3 id="task-3-stagings-argo-cd-and-its-seed">Task 3: Staging's Argo CD and its seed</h3>
+<p><strong>Files:</strong>
+- Create: <code>system/argocd/values-staging.yaml</code> (production's ApplicationSets restated where Helm replaces lists: root's
+  directories with staging's extra <code>exclude: true</code> entries under one comment naming the machine they were sized for;
+  apps' files likewise (an excluded app: <code>exclude: true</code> if Argo CD's git files generator accepts it, else apps listed
+  as in <code>values-dev.yaml</code>); <code>valueFiles</code> <code>values.yaml</code>, <code>values-local.yaml</code>, <code>values-staging.yaml</code>;
+  <code>global.publicGateway: gateway</code>, <code>global.devCA: "true"</code>; the sandbox's retries)
+- Create: <code>infra/staging/{openbao,secrets,argocd}/terragrunt.hcl</code> (like the sandbox's; <code>argocd</code>: <code>values =
+  "values-staging.yaml"</code>, <code>environment = "staging"</code>, <code>seed = "values-staging.yaml"</code>, <code>seed_revision = "staging"</code>)
+- Modify: <code>infra/_modules/argocd/{main.tf,bootstrap.sh}</code> (input <code>seed_revision</code>: when <code>choose-values.sh</code> picks the
+  seed and <code>seed_revision</code> is set, the render's Forgejo repository becomes <code>seed_repository</code> at that revision, through
+  <code>set-revision.sh</code>; production keeps <code>values-seed.yaml</code>)
+- Modify: <code>Makefile</code> <code>staging</code> (force-push HEAD to GitHub branch <code>staging</code>, apply <code>infra/staging</code>, wait for Argo CD's
+  sync, <code>lab infra forgejo sync</code> then <code>push --env staging</code>, apply <code>infra/staging/argocd</code> again to switch; drop the
+  hand-applied rook-ceph render)
+- Test: <code>test/argocd_revision_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: Task 1's layer; Task 4's <code>--env staging</code>.
+- Produces: staging's exclusion list as <code>exclude: true</code> entries in <code>values-staging.yaml</code>, which Task 6 parses.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the failing tests</strong> <code>TestStagingSeedSyncsBranch</code> (rendering the bootstrap with
+  <code>environment=seed</code>, <code>seed_revision=staging</code> gives every homelab source <code>seed_repository</code> at <code>staging</code>) and
+  <code>TestStagingBootstrapKeepsForgejo</code> (with root already on Forgejo, <code>choose-values.sh</code> returns <code>values-staging.yaml</code>,
+  environment <code>staging</code>).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run</strong> <code>go test -run 'TestStagingSeed|TestStagingBootstrap' .</code> → FAIL.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Implement the module input, the units, <code>values-staging.yaml</code> and the Makefile flow.</strong></li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Run</strong> the tests → PASS; <code>make -C infra check</code> → exit 0.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong> <code>feat(staging): Argo CD from the seed branch, then ops/homelab on staging's Forgejo</code>.</li>
+</ul>
+<h3 id="task-4-lab-infra-forgejo-env-staging">Task 4: <code>lab infra forgejo --env staging</code></h3>
+<p><strong>Files:</strong>
+- Modify: <code>cli/internal/cli/infra_forgejo.go</code> (environment <code>staging</code>: endpoint through the Gateway VIP
+  <code>service_vips.gateway</code> of <code>infra/staging/cluster/config.json</code>, trusting <code>forgejo/homelab-dev-ca</code>; push builds a
+  commit with HEAD's tree like the sandbox; guards skipped), <code>cli/internal/forgejo/endpoint.go</code>
+- Test: <code>cli/internal/cli/infra_forgejo_test.go</code>, <code>cli/internal/forgejo/endpoint_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: <code>--env staging</code> for <code>sync</code> and <code>push</code>; <code>stagingEndpoint(ctx, kube, cfg) (forgejo.Endpoint, func(), error)</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the failing test</strong> <code>TestForgejoEnvStaging</code>: <code>--env staging</code> loads staging's domain and
+  kubeconfig; <code>verify --env staging</code> is refused (production only).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run</strong> <code>cd cli &amp;&amp; direnv exec .. go test ./internal/cli/ -run TestForgejoEnvStaging</code> → FAIL.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Implement.</strong></li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Run</strong> <code>make -C cli test check</code> → PASS.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong> <code>feat(cli): lab infra forgejo sync and push for staging</code>.</li>
+</ul>
+<h3 id="task-5-staging-runs-measured">Task 5: Staging runs, measured</h3>
+<p><strong>Files:</strong>
+- Modify: <code>system/argocd/values-staging.yaml</code> (the exclusion list as measured), <code>values-staging.yaml</code> of components
+  squeezed by the fallback order, <code>infra/staging/vms</code> (memory, only if the fallback reaches it),
+  <code>platform/*/values-local.yaml</code> where a fixture is missing on staging, <code>cli/internal/rotate/catalog.yaml</code>
+  (<code>environments</code> gains <code>staging</code> where an entry runs there), <code>Makefile</code> (<code>staging</code> runs the suite: <code>ENV=staging</code>, the
+  main groups then <code>BackupRestore|NodeRestart|NodePowerCut|Rotation</code> alone, like <code>make dev</code>)
+- Modify: <code>docs/installation/staging.md</code> (what runs, the exclusion list and why, the measured table)</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Stop the sandbox; <code>make staging-fresh</code></strong> with the memory logger (each VM's QEMU RSS, WSL's available
+  and swap every 30 s); add components in the spec's order; after each, record idle and under-test memory.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: When WSL's available memory falls under 1.5 GB or swap passes 1 GB, apply the next fallback step</strong>;
+  record each step taken.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Run <code>make staging</code></strong> until the whole suite passes on staging (fix tests whose gate or fixture is wrong,
+  not the expectation).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Commit</strong> <code>feat(staging): the platform and apps that fit, measured</code>.</li>
+</ul>
+<h3 id="task-6-the-mark-and-the-release-gate">Task 6: The mark and the release gate</h3>
+<p><strong>Files:</strong>
+- Create: <code>infra/staging/release-paths.yaml</code> (globs: <code>infra/_modules/metal/**</code>, <code>infra/_modules/argocd/**</code>,
+  <code>infra/staging/**</code>, <code>infra/production/**</code>, <code>system/argocd/**</code>, <code>system/istio-system/**</code>, <code>system/rook-ceph/**</code>,
+  <code>cli/internal/forgejo/**</code>, <code>cli/internal/cluster/**</code>, <code>Makefile</code>)
+- Create: <code>cli/internal/guard/staging.go</code>, <code>scripts/staging-mark</code>
+- Modify: <code>cli/internal/guard/{verify.go,github.go}</code> (<code>CommitStatus</code>), <code>cli/internal/cli/infra_forgejo.go</code>
+  (<code>--skip-staging</code>), <code>Makefile</code> (<code>staging</code> ends with <code>scripts/staging-mark HEAD</code> only when every test passed)
+- Test: <code>cli/internal/guard/staging_test.go</code>, <code>test/release_paths_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Produces:
+  - <code>func GatedPaths(root, provedCommit string) ([]string, error)</code>: <code>release-paths.yaml</code>'s globs plus
+    <code>system/&lt;x&gt;/**</code>, <code>platform/&lt;x&gt;/**</code>, <code>apps/&lt;x&gt;.yaml</code>, <code>apps/&lt;x&gt;/**</code> for every component production deploys that
+    the proved commit's <code>values-staging.yaml</code> does not exclude
+  - <code>func StagingGate(ctx, root, repository, deployed, release string, candidates []string, gh GitHub) error</code>:
+    <code>deployed</code> empty means everything changed; passes when a candidate (newest first) has status <code>staging</code> success
+    and <code>git diff --name-only &lt;candidate&gt; &lt;release&gt;</code> touches none of <code>GatedPaths(root, candidate)</code>, or when
+    <code>git diff --name-only &lt;deployed&gt; &lt;release&gt;</code> touches none
+  - <code>func (g GitHub) CommitStatus(ctx, repository, sha, context string) (string, error)</code> (state, <code>""</code> if none)
+  - <code>scripts/staging-mark &lt;sha&gt;</code>: <code>gh api repos/&lt;repo&gt;/statuses/&lt;sha&gt;</code> with context <code>staging</code>, state <code>success</code>
+  - <code>verify --skip-staging=&lt;reason&gt;</code>: refused when blank; prints the reason and records it as status <code>staging</code>
+    <code>success</code> with description <code>skipped: &lt;reason&gt;</code> on the release commit through <code>scripts/staging-mark</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the failing tests</strong> in <code>staging_test.go</code> (a git fixture repo and a fake GitHub):</li>
+<li><code>TestStagingGateAcceptsEarlierMark</code>: marked commit, then a docs-only commit → pass</li>
+<li><code>TestStagingGateRefusesUnmarked</code>: <code>system/rook-ceph/values.yaml</code> changed, no mark → error naming the path</li>
+<li><code>TestStagingGateExcludedApp</code>: only <code>apps/excalidraw.yaml</code> changed, excalidraw excluded → pass</li>
+<li><code>TestStagingGateUsesProvedExclusions</code>: the release empties the exclusion list but the proved commit excluded
+    excalidraw → excalidraw's change still needs no mark from that proof</li>
+<li><code>TestStagingGateNoDeployedCommit</code>: <code>deployed</code> empty, no mark → error</li>
+<li><code>TestSkipStagingNeedsReason</code>: <code>--skip-staging=" "</code> → error</li>
+</ul>
+<p>and <code>TestReleasePathsExist</code> in <code>test/release_paths_test.go</code>: every glob in <code>release-paths.yaml</code> matches a file.
+- [ ] <strong>Step 2: Run</strong> <code>cd cli &amp;&amp; direnv exec .. go test ./internal/guard/ -run 'TestStagingGate|TestSkipStaging'</code> →
+  FAIL.
+- [ ] <strong>Step 3: Implement; <code>Verify</code> reads the deployed commit from <code>ops/homelab</code>'s <code>master</code> (the session <code>sync</code> uses;
+  empty when Forgejo is absent) and the candidates <code>git rev-list --first-parent &lt;deployed&gt;..&lt;pull head&gt;</code>.</strong>
+- [ ] <strong>Step 4: Run</strong> <code>make -C cli test check</code> and <code>go test -run TestReleasePathsExist ./test/</code> → PASS.
+- [ ] <strong>Step 5: Commit</strong> <code>feat(cli): verify needs staging's mark for a release that changes what staging runs</code>.</p>
+<h3 id="task-7-documentation">Task 7: Documentation</h3>
+<p><strong>Files:</strong>
+- Modify: <code>docs/installation/staging.md</code> (deploy path, the mark, <code>--skip-staging</code>), <code>docs/how-to-guides/deploy-to-forgejo.md</code>,
+  <code>CLAUDE.md</code> (roadmap 12a-2 done; the values layers in Sandbox; the before-production notes this proves),
+  <code>test/scopes.yaml</code> (new paths), <code>docs/superpowers/deferred-minors.md</code>
+- [ ] <strong>Step 1: Write them; <code>mkdocs build --strict</code> → exit 0; <code>scripts/ci-check all</code> (sandbox and staging stopped)
+  → exit 0.</strong>
+- [ ] <strong>Step 2: Commit</strong> <code>docs(staging): the platform, the mark and verify's gate; roadmap 12a-2</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020 - 2024 Khue Doan
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.expand", "navigation.instant", "navigation.sections", "search.highlight", "search.share"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

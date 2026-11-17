@@ -149,12 +149,12 @@ production's data. The authoritative lists are `system/argocd/values-dev.yaml` (
 | Backups: Velero (to versitygw), CloudNativePG | yes | no | yes (to R2) |
 | Identity and secrets: Kanidm, OpenBao, External Secrets, rotation | yes | no | yes |
 | Git and CI: Forgejo, zot, Argo Workflows and Events, the golden path | yes | no | yes |
+| Backstage (built from the checkout) | yes | no | after its first release |
 | Apps: Actual Budget, Excalidraw, Homepage, Matrix, ntfy, PairDrop, Speedtest | yes | no | yes |
-| Optional: paperless, OpenCloud, Backstage | when asked or changed | no | yes (Backstage after its first release) |
+| Optional: paperless, OpenCloud | when asked or changed | no | yes |
 | Cloudflare Tunnel, external-dns, Renovate, Jellyfin and its *arr apps, Tailscale, WireGuard, the blog | no | no | yes |
 
-"Changed" means the branch changes the app's files (`backstage/` and `platform/backstage/` for Backstage), not only its
-`homelab:` description.
+"Changed" means the branch changes the app's file, not only its `homelab:` description.
 
 ## Resource usage
 

@@ -59,29 +59,13 @@ argocd-apps:
                           - path: platform/argo-events
                           - path: platform/ci
                           - path: platform/secrets-rotation
+                          - path: platform/backstage
                     - git: &config
                         repoURL: *repoURL
                         revision: *revision
                         files:
                           - path: infra/sandbox/cluster/config.json
                         pathParamPrefix: config
-        # Backstage (several hundred MB with its database): only when the cluster Secret carries homelab/app-backstage,
-        # which the bootstrap writes for what just dev --apps asks (or the branch changes backstage/ or platform/backstage/)
-        - matrix:
-            generators:
-              - clusters:
-                  selector:
-                    matchLabels:
-                      homelab/bootstrap: "true"
-                      homelab/app-backstage: "true"
-              - matrix:
-                  generators:
-                    - git:
-                        repoURL: *repoURL
-                        revision: *revision
-                        directories:
-                          - path: platform/backstage
-                    - git: *config
         # The public scan, only at stage all (system/argocd/values.yaml; the sandbox is always all)
         - matrix:
             generators:

@@ -1,0 +1,2795 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://github.com/khuedoan/homelab/assets/27996771/d33be1af-3687-4712-a671-4370da13cc92">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Step 11b: secrets rotation - Khue's Homelab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#step-11b-secrets-rotation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-header__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Khue's Homelab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Step 11b: secrets rotation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-nav__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Khue's Homelab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/testbed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testbed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/staging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staging (optional)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/external-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/post-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/vpn-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VPN setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/user-onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/secrets-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/certificate-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/development-shell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development shell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing infrastructure code
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-to guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-to guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alternate-dns-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alternate DNS setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/expose-services-to-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expose services to the internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backup-and-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup and restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/secrets-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rotating secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/security-logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/runtime-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runtime detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/kiali/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    See the mesh with Kiali
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy: Kyverno and Pod Security Admission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/supply-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/cluster-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/public-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/sandbox-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/deploy-to-forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy to Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/renovate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renovate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/in-cluster-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-cluster CI: Argo Workflows and Argo Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backstage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backstage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/add-or-remove-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add or remove nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/single-node-cluster-adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single node cluster adjustments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/media-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/updating-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating documentation (this website)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_26" id="__nav_5_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Troubleshooting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/troubleshooting/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/decision-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-one-command-one-secret-or-all-of-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. One command, one secret or all of them
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-how-a-secret-is-rotated-the-official-way-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. How a secret is rotated: the official way first
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-the-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The catalog
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-safety-around-every-rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Safety around every rotation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-scheduled-rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Scheduled rotation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Record
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-reporting-alerts-through-ntfy-and-telegram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Reporting: alerts through ntfy and Telegram
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-not-in-this-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Not in this step
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#9-anti-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Anti-goals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#10-tests-and-the-spike" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Tests and the spike
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#amendments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Amendments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#left-to-the-builder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Left to the builder
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="step-11b-secrets-rotation">Step 11b: secrets rotation</h1>
+<p>Status: design approved in chat 2026-10-24. Branch: <code>feat/secrets-rotation</code> from <code>dev</code>.</p>
+<h2 id="goal">Goal</h2>
+<p>A secret must be easy to replace in two situations:</p>
+<ul>
+<li><strong>On a schedule:</strong> this is the best practice that limits the damage of a leak nobody has noticed.</li>
+<li><strong>In an emergency:</strong> a secret is known to have leaked, or might have, and is perhaps being used. You can replace
+  just the one you suspect, or every secret at once ("assume everything leaked").</li>
+</ul>
+<p>Treat the homelab as production from the start, so this step never has to be rebuilt. Rotation should cause no
+downtime, ideally by letting the old and the new value work side by side for a while.</p>
+<p>The user decided the following in chat (2026-10-23/24):</p>
+<ul>
+<li>One command handles both cases: one secret by name, or all of them.</li>
+<li>Rotation follows each secret's official way of changing it, when it has one.</li>
+<li>Production will run several replicas wherever an app or tool needs them. That is not done in this step. The
+  sandbox keeps one replica where resources require it, and a short outage there is fine.</li>
+<li>Results reach people through ntfy, with Telegram as a second path.</li>
+</ul>
+<h2 id="context">Context</h2>
+<ul>
+<li>Upstream <code>nixos</code> (<code>fe353778</code>, 2026-10-23) has nothing to reuse. Its roadmap lists "Secrets rotation" unchecked,
+  and its <code>docs/concepts/secrets-management.md</code> only says to reapply and restart after a rotation. Follow its layout:
+  commands in <code>lab</code> (<code>cli/</code>, cobra) and secrets in OpenBao.</li>
+<li>Best practice (OWASP Secrets Management Cheat Sheet, NIST SP 800-57 and SP 800-63B, Vault/OpenBao guidance):</li>
+<li>Short-lived credentials beat rotation. Three are already short-lived here: Renovate's token is minted for each
+    run, R2's state credentials expire, and TLS certificates come from cert-manager.</li>
+<li>Automate scheduled rotation per kind of secret.</li>
+<li>Human passwords are not rotated on a schedule (NIST 800-63B), only when they may have leaked.</li>
+<li>Every secret needs a ready emergency procedure: where it lives, who reads it, what to restart, and whether the
+    old value is really revoked.</li>
+<li>Rotate without an outage: where both sides must change, keep an overlap window or change both together.</li>
+<li>Where secrets live today (<code>docs/concepts/secrets-management.md</code>):</li>
+<li>generated secrets: <code>platform/generated-secrets</code> pushes each one once (<code>IfNotExists</code>) to
+    <code>secret/&lt;namespace&gt;/generated/&lt;name&gt;</code>;</li>
+<li>OpenTofu's secrets: <code>infra/&lt;env&gt;/secrets</code> → namespace <code>infra-secrets</code> → <code>platform/infra-secrets</code> (<code>Replace</code>);</li>
+<li>Kanidm's OAuth2 client secrets and admin passwords: written by kaniop;</li>
+<li>Forgejo's <code>deploy</code> and <code>argocd</code> tokens and Woodpecker's Forgejo OAuth client: written by
+    <code>lab infra forgejo sync</code>;</li>
+<li>OpenBao's unseal key: <code>infra/&lt;env&gt;/openbao</code>;</li>
+<li>the state passphrase: the workstation (<code>scripts/rotate-state-passphrase</code>).</li>
+<li>kaniop's <code>KanidmOAuth2Client</code> has <code>spec.secretRotation</code> (<code>enabled</code>, <code>periodDays</code>): the operator regenerates the
+  client secret periodically. This is the official way for those secrets.</li>
+<li>Step 11a gives backups and <code>lab backup restore</code>, so a failed rotation can be undone.</li>
+</ul>
+<h2 id="decisions">Decisions</h2>
+<h3 id="1-one-command-one-secret-or-all-of-them">1. One command, one secret or all of them</h3>
+<ul>
+<li><code>lab secrets rotate &lt;name&gt;</code> replaces one secret.</li>
+<li><code>lab secrets rotate --all</code> replaces every secret in the catalog (decision 3). It prints the list and the expected
+  effect of each item (what restarts, who must act) and asks for confirmation. It then rotates them one after
+  another and reports each result. A failure stops the run and names what is done and what is left.</li>
+<li><code>lab secrets list</code> prints the catalog: each secret's method, class, schedule and last rotation.</li>
+<li>Names are the catalog's, e.g. <code>grafana.admin</code>, <code>ntfy.alerts-token</code>, <code>forgejo.deploy-token</code>,
+  <code>kanidm-client.grafana</code>, <code>cloudflare.cert-manager</code>.</li>
+<li><code>--yes</code> skips the confirmation, like <code>lab backup</code>. In an emergency the person runs the command from the
+  workstation. The scheduled run uses the same code (decision 5).</li>
+</ul>
+<h3 id="2-how-a-secret-is-rotated-the-official-way-first">2. How a secret is rotated: the official way first</h3>
+<p>For each secret, in this order:</p>
+<ol>
+<li><strong>Official overlap.</strong> The other side supports two valid values at once, or a new credential beside the old one:
+   several tokens per user, a new API token before the old one is deleted, several keys per GitHub App. Create
+   the new value, move every reader to it, check that they work, then revoke the old one. This needs no further
+   justification.</li>
+<li><strong>No official overlap.</strong> Classify what a short failure would do:</li>
+<li><strong>Class 1, nobody notices or it retries itself:</strong> change both sides close together and restart the readers.
+     A failed request is retried automatically (Alertmanager re-sends, kubelet retries pulls, Argo CD refetches),
+     or nothing reads the secret at runtime (admin passwords used only by people, occasionally).</li>
+<li><strong>Class 2, a person can retry:</strong> a login fails or a CI pipeline fails and is restarted. Accept it, but make it
+     unlikely: wait until the app is idle (no running Woodpecker pipeline) and run scheduled rotations at a quiet
+     hour.</li>
+<li><strong>Class 3, cannot be skipped:</strong> a failure loses data or leaves something stuck until a person repairs it. Only
+     here does the builder design a workaround that creates an overlap (e.g. a second zot user or a second OAuth2
+     client, then switch and delete the first). The spike found no class 3 secret.</li>
+<li>The catalog records each secret's method and class, and the reason for that class.</li>
+</ol>
+<h3 id="3-the-catalog">3. The catalog</h3>
+<p>The catalog is a file in the repository, e.g. <code>cli/internal/secrets/catalog.yaml</code> or Go code. The builder chooses
+its form. Each entry gives:</p>
+<ul>
+<li>the name, and where the secret lives (OpenBao path, OpenTofu resource, kaniop, Forgejo);</li>
+<li>its readers (namespace, ExternalSecret or Secret, and the workloads to restart);</li>
+<li>the method (decision 2) and the class with its reason;</li>
+<li>whether it rotates on a schedule, and its period;</li>
+<li>for secrets <code>lab</code> cannot change alone, the steps a person follows.</li>
+</ul>
+<p>A check fails when a secret exists that the catalog does not know, like <code>scripts/check-backup-groups</code> does for
+PVCs. That check covers:</p>
+<ul>
+<li>every generated secret in <code>platform/generated-secrets/values.yaml</code>;</li>
+<li>every <code>infra-secrets</code> path;</li>
+<li>every <code>KanidmOAuth2Client</code>;</li>
+<li>the Forgejo tokens.</li>
+</ul>
+<p>A new secret therefore cannot ship without a rotation entry. Entries that are never rotated stay in the catalog
+with the reason.</p>
+<p>Starting catalog. Task 1's spike (decision 10) confirmed the methods it covered; the builder fills in the rest the
+same way:</p>
+<table>
+<thead>
+<tr>
+<th>Secret</th>
+<th>Readers</th>
+<th>Method</th>
+<th>Class if no overlap</th>
+<th>Schedule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>forgejo.admin</code>, <code>grafana.admin</code>, <code>paperless.admin</code></td>
+<td>people; Forgejo's init container and <code>lab infra forgejo sync</code> use Forgejo's</td>
+<td>change it in the app (its API or CLI), then in OpenBao</td>
+<td>1 (Forgejo's: run while sync and the init container are not running)</td>
+<td>command only (human password)</td>
+</tr>
+<tr>
+<td><code>paperless.secret-key</code></td>
+<td>paperless (sessions, its Celery messages, the classifier file)</td>
+<td>no overlap: paperless has no <code>SECRET_KEY_FALLBACKS</code> setting. Change it in OpenBao, refresh, restart paperless while no task is queued; the classifier file fails its check and is retrained by the hourly task</td>
+<td>2 (every session ends, people log in again)</td>
+<td>command only</td>
+</tr>
+<tr>
+<td><code>woodpecker.agent</code></td>
+<td>Woodpecker agents: one per-agent token for each agent replica, at <code>secret/woodpecker/agent-&lt;n&gt;</code> (<code>&lt;n&gt;</code> the StatefulSet ordinal); the server's shared <code>WOODPECKER_AGENT_SECRET</code> is emptied</td>
+<td>overlap: Woodpecker 3's per-agent tokens. <code>lab</code> creates a new agent token (<code>POST /api/agents</code>, admin API, with <code>woodpecker.admin-token</code>), writes it to the replica's path, restarts that agent once no step pod runs (label <code>woodpecker-ci.org/step</code>), then deletes the old agent (<code>DELETE /api/agents/&lt;id&gt;</code>), which revokes its token. The shared secret is dropped because changing it never revokes the old value (amendment 3)</td>
+<td>n/a</td>
+<td>90 days</td>
+</tr>
+<tr>
+<td><code>woodpecker.admin-token</code> (<code>secret/woodpecker/admin-token</code>, new)</td>
+<td><code>lab</code> only (Woodpecker's admin API, for <code>woodpecker.agent</code> and <code>registry.ci</code>'s org secret)</td>
+<td>Woodpecker's token reset: <code>DELETE /api/user/token</code> with the current token signs a new one and invalidates every earlier token of that user (and its web sessions); <code>lab</code> writes the new one to OpenBao. The first token needs a person: Forgejo's site admin (<code>WOODPECKER_ADMIN</code>) signs in to Woodpecker once and writes it with the admin role, as <code>docs/how-to-guides/woodpecker.md</code> will say</td>
+<td>1 (only <code>lab</code> reads it)</td>
+<td>90 days</td>
+</tr>
+<tr>
+<td><code>registry.ci</code></td>
+<td>zot's htpasswd, Woodpecker's org secret <code>registry_password</code> (set by hand today, <code>docs/how-to-guides/woodpecker.md</code>)</td>
+<td>change in OpenBao and zot, then the org secret through Woodpecker's API</td>
+<td>2 (wait for no running pipeline)</td>
+<td>90 days</td>
+</tr>
+<tr>
+<td><code>ntfy.alerts-token</code></td>
+<td>ntfy (<code>NTFY_AUTH_TOKENS</code>), Alertmanager (<code>credentials_file</code>)</td>
+<td>overlap: ntfy accepts several tokens per user. Add the new one (ntfy restarts), switch OpenBao's value (Alertmanager reads the file at every notification, no restart), then drop the old (ntfy restarts and removes it from <code>auth.db</code>)</td>
+<td>n/a</td>
+<td>90 days</td>
+</tr>
+<tr>
+<td><code>ntfy.alerts-password</code></td>
+<td>none at runtime (only ntfy's own <code>NTFY_AUTH_USERS</code>; confirmed)</td>
+<td>change it in OpenBao, refresh <code>ntfy-auth</code>, restart ntfy</td>
+<td>1</td>
+<td>90 days</td>
+</tr>
+<tr>
+<td><code>ntfy.phone-token</code>, <code>ntfy.phone-password</code></td>
+<td>people's phones</td>
+<td>overlap: list both tokens until people confirm, then drop the old</td>
+<td>n/a</td>
+<td>command only: people must re-enter them</td>
+</tr>
+<tr>
+<td><code>forgejo.deploy-token</code>, <code>forgejo.argocd-token</code></td>
+<td><code>lab infra forgejo push</code>, Argo CD's <code>argocd-repo-forgejo</code></td>
+<td>overlap: a new Forgejo access token, then delete the old</td>
+<td>n/a</td>
+<td>90 days</td>
+</tr>
+<tr>
+<td><code>forgejo.woodpecker-oauth</code> (<code>secret/woodpecker/forgejo</code>)</td>
+<td>Woodpecker</td>
+<td>Forgejo regenerates the OAuth2 app's secret (no overlap)</td>
+<td>2 (a login fails)</td>
+<td>command only</td>
+</tr>
+<tr>
+<td><code>kanidm-client.&lt;app&gt;</code> (every confidential <code>KanidmOAuth2Client</code>)</td>
+<td>the app's Secret <code>&lt;client&gt;-kanidm-oauth2-credentials</code></td>
+<td>one-off regeneration: the annotation <code>kaniop.rs/force-secret-rotation</code> on the client (kaniop resets the secret in Kanidm, rewrites the Secret and removes the annotation), then restart the readers that read it at start (Grafana, Actual Budget, paperless, Forgejo); Argo CD picks it up live. Deleting the Secret does not regenerate it</td>
+<td>2 (a login fails until the restart, open sessions stay)</td>
+<td>command only: kaniop's own period restarts no reader</td>
+</tr>
+<tr>
+<td><code>kanidm.admin-passwords</code> (<code>admin</code>, <code>idm_admin</code>)</td>
+<td><code>lab</code>, the tests, kaniop</td>
+<td>kaniop writes new ones when their Secret is deleted (confirmed on kaniop 0.19.0)</td>
+<td>1</td>
+<td>command only</td>
+</tr>
+<tr>
+<td><code>cloudflare.cert-manager</code>, <code>cloudflare.external-dns</code></td>
+<td>cert-manager, external-dns</td>
+<td>no overlap for the readers: <code>-replace</code> of the <code>cloudflare_account_token</code> destroys the old token in the same apply, before <code>infra-secrets</code> pushes the new one; cert-manager reads the token at each DNS01 solve and retries, external-dns restarts (env variable) and retries on its next sync (amendment 1; to confirm in production)</td>
+<td>1</td>
+<td>90 days, through <code>make infra env=production</code> (decision 5)</td>
+</tr>
+<tr>
+<td><code>cloudflare.tunnel</code></td>
+<td>cloudflared</td>
+<td>Cloudflare's token refresh: <code>-replace=random_password.tunnel_secret</code> updates the same Tunnel in place (<code>PATCH .../cfd_tunnel/&lt;id&gt;</code> with a new <code>tunnel_secret</code>; same id, same record); connected cloudflared keeps serving until it restarts with the new <code>credentials.json</code> (to confirm in production)</td>
+<td>2 with one replica (the public routes drop for the restart); seamless with two</td>
+<td>command only</td>
+</tr>
+<tr>
+<td><code>backup.r2-token</code> (<code>velero/repository</code>)</td>
+<td>Velero</td>
+<td>no overlap for the reader, like Cloudflare's: one apply replaces the token; a failed upload is retried by the next schedule; never at 02:00, the daily backup (to confirm in production)</td>
+<td>1</td>
+<td>90 days, like Cloudflare's</td>
+</tr>
+<tr>
+<td><code>backup.kopia-password</code> (<code>velero/encryption</code>)</td>
+<td>Velero's repositories</td>
+<td>never: Velero uses one password for every repository and has no change-password, so a new value makes every existing repository unreadable; Kopia's own change-password only re-wraps the key, and the data keys stay the same, so it gains nothing against a leak. After a leak: new repositories (new password, new prefix) while the old ones age out, by hand</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>renovate.github-app-key</code></td>
+<td>Renovate's initContainer</td>
+<td>overlap: a GitHub App holds several private keys; generating one is manual (no API): <code>lab</code> stops and gives the steps, then deletes the old key</td>
+<td>n/a</td>
+<td>command only</td>
+</tr>
+<tr>
+<td><code>forgejo-db</code> (CloudNativePG's <code>forgejo-db-app</code>)</td>
+<td>Forgejo</td>
+<td>CloudNativePG's way: write the new password (and the keys derived from it: <code>uri</code>, <code>fqdn-uri</code>, <code>jdbc-uri</code>, <code>fqdn-jdbc-uri</code>, <code>pgpass</code>) into <code>forgejo-db-app</code>; the instance manager applies it to the role; restart Forgejo right after (it reads the password at start; its open connections bridge the gap)</td>
+<td>1 (2 at worst: a request fails while a new connection is refused)</td>
+<td>command only</td>
+</tr>
+<tr>
+<td><code>telegram.bot-token</code> (new, decision 7)</td>
+<td>Alertmanager (<code>bot_token_file</code>, read at every notification)</td>
+<td>BotFather's <code>/revoke</code> (manual, no overlap), then the new token in OpenBao; no Alertmanager restart</td>
+<td>1 (Alertmanager retries; ntfy still delivers)</td>
+<td>command only</td>
+</tr>
+<tr>
+<td><code>openbao.unseal-key</code>, <code>wireguard.private-key</code></td>
+<td>—</td>
+<td>never: the first holds all of OpenBao's data, the second is in every peer</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>state.passphrase</code></td>
+<td>OpenTofu</td>
+<td><code>scripts/rotate-state-passphrase</code> (existing); <code>lab</code> points to it</td>
+<td>—</td>
+<td>command only</td>
+</tr>
+<tr>
+<td>Renovate's token, R2's state credentials, TLS certificates</td>
+<td>—</td>
+<td>already short-lived</td>
+<td>—</td>
+<td>automatic</td>
+</tr>
+</tbody>
+</table>
+<h3 id="4-safety-around-every-rotation">4. Safety around every rotation</h3>
+<p>Before rotating, <code>lab</code> checks for a completed off-site backup from the last 24 hours. Without one it stops and
+offers <code>lab backup push</code> (a manual group) or waits for the daily run. <code>--skip-backup-check=&lt;reason&gt;</code> overrides
+this; the reason is recorded.</p>
+<p><code>lab</code> then checks each reader after the change: the ExternalSecret has refreshed, the workloads are ready, and the
+credential works (an authenticated request where one is cheap).</p>
+<p>On a failure <code>lab</code> keeps what it can roll back. With an overlap it never revokes the old value, so the readers keep
+working. It reports the failure (decision 7).</p>
+<p>Restarts are rolling (<code>kubectl rollout restart</code>), so an app with several replicas has no outage. An app with one
+replica on a <code>ReadWriteOnce</code> volume has a short one, and <code>lab</code> names those apps in its confirmation.</p>
+<h3 id="5-scheduled-rotation">5. Scheduled rotation</h3>
+<ul>
+<li>Only catalog entries marked with a period rotate on a schedule. The starting default is 90 days, at a quiet hour
+  (03:00 in <code>global.timezone</code>).</li>
+<li>In the cluster this runs as a CronJob. It runs <code>lab secrets rotate --scheduled</code>, which picks the entries that are
+  due, with a service account and OpenBao role allowed only those entries' paths and restarts.</li>
+<li>This needs <code>lab</code> as a container image. My call: built by GitHub Actions from <code>master</code> into
+    <code>ghcr.io/duongle-steven/homelab-lab</code>, pinned by digest, bumped by Renovate. The builder may propose another
+    source if this one fights the deploy path.</li>
+<li>OpenTofu's entries (Cloudflare, R2) cannot rotate from inside the cluster, which holds no Cloudflare account
+  credentials. Their due date is checked by <code>make infra env=production</code>: it warns when one is due, and
+  <code>lab secrets rotate &lt;name&gt;</code> runs the <code>-replace</code>.</li>
+<li>A scheduled run that finds Woodpecker busy waits for it, within a limit, then fails and alerts.</li>
+</ul>
+<h3 id="6-record">6. Record</h3>
+<p>Each rotation records the secret, the time, the method, the result and the person or job. OpenBao keeps every
+value's versions; <code>lab</code> adds the record in a place it can read back, e.g. custom metadata on the OpenBao entry or
+an annotation, chosen by the builder. <code>lab secrets list</code> shows the last rotation. There is no metric per secret
+(amendment 2): the scheduled Job's own kube-state-metrics series raise the alerts.</p>
+<h3 id="7-reporting-alerts-through-ntfy-and-telegram">7. Reporting: alerts through ntfy and Telegram</h3>
+<ul>
+<li>A failed rotation raises an alert through Alertmanager like any other, e.g. <code>SecretRotationFailed</code>.</li>
+<li>A rotation more than a margin past its due date raises <code>SecretRotationOverdue</code>.</li>
+<li>A successful one is only logged and recorded; it sends no message.</li>
+<li>Alertmanager gains a second receiver, Telegram (<code>telegram_configs</code>), next to ntfy for every alert, so the
+  existing alerts (<code>VeleroNoRecentBackup</code> and the others) also reach people while ntfy is down.</li>
+<li>The bot token and the chat id live in OpenBao, never in git (the chat id identifies a person), and the person
+    writes them with the admin role, as <code>docs/how-to-guides/alerts.md</code> will say.</li>
+<li>Alertmanager reads them as files (<code>bot_token_file</code>, <code>chat_id_file</code>, both read at every notification), mounted
+    from an ExternalSecret like the ntfy token: no rendered Alertmanager config Secret.</li>
+<li>Egress: <code>monitoring-system</code> on 443 to the internet (<code>system/egress</code>).</li>
+<li>The sandbox renders the receiver but does not deliver to Telegram.</li>
+<li>An external dead man's switch (healthchecks.io) for a cluster that is down entirely is <strong>not</strong> part of 11b. It
+  stays in the ideas, which gain one line: pause the check before switching the homelab off on purpose (the
+  healthchecks.io API), e.g. in a shutdown command.</li>
+</ul>
+<h3 id="8-not-in-this-step">8. Not in this step</h3>
+<ul>
+<li>More replicas for the apps that need them: each app and step 12 (three nodes) decide that.</li>
+<li>Detecting leaks: GitHub secret scanning and push protection, gitleaks, audit logs of OpenBao, Cloudflare and
+  GitHub. Record this as an idea or a later step.</li>
+<li>People's own passwords (Kanidm accounts) and their zot or Woodpecker personal tokens: people change their own.</li>
+<li>Matrix's signing key (its federation identity), if production has one: catalogued as never, with the reason.</li>
+</ul>
+<h3 id="9-anti-goals">9. Anti-goals</h3>
+<ul>
+<li>A rotation that leaves a reader on a revoked value without saying so.</li>
+<li>A rotation that silently changes something people must re-enter, like the phone's ntfy credentials, on a
+  schedule.</li>
+<li>Secrets or the chat id in git, in logs, in command arguments or in test output.</li>
+<li>A scheduled job with more rights than its due entries need.</li>
+</ul>
+<h3 id="10-tests-and-the-spike">10. Tests and the spike</h3>
+<ul>
+<li><strong>Task 1 was a spike on the sandbox</strong>, as 11a's was. It confirmed the methods the catalog marked <em>spike</em>:</li>
+<li>Woodpecker's agent tokens;</li>
+<li><code>SECRET_KEY_FALLBACKS</code> in paperless;</li>
+<li>how to trigger kaniop's rotation once, and whether its readers restart cleanly;</li>
+<li>CloudNativePG's password rotation;</li>
+<li>the Tunnel's secret;</li>
+<li>Kopia's password through Velero;</li>
+<li>whether Alertmanager re-reads <code>credentials_file</code>, so no restart is needed.</li>
+</ul>
+<p>It also confirmed that no secret is class 3. Its findings are in the catalog above and in the Amendments.
+- <code>make dev</code> gains <code>TestSecretsRotation</code>. For each method, on at least one secret, it proves:
+  - the new value works;
+  - with an overlap, both values work during the window;
+  - the old value is refused afterwards;
+  - the readers are ready again.</p>
+<p>It also proves <code>--all</code> on the sandbox's entries, and that a failing rotation raises <code>SecretRotationFailed</code>. The
+  sandbox has one replica per app, so outages there are expected and not asserted.
+- Unit tests in <code>cli/</code> cover the catalog check, the ordering, the backup check, the idle wait and the failure
+  reports.
+- OpenTofu's rotations, the GitHub App key and Telegram can only be planned or rendered in the sandbox. They join the
+  "Before the first production deploy" list.</p>
+<h2 id="amendments">Amendments</h2>
+<p>From Task 1's spike on the sandbox (2026-10-23; the evidence is in the plan's ledger, never values). Each changes the
+catalog above or a decision:</p>
+<ol>
+<li><strong>OpenTofu's Cloudflare and R2 tokens are class 1, not an overlap.</strong> <code>cloudflare_account_token</code> has no in-place
+   roll, so a new value is a <code>-replace</code>, and one apply destroys the old token before <code>infra-secrets</code> pushes the new
+   one and the readers switch, <code>create_before_destroy</code> or not. The readers recover alone: cert-manager reads the
+   token at each DNS01 solve and retries a failed challenge (a renewal starts weeks before expiry); external-dns reads
+   it as an environment variable, so it restarts, and it retries on its next sync; Velero retries at its next
+   schedule (never rotate at 02:00, its daily run). This comes from the provider's, cert-manager's and external-dns's
+   source; no plan ran against production's state. It joins the production checklist: confirm at the first
+   production rotation.</li>
+<li><strong>No metric per secret.</strong> The spike amended decision 6: it has no per-secret Prometheus metric. Failures and
+   overdue rotations come from the scheduled Job and CronJob through kube-state-metrics (a failed Job, a CronJob
+   without a recent success),
+   and <code>lab secrets list</code> shows each secret's last rotation and due date.</li>
+<li><strong>Woodpecker's agent secret becomes per-agent tokens.</strong> Changing the shared <code>WOODPECKER_AGENT_SECRET</code> never revokes
+   the old value: a system agent stores the secret it registered with as its own token, and the server accepts that
+   token from any agent. On the sandbox the agent's stored token was an earlier value, and it still authenticated. So
+   the server's shared secret is dropped (empty) and every agent gets its own token from the admin API, which gives
+   an official overlap: a new token beside the old, then the old agent deleted. Agent pods that share one token share
+   one agent, so each replica needs its own token. <code>lab</code> needs a Woodpecker admin token for this (the admin is
+   Forgejo's site admin, <code>WOODPECKER_ADMIN</code>): the catalog's new <code>woodpecker.admin-token</code>. A running step pod carries
+   the label <code>woodpecker-ci.org/step</code>. <code>woodpecker.agent</code>'s work (per-agent tokens, the emptied shared secret) moves to
+   the plan's Task 8 (controller ruling).</li>
+<li><strong>paperless's secret key has no fallback.</strong> paperless 3.3 does not expose <code>SECRET_KEY_FALLBACKS</code>, so a new key
+   ends every session (class 2). The key also signs paperless's Celery messages and its classifier file: restart
+   while no task is queued; the classifier is retrained by its hourly task.</li>
+<li><strong>kaniop's client secrets rotate by annotation, not by period.</strong> <code>kaniop.rs/force-secret-rotation</code> on a
+   <code>KanidmOAuth2Client</code> regenerates its secret once; deleting the Secret only writes the same value again. Only
+   Argo CD reads the new secret live; Grafana failed every login (401 at the token exchange) until it restarted, and
+   Actual Budget, paperless and Forgejo read it at start too. kaniop's <code>secretRotation</code> period restarts nobody, so it
+   is not used: <code>lab</code> annotates, then restarts the readers.</li>
+<li><strong>CloudNativePG's password is written into its own Secret.</strong> The instance manager applies a new <code>password</code> in
+   <code>forgejo-db-app</code> to the role within seconds, but leaves the derived keys (<code>uri</code>, <code>pgpass</code>, ...) stale, so <code>lab</code>
+   writes them all. Forgejo keeps its open connections, so a restart right after makes it class 1.</li>
+<li><strong>Kopia's repository password is never rotated.</strong> Velero has one password for every repository and no
+   change-password; Kopia's own change-password keeps the data keys, so it gains nothing against a leak. A leak is
+   handled by new repositories while the old ones age out, by hand.</li>
+<li><strong>The Tunnel's secret rotates in place.</strong> Replacing <code>random_password.tunnel_secret</code> updates the same Tunnel
+   (Cloudflare's token refresh, same id and record); connected cloudflared keeps serving until it restarts. Class 2
+   with today's single replica, seamless with two. To confirm in production.</li>
+<li><strong>Alertmanager needs no restart.</strong> It reads <code>credentials_file</code>, <code>bot_token_file</code> and <code>chat_id_file</code> at every
+   notification; ESO's refresh and kubelet's volume sync carry a new value. A rotation changes OpenBao and forces the
+   ExternalSecret's refresh: ESO puts back a hand edit of its Secret at once.</li>
+<li><strong>ntfy's overlap is confirmed, with restarts.</strong> ntfy accepts two tokens for one user, and drops a token no longer
+    listed from <code>auth.db</code> at its next start; each step of the overlap is an ntfy restart (<code>NTFY_AUTH_TOKENS</code> is an
+    environment variable). <code>ntfy.alerts-password</code> has no runtime reader.</li>
+<li>
+<p><strong>No class 3 secret.</strong> None of the secrets the spike covered loses data or stays stuck after a failed rotation.</p>
+</li>
+<li>
+<p>The final review: the backup check accepts a completed scheduled run started in the last 30 hours, not 24: the 03:00 rotation starts an hour after the 02:00 daily backup, which may still be copying to R2, so yesterday's run must count.</p>
+</li>
+<li>
+<p>The user's decision after the final review: Forgejo's <code>deploy</code> and <code>argocd</code> tokens rotate from the workstation (catalog <code>workstation: true</code>, named by <code>make infra env=production</code> when due), not the CronJob: their method needs Forgejo's admin password, which reaches <code>ops/homelab</code> and so the cluster. OpenBao's role <code>rotator</code> loses that password and both tokens' paths, and the CronJob its access to namespace <code>argocd</code>.</p>
+</li>
+</ol>
+<h2 id="left-to-the-builder">Left to the builder</h2>
+<p>The catalog's format, the record's location, the CronJob's namespace and RBAC, the overdue
+margin, and the order <code>--all</code> uses. Pick sensible defaults and state them in the plan.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020 - 2024 Khue Doan
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.expand", "navigation.instant", "navigation.sections", "search.highlight", "search.share"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

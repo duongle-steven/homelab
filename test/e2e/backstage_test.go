@@ -14,8 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// Backstage-1 (docs/superpowers/specs/2026-11-16-backstage-design.md): an optional component in the sandbox
-// (just dev --apps backstage); these specs skip when it is absent and fail when HOMELAB_SANDBOX_APPS names it
+// Backstage-1 (docs/superpowers/specs/2026-11-16-backstage-design.md): always in the sandbox (decided 2026-11-17)
 
 var backstageHost = "backstage." + suiteDomain
 
@@ -51,7 +50,6 @@ func backstageAPI(ctx context.Context, token, method, path string, body, out any
 
 func backstageReady() {
 	BeforeEach(func(ctx SpecContext) {
-		skipUnlessDeployed(ctx, "backstage")
 		waitForApp(ctx, "https://"+backstageHost+"/.backstage/health/v1/readiness")
 	}, NodeTimeout(25*time.Minute))
 }

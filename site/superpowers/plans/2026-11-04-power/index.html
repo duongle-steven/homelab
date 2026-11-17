@@ -1,0 +1,2462 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://github.com/khuedoan/homelab/assets/27996771/d33be1af-3687-4712-a671-4370da13cc92">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Step 12a-3 power Implementation Plan - Khue's Homelab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#step-12a-3-power-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-header__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Khue's Homelab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Step 12a-3 power Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-nav__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Khue's Homelab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/testbed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testbed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/staging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staging (optional)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/external-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/post-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/vpn-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VPN setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/user-onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/secrets-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/certificate-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/development-shell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development shell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing infrastructure code
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-to guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-to guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alternate-dns-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alternate DNS setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/expose-services-to-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expose services to the internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backup-and-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup and restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/secrets-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rotating secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/security-logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/runtime-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runtime detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/kiali/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    See the mesh with Kiali
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy: Kyverno and Pod Security Admission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/supply-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/cluster-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/public-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/sandbox-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/deploy-to-forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy to Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/renovate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renovate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/in-cluster-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-cluster CI: Argo Workflows and Argo Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backstage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backstage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/add-or-remove-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add or remove nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/single-node-cluster-adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single node cluster adjustments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/media-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/updating-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating documentation (this website)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_26" id="__nav_5_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Troubleshooting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/troubleshooting/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/decision-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#global-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-focus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review Focus
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Review Focus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-1-lab-cluster-shutdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 1: lab cluster shutdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-2-the-startup-script-its-unit-and-lab-cluster-startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 2: the startup script, its unit and lab cluster startup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-3-the-watchdogs-label-and-the-markers-alert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 3: the watchdog's label and the marker's alert
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-4-the-power-tests-and-make-testbed-power" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 4: the power tests and make testbed-power
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-5-run-them-live" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 5: run them live
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-6-cloudnativepg-one-measurement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 6: CloudNativePG, one measurement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-7-docs-the-mark-the-pr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 7: docs, the mark, the PR
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="step-12a-3-power-implementation-plan">Step 12a-3 power Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> The homelab comes back by itself after every node loses power, and stops and restarts in order when someone chooses to.</p>
+<p><strong>Architecture:</strong> <code>lab cluster shutdown</code> (Go, from the workstation, beside <code>cluster.Upgrade</code>) records what it changes in a ConfigMap marker, stops what runs and powers the nodes off. One script in the node flake undoes it, run by a systemd unit at boot on every node and over SSH by <code>lab cluster startup</code>. Live tests on the testbed cut all three VMs and prove recovery.</p>
+<p><strong>Tech Stack:</strong> Go (cobra, <code>cli/internal/cluster</code>), NixOS (<code>writeShellApplication</code>, systemd), bash, Go tests with terratest (<code>test/</code>), virsh.</p>
+<p><strong>Spec:</strong> <code>docs/superpowers/specs/2026-11-04-power-design.md</code></p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li>From the main checkout only. Never beside the sandbox; <code>C:</code> keeps 30 GB free; stop by hand when WSL falls under 1.5 GB; a run stopped for low memory is not restarted without asking the user.</li>
+<li>Before any testbed or sandbox command: <code>pgrep -x terragrunt; pgrep -x make</code>. No foreground <code>sleep</code> (<code>timeout N tail -0f /dev/null</code>, or background). Absolute <code>KUBECONFIG</code> paths. Never <code>make -n</code>.</li>
+<li><code>virsh destroy</code> only on <code>homelab-1|2|3</code>.</li>
+<li>Do not run <code>scripts/ci-check all</code> while the sandbox or testbed is up.</li>
+<li>Names: marker ConfigMap <code>kube-system/cluster-shutdown</code>; label <code>homelab/power-keep: "true"</code>; script and command on the nodes <code>cluster-startup</code>; unit <code>cluster-startup.service</code>; probe namespace <code>power-probe</code>.</li>
+<li>Values from the spec: Job wait 5 minutes by default; <code>noout</code> off when every OSD is back or after 30 minutes at most; recovery limit 30 minutes; startup acts when a majority of the marker's nodes are on a new boot; CloudNativePG measurement at 2 vCPUs.</li>
+<li>Commit trailers: <code>Co-Authored-By: Claude Opus 5.5 &lt;noreply@anthropic.com&gt;</code>, <code>Claude-Session: https://claude.ai/code/session_01DkFEsNWboxteok4WLPJh6q</code>.</li>
+</ul>
+<h2 id="review-focus">Review Focus</h2>
+<ul>
+<li>A second <code>lab cluster shutdown</code> after a partial one: the marker keeps the first run's controller replicas and CronJob names, never replaces them with what is now suspended or zero (test in Task 1).</li>
+<li>The API away for a long time at boot: the script keeps trying and never exits as if there were no marker (test in Task 2).</li>
+<li>A joiner not yet enrolled, with no <code>/etc/rancher/k3s/k3s.yaml</code>: the unit exits 0 and does not loop (test in Task 2).</li>
+<li>A CronJob named by the marker removed from git meanwhile, or another node deleting the marker mid-run: NotFound is success, the run finishes (test in Task 2).</li>
+<li>The script restarted, or run by another node, while <code>noout</code> waits: the 30 minutes count from the first start, kept in the marker, not from each restart (test in Task 2).</li>
+</ul>
+<hr />
+<h3 id="task-1-lab-cluster-shutdown">Task 1: <code>lab cluster shutdown</code></h3>
+<p><strong>Files:</strong>
+- Create: <code>cli/internal/cluster/shutdown.go</code>, <code>cli/internal/cluster/shutdown_test.go</code>, <code>cli/internal/cli/cluster_shutdown.go</code>
+- Modify: <code>cli/internal/cli/root.go:30</code>, <code>infra/_modules/metal/flake/configuration.nix</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: <code>func Shutdown(ctx context.Context, environment string, jobWait time.Duration, progress io.Writer) error</code>; <code>type marker struct { Replicas int; CronJobs []string /* "ns/name" */; Boots map[string]string /* node to boot ID */ }</code>, stored in the ConfigMap's data keys <code>replicas</code>, <code>cronjobs</code> (one per line), <code>boots</code> (<code>node=id</code>, one per line). <code>startup-began</code> (RFC 3339) belongs to the script. Task 2 reads these keys.
+- Consumes: <code>loadConfig</code>, <code>commands.kubectl</code>, <code>commands.ssh</code> from <code>upgrade.go</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the failing tests</strong> in <code>shutdown_test.go</code>, against an interface <code>stopper</code> with a fake that records calls, in <code>fakeUpgrader</code>'s style:</li>
+<li><code>TestShutdownOrder</code>: calls are exactly write marker, stop controller, suspend (each CronJob, marker updated before its patch), wait for Jobs, <code>noout</code>, power off all nodes.</li>
+<li><code>TestShutdownSkipsSuspendedAndKept</code>: a CronJob with <code>spec.suspend: true</code> and one labelled <code>homelab/power-keep</code> are neither patched nor in the marker.</li>
+<li><code>TestShutdownAgainKeepsTheMarker</code>: marker present with <code>Replicas: 2</code> and <code>a/b</code>; live controller at 0, <code>a/b</code> already suspended: the marker ends with <code>Replicas: 2</code> and still <code>a/b</code>.</li>
+<li><code>TestShutdownJobWaitIsBounded</code>: Jobs never finish, <code>jobWait</code> 10 ms: it continues to power off and <code>progress</code> names the Job.</li>
+<li><code>TestShutdownNoCeph</code>: <code>noout</code> reports no CephCluster: the step is skipped, not an error.</li>
+<li><code>TestShutdownFailureSaysStartup</code>: a failure before power off returns an error containing <code>lab cluster startup</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run them to see them fail</strong></li>
+</ul>
+<p>Run: <code>cd cli &amp;&amp; direnv exec .. go test ./internal/cluster/ -run TestShutdown</code>. Expected: FAIL, undefined.
+- [ ] <strong>Step 3: Implement.</strong> <code>noout</code>: <code>kubectl -n rook-ceph exec deploy/rook-ceph-operator -- ceph --conf=/var/lib/rook/rook-ceph/rook-ceph.config osd set noout</code>; check it on the testbed in Task 4. Controller: StatefulSet <code>argocd/argocd-application-controller</code>. Power off: <code>systemctl poweroff --no-block</code> over <code>commands.ssh</code>, to all nodes concurrently; a dropped connection is success. Boot IDs from each Node's <code>status.nodeInfo.bootID</code>.
+- [ ] <strong>Step 4: Add the command</strong> <code>newClusterShutdownCmd</code> in <code>cluster_shutdown.go</code>, flags as <code>newClusterUpgradeCmd</code> plus <code>--job-wait</code> (default <code>5*time.Minute</code>); only <code>--environment</code> and <code>--flake</code> required. Register it in <code>root.go</code>.
+- [ ] <strong>Step 5: Bound <code>poweroff</code>.</strong> In <code>configuration.nix</code>: <code>systemd.targets.poweroff.unitConfig = { JobTimeoutSec = "180s"; JobTimeoutAction = "poweroff-force"; };</code> with a comment on why (an RBD unmount can stall once the OSDs are gone, and nobody is home).
+- [ ] <strong>Step 6: Run the tests.</strong> Run: <code>direnv exec . make -C cli test check</code>. Expected: PASS.
+- [ ] <strong>Step 7: Commit</strong> <code>feat(cli): lab cluster shutdown</code>.</p>
+<h3 id="task-2-the-startup-script-its-unit-and-lab-cluster-startup">Task 2: the startup script, its unit and <code>lab cluster startup</code></h3>
+<p><strong>Files:</strong>
+- Create: <code>infra/_modules/metal/flake/profiles/cluster-startup.sh</code>, <code>infra/_modules/metal/flake/profiles/cluster-startup.nix</code>, <code>cli/internal/cli/cluster_startup.go</code>, <code>cli/internal/cluster/startup.go</code>, <code>test/cluster_startup_test.go</code>
+- Modify: <code>infra/_modules/metal/flake/default.nix</code> (modules list), <code>cli/internal/cli/root.go:30</code>, <code>scripts/ci-check</code> (<code>offline_tests</code>)</p>
+<p><strong>Interfaces:</strong>
+- Consumes: the marker keys from Task 1.
+- Produces: <code>cluster-startup [--force]</code> on every node, exit 0 once undone or with nothing to do; <code>func Startup(ctx context.Context, environment string, progress io.Writer) error</code>.</p>
+<p>The script's order:</p>
+<div class="highlight"><pre><span></span><code>no /etc/rancher/k3s/k3s.yaml            -&gt; exit 0 (a joiner not enrolled)
+get marker: NotFound -&gt; exit 0; any other error -&gt; retry every 15 s, no limit
+without --force: a majority of the marker&#39;s nodes on a new boot? no -&gt; exit 75 (the unit tries again)
+record startup-began if absent
+resume the marker&#39;s CronJobs (NotFound is success)
+scale the controller back to the marker&#39;s replicas
+every OSD Ready, or NOOUT_LIMIT (1800 s) since startup-began -&gt; unset noout (no CephCluster: skip)
+report CloudNativePG Clusters not healthy, holding nothing back
+delete the marker (NotFound is success)
+</code></pre></div>
+<p>The first nodes to boot may see no majority yet, so exit 75 is a retry: the unit sets <code>RestartForceExitStatus=75</code>, <code>RestartSec=30</code>. Once the marker is gone, every retry exits 0. A single node rebooting during a shutdown retries until the shutdown powers it off.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the failing tests</strong> in <code>test/cluster_startup_test.go</code>: bash runs the script with <code>KUBECTL</code> pointing at a fake that logs each call and answers from a temp directory; <code>K3S_YAML</code>, <code>NOOUT_LIMIT</code> and the retry interval are overridable by environment. Each test asserts the fake's log:</li>
+<li><code>TestClusterStartupNoK3s</code>: no <code>K3S_YAML</code>: exit 0, kubectl never called.</li>
+<li><code>TestClusterStartupNoMarker</code>: NotFound: exit 0, nothing changed.</li>
+<li><code>TestClusterStartupAPIAway</code>: the first 3 calls fail with connection refused, then the marker exists: it retried and undid everything.</li>
+<li><code>TestClusterStartupMinorityRebooted</code>: one of three on a new boot: exit 75, nothing changed; with <code>--force</code>: undone.</li>
+<li><code>TestClusterStartupUndoes</code>: the named CronJob resumed and no other, replicas restored, <code>noout</code> unset, the marker deleted last.</li>
+<li><code>TestClusterStartupGoneMeanwhile</code>: patching the CronJob and deleting the marker answer NotFound: exit 0.</li>
+<li><code>TestClusterStartupNoOutLimit</code>: OSDs never Ready, <code>startup-began</code> older than <code>NOOUT_LIMIT</code> in the marker: <code>noout</code> unset, and CronJobs resumed before it.</li>
+<li><code>TestClusterStartupKeepsItsClock</code>: <code>startup-began</code> present: not rewritten.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run them to see them fail.</strong> Run: <code>cd test &amp;&amp; direnv exec .. go test -count=1 -run '^TestClusterStartup' .</code>. Expected: FAIL, script missing.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Implement <code>cluster-startup.sh</code></strong> to the order above, <code>KUBECTL</code> defaulting to <code>k3s kubectl</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Implement <code>cluster-startup.nix</code></strong>: <code>pkgs.writeShellApplication</code> from <code>builtins.readFile ./cluster-startup.sh</code> with <code>config.services.k3s.package</code>, <code>coreutils</code>, <code>gnugrep</code>, <code>gawk</code> as inputs, in <code>environment.systemPackages</code>; <code>systemd.services.cluster-startup</code>: <code>wantedBy = [ "multi-user.target" ]</code>, <code>after = [ "k3s.service" ]</code>, no <code>requires</code> and no <code>before</code>, <code>Type=oneshot</code>, <code>TimeoutStartSec=infinity</code>, <code>Restart=on-failure</code>, <code>RestartForceExitStatus=75</code>, <code>RestartSec=30</code>, <code>StartLimitIntervalSec=0</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Implement <code>Startup</code></strong> (SSH to the first node that answers, run <code>cluster-startup --force</code>, its output to <code>progress</code>) and <code>newClusterStartupCmd</code> (<code>--environment</code>, <code>--flake</code>, <code>--timeout</code> default 1 hour).</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 6: Wire <code>TestClusterStartup</code> into <code>offline_tests</code></strong>, and build a node: <code>direnv exec . nix build ./infra/_modules/metal/flake#nixosConfigurations.homelab-1.config.system.build.toplevel --no-link</code> as <code>lab cluster upgrade</code> does (check its exact flake reference in <code>upgrade.go:rebuild</code>). Expected: builds, shellcheck included.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 7: Run the tests.</strong> Run the test command above and <code>direnv exec . make -C cli test check</code>. Expected: PASS.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 8: Commit</strong> <code>feat(nodes): startup undoes an ordered shutdown by itself</code>.</li>
+</ul>
+<h3 id="task-3-the-watchdogs-label-and-the-markers-alert">Task 3: the watchdog's label and the marker's alert</h3>
+<p><strong>Files:</strong>
+- Modify: <code>system/istio-system/templates/cni-watchdog.yaml</code>
+- Create: <code>system/monitoring-system/templates/cluster-shutdown-rule.yaml</code>
+- Test: <code>test/cluster_startup_test.go</code> (offline), <code>test/monitoring_test.go</code> or its current file</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the failing offline test</strong> <code>TestClusterStartupKeepsTheWatchdog</code>: <code>scripts/render-chart system/istio-system</code> holds the CronJob <code>istio-cni-watchdog</code> with label <code>homelab/power-keep: "true"</code>, and every other CronJob rendered by <code>system/velero</code>, <code>platform/openbao</code> and <code>platform/secrets-rotation</code> has none. Wire it through <code>TestClusterStartup</code>'s prefix.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run it to see it fail.</strong> Same command as Task 2 Step 2. Expected: FAIL.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Add the label, and the rule</strong> <code>ClusterShutdownMarkerStuck</code>: <code>time() - kube_configmap_created{namespace="kube-system",configmap="cluster-shutdown"} &gt; 7200</code> for 10 minutes, severity as <code>SecretRotationFailed</code>'s. Startup removes the marker within about 30 minutes of a majority returning, so this means it failed; a node that never returns is <code>KubeNodeNotReady</code>'s. Check kube-state-metrics exports ConfigMaps in <code>system/monitoring-system</code>; enable that collector if not.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Add a live assertion</strong> to the sandbox's monitoring test that the rule is loaded, in its existing style, and confirm <code>make -C cli check</code> accepts it.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Run the offline test and <code>scripts/ci-check render</code>.</strong> Expected: PASS, only these two components differ.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 6: Commit</strong> <code>feat(power): the watchdog keeps running and a stuck startup alerts</code>.</li>
+</ul>
+<h3 id="task-4-the-power-tests-and-make-testbed-power">Task 4: the power tests and <code>make testbed-power</code></h3>
+<p><strong>Files:</strong>
+- Create: <code>test/power_test.go</code>
+- Modify: <code>Makefile</code> (target <code>testbed-power</code> beside <code>testbed-stop</code>)</p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>testbedOnly</code>, <code>testbedHosts</code>, <code>testbedSSH</code>, <code>virsh</code>, <code>domstate</code>, <code>testbedKubectl</code>, <code>waitNodeReady</code> from <code>test/testbed_test.go</code>; the mesh and Gateway checks of <code>TestTestbedMesh</code>, extracted into a shared <code>testbedMeshWorks(t)</code>; <code>lab</code> by <code>go run</code> as the Makefile runs it.</p>
+<p>Names avoid <code>Testbed</code> (<code>make testbed</code>'s filter) and the words in <code>test/scopes.yaml</code>'s <code>full</code>: <code>TestPowerCutEveryNode</code>, <code>TestPowerShutdownStartup</code>, <code>TestPowerNodeNotReturning</code>, <code>TestPowerCutPostgres</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the probe helper</strong> <code>startPowerProbe(t) *powerProbe</code>: namespace <code>power-probe</code>, a PVC on the testbed's Ceph StorageClass (as <code>TestTestbedCeph</code>'s volume), a one-replica Deployment (<code>Recreate</code>) that resumes from the file's last number plus one, appends, <code>fdatasync</code>s (pin the image <code>TestTestbedCeph</code> uses, and if its <code>sync</code> has no <code>-d</code>, use its <code>dd conv=fdatasync</code> form), then prints the number. <code>acked()</code> is what <code>kubectl logs -f</code>, run from the workstation, has read. <code>verify(t)</code> reads the file: every acked number present, strictly increasing, and it grew after recovery. Cleanup removes the namespace.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Write <code>TestPowerCutEveryNode</code></strong>: require healthy (<code>testbedMeshWorks</code>, Ceph <code>HEALTH_OK</code>); start the probe, wait for 50 acked; <code>virsh destroy</code> all three in parallel goroutines; <code>virsh start</code> all three. Within 30 minutes, with no command on the cluster: API <code>/readyz</code> at the VIP; each node's <code>bootID</code> new and Ready; three nodes carrying <code>etcd.k3s.cattle.io/node-name</code>; Ceph <code>HEALTH_OK</code> with mons and OSDs Ready; <code>testbedMeshWorks</code>; <code>probe.verify</code>. <code>t.Logf</code> each time reached. A failure of the Gateway's VIP dumps the Service's status and each kube-vip's lease and log tail, and its message names the 12a-2 finding.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Write <code>TestPowerShutdownStartup</code></strong>: fixtures in <code>power-probe</code>: <code>running</code> and <code>held</code> (<code>suspend: true</code>) CronJobs with schedule <code>0 0 1 1 *</code>, and Job <code>long</code> sleeping an hour. Run <code>lab cluster shutdown --job-wait=1m</code>; assert its output names <code>long</code>; every VM <code>shut off</code> within 5 minutes and still so a minute later. <code>virsh start</code> all three, never calling <code>lab</code>. Within 30 minutes: <code>running</code> not suspended, <code>held</code> suspended, the watchdog's <code>suspend</code> false, <code>ceph osd dump</code> without <code>noout</code>, controller's replicas restored, Applications Synced, the marker gone, <code>probe.verify</code>. Then <code>lab cluster startup</code> exits 0.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Write <code>TestPowerNodeNotReturning</code></strong>: run <code>lab cluster shutdown</code>; start only the two nodes that do not hold the probe's Pod. Within 15 minutes: <code>running</code> resumed and controller back, the marker still present; with the third off, <code>noout</code> off and the marker gone within 30 minutes and a margin of the first start. <code>defer</code> starts the third and waits for <code>HEALTH_OK</code>, so the testbed ends healthy.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Write <code>TestPowerCutPostgres</code></strong>: skips unless the CRD <code>clusters.postgresql.cnpg.io</code> exists (it is for Task 6's single run). Reuses <code>TestTestbedPostgresFailover</code>'s Cluster and write helpers: write through the primary, destroy all VMs, start them, and within 45 minutes a primary answers with the row. Logs only; removes its namespace.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 6: Add <code>make testbed-power</code></strong>: <code>sandbox-checkout</code>, <code>scripts/testbed-guard testbed</code>, then one <code>$(MAKE) env=testbed ENV=testbed INSECURE_SKIP_VERIFY=1 smoke_filter=&lt;name&gt; smoke-test</code> per test (so go test's hour applies to each), for the first three; <code>tests=</code> overrides the list. Add it to <code>.PHONY</code> if the Makefile lists them.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 7: Compile and check selection.</strong> Run: <code>cd test &amp;&amp; direnv exec .. go vet ./...</code> and <code>direnv exec . make -C cli check</code>. Expected: pass, and <code>lab test scope --check</code> satisfied.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 8: Commit</strong> <code>test(testbed): every node losing power, an ordered shutdown, a node not returning</code>.</li>
+</ul>
+<h3 id="task-5-run-them-live">Task 5: run them live</h3>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Rebuild the nodes and the testbed.</strong> Sandbox stopped. Run: <code>direnv exec . make testbed-fresh</code>. Expected: passes, mark on HEAD, <code>systemctl status cluster-startup</code> on each node inactive with exit 0.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Confirm <code>noout</code> by hand</strong> on the testbed through the Step 3 command of Task 1, setting and unsetting it. Fix the path if it differs; a fix goes through Task 1's and 2's tests.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Run</strong> <code>direnv exec . make testbed-power</code> in the background, logging WSL memory each minute. Expected: all three pass; record each recovery time, memory's lowest and <code>poweroff</code>'s duration.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: If the Gateway's address does not return:</strong> one bounded investigation, about half a day of machine time. Fixed: ship the fix with a test. Not fixed: stop and ask the user with the logs; do not record it as passing or move it to 12b.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Any other failure:</strong> <code>superpowers:systematic-debugging</code>, fix with a test, rerun that test. Commit each fix as <code>fix(power): ...</code>.</li>
+</ul>
+<h3 id="task-6-cloudnativepg-one-measurement">Task 6: CloudNativePG, one measurement</h3>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1:</strong> With layer 2 stable at 2 vCPUs, render and apply <code>platform/cloudnative-pg</code> by hand (<code>scripts/render-chart</code>, <code>cloudnative-pg.monitoring.podMonitorEnabled: false</code>), not on the list. Start logging from each node each minute: vmstat, <code>iostat -x</code> or <code>/proc/diskstats</code>, and <code>/proc/meminfo</code>; if <code>iostat</code> is not on the node, use a <code>nix shell</code> once rather than changing the flake.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2:</strong> Run: <code>direnv exec . make testbed-power tests=PowerCutPostgres</code>. Whatever the result, keep k3s's exits, leader changes and the logs' numbers. If it points at CPU, one rerun at 4 vCPUs.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3:</strong> Remove CloudNativePG (<code>make testbed-fresh</code> in Task 7 does it anyway). No commit: the numbers go in Task 7's docs. A failure does not stop this step.</li>
+</ul>
+<h3 id="task-7-docs-the-mark-the-pr">Task 7: docs, the mark, the PR</h3>
+<p><strong>Files:</strong>
+- Create: <code>docs/how-to-guides/power.md</code>
+- Modify: <code>docs/installation/testbed.md</code>, <code>mkdocs.yml</code>, <code>CLAUDE.md</code>, <code>docs/superpowers/deferred-minors.md</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write <code>power.md</code>:</strong> turning the homelab off and on, what happens after an outage, a node that does not return, the marker and its alert, BIOS: Last State without a UPS and why a UPS changes it to Power On with <code>shutdown.return</code>. Add it to <code>mkdocs.yml</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Update <code>testbed.md</code>:</strong> <code>make testbed-power</code>, the measured recovery times, CloudNativePG's one measurement with its I/O and memory, and what <code>virsh destroy</code> with <code>cache=unsafe</code> does not prove.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Update <code>CLAUDE.md</code>:</strong> 12a-3 done with its numbers; the UPS and NUT moved to their own step with Power On, <code>shutdown.return</code> and a UPS NUT drives; <code>lab cluster shutdown</code> without healthchecks.io; before-production: repeat the cut on hardware before real data, prefer SSDs with power-loss protection, BIOS Last State, OpenBao's raft and Forgejo on Ceph, the alert only rendered on the testbed and proved loaded on the sandbox.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Add deferred minors</strong> found along the way; <code>AuditLogsMissing</code>'s line stays.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Check.</strong> With the testbed and sandbox down, run: <code>direnv exec . scripts/ci-check all</code>. Expected: PASS; a failure fetching charts from the network is retried, not a code failure.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 6: Final fresh run and the sandbox.</strong> Commit docs first. <code>direnv exec . make testbed-fresh</code> on the last commit touching gated paths. <code>make testbed-stop</code>, confirm shut off, <code>k3d cluster start homelab-dev</code>, wait for recovery, <code>direnv exec . make dev</code>, stop the sandbox.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 7: Final review</strong> by a fresh opus reviewer over <code>origin/dev..HEAD</code>, fix what it verifies, and if a fix touches gated paths run Step 6's <code>make testbed-fresh</code> again.</li>
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 8: Push and open the PR into <code>dev</code></strong> with the rulings and numbers, ending with the required attribution. Merge only when the user says "merge".</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020 - 2024 Khue Doan
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.expand", "navigation.instant", "navigation.sections", "search.highlight", "search.share"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

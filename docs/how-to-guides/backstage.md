@@ -51,5 +51,5 @@ the image `.github/workflows/backstage-image.yaml` builds from `master`, signed 
 Kyverno's `verify-backstage-image` checks. After the first release builds it, pin its digest in
 `platform/backstage/values.yaml` and drop `platform/backstage`'s exclusion from `system/argocd/values.yaml`.
 
-In the sandbox it is optional: `just dev --apps backstage`, or a branch changing `backstage/` or `platform/backstage/`.
-Its specs are labelled `backstage` (`just dev --tests backstage`).
+The sandbox always runs it (`just dev` builds its image each time; Docker reuses the layers that did not change). Its
+specs are labelled `backstage` (`just dev --tests backstage`).

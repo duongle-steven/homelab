@@ -1,0 +1,2817 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://github.com/khuedoan/homelab/assets/27996771/d33be1af-3687-4712-a671-4370da13cc92">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Infra (Step 7a) Implementation Plan - Khue's Homelab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#infra-step-7a-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-header__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Khue's Homelab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Infra (Step 7a) Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-nav__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Khue's Homelab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/testbed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testbed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/staging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staging (optional)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/external-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/post-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/vpn-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VPN setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/user-onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/secrets-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/certificate-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/development-shell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development shell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing infrastructure code
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-to guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-to guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alternate-dns-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alternate DNS setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/expose-services-to-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expose services to the internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backup-and-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup and restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/secrets-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rotating secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/security-logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/runtime-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runtime detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/kiali/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    See the mesh with Kiali
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy: Kyverno and Pod Security Admission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/supply-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/cluster-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/public-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/sandbox-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/deploy-to-forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy to Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/renovate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renovate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/in-cluster-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-cluster CI: Argo Workflows and Argo Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backstage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backstage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/add-or-remove-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add or remove nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/single-node-cluster-adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single node cluster adjustments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/media-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/updating-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating documentation (this website)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_26" id="__nav_5_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Troubleshooting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/troubleshooting/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/decision-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#global-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-focus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review Focus
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Review Focus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-1-tools-and-infra-skeleton" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 1: Tools and infra/ skeleton
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-2-module-k3d-and-the-sandbox-cluster-unit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 2: Module k3d and the sandbox cluster unit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-3-module-argocd-and-the-bootstrap-units" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 3: Module argocd and the bootstrap units
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-4-make-metal-removals-docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 4: Make, metal, removals, docs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-5-prove-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 5: Prove it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="infra-step-7a-implementation-plan">Infra (Step 7a) Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Terragrunt units under <code>infra/</code> create, bootstrap and remove the sandbox, and bootstrap production's Argo CD, replacing <code>metal/Makefile</code>'s k3d targets and <code>system/bootstrap.yml</code>.</p>
+<p><strong>Architecture:</strong> <code>infra/root.hcl</code> (local state, kubeconfig path) includes per-environment units; module <code>k3d</code> wraps <code>k3d</code> and the socat proxy in <code>terraform_data</code> resources; module <code>argocd</code> renders <code>system/argocd</code> and applies it server-side once, re-applied only when its files change. The root <code>Makefile</code> drives Terragrunt.</p>
+<p><strong>Tech Stack:</strong> OpenTofu 1.13, Terragrunt 1.1, hashicorp/external 2.4.2, k3d 5.9, Helm, kubectl, GNU make.</p>
+<p><strong>Spec:</strong> <code>docs/superpowers/specs/2026-10-16-infra-design.md</code></p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li>Layout: <code>infra/root.hcl</code>, <code>infra/Makefile</code>, <code>infra/_modules/k3d</code>, <code>infra/_modules/argocd</code>, <code>infra/sandbox/cluster</code>, <code>infra/sandbox/argocd</code>, <code>infra/production/argocd</code>.</li>
+<li>State: local, <code>&lt;repo&gt;/.state/&lt;env&gt;/&lt;unit&gt;/terraform.tfstate</code>, git-ignored.</li>
+<li>Kubeconfig: <code>infra/&lt;env&gt;/kubeconfig.yaml</code> (<code>*kubeconfig.yaml</code> is already git-ignored).</li>
+<li>Bootstrap: <code>kubectl apply --server-side --field-manager argocd-controller --force-conflicts</code> of <code>helm template --include-crds system/argocd</code>; production picks <code>values-seed.yaml</code> when no pod <code>app.kubernetes.io/instance=forgejo</code> is Running, else <code>values.yaml</code>; the sandbox uses <code>values-dev.yaml</code>.</li>
+<li>Production's bootstrap resource has <code>prevent_destroy</code>.</li>
+<li>Unchanged: production nodes via <code>make -C metal</code> (Ansible), <code>external/</code>.</li>
+</ul>
+<h2 id="review-focus">Review Focus</h2>
+<ol>
+<li>A second apply on an unchanged sandbox must change nothing (proxy keyed on the node address, bootstrap keyed on file hashes). Pinned in Task 2 and Task 3 (<code>plan</code> shows no changes) and Task 5.</li>
+<li>Destroy must not leave a running proxy, cluster, Docker network or kubeconfig, and must work when the cluster is already gone. Pinned in Task 2 (destroy, then destroy again).</li>
+<li><code>prevent_destroy</code> cannot take a variable: production's protected resource must still be the only one created there. Pinned in Task 3 (<code>plan</code> lists exactly one resource per environment).</li>
+<li>The bootstrap hash must ignore files Helm writes (<code>charts/</code>, <code>Chart.lock</code>), or every run re-applies. Pinned in Task 3.</li>
+<li>Terragrunt runs <code>cluster</code> before <code>argocd</code> in the sandbox, and <code>run --all destroy</code> removes <code>argocd</code>'s state before deleting the cluster. Pinned in Task 4/5 (<code>make dev</code>, <code>make dev-clean</code>).</li>
+</ol>
+<hr />
+<h3 id="task-1-tools-and-infra-skeleton">Task 1: Tools and <code>infra/</code> skeleton</h3>
+<p><strong>Files:</strong>
+- Modify: <code>flake.nix</code>, <code>flake.lock</code> (only if <code>nixpkgs-unstable</code> is updated), <code>.gitignore</code>
+- Create: <code>infra/root.hcl</code>, <code>infra/Makefile</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: <code>root.hcl</code> locals <code>env</code>, <code>unit</code>, <code>kubeconfig</code>; input <code>kubeconfig</code> for every unit; <code>make -C infra check</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the check</strong></li>
+</ul>
+<p><code>.superpowers/sdd/2026-10-16-infra/check-task1.sh</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/bin/sh</span>
+<span class="c1"># The dev shell has OpenTofu and Terragrunt; infra/ validates and is formatted</span>
+<span class="nb">set</span><span class="w"> </span>-e
+tofu<span class="w"> </span>version<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-1<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span><span class="s1">&#39;OpenTofu v1.13&#39;</span>
+terragrunt<span class="w"> </span>--version<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span><span class="s1">&#39;v1\.&#39;</span>
+make<span class="w"> </span>-C<span class="w"> </span>infra<span class="w"> </span>check
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;task1: ok&quot;</span>
+</code></pre></div>
+<p>Run: <code>mkdir -p .superpowers/sdd/2026-10-16-infra &amp;&amp; chmod +x .superpowers/sdd/2026-10-16-infra/check-task1.sh &amp;&amp; direnv exec . .superpowers/sdd/2026-10-16-infra/check-task1.sh</code>
+Expected: FAIL (OpenTofu 1.11, or <code>terragrunt: not found</code>).</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Dev shell</strong></li>
+</ul>
+<p>In <code>flake.nix</code>, replace <code>opentofu # Drop-in replacement for Terraform</code> with:</p>
+<div class="highlight"><pre><span></span><code>            unstable<span class="o">.</span>opentofu <span class="c1"># Drop-in replacement for Terraform (nixos-26.05 ships 1.11)</span>
+            unstable<span class="o">.</span>terragrunt
+</code></pre></div>
+<p>Run <code>nix eval --raw --impure --expr 'let f = builtins.getFlake (toString ./.); u = import f.inputs.nixpkgs-unstable { system = "x86_64-linux"; }; in u.terragrunt.version'</code>. If it is older than the latest release (<code>gh release view --repo gruntwork-io/terragrunt --json tagName -q .tagName</code>, 1.1.6 on 2026-10-16), run <code>nix flake update nixpkgs-unstable</code> and check again; keep whichever is newest available and ledger the version.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: <code>.gitignore</code></strong></li>
+</ul>
+<p>Append:</p>
+<div class="highlight"><pre><span></span><code># OpenTofu and Terragrunt (state is local until step 8)
+.state/
+.terragrunt-cache/
+.terraform/
+</code></pre></div>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: <code>infra/root.hcl</code></strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="c1"># Included by every unit: infra/&lt;env&gt;/&lt;unit&gt;/terragrunt.hcl</span>
+<span class="nb">locals</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">env</span><span class="w">        </span><span class="o">=</span><span class="w"> </span><span class="nf">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span><span class="w"> </span><span class="err">path_relative_to_include</span><span class="p">())[</span><span class="m">0</span><span class="p">]</span>
+<span class="w">  </span><span class="na">unit</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="nf">basename</span><span class="p">(</span><span class="err">get_original_terragrunt_dir</span><span class="p">())</span>
+<span class="w">  </span><span class="na">kubeconfig</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;${get_repo_root()}/infra/${local.env}/kubeconfig.yaml&quot;</span>
+<span class="p">}</span>
+
+<span class="c1"># Local state until step 8 (Cloudflare R2 with state encryption)</span>
+<span class="nb">remote_state</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">backend</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;local&quot;</span>
+<span class="w">  </span><span class="nb">generate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">path</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;backend.tf&quot;</span>
+<span class="w">    </span><span class="na">if_exists</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;overwrite_terragrunt&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="nb">config</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;${get_repo_root()}/.state/${path_relative_to_include()}/terraform.tfstate&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="nb">inputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">kubeconfig</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">local.kubeconfig</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>infra/Makefile</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nf">.POSIX</span><span class="o">:</span>
+<span class="nf">.PHONY</span><span class="o">:</span><span class="w"> </span><span class="n">check</span>
+
+<span class="c"># Offline: HCL is valid and formatted (part of the basic checks)</span>
+<span class="nf">check</span><span class="o">:</span>
+<span class="w">    </span>terragrunt<span class="w"> </span>hcl<span class="w"> </span>validate
+<span class="w">    </span>tofu<span class="w"> </span>fmt<span class="w"> </span>-check<span class="w"> </span>-recursive<span class="w"> </span>.
+<span class="w">    </span>terragrunt<span class="w"> </span>hcl<span class="w"> </span>fmt<span class="w"> </span>--check
+</code></pre></div>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Run the check</strong></li>
+</ul>
+<p>Run: <code>direnv allow &amp;&amp; direnv exec . .superpowers/sdd/2026-10-16-infra/check-task1.sh</code>
+Expected: <code>task1: ok</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 6: Commit</strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>add<span class="w"> </span>flake.nix<span class="w"> </span>flake.lock<span class="w"> </span>.gitignore<span class="w"> </span>infra/root.hcl<span class="w"> </span>infra/Makefile
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat(infra): OpenTofu and Terragrunt in the dev shell; infra/root.hcl&quot;</span>
+</code></pre></div>
+<h3 id="task-2-module-k3d-and-the-sandbox-cluster-unit">Task 2: Module <code>k3d</code> and the sandbox cluster unit</h3>
+<p><strong>Files:</strong>
+- Create: <code>infra/_modules/k3d/main.tf</code>, <code>infra/_modules/k3d/k3d.yaml</code> (moved from <code>metal/k3d-dev.yaml</code>), <code>infra/sandbox/cluster/terragrunt.hcl</code>
+- Delete: <code>metal/k3d-dev.yaml</code> (<code>git mv</code>)</p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>root.hcl</code> input <code>kubeconfig</code>.
+- Produces: unit <code>infra/sandbox/cluster</code> (creates k3d cluster <code>homelab-dev</code>, kubeconfig <code>infra/sandbox/kubeconfig.yaml</code>, proxy <code>homelab-dev-proxy</code>); output <code>kubeconfig</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Remove the running sandbox the old way, then write the check</strong></li>
+</ul>
+<p>Run first: <code>direnv exec . make -C metal env=dev clean</code> (the old target still exists).</p>
+<p><code>.superpowers/sdd/2026-10-16-infra/check-task2.sh</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/bin/sh</span>
+<span class="c1"># infra/sandbox/cluster creates, keeps and removes the sandbox cluster and its proxy</span>
+<span class="nb">set</span><span class="w"> </span>-e
+<span class="nb">cd</span><span class="w"> </span>infra/sandbox/cluster
+terragrunt<span class="w"> </span>apply<span class="w"> </span>-auto-approve<span class="w"> </span>--non-interactive<span class="w"> </span>&gt;/dev/null
+k3d<span class="w"> </span>cluster<span class="w"> </span>list<span class="w"> </span>homelab-dev<span class="w"> </span>&gt;/dev/null
+<span class="nb">test</span><span class="w"> </span>-s<span class="w"> </span>../kubeconfig.yaml
+<span class="nv">KUBECONFIG</span><span class="o">=</span>../kubeconfig.yaml<span class="w"> </span>kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w"> </span>--no-headers<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span><span class="s1">&#39; Ready &#39;</span>
+docker<span class="w"> </span>inspect<span class="w"> </span>-f<span class="w"> </span><span class="s1">&#39;{{.State.Running}}&#39;</span><span class="w"> </span>homelab-dev-proxy<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span><span class="nb">true</span>
+<span class="nb">test</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>docker<span class="w"> </span>network<span class="w"> </span>inspect<span class="w"> </span>k3d-homelab-dev<span class="w"> </span>-f<span class="w"> </span><span class="s1">&#39;{{range .IPAM.Config}}{{.Subnet}}{{end}}&#39;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">172</span>.28.0.0/16
+terragrunt<span class="w"> </span>plan<span class="w"> </span>-detailed-exitcode<span class="w"> </span>--non-interactive<span class="w"> </span>&gt;/dev/null<span class="w">   </span><span class="c1"># 0: no changes</span>
+terragrunt<span class="w"> </span>destroy<span class="w"> </span>-auto-approve<span class="w"> </span>--non-interactive<span class="w"> </span>&gt;/dev/null
+!<span class="w"> </span>k3d<span class="w"> </span>cluster<span class="w"> </span>list<span class="w"> </span>homelab-dev<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span>
+!<span class="w"> </span>docker<span class="w"> </span>inspect<span class="w"> </span>homelab-dev-proxy<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span>
+!<span class="w"> </span>docker<span class="w"> </span>network<span class="w"> </span>inspect<span class="w"> </span>k3d-homelab-dev<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span>
+<span class="nb">test</span><span class="w"> </span>!<span class="w"> </span>-e<span class="w"> </span>../kubeconfig.yaml
+terragrunt<span class="w"> </span>destroy<span class="w"> </span>-auto-approve<span class="w"> </span>--non-interactive<span class="w"> </span>&gt;/dev/null<span class="w">   </span><span class="c1"># again: nothing left, still succeeds</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;task2: ok&quot;</span>
+</code></pre></div>
+<p>Run: <code>chmod +x .superpowers/sdd/2026-10-16-infra/check-task2.sh &amp;&amp; direnv exec . .superpowers/sdd/2026-10-16-infra/check-task2.sh</code>
+Expected: FAIL (no <code>infra/sandbox/cluster</code>).</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Module</strong></li>
+</ul>
+<p><code>git mv metal/k3d-dev.yaml infra/_modules/k3d/k3d.yaml</code>, and in its header comment replace <code>metal/Makefile runs a localhost proxy instead</code> with <code>the proxy in main.tf forwards localhost instead</code>.</p>
+<p><code>infra/_modules/k3d/main.tf</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># The k3d sandbox: one k3s server (k3d.yaml), the latest Gateway API CRDs in k3s&#39;s auto-deploy manifests (k3s&#39;s</span>
+<span class="c1"># packaged ones are disabled), and a localhost proxy: under WSL mirrored networking Windows cannot reach ports</span>
+<span class="c1"># Docker publishes, so a host-network socat forwards 127.0.0.1:80/443/22 to the node (ServiceLB serves the Gateway)</span>
+<span class="nb">terraform</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">required_version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;&gt;= 1.13&quot;</span>
+<span class="w">  </span><span class="nb">required_providers</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nb">external</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="na">source</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;hashicorp/external&quot;</span>
+<span class="w">      </span><span class="na">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;2.4.2&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kr">variable</span><span class="w"> </span><span class="nv">&quot;kubeconfig&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">string</span>
+<span class="p">}</span>
+
+<span class="kr">variable</span><span class="w"> </span><span class="nv">&quot;name&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">type</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="kt">string</span>
+<span class="w">  </span><span class="na">default</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;homelab-dev&quot;</span>
+<span class="p">}</span>
+
+<span class="kr">variable</span><span class="w"> </span><span class="nv">&quot;gateway_api_version&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">type</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="kt">string</span>
+<span class="w">  </span><span class="na">default</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;v1.6.3&quot;</span>
+<span class="p">}</span>
+
+<span class="kr">variable</span><span class="w"> </span><span class="nv">&quot;proxy_bind&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">type</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="kt">string</span>
+<span class="w">  </span><span class="na">default</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span>
+<span class="p">}</span>
+
+<span class="nb">locals</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">config</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="nf">abspath</span><span class="p">(</span><span class="s2">&quot;${path.module}/k3d.yaml&quot;</span><span class="p">)</span>
+<span class="w">  </span><span class="na">manifest</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">abspath</span><span class="p">(</span><span class="s2">&quot;${path.module}/gateway-api-${var.gateway_api_version}.yaml&quot;</span><span class="p">)</span>
+<span class="w">  </span><span class="na">node</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;k3d-${var.name}-server-0&quot;</span>
+<span class="w">  </span><span class="na">proxy</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;${var.name}-proxy&quot;</span>
+<span class="p">}</span>
+
+<span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;terraform_data&quot;</span><span class="w"> </span><span class="nv">&quot;cluster&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">triggers_replace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="nf">filesha1</span><span class="p">(</span><span class="nv">local.config</span><span class="p">),</span><span class="w"> </span><span class="nv">var.gateway_api_version</span><span class="p">,</span><span class="w"> </span><span class="nv">var.name</span><span class="p">]</span>
+<span class="w">  </span><span class="nb">input</span><span class="w">            </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="na">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">var.name</span><span class="p">,</span><span class="w"> </span><span class="na">kubeconfig</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">var.kubeconfig</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kr">provisioner</span><span class="w"> </span><span class="nv">&quot;local-exec&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">command</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&lt;&lt;-</span><span class="dl">EOT</span>
+<span class="sh">      set -eu</span>
+<span class="sh">      [ -s &quot;${local.manifest}&quot; ] || curl -fsSL -o &quot;${local.manifest}&quot; \</span>
+<span class="sh">        https://github.com/kubernetes-sigs/gateway-api/releases/download/${var.gateway_api_version}/standard-install.yaml</span>
+<span class="sh">      k3d cluster list ${var.name} &gt;/dev/null 2&gt;&amp;1 || k3d cluster create --config &quot;${local.config}&quot; \</span>
+<span class="sh">        --volume &quot;${local.manifest}:/var/lib/rancher/k3s/server/manifests/gateway-api.yaml@server:*&quot;</span>
+<span class="sh">      k3d kubeconfig get ${var.name} &gt; &quot;${var.kubeconfig}&quot;</span>
+<span class="dl">    EOT</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kr">provisioner</span><span class="w"> </span><span class="nv">&quot;local-exec&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">when</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="err">destroy</span>
+<span class="w">    </span><span class="na">command</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;k3d cluster delete ${self.input.name}; rm -f &#39;${self.input.kubeconfig}&#39;&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1"># The node&#39;s address (it can change when the cluster is recreated)</span>
+<span class="kr">data</span><span class="w"> </span><span class="nc">&quot;external&quot;</span><span class="w"> </span><span class="nv">&quot;node&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">depends_on</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="nv">terraform_data.cluster</span><span class="p">]</span>
+<span class="w">  </span><span class="na">program</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;sh&quot;, &quot;-c&quot;, &quot;printf &#39;{\&quot;ip\&quot;:\&quot;%s\&quot;}&#39; \&quot;$(docker inspect -f &#39;{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}&#39; ${local.node})\&quot;&quot;</span><span class="p">]</span>
+<span class="p">}</span>
+
+<span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;terraform_data&quot;</span><span class="w"> </span><span class="nv">&quot;proxy&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">triggers_replace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="nv">data.external.node.result.ip</span><span class="p">,</span><span class="w"> </span><span class="nv">var.proxy_bind</span><span class="p">]</span>
+<span class="w">  </span><span class="nb">input</span><span class="w">            </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="na">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">local.proxy</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kr">provisioner</span><span class="w"> </span><span class="nv">&quot;local-exec&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">command</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&lt;&lt;-</span><span class="dl">EOT</span>
+<span class="sh">      set -eu</span>
+<span class="sh">      node=&quot;${data.external.node.result.ip}&quot;</span>
+<span class="sh">      [ -n &quot;$node&quot; ] || { echo &quot;the k3d node ${local.node} is not running&quot;; exit 1; }</span>
+<span class="sh">      docker rm -f ${local.proxy} &gt;/dev/null 2&gt;&amp;1 || true</span>
+<span class="sh">      if ss -ltnH &#39;( sport = :80 or sport = :443 or sport = :22 )&#39; | grep -q .; then</span>
+<span class="sh">        echo &quot;ports 80/443/22 are already in use on this host:&quot;; ss -ltnp &#39;( sport = :80 or sport = :443 or sport = :22 )&#39;; exit 1</span>
+<span class="sh">      fi</span>
+<span class="sh">      docker run -d --name ${local.proxy} --network host --restart unless-stopped \</span>
+<span class="sh">        --entrypoint sh alpine/socat:1.8.1.3 -c &quot;\</span>
+<span class="sh">          socat TCP-LISTEN:80,bind=${var.proxy_bind},fork,reuseaddr TCP:$node:80 &amp; \</span>
+<span class="sh">          socat TCP-LISTEN:22,bind=${var.proxy_bind},fork,reuseaddr TCP:$node:22 &amp; \</span>
+<span class="sh">          exec socat TCP-LISTEN:443,bind=${var.proxy_bind},fork,reuseaddr TCP:$node:443&quot; &gt;/dev/null</span>
+<span class="dl">    EOT</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kr">provisioner</span><span class="w"> </span><span class="nv">&quot;local-exec&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">when</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="err">destroy</span>
+<span class="w">    </span><span class="na">command</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;docker rm -f ${self.input.name} &gt;/dev/null 2&gt;&amp;1 || true&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kr">output</span><span class="w"> </span><span class="nv">&quot;kubeconfig&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">value</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="nv">var.kubeconfig</span>
+<span class="w">  </span><span class="na">depends_on</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="nv">terraform_data.cluster</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Add <code>infra/_modules/k3d/gateway-api-*.yaml</code> to <code>.gitignore</code> (replacing <code>metal/gateway-api-*.yaml</code>).</p>
+<p><code>infra/sandbox/cluster/terragrunt.hcl</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="err">include</span><span class="w"> </span><span class="s2">&quot;root&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="err">find_in_parent_folders</span><span class="p">(</span><span class="s2">&quot;root.hcl&quot;</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="nb">terraform</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">source</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;${find_in_parent_folders(&quot;_modules&quot;)}//k3d&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>(The module's <code>path.module</code> is Terragrunt's cache copy: the downloaded manifest lives there, and <code>abspath</code> gives Docker an absolute path.)</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Run the check</strong></li>
+</ul>
+<p>Run: <code>direnv exec . .superpowers/sdd/2026-10-16-infra/check-task2.sh</code>
+Expected: <code>task2: ok</code>. If <code>plan -detailed-exitcode</code> exits 2 (changes), print <code>terragrunt plan</code> and fix the trigger that moves; ledger it.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Commit</strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>add<span class="w"> </span>infra/_modules/k3d<span class="w"> </span>infra/sandbox/cluster/terragrunt.hcl<span class="w"> </span>.gitignore<span class="w"> </span>metal/k3d-dev.yaml
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat(infra): module k3d and the sandbox cluster unit&quot;</span>
+</code></pre></div>
+<h3 id="task-3-module-argocd-and-the-bootstrap-units">Task 3: Module <code>argocd</code> and the bootstrap units</h3>
+<p><strong>Files:</strong>
+- Create: <code>infra/_modules/argocd/main.tf</code>, <code>infra/_modules/argocd/bootstrap.sh</code>, <code>infra/sandbox/argocd/terragrunt.hcl</code>, <code>infra/production/argocd/terragrunt.hcl</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>root.hcl</code> input <code>kubeconfig</code>; sandbox: unit <code>../cluster</code>.
+- Produces: Argo CD and its ApplicationSets in the cluster, from <code>system/argocd</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the check</strong></li>
+</ul>
+<p><code>.superpowers/sdd/2026-10-16-infra/check-task3.sh</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/bin/sh</span>
+<span class="c1"># infra/sandbox/argocd bootstraps Argo CD once; production plans exactly its protected bootstrap</span>
+<span class="nb">set</span><span class="w"> </span>-e
+<span class="nb">cd</span><span class="w"> </span>infra/sandbox
+terragrunt<span class="w"> </span>run<span class="w"> </span>--all<span class="w"> </span>apply<span class="w"> </span>--non-interactive<span class="w"> </span>--<span class="w"> </span>-auto-approve<span class="w"> </span>&gt;/dev/null
+<span class="nb">export</span><span class="w"> </span><span class="nv">KUBECONFIG</span><span class="o">=</span><span class="nv">$PWD</span>/kubeconfig.yaml
+kubectl<span class="w"> </span>-n<span class="w"> </span>argocd<span class="w"> </span>rollout<span class="w"> </span>status<span class="w"> </span>deploy/argocd-server<span class="w"> </span>--timeout<span class="o">=</span>300s<span class="w"> </span>&gt;/dev/null
+<span class="nb">test</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>kubectl<span class="w"> </span>-n<span class="w"> </span>argocd<span class="w"> </span>get<span class="w"> </span>applicationsets<span class="w"> </span>-o<span class="w"> </span>name<span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span><span class="s1">&#39;\n&#39;</span><span class="w"> </span><span class="s1">&#39; &#39;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;applicationset.argoproj.io/apps applicationset.argoproj.io/root &quot;</span>
+<span class="o">(</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>argocd<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>terragrunt<span class="w"> </span>plan<span class="w"> </span>-detailed-exitcode<span class="w"> </span>--non-interactive<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="o">)</span><span class="w">   </span><span class="c1"># no changes on a second run</span>
+<span class="nb">cd</span><span class="w"> </span>../production
+cp<span class="w"> </span>../sandbox/kubeconfig.yaml<span class="w"> </span>kubeconfig.yaml<span class="w">   </span><span class="c1"># throwaway: plan only, never apply</span>
+<span class="o">(</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>argocd<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>terragrunt<span class="w"> </span>plan<span class="w"> </span>--non-interactive<span class="w"> </span>-no-color<span class="w"> </span><span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span>/tmp/claude-1000/infra-prod-plan.txt
+rm<span class="w"> </span>-f<span class="w"> </span>kubeconfig.yaml
+grep<span class="w"> </span>-q<span class="w"> </span><span class="s1">&#39;terraform_data.protected\[0\] will be created&#39;</span><span class="w"> </span>/tmp/claude-1000/infra-prod-plan.txt
+grep<span class="w"> </span>-q<span class="w"> </span><span class="s1">&#39;Plan: 1 to add&#39;</span><span class="w"> </span>/tmp/claude-1000/infra-prod-plan.txt
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;task3: ok&quot;</span>
+</code></pre></div>
+<p>Run: <code>chmod +x .superpowers/sdd/2026-10-16-infra/check-task3.sh &amp;&amp; direnv exec . .superpowers/sdd/2026-10-16-infra/check-task3.sh</code>
+Expected: FAIL (no <code>infra/sandbox/argocd</code>).</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Module</strong></li>
+</ul>
+<p><code>infra/_modules/argocd/bootstrap.sh</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/bin/sh</span>
+<span class="c1"># Render system/argocd and apply it once; Argo CD manages itself from then on (system/argocd is in the root</span>
+<span class="c1"># ApplicationSet), so the field manager is Argo CD&#39;s.</span>
+<span class="c1"># Env: KUBECONFIG, CHART (system/argocd), VALUES (file name in CHART), SEED (file used while Forgejo is not running;</span>
+<span class="c1"># production&#39;s first install syncs from GitHub until Forgejo holds the repository)</span>
+<span class="nb">set</span><span class="w"> </span>-eu
+kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span>argocd<span class="w"> </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-<span class="w"> </span>&gt;/dev/null
+<span class="nv">values</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$VALUES</span><span class="s2">&quot;</span>
+<span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SEED</span><span class="k">:-</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-z<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>--all-namespaces<span class="w"> </span>-l<span class="w"> </span>app.kubernetes.io/instance<span class="o">=</span>forgejo<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--field-selector<span class="w"> </span>status.phase<span class="o">=</span>Running<span class="w"> </span>-o<span class="w"> </span>name<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">  </span><span class="nv">values</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$SEED</span><span class="s2">&quot;</span>
+<span class="k">fi</span>
+helm<span class="w"> </span>dependency<span class="w"> </span>build<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$CHART</span><span class="s2">&quot;</span><span class="w"> </span>&gt;/dev/null
+helm<span class="w"> </span>template<span class="w"> </span>argocd<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$CHART</span><span class="s2">&quot;</span><span class="w"> </span>--namespace<span class="w"> </span>argocd<span class="w"> </span>--include-crds<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$CHART</span><span class="s2">/</span><span class="nv">$values</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="p">|</span><span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>--server-side<span class="w"> </span>--field-manager<span class="w"> </span>argocd-controller<span class="w"> </span>--force-conflicts<span class="w"> </span>-f<span class="w"> </span>-
+</code></pre></div>
+<p><code>infra/_modules/argocd/main.tf</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Bootstrap Argo CD from the repository&#39;s system/argocd chart. Applied once and again only when the chart&#39;s files</span>
+<span class="c1"># or the chosen values change; every later change reaches the cluster through Argo CD&#39;s own sync from git.</span>
+<span class="nb">terraform</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">required_version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;&gt;= 1.13&quot;</span>
+<span class="p">}</span>
+
+<span class="kr">variable</span><span class="w"> </span><span class="nv">&quot;kubeconfig&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">string</span>
+<span class="p">}</span>
+
+<span class="kr">variable</span><span class="w"> </span><span class="nv">&quot;chart&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">type</span><span class="w">        </span><span class="o">=</span><span class="w"> </span><span class="kt">string</span>
+<span class="w">  </span><span class="na">description</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Absolute path of system/argocd&quot;</span>
+<span class="p">}</span>
+
+<span class="kr">variable</span><span class="w"> </span><span class="nv">&quot;values&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">type</span><span class="w">        </span><span class="o">=</span><span class="w"> </span><span class="kt">string</span>
+<span class="w">  </span><span class="na">description</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Values file in the chart directory&quot;</span>
+<span class="p">}</span>
+
+<span class="kr">variable</span><span class="w"> </span><span class="nv">&quot;seed&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">type</span><span class="w">        </span><span class="o">=</span><span class="w"> </span><span class="kt">string</span>
+<span class="w">  </span><span class="na">default</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;&quot;</span>
+<span class="w">  </span><span class="na">description</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Values file used while Forgejo is not running (production&#39;s first install)&quot;</span>
+<span class="p">}</span>
+
+<span class="kr">variable</span><span class="w"> </span><span class="nv">&quot;protect&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">type</span><span class="w">        </span><span class="o">=</span><span class="w"> </span><span class="kt">bool</span>
+<span class="w">  </span><span class="na">default</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="no">false</span>
+<span class="w">  </span><span class="na">description</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Refuse to destroy (production)&quot;</span>
+<span class="p">}</span>
+
+<span class="nb">locals</span><span class="w"> </span><span class="p">{</span>
+<span class="c1">  # Helm writes charts/ and Chart.lock: hash only what the repository holds</span>
+<span class="w">  </span><span class="na">files</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">sort</span><span class="p">(</span><span class="nf">setunion</span><span class="p">(</span><span class="nf">fileset</span><span class="p">(</span><span class="nv">var.chart</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;*.yaml&quot;), fileset(var.chart, &quot;templates/**&quot;</span><span class="p">)))</span>
+<span class="w">  </span><span class="na">hash</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="nf">sha1</span><span class="p">(</span><span class="nf">join</span><span class="p">(</span><span class="s2">&quot;&quot;, [for f in local.files : filesha1(&quot;${var.chart}/${f}&quot;</span><span class="p">)]))</span>
+<span class="w">  </span><span class="nb">environment</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">KUBECONFIG</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">var.kubeconfig</span>
+<span class="w">    </span><span class="na">CHART</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="nv">var.chart</span>
+<span class="w">    </span><span class="na">VALUES</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="nv">var.values</span>
+<span class="w">    </span><span class="na">SEED</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="nv">var.seed</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="na">command</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;sh ${abspath(&quot;${path.module}/bootstrap.sh&quot;)}&quot;</span>
+<span class="p">}</span>
+
+<span class="c1"># prevent_destroy cannot take a variable: one resource per setting, only one of them exists</span>
+<span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;terraform_data&quot;</span><span class="w"> </span><span class="nv">&quot;bootstrap&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">count</span><span class="w">            </span><span class="o">=</span><span class="w"> </span><span class="nv">var.protect</span><span class="w"> </span><span class="p">?</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="m">1</span>
+<span class="w">  </span><span class="na">triggers_replace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="nv">local.hash</span><span class="p">,</span><span class="w"> </span><span class="nv">var.values</span><span class="p">,</span><span class="w"> </span><span class="nv">var.seed</span><span class="p">]</span>
+
+<span class="w">  </span><span class="kr">provisioner</span><span class="w"> </span><span class="nv">&quot;local-exec&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">command</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="nv">local.command</span>
+<span class="w">    </span><span class="na">environment</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">local.environment</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;terraform_data&quot;</span><span class="w"> </span><span class="nv">&quot;protected&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">count</span><span class="w">            </span><span class="o">=</span><span class="w"> </span><span class="nv">var.protect</span><span class="w"> </span><span class="p">?</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="m">0</span>
+<span class="w">  </span><span class="na">triggers_replace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="nv">local.hash</span><span class="p">,</span><span class="w"> </span><span class="nv">var.values</span><span class="p">,</span><span class="w"> </span><span class="nv">var.seed</span><span class="p">]</span>
+
+<span class="w">  </span><span class="kr">provisioner</span><span class="w"> </span><span class="nv">&quot;local-exec&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">command</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="nv">local.command</span>
+<span class="w">    </span><span class="na">environment</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">local.environment</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="nb">lifecycle</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">prevent_destroy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">true</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>infra/sandbox/argocd/terragrunt.hcl</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="err">include</span><span class="w"> </span><span class="s2">&quot;root&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="err">find_in_parent_folders</span><span class="p">(</span><span class="s2">&quot;root.hcl&quot;</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="nb">dependencies</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">paths</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;../cluster&quot;</span><span class="p">]</span>
+<span class="p">}</span>
+
+<span class="nb">terraform</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">source</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;${find_in_parent_folders(&quot;_modules&quot;)}//argocd&quot;</span>
+<span class="p">}</span>
+
+<span class="nb">inputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">chart</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;${get_repo_root()}/system/argocd&quot;</span>
+<span class="w">  </span><span class="na">values</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;values-dev.yaml&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>infra/production/argocd/terragrunt.hcl</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="err">include</span><span class="w"> </span><span class="s2">&quot;root&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="err">find_in_parent_folders</span><span class="p">(</span><span class="s2">&quot;root.hcl&quot;</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1"># The cluster comes from Ansible (make -C metal) until step 11</span>
+<span class="nb">terraform</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">source</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;${find_in_parent_folders(&quot;_modules&quot;)}//argocd&quot;</span>
+<span class="p">}</span>
+
+<span class="nb">inputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">chart</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;${get_repo_root()}/system/argocd&quot;</span>
+<span class="w">  </span><span class="na">values</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;values.yaml&quot;</span>
+<span class="w">  </span><span class="na">seed</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;values-seed.yaml&quot;</span>
+<span class="w">  </span><span class="na">protect</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">true</span>
+<span class="p">}</span>
+</code></pre></div>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Run the check</strong></li>
+</ul>
+<p>Run: <code>direnv exec . .superpowers/sdd/2026-10-16-infra/check-task3.sh</code>
+Expected: <code>task3: ok</code>. (The sandbox now runs from Terragrunt; leave it up for Task 4.)</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Commit</strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>add<span class="w"> </span>infra/_modules/argocd<span class="w"> </span>infra/sandbox/argocd<span class="w"> </span>infra/production/argocd
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat(infra): module argocd bootstraps Argo CD in the sandbox and production&quot;</span>
+</code></pre></div>
+<h3 id="task-4-make-metal-removals-docs">Task 4: Make, metal, removals, docs</h3>
+<p><strong>Files:</strong>
+- Modify: <code>Makefile</code>, <code>metal/Makefile</code>, <code>metal/roles/k3s/tasks/main.yml</code> (kubeconfig <code>dest</code>), <code>docs/installation/sandbox.md</code>, <code>docs/installation/post-installation.md</code>, <code>CLAUDE.md</code>
+- Delete: <code>system/bootstrap.yml</code>, <code>system/Makefile</code></p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Root <code>Makefile</code></strong></li>
+</ul>
+<p>Replace the top with:</p>
+<div class="highlight"><pre><span></span><code><span class="nf">.POSIX</span><span class="o">:</span>
+<span class="nf">.PHONY</span><span class="o">:</span><span class="w"> </span>*
+<span class="nf">.EXPORT_ALL_VARIABLES</span><span class="o">:</span>
+
+<span class="nv">env</span><span class="w"> </span><span class="o">?=</span><span class="w"> </span>production
+<span class="nv">KUBECONFIG</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">$(</span>shell<span class="w"> </span><span class="nb">pwd</span><span class="k">)</span>/infra/<span class="k">$(</span>env<span class="k">)</span>/kubeconfig.yaml
+<span class="nv">KUBE_CONFIG_PATH</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">$(</span>KUBECONFIG<span class="k">)</span>
+<span class="nv">smoke_filter</span><span class="w"> </span><span class="o">?=</span><span class="w"> </span>Smoke
+<span class="nv">terragrunt_apply</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>terragrunt<span class="w"> </span>run<span class="w"> </span>--all<span class="w"> </span>apply<span class="w"> </span>--non-interactive<span class="w"> </span>--<span class="w"> </span>-auto-approve
+
+<span class="nf">default</span><span class="o">:</span><span class="w"> </span><span class="n">metal</span> <span class="n">infra</span> <span class="n">external</span> <span class="n">smoke</span>-<span class="n">test</span>
+
+<span class="c"># The sandbox syncs GitHub branch sandbox (system/argocd/values-dev.yaml): test the commit you are on</span>
+<span class="nf">dev</span><span class="o">:</span><span class="w"> </span><span class="n">sandbox</span>-<span class="n">push</span>
+<span class="w">    </span><span class="nb">cd</span><span class="w"> </span>infra/sandbox<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="k">$(</span>terragrunt_apply<span class="k">)</span>
+<span class="w">    </span><span class="k">$(</span>MAKE<span class="k">)</span><span class="w"> </span><span class="nv">env</span><span class="o">=</span>sandbox<span class="w"> </span><span class="nv">ENV</span><span class="o">=</span>dev<span class="w"> </span><span class="nv">INSECURE_SKIP_VERIFY</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">smoke_filter</span><span class="o">=</span><span class="s1">&#39;Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress&#39;</span><span class="w"> </span>sandbox-refresh<span class="w"> </span>smoke-test
+</code></pre></div>
+<p>Keep <code>sandbox-push</code> and <code>sandbox-refresh</code> as they are. Replace <code>dev-clean</code>, <code>metal</code> and <code>system</code> with:</p>
+<div class="highlight"><pre><span></span><code><span class="nf">dev-clean</span><span class="o">:</span>
+<span class="w">    </span><span class="nb">cd</span><span class="w"> </span>infra/sandbox<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>terragrunt<span class="w"> </span>run<span class="w"> </span>--all<span class="w"> </span>destroy<span class="w"> </span>--non-interactive<span class="w"> </span>--<span class="w"> </span>-auto-approve
+
+<span class="nf">metal</span><span class="o">:</span>
+<span class="w">    </span>make<span class="w"> </span>-C<span class="w"> </span>metal
+
+<span class="c"># Bootstrap Argo CD (production; the sandbox&#39;s runs in make dev)</span>
+<span class="nf">infra</span><span class="o">:</span>
+<span class="w">    </span><span class="nb">cd</span><span class="w"> </span>infra/<span class="k">$(</span>env<span class="k">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="k">$(</span>terragrunt_apply<span class="k">)</span>
+</code></pre></div>
+<p>and delete the old <code>metal:</code>/<code>system:</code> targets. (<code>ENV=dev</code> stays: the tests read it.)</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: <code>metal/</code></strong></li>
+</ul>
+<p><code>metal/Makefile</code>: delete <code>dev: k3d proxy</code>, the <code>k3d_*</code>/<code>gateway_api_*</code> variables, and the <code>$(gateway_api_manifest)</code>, <code>k3d</code>, <code>proxy</code>, <code>clean</code> targets with their comments; change <code>export KUBECONFIG = $(shell pwd)/kubeconfig.yaml</code> to <code>export KUBECONFIG = $(shell pwd)/../infra/production/kubeconfig.yaml</code>. Keep <code>default</code>, <code>prod</code>, <code>boot</code>, <code>cluster</code>, <code>console</code>, the SSH key rule. If <code>env ?= prod</code> is now only used for the inventory, keep it.</p>
+<p><code>metal/roles/k3s/tasks/main.yml</code> line 102: <code>dest: "{{ playbook_dir }}/kubeconfig.yaml"</code> → <code>dest: "{{ playbook_dir }}/../infra/production/kubeconfig.yaml"</code>.</p>
+<p><code>git rm system/bootstrap.yml system/Makefile</code>.</p>
+<p>Run: <code>grep -rn 'bootstrap.yml\|metal/kubeconfig\|k3d-dev.yaml\|make -C system\|metal/Makefile' --include=*.md --include=Makefile --include=*.yml --include=*.yaml --include=*.go --include=*.py --include=*.hcl . | grep -v '^./site\|superpowers\|^./.state'</code>
+Expected: only lines this task's Step 3 rewrites (CLAUDE.md, docs, comments in <code>system/argocd/values-seed.yaml</code> or <code>scripts/check-network-config</code> that mention <code>system/bootstrap.yml</code>) — rewrite each to name <code>infra/_modules/argocd</code> (or <code>infra/&lt;env&gt;/argocd</code>).</p>
+<ul class="task-list">
+<li class="task-list-item">
+<p><input type="checkbox" disabled/> <strong>Step 3: Docs</strong></p>
+</li>
+<li>
+<p><code>docs/installation/sandbox.md</code>: kubeconfig <code>export KUBECONFIG=$PWD/infra/sandbox/kubeconfig.yaml</code>; <code>make dev</code> builds the sandbox with Terragrunt (<code>infra/sandbox</code>: units <code>cluster</code> and <code>argocd</code>), <code>make dev-clean</code> runs <code>terragrunt run --all destroy</code> there.</p>
+</li>
+<li><code>docs/installation/post-installation.md</code>: <code>./metal/kubeconfig.yaml</code> → <code>./infra/production/kubeconfig.yaml</code>.</li>
+<li><code>CLAUDE.md</code>:</li>
+<li>Roadmap 7: "7. Infra: <code>infra/</code> with OpenTofu + Terragrunt (environments sandbox, staging, production), absorbing <code>metal/</code> bootstrap and <code>external/</code>" → "7. Infra: 7a <code>infra/</code> with OpenTofu + Terragrunt: the sandbox's cluster and every environment's Argo CD bootstrap (done); 7b environment settings (domain, timezone, seed repository) from <code>infra/&lt;env&gt;/</code>; 7c a <code>cloudflare</code> unit replacing <code>external/</code>".</li>
+<li>Rules, basic checks: add <code>make -C infra check</code> after <code>scripts/check-network-config</code>.</li>
+<li>Sandbox: the k3d bullet names <code>infra/sandbox</code> (<code>cluster</code>: <code>infra/_modules/k3d</code>, config <code>infra/_modules/k3d/k3d.yaml</code>; <code>argocd</code>: <code>infra/_modules/argocd</code>) instead of <code>metal/k3d-dev.yaml</code>/<code>metal/Makefile</code>; the kubeconfig is <code>infra/&lt;env&gt;/kubeconfig.yaml</code>; state is local in <code>.state/</code> until step 8; every mention of <code>system/bootstrap.yml</code> becomes <code>infra/_modules/argocd</code> (the Argo CD allow and CRD-ordering notes).</li>
+<li>Production checklist: "Production's Argo CD bootstrap through Terragrunt (<code>infra/production/argocd</code>, seed selection, <code>prevent_destroy</code>) was only planned against the sandbox; nodes still come from <code>make -C metal</code>."</li>
+</ul>
+<p>Run: <code>mkdocs build --strict 2&gt;&amp;1 | tail -1</code>
+Expected: <code>Documentation built</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Commit</strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>add<span class="w"> </span>-A<span class="w"> </span>Makefile<span class="w"> </span>metal<span class="w"> </span>docs<span class="w"> </span>CLAUDE.md<span class="w"> </span>system<span class="w"> </span>scripts
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat: make dev and production bootstrap through Terragrunt; drop system/bootstrap.yml&quot;</span>
+</code></pre></div>
+<h3 id="task-5-prove-it">Task 5: Prove it</h3>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Basic checks</strong></li>
+</ul>
+<p>Run: <code>make -C infra check &amp;&amp; scripts/check-network-config | tail -1 &amp;&amp; scripts/check-mesh-policies &gt;/dev/null &amp;&amp; echo mesh-ok &amp;&amp; (cd test &amp;&amp; go vet ./... &amp;&amp; go test -run 'TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect' ./...) | tail -1</code>
+Expected: no errors, <code>0 failures</code>, <code>mesh-ok</code>, <code>ok</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Fresh sandbox through Terragrunt</strong></li>
+</ul>
+<p>Run: <code>make dev-clean; make dev &gt; .superpowers/sdd/2026-10-16-infra/make-dev.log 2&gt;&amp;1; echo exit=$?; grep -E '^(--- FAIL|FAIL)|^DONE' .superpowers/sdd/2026-10-16-infra/make-dev.log</code>
+Expected: <code>exit=0</code>, <code>DONE 98 tests</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Second run changes nothing</strong></li>
+</ul>
+<p>Run: <code>(cd infra/sandbox &amp;&amp; terragrunt run --all plan --non-interactive -- -detailed-exitcode) &gt; .superpowers/sdd/2026-10-16-infra/plan2.log 2&gt;&amp;1; echo plan=$?; grep -c 'No changes' .superpowers/sdd/2026-10-16-infra/plan2.log</code>
+Expected: <code>plan=0</code>, <code>2</code> (both units).</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Clean removal (then rebuild for the user)</strong></li>
+</ul>
+<p>Run: <code>make dev-clean; k3d cluster list 2&gt;&amp;1 | grep -c homelab-dev; docker ps -a --format '{{.Names}}' | grep -c homelab-dev-proxy; docker network ls --format '{{.Name}}' | grep -c k3d-homelab-dev; ls infra/sandbox/kubeconfig.yaml 2&gt;&amp;1 | grep -c 'No such'</code>
+Expected: <code>0</code>, <code>0</code>, <code>0</code>, <code>1</code>. Then <code>make dev</code> again so the sandbox is up for the user (its result is recorded in the ledger).</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020 - 2024 Khue Doan
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.expand", "navigation.instant", "navigation.sections", "search.highlight", "search.share"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

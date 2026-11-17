@@ -1,0 +1,3090 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://github.com/khuedoan/homelab/assets/27996771/d33be1af-3687-4712-a671-4370da13cc92">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>OpenTofu State on R2 with Encryption Implementation Plan - Khue's Homelab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#opentofu-state-on-r2-with-encryption-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-header__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Khue's Homelab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              OpenTofu State on R2 with Encryption Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Khue&#39;s Homelab" class="md-nav__button md-logo" aria-label="Khue's Homelab" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Khue's Homelab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuedoan/homelab" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/testbed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testbed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/staging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staging (optional)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prerequisites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/external-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/post-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/vpn-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VPN setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/user-onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/secrets-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/certificate-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/development-shell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development shell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing infrastructure code
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-to guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-to guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alternate-dns-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alternate DNS setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/expose-services-to-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expose services to the internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backup-and-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup and restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/secrets-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rotating secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/security-logs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/runtime-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runtime detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/kiali/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    See the mesh with Kiali
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy: Kyverno and Pod Security Admission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/supply-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/cluster-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/public-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/sandbox-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/deploy-to-forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy to Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/renovate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renovate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/in-cluster-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-cluster CI: Argo Workflows and Argo Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/backstage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backstage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/add-or-remove-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add or remove nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/single-node-cluster-adjustments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single node cluster adjustments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/media-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/updating-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating documentation (this website)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_26" id="__nav_5_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Troubleshooting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to-guides/troubleshooting/pxe-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/decision-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#global-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-focus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review Focus
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Review Focus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-1-cf-in-the-dev-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 1: cf in the dev shell
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-2-cloudflare-credentials-and-the-state-bucket" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 2: Cloudflare credentials and the state bucket
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-3-state-encryption-in-every-environment-and-its-rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 3: State encryption in every environment, and its rotation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-4-productions-backend-on-r2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 4: Production's backend on R2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-5-migrate-productions-cloudflare-state-with-the-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 5: Migrate production's cloudflare state, with the user
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-6-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 6: Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-7-final-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task 7: Final checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="opentofu-state-on-r2-with-encryption-implementation-plan">OpenTofu State on R2 with Encryption Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Production's OpenTofu state lives in the R2 bucket <code>homelab-production-tfstate</code>, every environment's state is encrypted with a passphrase that a tested script can rotate, and Cloudflare credentials come from <code>cf auth login</code>.</p>
+<p><strong>Architecture:</strong>
+- <code>infra/root.hcl</code> generates two files for every unit:
+  - <code>backend.tf</code>: production gets the <code>http</code> backend on R2's object API with <code>cf</code>'s OAuth token; the sandbox keeps local state.
+  - <code>encryption.tf</code>: pbkdf2 and aes_gcm. A fallback appears only for a rotation (the previous passphrase) or a migration (unencrypted).
+- Three small POSIX scripts, each tested offline against fake commands or a throwaway Terragrunt tree:
+  - <code>scripts/cloudflare-credentials</code>: account and token;
+  - <code>scripts/ensure-state-bucket</code>: creates the bucket;
+  - <code>scripts/rotate-state-passphrase</code>: re-encrypts every unit's state.
+- <code>cf</code> is built in <code>flake.nix</code> from nixpkgs PR #569193's derivation.</p>
+<p><strong>Tech Stack:</strong> OpenTofu 1.11 (state encryption, <code>http</code> backend), Terragrunt 1.1, Nix (<code>stdenv.mkDerivation</code> with pnpm), POSIX <code>sh</code>, <code>curl</code> and <code>jq</code>, Go tests.</p>
+<p><strong>Spec:</strong> <code>docs/superpowers/specs/2026-10-18-state-r2-design.md</code></p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li>Bucket <code>homelab-production-tfstate</code>; object <code>&lt;unit&gt;/tfstate.json</code>; address <code>https://api.cloudflare.com/client/v4/accounts/&lt;account&gt;/r2/buckets/&lt;bucket&gt;/objects/&lt;unit&gt;/tfstate.json</code>; <code>update_method = "PUT"</code>; header <code>Authorization: Bearer &lt;token&gt;</code>; no lock.</li>
+<li>Only production uses R2 and <code>cf</code>. Sandbox units never call <code>cf</code>, and <code>make dev</code> needs no Cloudflare login.</li>
+<li>Encryption in every environment: <code>key_provider "pbkdf2"</code>, <code>method "aes_gcm"</code>, applied to <code>state</code> and <code>plan</code>, <code>enforced = true</code>.</li>
+<li>Passphrase: <code>HOMELAB_STATE_PASSPHRASE</code> from <code>~/.config/homelab/state.env</code> (mode 600, loaded by <code>.envrc</code>), handed to OpenTofu only as <code>TF_VAR_state_passphrase</code>.</li>
+<li>Never print it, log it, write it to a generated file, or commit it. Claude never reads <code>state.env</code>.</li>
+<li>The user creates the file and keeps a copy in a password manager.</li>
+<li><code>cf</code> pinned at <code>cf@1.0.0-beta.18</code> (only betas exist).</li>
+<li><code>~/.config/homelab/cloudflare.env</code> and its <code>.envrc</code> line are removed.</li>
+<li>Production migration happens only after the user ran <code>! cf auth login</code> and confirmed. The local <code>.state/production/</code> files stay until the user deletes them.</li>
+<li>No test name contains a word of <code>make dev</code>'s main filter (<code>Smoke|Identity|SSO|Gateway|Forgejo|Mesh|Monitoring|Egress|Secrets|Ntfy|Logs</code>) or <code>NodeRestart</code>.</li>
+<li>Commits end with the session's attribution lines. Never commit to <code>dev</code> or <code>master</code>.</li>
+</ul>
+<h2 id="review-focus">Review Focus</h2>
+<ol>
+<li><strong><code>make -C infra check</code> and <code>terragrunt hcl validate</code> without a passphrase:</strong> parsing <code>root.hcl</code> must not fail. Only commands that touch state may refuse. The check is pinned in Task 3, Step 7, which runs <code>make -C infra check</code> with the variable unset.</li>
+<li><strong>The OAuth token in generated files:</strong> <code>backend.tf</code> in <code>.terragrunt-cache</code> carries the Bearer token, as upstream's does. <code>.terragrunt-cache/</code> must stay git-ignored and user-only. Task 4, Step 6 checks <code>git check-ignore</code> and the permissions hook.</li>
+<li><strong>A unit with no state</strong> (production <code>argocd</code>, <code>openbao</code> and <code>secrets</code> today): rotation must skip it rather than push an empty state. Pinned by <code>TestStatePassphraseRotation/empty_unit_skipped</code>.</li>
+<li><strong><code>init -reconfigure</code> against <code>-migrate-state</code>:</strong> the two flags conflict. A migration run must not get <code>-reconfigure</code>. Task 4's <code>HOMELAB_STATE_MIGRATE</code> switch covers it, and Task 5 uses it.</li>
+<li><strong>A failed rotation halfway:</strong> every unit is pulled before anything is pushed, so a pull failure changes nothing. Pinned by <code>TestStatePassphraseRotation/wrong_previous_changes_nothing</code>.</li>
+</ol>
+<hr />
+<h3 id="task-1-cf-in-the-dev-shell">Task 1: <code>cf</code> in the dev shell</h3>
+<p><strong>Files:</strong>
+- Create: <code>nix/cloudflare-cf.nix</code>
+- Modify: <code>flake.nix</code></p>
+<p><strong>Interfaces:</strong>
+- Produces: <code>cf</code> on <code>PATH</code> in the dev shell (<code>direnv exec . cf --version</code> prints <code>1.0.0-beta.18</code>).</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Vendor the derivation</strong></li>
+</ul>
+<p>Create <code>nix/cloudflare-cf.nix</code> from nixpkgs PR #569193 (head <code>70a81d7e34de320f037363c690da3d81e18156d0</code>, <code>pkgs/by-name/cl/cloudflare-cf/package.nix</code>). The scratchpad copy is <code>/tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/cloudflare-cf.nix</code>. Make these changes:
+- Prepend the comment <code># Until nixpkgs packages it (NixOS/nixpkgs#569193): that PR's package.nix without its tests and update script. cf has only beta releases.</code>
+- Remove the <code>callPackage</code> and <code>nix-update-script</code> arguments.
+- Remove the <code>passthru.updateScript</code> and <code>passthru.tests</code> attributes.</p>
+<p>Keep everything else verbatim: version <code>1.0.0-beta.18</code>, src hash <code>sha256-3AjBiAO5mlEMMyzTrq5n3gnhyI7WL8vSTIHIo0bt9ig=</code>, pnpm deps hash <code>sha256-N7S2/X/5k1ae8c35K6If61V0cyFwj4TDmUkp+Ctdpes=</code>, <code>pnpm_12</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Add it to the dev shell</strong></li>
+</ul>
+<p>In <code>flake.nix</code>, after <code>unstable.k3d</code>, add the line <code>(callPackage ./nix/cloudflare-cf.nix { }) # cf: Cloudflare's CLI, its OAuth login gives OpenTofu its token</code>. It sits inside <code>with pkgs;</code>, so <code>callPackage</code> is <code>pkgs.callPackage</code>. <code>nixos-26.05</code> has <code>pnpm_12</code> 12.9.0.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Build and check the version</strong></li>
+</ul>
+<p>Run: <code>git add nix/cloudflare-cf.nix flake.nix &amp;&amp; direnv exec . sh -c 'cf --version; CF_SEND_TELEMETRY=false cf --quiet auth whoami; echo whoami-exit=$?' 2&gt;&amp;1 | grep -v '^direnv' | tail -4</code>
+Expected: <code>1.0.0-beta.18</code>. <code>auth whoami</code> fails with a "not logged in" style message and a non-zero exit, because the user has not logged in yet.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Commit</strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>add<span class="w"> </span>nix/cloudflare-cf.nix<span class="w"> </span>flake.nix<span class="w"> </span>flake.lock
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;build: cf 1.0.0-beta.18 (Cloudflare&#39;s CLI) in the dev shell&quot;</span>
+</code></pre></div>
+<hr />
+<h3 id="task-2-cloudflare-credentials-and-the-state-bucket">Task 2: Cloudflare credentials and the state bucket</h3>
+<p><strong>Files:</strong>
+- Create: <code>scripts/cloudflare-credentials</code>
+- Create: <code>scripts/ensure-state-bucket</code>
+- Create: <code>test/state_scripts_test.go</code></p>
+<p><strong>Interfaces:</strong>
+- Produces:
+  - <code>scripts/cloudflare-credentials &lt;env&gt;</code> prints one JSON line: <code>{"account_id":"...","token":"..."}</code>. Both are empty strings unless <code>&lt;env&gt;</code> is <code>production</code>. It exits non-zero when <code>cf</code> fails.
+  - <code>scripts/ensure-state-bucket &lt;bucket&gt;</code> gets its credentials from <code>cloudflare-credentials production</code> and creates the bucket if <code>GET</code> answers 404. It exits non-zero, with the API's message, on any other error.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Write the tests</strong></li>
+</ul>
+<p>Create <code>test/state_scripts_test.go</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">test</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;os&quot;</span>
+<span class="w">    </span><span class="s">&quot;os/exec&quot;</span>
+<span class="w">    </span><span class="s">&quot;path/filepath&quot;</span>
+<span class="w">    </span><span class="s">&quot;strings&quot;</span>
+<span class="w">    </span><span class="s">&quot;testing&quot;</span>
+
+<span class="w">    </span><span class="s">&quot;github.com/stretchr/testify/assert&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/stretchr/testify/require&quot;</span>
+<span class="p">)</span>
+
+<span class="c1">// fakeBin writes executable scripts into a temporary directory placed first on PATH.</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">fakeBin</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">,</span><span class="w"> </span><span class="nx">scripts</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">dir</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">dir</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">t</span><span class="p">.</span><span class="nx">TempDir</span><span class="p">()</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="nx">body</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">scripts</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">WriteFile</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">dir</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="p">),</span><span class="w"> </span><span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&quot;#!/bin/sh\n&quot;</span><span class="o">+</span><span class="nx">body</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="nx">o755</span><span class="p">))</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">dir</span><span class="p">,</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Environ</span><span class="p">(),</span><span class="w"> </span><span class="s">&quot;PATH=&quot;</span><span class="o">+</span><span class="nx">dir</span><span class="o">+</span><span class="s">&quot;:&quot;</span><span class="o">+</span><span class="nx">os</span><span class="p">.</span><span class="nx">Getenv</span><span class="p">(</span><span class="s">&quot;PATH&quot;</span><span class="p">),</span><span class="w"> </span><span class="s">&quot;FIXTURES=&quot;</span><span class="o">+</span><span class="nx">dir</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">runScript</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">script</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">args</span><span class="w"> </span><span class="o">...</span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">cmd</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">exec</span><span class="p">.</span><span class="nx">Command</span><span class="p">(</span><span class="s">&quot;sh&quot;</span><span class="p">,</span><span class="w"> </span><span class="nb">append</span><span class="p">([]</span><span class="kt">string</span><span class="p">{</span><span class="s">&quot;../scripts/&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">script</span><span class="p">},</span><span class="w"> </span><span class="nx">args</span><span class="o">...</span><span class="p">)</span><span class="o">...</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">cmd</span><span class="p">.</span><span class="nx">Env</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">env</span>
+<span class="w">    </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">cmd</span><span class="p">.</span><span class="nx">CombinedOutput</span><span class="p">()</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">TrimSpace</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">out</span><span class="p">)),</span><span class="w"> </span><span class="nx">err</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">TestStateCloudflareCredentials</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">dir</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">fakeBin</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">string</span><span class="p">{</span>
+<span class="w">        </span><span class="s">&quot;cf&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">`[ -z &quot;$CLOUDFLARE_API_TOKEN&quot; ] || { echo &quot;token leaked into cf&quot; &gt;&amp;2; exit 3; }</span>
+<span class="s">[ -f &quot;$FIXTURES/cf-fails&quot; ] &amp;&amp; { echo &quot;not logged in&quot; &gt;&amp;2; exit 1; }</span>
+<span class="s">printf &#39;{&quot;authSource&quot;:&quot;OAuth token from %s/token.json&quot;,&quot;accounts&quot;:[{&quot;id&quot;:&quot;acc-1&quot;},{&quot;id&quot;:&quot;acc-2&quot;}]}\n&#39; &quot;$FIXTURES&quot;`</span><span class="p">,</span>
+<span class="w">    </span><span class="p">})</span>
+<span class="w">    </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">WriteFile</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">dir</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;token.json&quot;</span><span class="p">),</span><span class="w"> </span><span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">`{&quot;oauth_token&quot;:&quot;tok-123&quot;}`</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="nx">o600</span><span class="p">))</span>
+<span class="w">    </span><span class="nx">env</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">env</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;CLOUDFLARE_API_TOKEN=old-token&quot;</span><span class="p">)</span>
+
+<span class="w">    </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">runScript</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;cloudflare-credentials&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;sandbox&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">assert</span><span class="p">.</span><span class="nx">JSONEq</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="s">`{&quot;account_id&quot;:&quot;&quot;,&quot;token&quot;:&quot;&quot;}`</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;the sandbox never calls cf&quot;</span><span class="p">)</span>
+
+<span class="w">    </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">runScript</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;cloudflare-credentials&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;production&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">assert</span><span class="p">.</span><span class="nx">JSONEq</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="s">`{&quot;account_id&quot;:&quot;acc-1&quot;,&quot;token&quot;:&quot;tok-123&quot;}`</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">)</span>
+
+<span class="w">    </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">runScript</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">env</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;CLOUDFLARE_ACCOUNT_ID=acc-2&quot;</span><span class="p">),</span><span class="w"> </span><span class="s">&quot;cloudflare-credentials&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;production&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">assert</span><span class="p">.</span><span class="nx">JSONEq</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="s">`{&quot;account_id&quot;:&quot;acc-2&quot;,&quot;token&quot;:&quot;tok-123&quot;}`</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">)</span>
+
+<span class="w">    </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">WriteFile</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">dir</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;cf-fails&quot;</span><span class="p">),</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="nx">o644</span><span class="p">))</span>
+<span class="w">    </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">runScript</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;cloudflare-credentials&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;production&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Error</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;not logged in&quot;</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">TestStateBucket</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="p">[]</span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="nx">getCode</span><span class="p">,</span><span class="w"> </span><span class="nx">postCode</span><span class="w"> </span><span class="kt">string</span>
+<span class="w">        </span><span class="nx">created</span><span class="p">,</span><span class="w"> </span><span class="nx">fails</span><span class="w">          </span><span class="kt">bool</span>
+<span class="w">    </span><span class="p">}{</span>
+<span class="w">        </span><span class="p">{</span><span class="s">&quot;missing bucket created&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;404&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;200&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">},</span>
+<span class="w">        </span><span class="p">{</span><span class="s">&quot;existing bucket kept&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;200&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">},</span>
+<span class="w">        </span><span class="p">{</span><span class="s">&quot;API error&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;403&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">},</span>
+<span class="w">        </span><span class="p">{</span><span class="s">&quot;create fails&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;404&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;409&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">},</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">t</span><span class="p">.</span><span class="nx">Run</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nx">dir</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">fakeBin</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">string</span><span class="p">{</span>
+<span class="w">                </span><span class="s">&quot;cloudflare-credentials&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">`echo &#39;{&quot;account_id&quot;:&quot;acc-1&quot;,&quot;token&quot;:&quot;tok-123&quot;}&#39;`</span><span class="p">,</span>
+<span class="w">                </span><span class="c1">// Records each call; -o writes the body, -w prints the status code</span>
+<span class="w">                </span><span class="s">&quot;curl&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">`echo &quot;$*&quot; &gt;&gt; &quot;$FIXTURES/calls&quot;</span>
+<span class="s">out=; while [ $# -gt 0 ]; do case &quot;$1&quot; in -o) out=$2; shift;; esac; shift; done</span>
+<span class="s">case &quot;$(tail -1 &quot;$FIXTURES/calls&quot;)&quot; in</span>
+<span class="s">  *&quot;-X POST&quot;*) code=$(cat &quot;$FIXTURES/post&quot;);;</span>
+<span class="s">  *) code=$(cat &quot;$FIXTURES/get&quot;);;</span>
+<span class="s">esac</span>
+<span class="s">echo &#39;{&quot;errors&quot;:[{&quot;message&quot;:&quot;fake &#39;&quot;$code&quot;&#39;&quot;}]}&#39; &gt; &quot;$out&quot;; printf %s &quot;$code&quot;`</span><span class="p">,</span>
+<span class="w">            </span><span class="p">})</span>
+<span class="w">            </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">WriteFile</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">dir</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;get&quot;</span><span class="p">),</span><span class="w"> </span><span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">getCode</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="nx">o644</span><span class="p">))</span>
+<span class="w">            </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">WriteFile</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">dir</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;post&quot;</span><span class="p">),</span><span class="w"> </span><span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">postCode</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="nx">o644</span><span class="p">))</span>
+<span class="w">            </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">runScript</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">env</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;CLOUDFLARE_CREDENTIALS=&quot;</span><span class="o">+</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">dir</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;cloudflare-credentials&quot;</span><span class="p">)),</span><span class="w"> </span><span class="s">&quot;ensure-state-bucket&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;homelab-production-tfstate&quot;</span><span class="p">)</span>
+<span class="w">            </span><span class="nx">calls</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">ReadFile</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">dir</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;calls&quot;</span><span class="p">))</span>
+<span class="w">            </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nb">string</span><span class="p">(</span><span class="nx">calls</span><span class="p">),</span><span class="w"> </span><span class="s">&quot;accounts/acc-1/r2/buckets/homelab-production-tfstate&quot;</span><span class="p">)</span>
+<span class="w">            </span><span class="nx">assert</span><span class="p">.</span><span class="nx">NotContains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nb">string</span><span class="p">(</span><span class="nx">calls</span><span class="p">),</span><span class="w"> </span><span class="s">&quot;tok-123&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;the token must not be on curl&#39;s command line&quot;</span><span class="p">)</span>
+<span class="w">            </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Equal</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">created</span><span class="p">,</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">calls</span><span class="p">),</span><span class="w"> </span><span class="s">&quot;-X POST&quot;</span><span class="p">))</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">fails</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Error</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">                </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;fake&quot;</span><span class="p">)</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nx">assert</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">)</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">})</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Run them to see them fail</strong></li>
+</ul>
+<p>Run: <code>cd test &amp;&amp; go test -run 'TestStateCloudflareCredentials|TestStateBucket' ./... 2&gt;&amp;1 | grep -E 'No such file|can.t open|^(FAIL|ok)' | head -4</code>
+Expected: FAIL. The scripts do not exist ("No such file or directory").</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Write <code>scripts/cloudflare-credentials</code></strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/bin/sh</span>
+<span class="c1"># Prints {&quot;account_id&quot;: ..., &quot;token&quot;: ...} for OpenTofu (infra/root.hcl): production&#39;s from cf&#39;s OAuth login</span>
+<span class="c1"># (`cf auth login`), empty strings for every other environment, which never talks to Cloudflare.</span>
+<span class="c1"># CLOUDFLARE_ACCOUNT_ID picks the account when the login sees several.</span>
+<span class="nb">set</span><span class="w"> </span>-eu
+<span class="nv">env</span><span class="o">=</span><span class="si">${</span><span class="nv">1</span><span class="p">:?usage: cloudflare-credentials &lt;env&gt;</span><span class="si">}</span>
+<span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$env</span><span class="s2">&quot;</span><span class="w"> </span>!<span class="o">=</span><span class="w"> </span>production<span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;{&quot;account_id&quot;:&quot;&quot;,&quot;token&quot;:&quot;&quot;}&#39;</span>
+<span class="w">    </span><span class="nb">exit</span>
+<span class="k">fi</span>
+<span class="nv">identity</span><span class="o">=</span><span class="k">$(</span>env<span class="w"> </span>-u<span class="w"> </span>CLOUDFLARE_API_TOKEN<span class="w"> </span>-u<span class="w"> </span>CLOUDFLARE_API_KEY<span class="w"> </span>-u<span class="w"> </span>CLOUDFLARE_EMAIL<span class="w"> </span><span class="nv">CF_SEND_TELEMETRY</span><span class="o">=</span><span class="nb">false</span><span class="w"> </span>cf<span class="w"> </span>--quiet<span class="w"> </span>auth<span class="w"> </span>whoami<span class="k">)</span>
+<span class="nv">token_file</span><span class="o">=</span><span class="k">$(</span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;%s&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$identity</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.authSource | sub(&quot;^OAuth token from &quot;; &quot;&quot;)&#39;</span><span class="k">)</span>
+<span class="nv">account</span><span class="o">=</span><span class="si">${</span><span class="nv">CLOUDFLARE_ACCOUNT_ID</span><span class="k">:-$(</span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;%s&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$identity</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.accounts[0].id&#39;</span><span class="k">)</span><span class="si">}</span>
+jq<span class="w"> </span>-cn<span class="w"> </span>--arg<span class="w"> </span>account<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$account</span><span class="s2">&quot;</span><span class="w"> </span>--slurpfile<span class="w"> </span>token<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$token_file</span><span class="s2">&quot;</span><span class="w"> </span><span class="s1">&#39;{account_id: $account, token: $token[0].oauth_token}&#39;</span>
+</code></pre></div>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Write <code>scripts/ensure-state-bucket</code></strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/bin/sh</span>
+<span class="c1"># Creates production&#39;s OpenTofu state bucket on R2 when it does not exist (a before_hook of `init`, infra/root.hcl).</span>
+<span class="c1"># The token goes to curl through a header file, never its command line.</span>
+<span class="nb">set</span><span class="w"> </span>-eu
+<span class="nv">bucket</span><span class="o">=</span><span class="si">${</span><span class="nv">1</span><span class="p">:?usage: ensure-state-bucket &lt;bucket&gt;</span><span class="si">}</span>
+<span class="nv">credentials</span><span class="o">=</span><span class="k">$(</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">CLOUDFLARE_CREDENTIALS</span><span class="k">:-$(</span>dirname<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$0</span><span class="s2">&quot;</span><span class="k">)</span><span class="p">/cloudflare-credentials</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>production<span class="k">)</span>
+<span class="nv">account</span><span class="o">=</span><span class="k">$(</span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;%s&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$credentials</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.account_id<span class="k">)</span>
+<span class="nv">work</span><span class="o">=</span><span class="k">$(</span>mktemp<span class="w"> </span>-d<span class="k">)</span>
+<span class="nb">trap</span><span class="w"> </span><span class="s1">&#39;rm -rf &quot;$work&quot;&#39;</span><span class="w"> </span>EXIT
+<span class="o">(</span><span class="nb">umask</span><span class="w"> </span><span class="m">077</span><span class="p">;</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;%s&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$credentials</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;&quot;Authorization: Bearer &quot; + .token&#39;</span><span class="w"> </span>&gt;<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$work</span><span class="s2">/auth&quot;</span><span class="o">)</span>
+<span class="nv">api</span><span class="o">=</span><span class="s2">&quot;https://api.cloudflare.com/client/v4/accounts/</span><span class="nv">$account</span><span class="s2">/r2/buckets&quot;</span>
+
+<span class="nv">code</span><span class="o">=</span><span class="k">$(</span>curl<span class="w"> </span>-sS<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;@</span><span class="nv">$work</span><span class="s2">/auth&quot;</span><span class="w"> </span>-o<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$work</span><span class="s2">/body&quot;</span><span class="w"> </span>-w<span class="w"> </span><span class="s1">&#39;%{http_code}&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$api</span><span class="s2">/</span><span class="nv">$bucket</span><span class="s2">&quot;</span><span class="k">)</span>
+<span class="k">case</span><span class="w"> </span><span class="nv">$code</span><span class="w"> </span><span class="k">in</span>
+<span class="w">    </span><span class="m">200</span><span class="o">)</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="p">;;</span>
+<span class="w">    </span><span class="m">404</span><span class="o">)</span><span class="w"> </span><span class="p">;;</span>
+<span class="w">    </span>*<span class="o">)</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;ensure-state-bucket: GET </span><span class="nv">$bucket</span><span class="s2">: HTTP </span><span class="nv">$code</span><span class="s2">: </span><span class="k">$(</span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;[.errors[].message] | join(&quot;; &quot;)&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$work</span><span class="s2">/body&quot;</span><span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="p">;;</span>
+<span class="k">esac</span>
+<span class="nv">code</span><span class="o">=</span><span class="k">$(</span>curl<span class="w"> </span>-sS<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;@</span><span class="nv">$work</span><span class="s2">/auth&quot;</span><span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span>-d<span class="w"> </span><span class="s2">&quot;{\&quot;name\&quot;:\&quot;</span><span class="nv">$bucket</span><span class="s2">\&quot;}&quot;</span><span class="w"> </span>-o<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$work</span><span class="s2">/body&quot;</span><span class="w"> </span>-w<span class="w"> </span><span class="s1">&#39;%{http_code}&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$api</span><span class="s2">&quot;</span><span class="k">)</span>
+<span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$code</span><span class="s2">&quot;</span><span class="w"> </span>!<span class="o">=</span><span class="w"> </span><span class="m">200</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;ensure-state-bucket: create </span><span class="nv">$bucket</span><span class="s2">: HTTP </span><span class="nv">$code</span><span class="s2">: </span><span class="k">$(</span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;[.errors[].message] | join(&quot;; &quot;)&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$work</span><span class="s2">/body&quot;</span><span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span>
+<span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+<span class="k">fi</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;ensure-state-bucket: created </span><span class="nv">$bucket</span><span class="s2">&quot;</span>
+</code></pre></div>
+<p>Then run <code>chmod +x scripts/cloudflare-credentials scripts/ensure-state-bucket</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Run the tests to see them pass</strong></li>
+</ul>
+<p>Run: <code>cd test &amp;&amp; go test -run 'TestStateCloudflareCredentials|TestStateBucket' -v ./... 2&gt;&amp;1 | grep -E '^(\s*--- |ok|FAIL)' | tail -8; shellcheck ../scripts/cloudflare-credentials ../scripts/ensure-state-bucket &amp;&amp; echo shellcheck-ok</code>
+Expected: every subtest passes, then <code>ok</code> and <code>shellcheck-ok</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 6: Commit</strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>add<span class="w"> </span>scripts/cloudflare-credentials<span class="w"> </span>scripts/ensure-state-bucket<span class="w"> </span>test/state_scripts_test.go
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat(infra): Cloudflare credentials from cf&#39;s OAuth login, and the R2 state bucket script&quot;</span>
+</code></pre></div>
+<hr />
+<h3 id="task-3-state-encryption-in-every-environment-and-its-rotation">Task 3: State encryption in every environment, and its rotation</h3>
+<p><strong>Files:</strong>
+- Modify: <code>infra/root.hcl</code>
+- Create: <code>scripts/rotate-state-passphrase</code>
+- Create: <code>test/state_rotation_test.go</code>
+- Modify: <code>.envrc</code></p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>scripts/cloudflare-credentials</code> (Task 2) is not used yet.
+- Produces:
+  - <code>infra/root.hcl</code> generates <code>encryption.tf</code>, with fallbacks when <code>HOMELAB_STATE_PASSPHRASE_PREVIOUS</code> or <code>HOMELAB_STATE_MIGRATE=1</code> is set.
+  - <code>scripts/rotate-state-passphrase &lt;env&gt;</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: The user creates the passphrase (stop and ask)</strong></li>
+</ul>
+<p>Ask the user to run both commands, then copy the passphrase into their password manager:
+- <code>! sh -c 'umask 077; mkdir -p ~/.config/homelab; printf "export HOMELAB_STATE_PASSPHRASE=%s\n" "$(openssl rand -base64 32)" &gt; ~/.config/homelab/state.env'</code>
+- <code>! direnv allow</code></p>
+<p>Do not read the file. Wait for their confirmation. Verify only that it is set: <code>direnv exec . sh -c 'test ${#HOMELAB_STATE_PASSPHRASE} -ge 16 &amp;&amp; echo passphrase-set'</code> must print <code>passphrase-set</code>. This needs <code>.envrc</code> from Step 2 to load it, so do Step 2 before this check.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: <code>.envrc</code> loads <code>state.env</code></strong></li>
+</ul>
+<p>Add the following to <code>.envrc</code>, keeping the <code>cloudflare.env</code> line until Task 4:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># OpenTofu&#39;s state passphrase (outside the repository; docs/installation/production/external-resources.md)</span>
+source_env_if_exists<span class="w"> </span>~/.config/homelab/state.env
+</code></pre></div>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Clean the sandbox while its state is still unencrypted</strong></li>
+</ul>
+<p>Run: <code>direnv exec . make dev-clean &gt; /tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/clean-8c.log 2&gt;&amp;1; echo clean=$?</code>
+Expected: <code>clean=0</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Write the rotation test</strong></li>
+</ul>
+<p>Create <code>test/state_rotation_test.go</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">test</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;os&quot;</span>
+<span class="w">    </span><span class="s">&quot;os/exec&quot;</span>
+<span class="w">    </span><span class="s">&quot;path/filepath&quot;</span>
+<span class="w">    </span><span class="s">&quot;strings&quot;</span>
+<span class="w">    </span><span class="s">&quot;testing&quot;</span>
+
+<span class="w">    </span><span class="s">&quot;github.com/stretchr/testify/assert&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/stretchr/testify/require&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="nx">passphraseA</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;passphrase-a-0123456789&quot;</span>
+<span class="w">    </span><span class="nx">passphraseB</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;passphrase-b-9876543210&quot;</span>
+<span class="p">)</span>
+
+<span class="c1">// stateTree builds a throwaway repository with this repository&#39;s infra/root.hcl and scripts, and two sandbox units:</span>
+<span class="c1">// &quot;marker&quot; (a terraform_data resource, no provider) and &quot;empty&quot; (no resources).</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">stateTree</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">root</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">t</span><span class="p">.</span><span class="nx">TempDir</span><span class="p">()</span>
+<span class="w">    </span><span class="nx">mustWrite</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span><span class="w"> </span><span class="nx">body</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">mode</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">FileMode</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">MkdirAll</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Dir</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="nx">path</span><span class="p">)),</span><span class="w"> </span><span class="mi">0</span><span class="nx">o755</span><span class="p">))</span>
+<span class="w">        </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">WriteFile</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="nx">path</span><span class="p">),</span><span class="w"> </span><span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">body</span><span class="p">),</span><span class="w"> </span><span class="nx">mode</span><span class="p">))</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">f</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">{</span><span class="s">&quot;infra/root.hcl&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;scripts/rotate-state-passphrase&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;scripts/cloudflare-credentials&quot;</span><span class="p">}</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">body</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">ReadFile</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="s">&quot;..&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">f</span><span class="p">))</span>
+<span class="w">        </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">mustWrite</span><span class="p">(</span><span class="nx">f</span><span class="p">,</span><span class="w"> </span><span class="nb">string</span><span class="p">(</span><span class="nx">body</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="nx">o755</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">mustWrite</span><span class="p">(</span><span class="s">&quot;infra/_modules/marker/main.tf&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">`resource &quot;terraform_data&quot; &quot;marker&quot; { input = &quot;visible-marker&quot; }`</span><span class="o">+</span><span class="s">&quot;\n&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="nx">o644</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">mustWrite</span><span class="p">(</span><span class="s">&quot;infra/_modules/empty/main.tf&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;\n&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="nx">o644</span><span class="p">)</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">unit</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">{</span><span class="s">&quot;marker&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;empty&quot;</span><span class="p">}</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">mustWrite</span><span class="p">(</span><span class="s">&quot;infra/sandbox/&quot;</span><span class="o">+</span><span class="nx">unit</span><span class="o">+</span><span class="s">&quot;/terragrunt.hcl&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">`include &quot;root&quot; {</span>
+<span class="s">  path = find_in_parent_folders(&quot;root.hcl&quot;)</span>
+<span class="s">}</span>
+<span class="s">terraform {</span>
+<span class="s">  source = &quot;${find_in_parent_folders(&quot;_modules&quot;)}//`</span><span class="o">+</span><span class="nx">unit</span><span class="o">+</span><span class="s">`&quot;</span>
+<span class="s">}</span>
+<span class="s">`</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="nx">o644</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">exec</span><span class="p">.</span><span class="nx">Command</span><span class="p">(</span><span class="s">&quot;git&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;-C&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;init&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;-q&quot;</span><span class="p">).</span><span class="nx">Run</span><span class="p">())</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">root</span>
+<span class="p">}</span>
+
+<span class="c1">// tg runs terragrunt in a unit with the given passphrases (&quot;&quot; leaves a variable unset).</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">tg</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="nx">unit</span><span class="p">,</span><span class="w"> </span><span class="nx">current</span><span class="p">,</span><span class="w"> </span><span class="nx">previous</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">args</span><span class="w"> </span><span class="o">...</span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">cmd</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">exec</span><span class="p">.</span><span class="nx">Command</span><span class="p">(</span><span class="s">&quot;terragrunt&quot;</span><span class="p">,</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">args</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;--non-interactive&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;--log-level&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;error&quot;</span><span class="p">)</span><span class="o">...</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">cmd</span><span class="p">.</span><span class="nx">Dir</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;infra/sandbox&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">unit</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">cmd</span><span class="p">.</span><span class="nx">Env</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">stateEnv</span><span class="p">(</span><span class="nx">current</span><span class="p">,</span><span class="w"> </span><span class="nx">previous</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">cmd</span><span class="p">.</span><span class="nx">CombinedOutput</span><span class="p">()</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">string</span><span class="p">(</span><span class="nx">out</span><span class="p">),</span><span class="w"> </span><span class="nx">err</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">stateEnv</span><span class="p">(</span><span class="nx">current</span><span class="p">,</span><span class="w"> </span><span class="nx">previous</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">env</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">e</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">Environ</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">!</span><span class="nx">strings</span><span class="p">.</span><span class="nx">HasPrefix</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;HOMELAB_STATE_&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">!</span><span class="nx">strings</span><span class="p">.</span><span class="nx">HasPrefix</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;TF_VAR_&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nx">env</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">env</span><span class="p">,</span><span class="w"> </span><span class="nx">e</span><span class="p">)</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">current</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">env</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">env</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;HOMELAB_STATE_PASSPHRASE=&quot;</span><span class="o">+</span><span class="nx">current</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">previous</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">env</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">env</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;HOMELAB_STATE_PASSPHRASE_PREVIOUS=&quot;</span><span class="o">+</span><span class="nx">previous</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">env</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">rotate</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="nx">current</span><span class="p">,</span><span class="w"> </span><span class="nx">previous</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">cmd</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">exec</span><span class="p">.</span><span class="nx">Command</span><span class="p">(</span><span class="s">&quot;sh&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;scripts/rotate-state-passphrase&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;sandbox&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">cmd</span><span class="p">.</span><span class="nx">Dir</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">root</span>
+<span class="w">    </span><span class="nx">cmd</span><span class="p">.</span><span class="nx">Env</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">stateEnv</span><span class="p">(</span><span class="nx">current</span><span class="p">,</span><span class="w"> </span><span class="nx">previous</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">cmd</span><span class="p">.</span><span class="nx">CombinedOutput</span><span class="p">()</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">string</span><span class="p">(</span><span class="nx">out</span><span class="p">),</span><span class="w"> </span><span class="nx">err</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">stateFile</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="nx">unit</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">body</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">ReadFile</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;.state/sandbox&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">unit</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;terraform.tfstate&quot;</span><span class="p">))</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">string</span><span class="p">(</span><span class="nx">body</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">TestStatePassphraseRotation</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">root</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">stateTree</span><span class="p">(</span><span class="nx">t</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">tg</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;marker&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseA</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;apply&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;-auto-approve&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">tg</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;empty&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseA</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;apply&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;-auto-approve&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+
+<span class="w">    </span><span class="nx">t</span><span class="p">.</span><span class="nx">Run</span><span class="p">(</span><span class="s">&quot;state encrypted at rest&quot;</span><span class="p">,</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">state</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">stateFile</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;marker&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;encrypted_data&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">NotContains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">state</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;visible-marker&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">})</span>
+
+<span class="w">    </span><span class="nx">t</span><span class="p">.</span><span class="nx">Run</span><span class="p">(</span><span class="s">&quot;refusals change nothing&quot;</span><span class="p">,</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">before</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">stateFile</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;marker&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="p">[]</span><span class="kd">struct</span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="nx">current</span><span class="p">,</span><span class="w"> </span><span class="nx">previous</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">}{</span>
+<span class="w">            </span><span class="p">{</span><span class="s">&quot;no previous&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseB</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">},</span>
+<span class="w">            </span><span class="p">{</span><span class="s">&quot;no current&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseA</span><span class="p">},</span>
+<span class="w">            </span><span class="p">{</span><span class="s">&quot;equal&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseA</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseA</span><span class="p">},</span>
+<span class="w">            </span><span class="p">{</span><span class="s">&quot;too short&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;short&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseA</span><span class="p">},</span>
+<span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">rotate</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">current</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">previous</span><span class="p">)</span>
+<span class="w">            </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Error</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;%s: %s&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">)</span>
+<span class="w">            </span><span class="nx">assert</span><span class="p">.</span><span class="nx">NotContains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseA</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;a passphrase was printed&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Equal</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">before</span><span class="p">,</span><span class="w"> </span><span class="nx">stateFile</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;marker&quot;</span><span class="p">))</span>
+<span class="w">    </span><span class="p">})</span>
+
+<span class="w">    </span><span class="nx">t</span><span class="p">.</span><span class="nx">Run</span><span class="p">(</span><span class="s">&quot;wrong previous changes nothing&quot;</span><span class="p">,</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">before</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">stateFile</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;marker&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">rotate</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseB</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;wrong-passphrase-000000&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Error</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Equal</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">before</span><span class="p">,</span><span class="w"> </span><span class="nx">stateFile</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;marker&quot;</span><span class="p">))</span>
+<span class="w">    </span><span class="p">})</span>
+
+<span class="w">    </span><span class="nx">t</span><span class="p">.</span><span class="nx">Run</span><span class="p">(</span><span class="s">&quot;rotated&quot;</span><span class="p">,</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">rotate</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseB</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseA</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">NotContains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseA</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">NotContains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseB</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">pulled</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">tg</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;marker&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseB</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;state&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;pull&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">pulled</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">pulled</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;visible-marker&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">tg</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;marker&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseA</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;state&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;pull&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">Error</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;the old passphrase still reads the state&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">})</span>
+
+<span class="w">    </span><span class="nx">t</span><span class="p">.</span><span class="nx">Run</span><span class="p">(</span><span class="s">&quot;empty unit skipped&quot;</span><span class="p">,</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">tg</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;empty&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">passphraseB</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;state&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;pull&quot;</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="p">})</span>
+<span class="p">}</span>
+</code></pre></div>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Run it to see it fail</strong></li>
+</ul>
+<p>Run: <code>direnv exec . sh -c 'cd test &amp;&amp; go test -run TestStatePassphraseRotation ./...' 2&gt;&amp;1 | grep -vE '^direnv' | grep -E 'encrypted_data|No such|FAIL|ok' | head -5</code>
+Expected: FAIL. <code>state encrypted at rest</code> fails, because <code>root.hcl</code> has no encryption yet and the state is plain JSON.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 6: Encryption in <code>infra/root.hcl</code></strong></li>
+</ul>
+<p>Add to <code>locals</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1">  # OpenTofu state encryption (every environment): the passphrase reaches OpenTofu only as TF_VAR_state_passphrase.</span>
+<span class="c1">  # _PREVIOUS (scripts/rotate-state-passphrase) or HOMELAB_STATE_MIGRATE=1 (unencrypted state) adds a fallback.</span>
+<span class="w">  </span><span class="na">state_passphrase</span><span class="w">          </span><span class="o">=</span><span class="w"> </span><span class="err">get_env</span><span class="p">(</span><span class="s2">&quot;HOMELAB_STATE_PASSPHRASE&quot;, &quot;&quot;</span><span class="p">)</span>
+<span class="w">  </span><span class="na">state_passphrase_previous</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="err">get_env</span><span class="p">(</span><span class="s2">&quot;HOMELAB_STATE_PASSPHRASE_PREVIOUS&quot;, &quot;&quot;</span><span class="p">)</span>
+<span class="w">  </span><span class="na">state_migrate</span><span class="w">             </span><span class="o">=</span><span class="w"> </span><span class="err">get_env</span><span class="p">(</span><span class="s2">&quot;HOMELAB_STATE_MIGRATE&quot;, &quot;&quot;) == &quot;1&quot;</span>
+<span class="w">  </span><span class="na">state_commands</span><span class="w">            </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;init&quot;, &quot;validate&quot;, &quot;plan&quot;, &quot;apply&quot;, &quot;destroy&quot;, &quot;refresh&quot;, &quot;import&quot;, &quot;output&quot;, &quot;show&quot;, &quot;state&quot;, &quot;console&quot;, &quot;taint&quot;, &quot;untaint&quot;, &quot;providers&quot;</span><span class="p">]</span>
+</code></pre></div>
+<p>Add after the <code>remote_state</code> block:</p>
+<div class="highlight"><pre><span></span><code><span class="err">generate</span><span class="w"> </span><span class="s2">&quot;encryption&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">path</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;encryption.tf&quot;</span>
+<span class="w">  </span><span class="na">if_exists</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;overwrite_terragrunt&quot;</span>
+<span class="w">  </span><span class="na">contents</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="o">&lt;&lt;-</span><span class="dl">EOF</span>
+<span class="sh">    variable &quot;state_passphrase&quot; {</span>
+<span class="sh">      type      = string</span>
+<span class="sh">      sensitive = true</span>
+<span class="sh">    }</span>
+<span class="sh">    %{~if local.state_passphrase_previous != &quot;&quot;}</span>
+<span class="sh">    variable &quot;state_passphrase_previous&quot; {</span>
+<span class="sh">      type      = string</span>
+<span class="sh">      sensitive = true</span>
+<span class="sh">    }</span>
+<span class="sh">    %{~endif}</span>
+<span class="sh">    terraform {</span>
+<span class="sh">      encryption {</span>
+<span class="sh">        key_provider &quot;pbkdf2&quot; &quot;current&quot; {</span>
+<span class="sh">          passphrase = var.state_passphrase</span>
+<span class="sh">        }</span>
+<span class="sh">        method &quot;aes_gcm&quot; &quot;current&quot; {</span>
+<span class="sh">          keys = key_provider.pbkdf2.current</span>
+<span class="sh">        }</span>
+<span class="sh">        %{~if local.state_passphrase_previous != &quot;&quot;}</span>
+<span class="sh">        key_provider &quot;pbkdf2&quot; &quot;previous&quot; {</span>
+<span class="sh">          passphrase = var.state_passphrase_previous</span>
+<span class="sh">        }</span>
+<span class="sh">        method &quot;aes_gcm&quot; &quot;previous&quot; {</span>
+<span class="sh">          keys = key_provider.pbkdf2.previous</span>
+<span class="sh">        }</span>
+<span class="sh">        %{~endif}</span>
+<span class="sh">        %{~if local.state_migrate}</span>
+<span class="sh">        method &quot;unencrypted&quot; &quot;migrate&quot; {}</span>
+<span class="sh">        %{~endif}</span>
+<span class="sh">        state {</span>
+<span class="sh">          method   = method.aes_gcm.current</span>
+<span class="sh">          enforced = true</span>
+<span class="sh">          %{~if local.state_passphrase_previous != &quot;&quot; || local.state_migrate}</span>
+<span class="sh">          fallback {</span>
+<span class="sh">            method = ${local.state_passphrase_previous != &quot;&quot; ? &quot;method.aes_gcm.previous&quot; : &quot;method.unencrypted.migrate&quot;}</span>
+<span class="sh">          }</span>
+<span class="sh">          %{~endif}</span>
+<span class="sh">        }</span>
+<span class="sh">        plan {</span>
+<span class="sh">          method   = method.aes_gcm.current</span>
+<span class="sh">          enforced = true</span>
+<span class="sh">        }</span>
+<span class="sh">      }</span>
+<span class="sh">    }</span>
+<span class="dl">  EOF</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Add inside the existing <code>terraform { ... }</code> block:</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="err">extra_arguments</span><span class="w"> </span><span class="s2">&quot;state_passphrase&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">commands</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">local.state_commands</span>
+<span class="w">    </span><span class="nb">env_vars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="na">TF_VAR_state_passphrase</span><span class="w">          </span><span class="o">=</span><span class="w"> </span><span class="nv">local.state_passphrase</span>
+<span class="w">      </span><span class="na">TF_VAR_state_passphrase_previous</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">local.state_passphrase_previous</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="c1">  # Parsing works without it (make -C infra check); any command that reads or writes state needs it</span>
+<span class="w">  </span><span class="err">before_hook</span><span class="w"> </span><span class="s2">&quot;state_passphrase&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">commands</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">local.state_commands</span>
+<span class="w">    </span><span class="na">execute</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;sh&quot;, &quot;-c&quot;, &quot;[ -n \&quot;$HOMELAB_STATE_PASSPHRASE\&quot; ] || { echo &#39;HOMELAB_STATE_PASSPHRASE is not set: see docs/installation/production/external-resources.md (~/.config/homelab/state.env)&#39; &gt;&amp;2; exit 1; }&quot;</span><span class="p">]</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+<p>Change the comment above <code>remote_state</code> to <code># The sandbox keeps local state (production's moves to R2 in Task 4 of the step 8c plan)</code>; Task 4 rewrites it.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 7: Write <code>scripts/rotate-state-passphrase</code></strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/bin/sh</span>
+<span class="c1"># Re-encrypts every OpenTofu state of an environment with a new passphrase (docs/installation/production/external-resources.md):</span>
+<span class="c1"># put the new passphrase in HOMELAB_STATE_PASSPHRASE and the old one in HOMELAB_STATE_PASSPHRASE_PREVIOUS, run this,</span>
+<span class="c1"># then update the password manager and ~/.config/homelab/state.env and drop _PREVIOUS. Every state is pulled before</span>
+<span class="c1"># any is pushed, so a wrong old passphrase changes nothing. Passphrases are never printed.</span>
+<span class="nb">set</span><span class="w"> </span>-eu
+<span class="nv">env</span><span class="o">=</span><span class="si">${</span><span class="nv">1</span><span class="p">:?usage: rotate-state-passphrase &lt;env&gt;</span><span class="si">}</span>
+:<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOMELAB_STATE_PASSPHRASE</span><span class="p">:?set HOMELAB_STATE_PASSPHRASE to the new passphrase</span><span class="si">}</span><span class="s2">&quot;</span>
+:<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOMELAB_STATE_PASSPHRASE_PREVIOUS</span><span class="p">:?set HOMELAB_STATE_PASSPHRASE_PREVIOUS to the old passphrase</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOMELAB_STATE_PASSPHRASE</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOMELAB_STATE_PASSPHRASE_PREVIOUS</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;rotate-state-passphrase: the new passphrase equals the old one&quot;</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span>
+<span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+<span class="k">fi</span>
+<span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span><span class="si">${#</span><span class="nv">HOMELAB_STATE_PASSPHRASE</span><span class="si">}</span><span class="w"> </span>-lt<span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;rotate-state-passphrase: the new passphrase is shorter than 16 characters&quot;</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span>
+<span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+<span class="k">fi</span>
+<span class="nv">root</span><span class="o">=</span><span class="k">$(</span>git<span class="w"> </span>rev-parse<span class="w"> </span>--show-toplevel<span class="k">)</span>
+<span class="nv">work</span><span class="o">=</span><span class="k">$(</span>mktemp<span class="w"> </span>-d<span class="k">)</span>
+chmod<span class="w"> </span><span class="m">700</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$work</span><span class="s2">&quot;</span>
+<span class="nb">trap</span><span class="w"> </span><span class="s1">&#39;rm -rf &quot;$work&quot;&#39;</span><span class="w"> </span>EXIT
+tg<span class="o">()</span><span class="w"> </span><span class="o">{</span><span class="w"> </span>terragrunt<span class="w"> </span>--non-interactive<span class="w"> </span>--log-level<span class="w"> </span>error<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$@</span><span class="s2">&quot;</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
+
+<span class="nv">units</span><span class="o">=</span>
+<span class="k">for</span><span class="w"> </span>dir<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$root</span><span class="s2">&quot;</span>/infra/<span class="s2">&quot;</span><span class="nv">$env</span><span class="s2">&quot;</span>/*/<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="o">[</span><span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$dir</span><span class="s2">/terragrunt.hcl&quot;</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="k">continue</span>
+<span class="w">    </span><span class="nv">unit</span><span class="o">=</span><span class="k">$(</span>basename<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$dir</span><span class="s2">&quot;</span><span class="k">)</span>
+<span class="w">    </span><span class="o">(</span><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$dir</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>tg<span class="w"> </span>state<span class="w"> </span>pull<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$work</span><span class="s2">/</span><span class="nv">$unit</span><span class="s2">.json&quot;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;rotate-state-passphrase: cannot read </span><span class="nv">$env</span><span class="s2">/</span><span class="nv">$unit</span><span class="s2"> with the old passphrase; nothing changed&quot;</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-s<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$work</span><span class="s2">/</span><span class="nv">$unit</span><span class="s2">.json&quot;</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">        </span><span class="nv">units</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$units</span><span class="s2"> </span><span class="nv">$unit</span><span class="s2">&quot;</span>
+<span class="w">    </span><span class="k">else</span>
+<span class="w">        </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$env</span><span class="s2">/</span><span class="nv">$unit</span><span class="s2">: no state, skipped&quot;</span>
+<span class="w">    </span><span class="k">fi</span>
+<span class="k">done</span>
+<span class="k">for</span><span class="w"> </span>unit<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nv">$units</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="o">(</span><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$root</span><span class="s2">/infra/</span><span class="nv">$env</span><span class="s2">/</span><span class="nv">$unit</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>tg<span class="w"> </span>state<span class="w"> </span>push<span class="w"> </span>-force<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$work</span><span class="s2">/</span><span class="nv">$unit</span><span class="s2">.json&quot;</span><span class="o">)</span>
+<span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$env</span><span class="s2">/</span><span class="nv">$unit</span><span class="s2">: re-encrypted&quot;</span>
+<span class="k">done</span>
+<span class="k">for</span><span class="w"> </span>unit<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nv">$units</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="o">(</span><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$root</span><span class="s2">/infra/</span><span class="nv">$env</span><span class="s2">/</span><span class="nv">$unit</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nv">HOMELAB_STATE_PASSPHRASE_PREVIOUS</span><span class="o">=</span><span class="w"> </span>tg<span class="w"> </span>state<span class="w"> </span>pull<span class="w"> </span>&gt;/dev/null<span class="o">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;rotate-state-passphrase: </span><span class="nv">$env</span><span class="s2">/</span><span class="nv">$unit</span><span class="s2"> does not read with the new passphrase alone&quot;</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
+<span class="k">done</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Done. Update the password manager and ~/.config/homelab/state.env with the new passphrase, then unset HOMELAB_STATE_PASSPHRASE_PREVIOUS.&quot;</span>
+</code></pre></div>
+<p>Then run <code>chmod +x scripts/rotate-state-passphrase</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 8: Run the rotation test, shellcheck, and the infra check without a passphrase</strong></li>
+</ul>
+<p>Run: <code>direnv exec . sh -c 'cd test &amp;&amp; go test -run TestStatePassphraseRotation -v ./...' 2&gt;&amp;1 | grep -E '^(\s*--- |ok|FAIL)' | tail -8; shellcheck scripts/rotate-state-passphrase &amp;&amp; echo shellcheck-ok; direnv exec . env -u HOMELAB_STATE_PASSPHRASE make -C infra check &gt; /tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/infra-check-8c.log 2&gt;&amp;1; echo infra=$?</code>
+Expected: every subtest passes (<code>state_encrypted_at_rest</code>, <code>refusals_change_nothing</code>, <code>wrong_previous_changes_nothing</code>, <code>rotated</code>, <code>empty_unit_skipped</code>), then <code>ok</code>, <code>shellcheck-ok</code> and <code>infra=0</code>.</p>
+<p>If OpenTofu rejects <code>var.</code> references in the <code>encryption</code> block, or <code>state push -force</code> does not re-encrypt, the test shows it. Use superpowers:systematic-debugging; do not loosen the test.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 9: Commit</strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>add<span class="w"> </span>infra/root.hcl<span class="w"> </span>scripts/rotate-state-passphrase<span class="w"> </span>test/state_rotation_test.go<span class="w"> </span>.envrc
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat(infra): OpenTofu state encryption in every environment, and a passphrase rotation script&quot;</span>
+</code></pre></div>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 10: The sandbox from scratch with encrypted state</strong></li>
+</ul>
+<p>Run: <code>direnv exec . make dev &gt; /tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/dev-8c.log 2&gt;&amp;1; echo dev=$?; grep -E '^DONE|PASS TestNodeRestart |=== FAIL' /tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/dev-8c.log | tail -4; for f in .state/sandbox/*/terraform.tfstate; do printf '%s ' "$f"; python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print('encrypted' if 'encrypted_data' in d and 'resources' not in d else 'PLAIN')" "$f"; done</code>
+Expected: <code>dev=0</code>; <code>DONE 123 tests</code>; <code>TestNodeRestart</code> passes; every sandbox state file prints <code>encrypted</code>.</p>
+<hr />
+<h3 id="task-4-productions-backend-on-r2">Task 4: Production's backend on R2</h3>
+<p><strong>Files:</strong>
+- Modify: <code>infra/root.hcl</code>
+- Modify: <code>.envrc</code> (drop the <code>cloudflare.env</code> line)</p>
+<p><strong>Interfaces:</strong>
+- Consumes: <code>scripts/cloudflare-credentials</code> and <code>scripts/ensure-state-bucket</code> (Task 2); the encryption block (Task 3).
+- Produces: production units use the R2 <code>http</code> backend and <code>CLOUDFLARE_API_TOKEN</code> from <code>cf</code>. <code>HOMELAB_STATE_MIGRATE=1</code> drops <code>-reconfigure</code> from <code>init</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Replace <code>remote_state</code> with a generated backend</strong></li>
+</ul>
+<p>In <code>infra/root.hcl</code>, add to <code>locals</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="na">production</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">local.env</span><span class="w"> </span><span class="p">==</span><span class="w"> </span><span class="s2">&quot;production&quot;</span>
+<span class="c1">  # Production only: the account and OAuth token of `cf auth login` (empty strings for the sandbox, which never calls cf)</span>
+<span class="w">  </span><span class="na">cloudflare</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="nf">jsondecode</span><span class="p">(</span><span class="err">run_cmd</span><span class="p">(</span><span class="s2">&quot;--terragrunt-global-cache&quot;, &quot;--terragrunt-quiet&quot;, &quot;${get_repo_root()}/scripts/cloudflare-credentials&quot;</span><span class="p">,</span><span class="w"> </span><span class="nv">local.env</span><span class="p">))</span>
+<span class="w">  </span><span class="na">state_bucket</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;homelab-${local.env}-tfstate&quot;</span>
+</code></pre></div>
+<p>Delete the <code>remote_state</code> block and its comment, and add:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Production&#39;s state is on R2 (one object per unit, read and written through Cloudflare&#39;s API with cf&#39;s OAuth token;</span>
+<span class="c1"># no lock: one operator); the sandbox&#39;s stays local. Both are encrypted (encryption.tf). A string keeps the two</span>
+<span class="c1"># backends&#39; different shapes in one expression; the token lands in .terragrunt-cache, which is git-ignored and</span>
+<span class="c1"># user-only, as upstream&#39;s remote_state does.</span>
+<span class="err">generate</span><span class="w"> </span><span class="s2">&quot;backend&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="na">path</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;backend.tf&quot;</span>
+<span class="w">  </span><span class="na">if_exists</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;overwrite_terragrunt&quot;</span>
+<span class="w">  </span><span class="na">contents</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="nv">local.production</span><span class="w"> </span><span class="p">?</span><span class="w"> </span><span class="o">&lt;&lt;-</span><span class="dl">EOF</span>
+<span class="sh">    terraform {</span>
+<span class="sh">      backend &quot;http&quot; {</span>
+<span class="sh">        address       = &quot;https://api.cloudflare.com/client/v4/accounts/${local.cloudflare.account_id}/r2/buckets/${local.state_bucket}/objects/${local.unit}/tfstate.json&quot;</span>
+<span class="sh">        update_method = &quot;PUT&quot;</span>
+<span class="sh">        headers = {</span>
+<span class="sh">          Authorization = &quot;Bearer ${local.cloudflare.token}&quot;</span>
+<span class="sh">        }</span>
+<span class="sh">      }</span>
+<span class="sh">    }</span>
+<span class="dl">  EOF</span>
+<span class="w">  </span><span class="p">:</span><span class="w"> </span><span class="o">&lt;&lt;-</span><span class="dl">EOF</span>
+<span class="sh">    terraform {</span>
+<span class="sh">      backend &quot;local&quot; {</span>
+<span class="sh">        path = &quot;${get_repo_root()}/.state/${path_relative_to_include()}/terraform.tfstate&quot;</span>
+<span class="sh">      }</span>
+<span class="sh">    }</span>
+<span class="dl">  EOF</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Add inside <code>terraform { ... }</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="err">extra_arguments</span><span class="w"> </span><span class="s2">&quot;cloudflare_oauth&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">commands</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;plan&quot;, &quot;apply&quot;, &quot;destroy&quot;, &quot;import&quot;, &quot;refresh&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="nb">env_vars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="na">CLOUDFLARE_API_TOKEN</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">local.cloudflare.token</span>
+<span class="w">      </span><span class="na">CLOUDFLARE_API_KEY</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;&quot;</span>
+<span class="w">      </span><span class="na">CLOUDFLARE_EMAIL</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="c1">  # The OAuth token in backend.tf changes, so production&#39;s init reconfigures; a migration (HOMELAB_STATE_MIGRATE=1)</span>
+<span class="c1">  # passes -migrate-state itself, which conflicts with -reconfigure</span>
+<span class="w">  </span><span class="err">extra_arguments</span><span class="w"> </span><span class="s2">&quot;backend_reconfigure&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">commands</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;init&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="na">arguments</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">local.production</span><span class="w"> </span><span class="err">&amp;&amp;</span><span class="w"> </span><span class="p">!</span><span class="nv">local.state_migrate</span><span class="w"> </span><span class="p">?</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;-reconfigure&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="err">before_hook</span><span class="w"> </span><span class="s2">&quot;state_bucket&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">commands</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;init&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="na">if</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="nv">local.production</span>
+<span class="w">    </span><span class="na">execute</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;${get_repo_root()}/scripts/ensure-state-bucket&quot;</span><span class="p">,</span><span class="w"> </span><span class="nv">local.state_bucket</span><span class="p">]</span>
+<span class="w">  </span><span class="p">}</span>
+</code></pre></div>
+<p>Narrow the <code>state_permissions</code> hook comment to "Local state (the sandbox) holds secrets…". The hook itself stays.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Drop <code>cloudflare.env</code> from <code>.envrc</code></strong></li>
+</ul>
+<p>Remove these two lines from <code>.envrc</code>:</p>
+<div class="highlight"><pre><span></span><code># Cloudflare token for infra/&lt;env&gt;/cloudflare (outside the repository; docs/installation/production/external-resources.md)
+source_env_if_exists ~/.config/homelab/cloudflare.env
+</code></pre></div>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Check that the sandbox renders local and never calls <code>cf</code></strong></li>
+</ul>
+<p>Run: <code>direnv exec . sh -c 'cd infra/sandbox/cluster &amp;&amp; PATH=/nonexistent-cf:$PATH terragrunt render --non-interactive 2&gt;&amp;1 | grep -E "backend|cf" | head -5; echo render=$?'</code>
+Expected: a <code>backend "local"</code> line, no <code>http</code>, and no <code>cf</code> error. The sandbox path of <code>cloudflare-credentials</code> exits before calling <code>cf</code>.</p>
+<p>Then run: <code>direnv exec . sh -c 'cd test &amp;&amp; go test -run "TestStatePassphraseRotation|TestStateCloudflareCredentials|TestStateBucket" ./... | tail -1'; direnv exec . env -u HOMELAB_STATE_PASSPHRASE make -C infra check &gt;/dev/null 2&gt;&amp;1; echo infra=$?</code>
+Expected: <code>ok</code>, then <code>infra=0</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Check production's render without logging in</strong></li>
+</ul>
+<p>Run: <code>direnv exec . sh -c 'cd infra/production/cloudflare &amp;&amp; terragrunt render --non-interactive' 2&gt;&amp;1 | grep -vE '^direnv' | tail -3</code>
+Expected: it fails on <code>cloudflare-credentials</code> with <code>cf</code>'s "not logged in" message. Nothing is created or written.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>add<span class="w"> </span>infra/root.hcl<span class="w"> </span>.envrc
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat(infra): production state on R2 through cf&#39;s OAuth login; cloudflare.env removed&quot;</span>
+</code></pre></div>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 6: The token's file stays private</strong></li>
+</ul>
+<p>Run: <code>git check-ignore -q infra/production/cloudflare/.terragrunt-cache/x/backend.tf &amp;&amp; echo ignored; stat -c '%a %n' ~/.cache/terragrunt 2&gt;/dev/null | head -1</code>
+Expected: <code>ignored</code>. Record in the ledger that <code>.terragrunt-cache</code> directories inherit the repository's permissions. If they are group- or world-readable, extend the <code>state_permissions</code> hook to run <code>chmod -R go-rwx</code> on the unit's <code>.terragrunt-cache</code> as well.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 7: The sandbox still builds</strong></li>
+</ul>
+<p>Run: <code>direnv exec . make dev &gt; /tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/dev-8c-2.log 2&gt;&amp;1; echo dev=$?; grep -E '^DONE|PASS TestNodeRestart |=== FAIL' /tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/dev-8c-2.log | tail -4</code>
+Expected: <code>dev=0</code>, <code>DONE 123 tests</code>, and <code>TestNodeRestart</code> passes.</p>
+<hr />
+<h3 id="task-5-migrate-productions-cloudflare-state-with-the-user">Task 5: Migrate production's <code>cloudflare</code> state, with the user</h3>
+<p><strong>Files:</strong> none in git.</p>
+<p><strong>Interfaces:</strong>
+- Consumes: Task 4's backend and <code>HOMELAB_STATE_MIGRATE</code>.
+- Produces: <code>homelab-production-tfstate/cloudflare/tfstate.json</code>, encrypted, with the 8 resources of the local state.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: Ask the user (stop and ask)</strong></li>
+</ul>
+<p>Ask the user to run <code>! cf auth login</code>, and to confirm the migration of <code>infra/production/cloudflare</code>'s state (8 resources: the tunnel and its secret, the DNS record, two account tokens, and data sources). Wait for their explicit yes.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: Keep a local copy and count the resources</strong></li>
+</ul>
+<p>Run: <code>cp -p .state/production/cloudflare/terraform.tfstate .state/production/cloudflare/terraform.tfstate.pre-r2 &amp;&amp; python3 -c "import json; d=json.load(open('.state/production/cloudflare/terraform.tfstate')); print(len(d['resources']), 'resources, serial', d['serial'])"</code>
+Expected: <code>8 resources, serial N</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 3: Create the bucket and confirm that the object is empty</strong></li>
+</ul>
+<p>Run: <code>direnv exec . sh -c 'cd infra/production/cloudflare &amp;&amp; terragrunt init --non-interactive &gt;/dev/null &amp;&amp; terragrunt state pull --non-interactive | wc -c'</code>
+Expected: <code>ensure-state-bucket: created homelab-production-tfstate</code> (or no message if the bucket already exists), then <code>0</code>: no object yet.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 4: Push the local state, encrypted</strong></li>
+</ul>
+<p>Run: <code>direnv exec . sh -c 'cd infra/production/cloudflare &amp;&amp; HOMELAB_STATE_MIGRATE=1 terragrunt state push --non-interactive "$(git rev-parse --show-toplevel)/.state/production/cloudflare/terraform.tfstate"'; echo push=$?</code>
+Expected: <code>push=0</code>. The unencrypted fallback lets OpenTofu read the plain file, and <code>enforced</code> writes it encrypted.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Verify</strong></li>
+</ul>
+<p>Run: <code>direnv exec . sh -c 'cd infra/production/cloudflare &amp;&amp; terragrunt state list --non-interactive | wc -l &amp;&amp; terragrunt plan --non-interactive -detailed-exitcode &gt;/dev/null; echo plan=$?'</code>
+Expected: <code>8</code>, then <code>plan=0</code>: no changes.</p>
+<p>Then run: <code>direnv exec . sh -c 'c=$(scripts/cloudflare-credentials production); a=$(printf %s "$c" | jq -r .account_id); printf %s "$c" | jq -r "\"Authorization: Bearer \" + .token" &gt; /tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/auth &amp;&amp; chmod 600 /tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/auth &amp;&amp; curl -sS -H @/tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/auth "https://api.cloudflare.com/client/v4/accounts/$a/r2/buckets/homelab-production-tfstate/objects/cloudflare/tfstate.json" | python3 -c "import json,sys; d=json.load(sys.stdin); print(\"encrypted\" if \"encrypted_data\" in d and \"resources\" not in d else \"PLAIN\")"; rm -f /tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/auth'</code>
+Expected: <code>encrypted</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 6: The empty production units stay empty</strong></li>
+</ul>
+<p>Run: <code>for u in argocd openbao secrets; do direnv exec . sh -c "cd infra/production/$u &amp;&amp; terragrunt state pull --non-interactive 2&gt;/dev/null | wc -c" | tail -1; done</code>
+Expected: <code>0</code> three times. These units depend on the production cluster, so <code>init</code> alone may fail on their dependencies. A failure that is not a state error is recorded in the ledger and accepted.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 7: Ledger the result</strong></li>
+</ul>
+<p>Record the bucket, the object, the resource count and the plan exit code. Tell the user that <code>.state/production/</code> (with <code>terraform.tfstate.pre-r2</code>) can be deleted once they are satisfied.</p>
+<hr />
+<h3 id="task-6-documentation">Task 6: Documentation</h3>
+<p><strong>Files:</strong>
+- Modify: <code>docs/installation/production/external-resources.md</code>
+- Modify: <code>docs/concepts/secrets-management.md</code>
+- Modify: <code>docs/installation/post-installation.md</code>
+- Modify: <code>CLAUDE.md</code>
+- Modify: <code>.gitignore</code> (the comment <code>state is local until step 8</code>)</p>
+<p><strong>Interfaces:</strong> documentation only.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: External resources page</strong></li>
+</ul>
+<p>In <code>docs/installation/production/external-resources.md</code>, replace the block that creates <code>~/.config/homelab/cloudflare.env</code> (around lines 40–46) with these subsections:
+- <strong>Cloudflare login:</strong> <code>cf auth login</code> (in the dev shell). OpenTofu takes the account and an OAuth token from it, and <code>cf</code> refreshes the token. <code>CLOUDFLARE_ACCOUNT_ID</code> picks the account when the login sees several.
+- <strong>State passphrase:</strong>
+  - create it with the <code>umask 077; printf … $(openssl rand -base64 32) &gt; ~/.config/homelab/state.env</code> command from Task 3, Step 1;
+  - keep a copy in a password manager;
+  - losing it makes every state unreadable, including OpenBao's unseal key and the WireGuard key, so OpenBao's data is lost too.
+- <strong>Rotating the passphrase:</strong> set <code>HOMELAB_STATE_PASSPHRASE</code> to the new passphrase and <code>HOMELAB_STATE_PASSPHRASE_PREVIOUS</code> to the old one, run <code>scripts/rotate-state-passphrase production</code> (and <code>sandbox</code>), update the password manager and <code>state.env</code>, then unset <code>_PREVIOUS</code>.
+- <strong>Where state lives:</strong> production's on R2 (<code>homelab-production-tfstate</code>, one object per unit, created on first <code>init</code>), the sandbox's in <code>.state/sandbox/</code>; both encrypted.</p>
+<ul class="task-list">
+<li class="task-list-item">
+<p><input type="checkbox" disabled/> <strong>Step 2: The other pages</strong></p>
+</li>
+<li>
+<p><code>docs/concepts/secrets-management.md</code> line 135: the token "(<code>~/.config/homelab/cloudflare.env</code>) never reaches the cluster" becomes "OpenTofu's Cloudflare login (<code>cf auth login</code>) never reaches the cluster".</p>
+</li>
+<li><code>docs/installation/post-installation.md</code> line 10: replace <code>~/.config/homelab/cloudflare.env</code> with <code>~/.config/homelab/state.env</code> (the state passphrase; also in a password manager).</li>
+<li>
+<p><code>.gitignore</code>: <code># OpenTofu and Terragrunt (state is local until step 8)</code> becomes <code># OpenTofu and Terragrunt (the sandbox's state; production's is on R2)</code>.</p>
+</li>
+<li class="task-list-item">
+<p><input type="checkbox" disabled/> <strong>Step 3: CLAUDE.md</strong></p>
+</li>
+<li>
+<p>Roadmap: <code>8c OpenTofu state on Cloudflare R2 with state encryption</code> gains <code>(done)</code>.</p>
+</li>
+<li>Sandbox bullet: <code>State is local in</code>.state/<code>until step 8; kubeconfigs are …</code> becomes <code>The sandbox's state is local in</code>.state/sandbox/<code>and production's is on R2 (</code>homelab-production-tfstate<code>, Cloudflare credentials from</code>cf auth login<code>), both encrypted with</code>HOMELAB_STATE_PASSPHRASE<code>(</code>~/.config/homelab/state.env<code>; rotate with</code>scripts/rotate-state-passphrase<code>); kubeconfigs are …</code>.</li>
+<li>Production checklist, Cloudflare bullet: <code>The token for OpenTofu lives in</code>~/.config/homelab/cloudflare.env<code>(</code>.envrc<code>loads it).</code> becomes <code>OpenTofu's Cloudflare credentials come from</code>cf auth login<code>; its state is on R2.</code></li>
+<li>Production checklist, OpenBao bullet: <code>its unseal key lives in</code>.state/production/openbao<code>until 8c</code> becomes <code>its unseal key lives in production's encrypted state on R2 (</code>openbao/tfstate.json<code>)</code>.</li>
+<li>
+<p>Rules, basic checks: add <code>TestState(CloudflareCredentials|Bucket|PassphraseRotation)</code> to the offline <code>go test -run</code> list, and note that the offline tests run in the dev shell (<code>direnv exec .</code>): the rotation test runs <code>terragrunt</code> and <code>tofu</code>.</p>
+</li>
+<li class="task-list-item">
+<p><input type="checkbox" disabled/> <strong>Step 4: Build the docs</strong></p>
+</li>
+</ul>
+<p>Run: <code>mkdocs build --strict 2&gt;&amp;1 | tail -1</code>
+Expected: built, with no warning.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 5: Commit</strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>add<span class="w"> </span>docs/installation/production/external-resources.md<span class="w"> </span>docs/concepts/secrets-management.md<span class="w"> </span>docs/installation/post-installation.md<span class="w"> </span>CLAUDE.md<span class="w"> </span>.gitignore
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;docs: state on R2, the cf login, the state passphrase and its rotation&quot;</span>
+</code></pre></div>
+<hr />
+<h3 id="task-7-final-checks">Task 7: Final checks</h3>
+<p><strong>Files:</strong> none.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 1: The basic checks</strong></li>
+</ul>
+<p>Run: <code>direnv exec . sh -c '(cd test &amp;&amp; gofmt -l . &amp;&amp; go vet ./... &amp;&amp; go test -run "TestSmokeAppsForEnv|TestIdentity(TOTPWaitsForNextStep|PKCE)|TestGatewayRouteReady|TestGatewayNodeAddressFromInspect|TestNodeRestart(Blockers|WatchdogJobs)|TestIstioCNIWatchdog|TestState(CloudflareCredentials|Bucket|PassphraseRotation)" ./... | tail -1); mkdocs build --strict 2&gt;&amp;1 | tail -1; scripts/check-mesh-policies &gt;/dev/null 2&gt;&amp;1; echo mesh=$?; scripts/check-env-config | tail -1; scripts/check-secret-stores | tail -1; make -C infra check &gt;/dev/null 2&gt;&amp;1; echo infra=$?; shellcheck scripts/cloudflare-credentials scripts/ensure-state-bucket scripts/rotate-state-passphrase &amp;&amp; echo shellcheck-ok' 2&gt;&amp;1 | grep -v '^direnv'</code>
+Expected: <code>ok</code>; the docs build; <code>mesh=0</code>; <code>check-env-config: 0 failures</code>; <code>check-secret-stores: 0 failures</code>; <code>infra=0</code>; <code>shellcheck-ok</code>.</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled/> <strong>Step 2: <code>make dev</code> on the final commit</strong></li>
+</ul>
+<p>Run: <code>direnv exec . make dev &gt; /tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/dev-8c-final.log 2&gt;&amp;1; echo dev=$?; grep -E '^DONE|PASS TestNodeRestart |=== FAIL' /tmp/claude-1000/-home-nixos-homelab/44339b87-568a-46fd-9484-aed834c50ef8/scratchpad/dev-8c-final.log | tail -4</code>
+Expected: <code>dev=0</code>, <code>DONE 123 tests</code>, and <code>TestNodeRestart</code> passes.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020 - 2024 Khue Doan
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.expand", "navigation.instant", "navigation.sections", "search.highlight", "search.share"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
