@@ -450,25 +450,3 @@
   readers:
     - {namespace: backstage, externalSecrets: [backstage-session], workloads: [{kind: Deployment, name: backstage}]}
   settings: {key: secret, length: 64, special: false}
-
-- name: backstage.backend-secret
-  kind: generated
-  class: 1
-  reason: Backstage's plugins sign their calls to each other with it; one pod restarts on the new one
-  paths: [backstage/generated/backend-secret]
-  readers:
-    - {namespace: backstage, externalSecrets: [backstage-backend], workloads: [{kind: Deployment, name: backstage}]}
-  settings: {key: secret, length: 64, special: false}
-
-- name: kanidm.backstage-ldap
-  kind: manual
-  class: 1
-  reason: >-
-    kaniop creates the directory reader's API token in Secret backstage-ldap-token, and replaces it when the token's
-    secretName changes; Backstage reads it at start, so its directory sync fails until it restarts
-  readers:
-    - {namespace: backstage, workloads: [{kind: Deployment, name: backstage}]}
-  steps: >-
-    Rename the token's secretName in platform/backstage/templates/kanidm-service-account.yaml and the Deployment's
-    reference to it in one commit, deploy, and check Backstage lists people again (kanidm's API token for
-    backstage-ldap is replaced)

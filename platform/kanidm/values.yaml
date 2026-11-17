@@ -13,7 +13,5 @@ groupMembers: {}
 testAccounts: []
 # Namespaces whose KanidmOAuth2Clients kaniop reconciles
 oauth2ClientNamespaces: [argocd, grafana, zot, actualbudget, paperless, forgejo, opencloud, kiali, matrix, argo-workflows, backstage]
-# Namespaces that declare Kanidm service accounts (KanidmServiceAccount): Backstage's directory reader
-serviceAccountNamespaces: [backstage]
 # Sandbox-only client for the identity tests (templates/smoke-client.yaml)
 smokeClient: false

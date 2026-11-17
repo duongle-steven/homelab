@@ -2698,23 +2698,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@backstage/plugin-catalog-backend-module-ldap@npm:^0.12.10":
-  version: 0.12.10
-  resolution: "@backstage/plugin-catalog-backend-module-ldap@npm:0.12.10"
-  dependencies:
-    "@backstage/backend-plugin-api": "npm:^1.11.0"
-    "@backstage/catalog-model": "npm:^1.10.2"
-    "@backstage/config": "npm:^1.3.10"
-    "@backstage/errors": "npm:^1.3.2"
-    "@backstage/plugin-catalog-common": "npm:^1.2.1"
-    "@backstage/plugin-catalog-node": "npm:^2.2.6"
-    "@backstage/types": "npm:^1.2.2"
-    ldapts: "npm:^8.0.6"
-    lodash: "npm:^4.17.21"
-  checksum: 10c0/c6d54da89f7c5fa76b0073dbef4c5a9eba3809e256ef938eff971ad62229518b9a5b62f79c5aed21ce92cd59125f960e6daf63c2e0217be4afecc9a9ac1c5429
-  languageName: node
-  linkType: hard
-
 "@backstage/plugin-catalog-backend-module-logs@npm:^0.1.27":
   version: 0.1.27
   resolution: "@backstage/plugin-catalog-backend-module-logs@npm:0.1.27"
@@ -14038,7 +14021,6 @@ __metadata:
     "@backstage/plugin-auth-backend-module-oidc-provider": "npm:^0.4.22"
     "@backstage/plugin-auth-node": "npm:^0.7.7"
     "@backstage/plugin-catalog-backend": "npm:^4.0.1"
-    "@backstage/plugin-catalog-backend-module-ldap": "npm:^0.12.10"
     "@backstage/plugin-catalog-backend-module-logs": "npm:^0.1.27"
     "@backstage/plugin-catalog-backend-module-scaffolder-entity-model": "npm:^0.2.25"
     "@backstage/plugin-catalog-common": "npm:^1.2.1"
@@ -22252,15 +22234,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ldapts@npm:^8.0.6":
-  version: 8.2.0
-  resolution: "ldapts@npm:8.2.0"
-  dependencies:
-    strict-event-emitter-types: "npm:2.0.0"
-  checksum: 10c0/be8dd9b5e3dec92b5e9b66a9c2722e2c76fd7f1fa5bc2302e679f0d1944257f351e17086c2af0151ae0c1b50d684f13b6c2e2c6fbb9ec7a99922d4b19d140ea5
-  languageName: node
-  linkType: hard
-
 "leven@npm:2.1.0":
   version: 2.1.0
   resolution: "leven@npm:2.1.0"
@@ -29044,13 +29017,6 @@ __metadata:
     fast-fifo: "npm:^1.3.2"
     text-decoder: "npm:^1.1.0"
   checksum: 10c0/90871d76712ad9e00f555ffcb0d33bcbf6823cc2237e8868dcb30666ec76ae34157049042e3cd3251698278ebedf153291026eec7c87ad05c746178a35405f64
-  languageName: node
-  linkType: hard
-
-"strict-event-emitter-types@npm:2.0.0":
-  version: 2.0.0
-  resolution: "strict-event-emitter-types@npm:2.0.0"
-  checksum: 10c0/7a2985b81908c2a7d1de10afe3be1de3423b8ce6188dc32aeb3dbaf66d4ac3f11029d6931c67d972a3bb976bbd04d27ee090eeed1cbd089c5ba3e899a04ed1b7
   languageName: node
   linkType: hard
 

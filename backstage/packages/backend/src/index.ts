@@ -1,5 +1,5 @@
 // The homelab's Backstage backend (docs/superpowers/specs/2026-11-16-backstage-design.md): sign-in through Kanidm,
-// people and groups from Kanidm's LDAP, the catalog the repository describes, TechDocs, templates publishing to
+// the catalog the repository describes, TechDocs, templates publishing to
 // Forgejo, and read-only views of Kubernetes and Argo CD
 import { createBackend } from '@backstage/backend-defaults';
 
@@ -8,17 +8,16 @@ const backend = createBackend();
 backend.add(import('@backstage/plugin-app-backend'));
 backend.add(import('@backstage/plugin-proxy-backend'));
 
-// Sign-in: Kanidm through OIDC, resolved to a catalog User (no guest, no sign-in without one)
+// Sign-in: Kanidm through OIDC, the identity from its token's name and groups (auth/identity.ts); no guest
 backend.add(import('@backstage/plugin-auth-backend'));
-backend.add(import('@backstage/plugin-auth-backend-module-oidc-provider'));
+backend.add(import('./auth/module'));
 
-// Catalog: the repository's catalog-info.yaml (lab catalog generate) and Kanidm's people and groups
+// Catalog: the repository's catalog-info.yaml (lab catalog generate), groups included; people stay out of it
 backend.add(import('@backstage/plugin-catalog-backend'));
 backend.add(
   import('@backstage/plugin-catalog-backend-module-scaffolder-entity-model'),
 );
 backend.add(import('@backstage/plugin-catalog-backend-module-logs'));
-backend.add(import('@backstage/plugin-catalog-backend-module-ldap'));
 // A component's homelab/host becomes the link to its page (catalog/hostLinks.ts)
 backend.add(import('./catalog/module'));
 
@@ -50,4 +49,9 @@ backend.add(import('@backstage/plugin-user-settings-backend'));
 backend.add(import('@backstage/plugin-notifications-backend'));
 backend.add(import('@backstage/plugin-signals-backend'));
 
-backend.start();
+// A plugin that fails at start (PostgreSQL not ready after a node restart or a power cut) leaves the process up with
+// its liveness probe passing, never retrying: exit instead, so Kubernetes restarts the pod until the database answers
+backend.start().catch(error => {
+  console.error('Backend startup failed, exiting:', error);
+  process.exit(1);
+});

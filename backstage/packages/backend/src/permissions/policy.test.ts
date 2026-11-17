@@ -19,7 +19,7 @@ import {
 } from '@backstage/plugin-scaffolder-common/alpha';
 import { HomelabPermissionPolicy } from './policy';
 
-// Kanidm's groups reach the catalog through LDAP: a person is admin or editor by membership
+// The sign-in token's groups (auth/identity.ts) become the ownership refs: a person is admin or editor by membership
 const groups: Record<string, string[]> = {
   'user:default/ada': ['user:default/ada', 'group:default/homelab-admins'],
   'user:default/eve': ['user:default/eve', 'group:default/homelab-editors'],

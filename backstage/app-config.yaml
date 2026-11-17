@@ -73,9 +73,6 @@ backend:
   baseUrl: ${BACKSTAGE_BASE_URL}
   listen:
     port: 7007
-  auth:
-    keys:
-      - secret: ${BACKEND_SECRET}
   csp:
     connect-src: ["'self'", 'http:', 'https:']
   cors:
@@ -121,7 +118,7 @@ auth:
     secret: ${AUTH_SESSION_SECRET}
   providers:
     # Kanidm: a confidential client with PKCE (openid-client sends S256), ES256 ID tokens; only homelab-admins and
-    # homelab-editors get a token (its scopeMap), and only a person with a catalog User signs in
+    # homelab-editors get a token (its scopeMap), and the sign-in resolver is packages/backend/src/auth/identity.ts
     oidc:
       production:
         metadataUrl: ${KANIDM_ISSUER}/.well-known/openid-configuration
@@ -130,9 +127,6 @@ auth:
         tokenSignedResponseAlg: ES256
         additionalScopes: [profile, email, groups]
         prompt: auto
-        signIn:
-          resolvers:
-            - resolver: emailLocalPartMatchingUserEntityName
 
 scaffolder:
   defaultAuthor:
@@ -142,7 +136,7 @@ scaffolder:
 
 catalog:
   rules:
-    - allow: [Component, System, Domain, Resource, Location, Template]
+    - allow: [Component, System, Domain, Group, Resource, Location, Template]
   locations:
     # The repository Argo CD reads: catalog-info.yaml at its root (lab catalog generate), and the templates
     - type: url
@@ -151,41 +145,6 @@ catalog:
       target: ${TEMPLATES_LOCATION}
       rules:
         - allow: [Template]
-  providers:
-    # People and groups from Kanidm's read-only LDAPS: homelab-admins and homelab-editors and their members only
-    ldapOrg:
-      kanidm:
-        target: ${LDAP_URL}
-        bind:
-          dn: ${LDAP_BIND_DN}
-          secret: ${LDAP_BIND_SECRET}
-        # In-cluster (kanidm.kanidm.svc), where Kanidm's certificate (auth.<domain> only) cannot match: the mesh's mTLS
-        # authenticates the peer, and Kanidm admits only Backstage's ServiceAccount on this port
-        tls:
-          rejectUnauthorized: false
-        users:
-          - dn: ${LDAP_BASE_DN}
-            options:
-              filter: (&(class=person)(|(memberof=spn=homelab-admins@${KANIDM_DOMAIN},${LDAP_BASE_DN})(memberof=spn=homelab-editors@${KANIDM_DOMAIN},${LDAP_BASE_DN})))
-              scope: sub
-            map:
-              rdn: name
-              name: name
-              displayName: displayname
-              email: mail
-              memberOf: memberof
-        groups:
-          - dn: ${LDAP_BASE_DN}
-            options:
-              filter: (&(class=group)(|(name=homelab-admins)(name=homelab-editors)))
-              scope: sub
-            map:
-              rdn: name
-              name: name
-              members: member
-        schedule:
-          frequency: {minutes: 15}
-          timeout: {minutes: 5}
 
 kubernetes:
   serviceLocatorMethod:

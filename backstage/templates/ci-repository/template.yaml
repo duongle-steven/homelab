@@ -1,0 +1,55 @@
+# A new repository in Forgejo's org ci, which the golden path builds, signs and attests on its first push
+# (docs/how-to-guides/in-cluster-ci.md). Only homelab-admins run templates, and only fetch, publish:gitea,
+# catalog:register and debug:log (packages/backend/src/permissions/policy.ts)
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: ci-repository
+  title: A repository in org ci
+  description: A Containerfile the in-cluster CI builds, signs and attests, registered in the catalog
+  tags: [ci, container]
+spec:
+  owner: group:default/homelab-admins
+  type: service
+  parameters:
+    - title: The repository
+      required: [name, description]
+      properties:
+        name:
+          title: Name
+          type: string
+          description: The repository's and the image's name (registry.<domain>/<name>)
+          pattern: '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'
+        description:
+          title: Description
+          type: string
+  steps:
+    - id: fetch
+      name: The skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+    - id: publish
+      name: Forgejo's org ci
+      action: publish:gitea
+      input:
+        repoUrl: forgejo-http.forgejo:3000?owner=ci&repo=${{ parameters.name }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: private
+    - id: register
+      name: The catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    links:
+      - title: The repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Its entry
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}

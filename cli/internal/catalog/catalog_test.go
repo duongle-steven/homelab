@@ -230,3 +230,18 @@ func TestRootEntryPoint(t *testing.T) {
 		t.Error("the Domain moved to catalog-info.yaml")
 	}
 }
+
+// The groups that own everything and that Backstage's permissions read: configuration, not people (people stay out of
+// the catalog; Kanidm's token says who they are)
+func TestGroups(t *testing.T) {
+	files, err := Generate(fixture(t))
+	must(t, err)
+	groups := string(files["catalog/groups.yaml"])
+	contains(t, groups, "kind: Group\n")
+	contains(t, groups, "name: homelab-admins\n")
+	contains(t, groups, "name: homelab-editors\n")
+	contains(t, string(files["catalog-info.yaml"]), "- ./catalog/groups.yaml\n")
+	if strings.Contains(groups, "members:") {
+		t.Error("groups name no members: people are not in the catalog")
+	}
+}

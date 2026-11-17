@@ -43,14 +43,6 @@ spec:
         {{- else }}
         wellKnownCaCertificates: System
         {{- end }}
-  # Read-only LDAPS on 3636, for Backstage's directory (templates/authorization-policy.yaml admits only it)
-  ldapPortName: ldaps
-  # Service accounts are declared by their user's chart (Backstage's directory reader)
-  serviceAccountNamespaceSelector:
-    matchExpressions:
-      - key: kubernetes.io/metadata.name
-        operator: In
-        values: {{- toYaml .Values.serviceAccountNamespaces | nindent 10 }}
   # Each app declares its own OAuth2 client in its namespace
   oauth2ClientNamespaceSelector:
     matchExpressions:

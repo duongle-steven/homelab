@@ -77,6 +77,7 @@ func Generate(root string) (map[string][]byte, error) {
 		files["catalog/"+system.file+".yaml"] = components(mine)
 	}
 	files["catalog/systems.yaml"] = systems()
+	files["catalog/groups.yaml"] = groups()
 
 	page, err := os.ReadFile(filepath.Join(root, homepageFile))
 	if err != nil {
@@ -216,7 +217,7 @@ func entryPoint() []byte {
 	}, {
 		"apiVersion": "backstage.io/v1alpha1", "kind": "Location",
 		"metadata": map[string]any{"name": "homelab"},
-		"spec": map[string]any{"targets": []string{"./catalog/systems.yaml", "./catalog/apps.yaml",
+		"spec": map[string]any{"targets": []string{"./catalog/groups.yaml", "./catalog/systems.yaml", "./catalog/apps.yaml",
 			"./catalog/platform.yaml", "./catalog/system.yaml"}},
 	}})
 	return []byte(b.String())
@@ -235,6 +236,26 @@ func systems() []byte {
 			"apiVersion": "backstage.io/v1alpha1", "kind": "System",
 			"metadata": map[string]any{"name": s.name, "description": s.description},
 			"spec":     map[string]any{"owner": owner, "domain": "homelab"},
+		})
+	}
+	writeDocs(&b, docs)
+	return []byte(b.String())
+}
+
+// groups are Kanidm's homelab-admins and homelab-editors, which own everything and which Backstage's permissions read
+// from the sign-in token; no members: people stay out of the catalog
+func groups() []byte {
+	var b strings.Builder
+	b.WriteString(header)
+	var docs []map[string]any
+	for _, g := range []struct{ name, description string }{
+		{"homelab-admins", "Run the homelab: everything, templates included (Kanidm group)"},
+		{"homelab-editors", "Look after the apps: read and refresh, no templates (Kanidm group)"},
+	} {
+		docs = append(docs, map[string]any{
+			"apiVersion": "backstage.io/v1alpha1", "kind": "Group",
+			"metadata": map[string]any{"name": g.name, "description": g.description},
+			"spec":     map[string]any{"type": "team", "children": []string{}},
 		})
 	}
 	writeDocs(&b, docs)

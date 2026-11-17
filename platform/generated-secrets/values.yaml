@@ -55,14 +55,10 @@ secrets:
   - name: argocd.backstage-password
     key: password
     destinations: [argocd/generated/backstage-password, backstage/generated/argocd-password]
-  # Backstage's session cookies and its backend's service-to-service tokens
+  # Backstage's session cookies
   - name: backstage.session-secret
     key: secret
     length: 64
     destinations: [backstage/generated/session-secret]
-  - name: backstage.backend-secret
-    key: secret
-    length: 64
-    destinations: [backstage/generated/backend-secret]
 # Environment-specific additions, so the list above does not have to be restated
 extraSecrets: []

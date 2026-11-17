@@ -18,10 +18,3 @@ spec:
       to:
         - operation:
             ports: ["8443"]
-    # Backstage reads people and groups over LDAPS (platform/backstage)
-    - from:
-        - source:
-            principals: ["cluster.local/ns/backstage/sa/backstage"]
-      to:
-        - operation:
-            ports: ["3636"]

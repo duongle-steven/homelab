@@ -15,6 +15,7 @@ metadata:
   name: homelab
 spec:
   targets:
+    - ./catalog/groups.yaml
     - ./catalog/systems.yaml
     - ./catalog/apps.yaml
     - ./catalog/platform.yaml

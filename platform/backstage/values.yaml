@@ -41,18 +41,10 @@ backstage:
       - {name: GRAFANA_PUBLIC_URL, value: 'https://grafana.{{ .Values.global.baseDomain }}'}
       - {name: HOMEPAGE_PUBLIC_URL, value: 'https://home.{{ .Values.global.baseDomain }}'}
       - {name: ARGOCD_URL, value: http://argocd-server.argocd}
-      - {name: KANIDM_DOMAIN, value: 'auth.{{ .Values.global.baseDomain }}'}
       - {name: KANIDM_ISSUER, value: 'https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/backstage'}
       - {name: AUTH_OIDC_CLIENT_ID, value: backstage}
       - name: AUTH_OIDC_CLIENT_SECRET
         valueFrom: {secretKeyRef: {name: backstage-kanidm-oauth2-credentials, key: CLIENT_SECRET}}
-      # Kanidm's base DN is its domain's labels; its certificate names only auth.<domain>, and the mesh authenticates
-      # this in-cluster hop (platform/kanidm's allow admits only this ServiceAccount on 3636)
-      - {name: LDAP_URL, value: 'ldaps://kanidm.kanidm.svc:3636'}
-      - {name: LDAP_BASE_DN, value: '{{ include "backstage.ldapBaseDN" . }}'}
-      - {name: LDAP_BIND_DN, value: dn=token}
-      - name: LDAP_BIND_SECRET
-        valueFrom: {secretKeyRef: {name: backstage-ldap-token, key: token}}
       - {name: FORGEJO_HOST, value: 'forgejo-http.forgejo:3000'}
       # Written by lab infra forgejo sync: optional, so Backstage starts before the first sync (the sandbox runs it only
       # in its specs); until then templates cannot publish and production's catalog cannot read ops/homelab
@@ -62,8 +54,6 @@ backstage:
         valueFrom: {secretKeyRef: {name: backstage-argocd, key: password}}
       - name: AUTH_SESSION_SECRET
         valueFrom: {secretKeyRef: {name: backstage-session, key: secret}}
-      - name: BACKEND_SECRET
-        valueFrom: {secretKeyRef: {name: backstage-backend, key: secret}}
       - {name: POSTGRES_HOST, value: backstage-db-rw}
       - {name: POSTGRES_PORT, value: "5432"}
       - name: POSTGRES_USER
