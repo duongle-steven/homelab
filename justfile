@@ -12,7 +12,8 @@ terragrunt := env("HOMELAB_TERRAGRUNT", "terragrunt")
 terragrunt_apply := terragrunt + " run --all apply --non-interactive -- -auto-approve"
 # Apps the sandbox deploys only when asked (just dev --apps paperless,opencloud,backstage or all) or when the branch
 # changes their files since --base (--apps none: never, even then): docs/how-to-guides/sandbox-tests.md. Backstage's
-# files are backstage/ and platform/backstage/, the others' apps/<name>.yaml
+# files are backstage/ and platform/backstage/, the others' apps/<name>.yaml outside its homelab: description (which
+# only lab catalog generate reads)
 optional_apps := "paperless opencloud backstage"
 testbed_kubeconfig := justfile_directory() / "infra/testbed/kubeconfig.yaml"
 # The power specs' labels, on a healthy testbed, one run each since each takes the whole cluster down
@@ -54,7 +55,7 @@ dev $full="" $tests="" $apps="" $revision="" $base="origin/dev": sandbox-checkou
     if [ -z "$main$alone" ]; then echo "just dev: nothing to test in the sandbox (no change outside test/scopes.yaml's skip)"; exit 0; fi
     echo "just dev: main run '$main', then alone '$(printf '%s' "$alone" | tr '\n' ' ')'"
     opt=$( { if [ "$apps" = none ]; then :; elif [ "$apps" = all ]; then echo "{{ optional_apps }}"; else echo "$apps" | tr , ' '; fi
-        [ "$apps" = none ] || for a in {{ optional_apps }}; do case "$a" in backstage) p="backstage platform/backstage" ;; *) p="apps/$a.yaml" ;; esac; git diff --quiet "$base...HEAD" -- $p 2>/dev/null || echo "$a"; done; } |
+        [ "$apps" = none ] || for a in {{ optional_apps }}; do case "$a" in backstage) git diff --quiet "$base...HEAD" -- backstage platform/backstage 2>/dev/null || echo "$a" ;; *) [ "$(git show "$(git merge-base "$base" HEAD):apps/$a.yaml" 2>/dev/null | yq 'del(.homelab)')" = "$(yq 'del(.homelab)' "apps/$a.yaml")" ] || echo "$a" ;; esac; done; } |
         tr ' ' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ')
     for a in $opt; do case " {{ optional_apps }} " in *" $a "*) ;; *) echo "just dev: $a is not an optional app ({{ optional_apps }})" >&2; exit 1 ;; esac; done
     echo "just dev: optional apps '$opt'"
