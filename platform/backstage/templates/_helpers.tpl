@@ -7,13 +7,13 @@
 {{- join "," $labels -}}
 {{- end -}}
 
-{{/* A file of the repository Argo CD syncs (global.repository at global.revision), as Backstage's URL reader wants
+{{/* A file of the repository Argo CD syncs (global.gitRepository at global.gitRevision), as Backstage's URL reader wants
 it: GitHub's blob URL, or Forgejo's (Gitea's) src/branch URL */}}
 {{- define "backstage.location" -}}
 {{- $g := .root.Values.global -}}
-{{- if contains "github.com" $g.repository -}}
-{{ trimSuffix ".git" $g.repository }}/blob/{{ $g.revision }}/{{ .path }}
+{{- if contains "github.com" $g.gitRepository -}}
+{{ trimSuffix ".git" $g.gitRepository }}/blob/{{ $g.gitRevision }}/{{ .path }}
 {{- else -}}
-{{ trimSuffix ".git" $g.repository }}/src/branch/{{ $g.revision }}/{{ .path }}
+{{ trimSuffix ".git" $g.gitRepository }}/src/branch/{{ $g.gitRevision }}/{{ .path }}
 {{- end -}}
 {{- end -}}

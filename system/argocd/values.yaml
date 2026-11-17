@@ -200,9 +200,10 @@ argocd-apps:
                     seedRepository: '{{ .seed_repository }}'
                     # Production's R2 endpoint, which holds the account id (never in git); empty elsewhere
                     backupS3Url: '{{ .metadata.annotations.backupS3Url }}'
-                    # The repository and revision this Application syncs (the cluster Secret's): what Backstage's catalog reads
-                    repository: '{{ .metadata.annotations.repository }}'
-                    revision: '{{ .metadata.annotations.revision }}'
+                    # The repository and revision this Application syncs (the cluster Secret's): what Backstage's catalog reads (not
+                    # global.repository: external-secrets' chart reads that as its image registry)
+                    gitRepository: '{{ .metadata.annotations.repository }}'
+                    gitRevision: '{{ .metadata.annotations.revision }}'
                     addresses: &addresses
                       apiVIP: '{{ .vip }}'
                       router: '{{ .network.gateway }}'

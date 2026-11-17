@@ -472,4 +472,3 @@
     Rename the token's secretName in platform/backstage/templates/kanidm-service-account.yaml and the Deployment's
     reference to it in one commit, deploy, and check Backstage lists people again (kanidm's API token for
     backstage-ldap is replaced)
-
