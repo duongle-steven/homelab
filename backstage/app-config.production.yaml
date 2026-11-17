@@ -1,4 +1,7 @@
 # The image's config on top of app-config.yaml, which holds the rest (every value from the environment)
 backend:
-  # Every interface in the pod: the mesh and the Gateway reach it
-  listen: ':7007'
+  listen:
+    # Every interface in the pod: the mesh and the Gateway reach it (an object, as app-config.yaml and the chart's
+    # APP_CONFIG_backend_listen_port write it; a string would not merge)
+    host: 0.0.0.0
+    port: 7007
