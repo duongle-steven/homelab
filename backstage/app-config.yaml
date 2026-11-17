@@ -84,7 +84,11 @@ backend:
     credentials: true
   database:
     client: pg
+    # One database (backstage, which CloudNativePG creates and the user owns), a schema per plugin: the user has no
+    # CREATEDB, which Backstage's default database per plugin needs
+    pluginDivisionMode: schema
     connection:
+      database: backstage
       host: ${POSTGRES_HOST}
       port: ${POSTGRES_PORT}
       user: ${POSTGRES_USER}
