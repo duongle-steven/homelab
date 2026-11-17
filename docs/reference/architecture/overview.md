@@ -88,3 +88,8 @@ flowchart TD
 
 Logs: the OpenTelemetry agent on every node reads the pods' and the API server's audit logs into Loki over OTLP, and the gateway Collector the cluster's events and every trace (`system/opentelemetry`, Loki in `system/loki`, traces in `system/tempo`), which Grafana queries
 ([logs](../../how-to-guides/logs.md)).
+
+Portal: Backstage (`platform/backstage`, LAN only) catalogs every app and component from the descriptions in their own
+files (`lab catalog generate`, which also writes Homepage's services), serves these docs (TechDocs) and starts
+repositories in Forgejo's org `ci` from a template; admins and editors sign in with Kanidm
+([Backstage](../../how-to-guides/backstage.md)).

@@ -39,11 +39,12 @@ Out of scope *(user, 2026-11-14)*: a targeted attacker with physical access to t
 | --- | --- | --- | --- |
 | E1 | Public apps through the Cloudflare Tunnel (blog, excalidraw, ntfy) | only rendered (12b-3) | Kanidm for Headscale (13); Matrix if federated |
 | E2 | The LAN Gateway (every admin app, Kanidm, Forgejo SSH) | sandbox | production (12b-3) |
+| E2c | Backstage (Backstage-1, LAN Gateway only): homelab-admins and homelab-editors sign in with Kanidm; it reads the cluster (no Secrets, ConfigMaps, logs or exec), Argo CD (read-only) and the repository Argo CD syncs; its token creates repositories in org `ci` | sandbox (Backstage-1) | production once its image is released |
 | E2b | OTLP into the gateway Collector (traces from the Istio Gateways, Argo CD, Grafana) | sandbox (OpenTelemetry step) | inside the cluster only: `allow-otlp` names the senders, nothing routes to it |
 | E3 | The nodes' own ports from the LAN (SSH, the API server, etcd, the kubelet, flannel's VXLAN) | production's nodes | |
 | E4 | The step-13 VPS (SSH, WireGuard, Headscale, DERP/STUN on a public address) | none | 13 |
 | E5 | The supply chain (images, charts, Actions, Renovate's pull requests) | GitHub, the sandbox | |
-| E6 | The in-cluster CI running a Containerfile (org `ci`) | sandbox (10f) | Backstage's templates; 18b's learners |
+| E6 | The in-cluster CI running a Containerfile (org `ci`) | sandbox (10f); Backstage's template creates repositories there (admins only, Backstage-1) | 18b's learners |
 | E7 | The workstation's admin path (admin kubeconfigs, the state passphrase, SSH keys, Cloudflare and GitHub sessions) | in use | |
 | E8 | Accounts outside the homelab (GitHub, Cloudflare, AWS, the domain's registrar) | in use | AWS (13) |
 
@@ -151,6 +152,12 @@ repository may publish under another repository's name (deferred to 15b-2). Back
 
 Proposal: the two deferred minors before anyone outside the household joins org `ci`; 18b keeps its own design (Ideas: sandboxed runtime,
 quotas, its own nodes).
+
+Backstage-1 *(2026-11-17)*: its template is one more way to create such a repository, open only to `homelab-admins`
+(the permission policy, server-side, tested) and limited to `fetch:*`, `publish:gitea`, `catalog:register` and
+`debug:log`; its Forgejo user `backstage` can create repositories in org `ci` and read `ops/homelab`, nothing else. Its
+token sits in Backstage's pod (namespace `backstage`, ESO): a compromised Backstage can create repositories whose
+Containerfiles the CI runs, which is what an admin can do anyway.
 
 ### G8. Detection blind spots
 

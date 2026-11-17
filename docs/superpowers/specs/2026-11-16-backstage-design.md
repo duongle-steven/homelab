@@ -23,9 +23,10 @@ repository's rules if they fit.
 2. The catalog describes the homelab: every app in `apps/*.yaml` and every component in `system/` and `platform/`, each
    with an owner, a lifecycle, the namespace it runs in, its links (its page, Argo CD, Grafana), and the relations
    between them where they are known (an app's database, the components it needs).
-3. People and groups come from Kanidm, so sign-in resolves to a catalog `User`, ownership names real groups, and
-   permissions follow `homelab_groups` *(user: needed, not an idea)*. Only `homelab-admins` and `homelab-editors` sign
-   in *(user, 2026-11-16)*: Backstage is a tool for running the homelab, and the family's apps never need it.
+3. Who signs in comes from Kanidm's token: its name and its groups `homelab-admins` or `homelab-editors` (the client's
+   claim `homelab_groups`), so ownership and permissions name real groups *(user, 2026-11-17: option B; people stay out
+   of the catalog)*. Only `homelab-admins` and `homelab-editors` sign in *(user, 2026-11-16)*: Backstage is a tool for
+   running the homelab, and the family's apps never need it.
 4. TechDocs serves this repository's MkDocs site (`docs/`) inside Backstage.
 5. A template creates a repository in Forgejo org `ci` that the golden path (10f) builds, signs and attests, and
    registers it in the catalog. This step delivers the template with a generic skeleton, proven in the sandbox; the
@@ -126,7 +127,7 @@ creates, not by Backstage itself.
 - Sign-in: a `KanidmOAuth2Client` `backstage` (confidential, `homelab_groups` in its claim map, a `scopeMap` admitting
   only `homelab-admins` and `homelab-editors`, as Actual Budget and paperless admit their access groups), namespace added
   to `oauth2ClientNamespaces`; Backstage's OIDC provider with a sign-in resolver matching the Kanidm user's name to a
-  catalog `User`, refusing anyone without one (Kanidm already refuses the rest; the resolver is the second gate).
+  the identity from the token, refusing anyone in neither group (Kanidm already refuses the rest; the resolver is the second gate).
 - Secrets in OpenBao through ESO, each with its rotation-catalog entry: the auth session secret, the backend's service
   token keys, the Forgejo token, the Argo CD token (the Kanidm client's secret is kaniop's, the database's
   CloudNativePG's).
@@ -152,10 +153,10 @@ creates, not by Backstage itself.
   (GitHub, Cloudflare, the cloud consoles) stay a hand-written section of homepage's config. Not homepage's Kubernetes
   discovery *(Claude's call, from the builder check)*: it would give the family's unauthenticated front door read
   access to every HTTPRoute in the cluster, and lose every entry without a route.
-- Users and groups from Kanidm: Backstage's LDAP module (`catalog-backend-module-ldap`) against Kanidm's read-only LDAPS,
-  bound as a Kanidm service account, importing the groups `homelab-admins` and `homelab-editors` and their members only. If Kanidm's LDAP does not suit the
-  module, a small entity provider of our own reads Kanidm's REST API instead (decided while building, recorded in the
-  plan). Personal data never goes into git.
+- People are not in the catalog *(user, 2026-11-17)*: Kanidm lets a service account read only itself over LDAP or its
+  API, and a built-in read group would need Kanidm's admin and expose everyone's PII. The sign-in resolver
+  (`backstage/packages/backend/src/auth/identity.ts`) issues `user:default/<name>` with ownership of
+  `group:default/homelab-admins` or `-editors` from the token; `lab catalog generate` writes those two Group entities.
 - Systems: `homelab` (the whole), with one system per layer (`system/`, `platform/`, apps); domains only if they earn
   their keep.
 
@@ -211,5 +212,5 @@ switch; an on-call schedule once a second person is on call) and its "before the
 
 ## Left to the builder
 
-The exact plugin packages and versions, the chart's values, the skeleton's contents, the LDAP filters, how the
+The exact plugin packages and versions, the chart's values, the skeleton's contents, how the
 generator script reads the descriptions, the home page's layout, the image's base, and the order of the plan's tasks.
