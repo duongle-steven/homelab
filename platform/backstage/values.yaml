@@ -51,8 +51,10 @@ backstage:
       - name: LDAP_BIND_SECRET
         valueFrom: {secretKeyRef: {name: backstage-ldap-token, key: token}}
       - {name: FORGEJO_HOST, value: 'forgejo-http.forgejo:3000'}
+      # Written by lab infra forgejo sync: optional, so Backstage starts before the first sync (the sandbox runs it only
+      # in its specs); until then templates cannot publish and production's catalog cannot read ops/homelab
       - name: FORGEJO_TOKEN
-        valueFrom: {secretKeyRef: {name: backstage-forgejo, key: token}}
+        valueFrom: {secretKeyRef: {name: backstage-forgejo, key: token, optional: true}}
       - name: ARGOCD_PASSWORD
         valueFrom: {secretKeyRef: {name: backstage-argocd, key: password}}
       - name: AUTH_SESSION_SECRET
