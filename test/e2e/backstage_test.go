@@ -199,11 +199,16 @@ var _ = Describe("BackstagePlugins", Label("sandbox", "backstage"), func() {
 			return fmt.Sprint(workloads)
 		}).WithTimeout(5 * time.Minute).WithPolling(20 * time.Second).Should(ContainSubstring("backstage"))
 
-		var app map[string]any
+		// /find/name names the Argo CD instance holding the Application; the instance's route returns the Application
+		var app struct {
+			Status struct {
+				Sync struct{ Status string } `json:"sync"`
+			} `json:"status"`
+		}
 		Eventually(ctx, func() int {
-			return backstageAPI(ctx, token, http.MethodGet, "/api/argocd/find/name/backstage", nil, &app)
+			return backstageAPI(ctx, token, http.MethodGet, "/api/argocd/argoInstance/homelab/applications/name/backstage", nil, &app)
 		}).WithTimeout(5 * time.Minute).WithPolling(20 * time.Second).Should(Equal(http.StatusOK))
-		Expect(fmt.Sprint(app)).To(ContainSubstring("Synced"))
+		Expect(app.Status.Sync.Status).To(Equal("Synced"))
 	}, SpecTimeout(20*time.Minute))
 })
 

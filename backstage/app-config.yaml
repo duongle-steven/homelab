@@ -101,6 +101,8 @@ integrations:
   # Production reads Forgejo's ops/homelab, and templates publish to its org ci, as user backstage
   gitea:
     - host: ${FORGEJO_HOST}
+      # In the cluster, plain HTTP on Forgejo's port (the mesh encrypts it); the integration assumes https otherwise
+      baseUrl: http://${FORGEJO_HOST}
       username: backstage
       password: ${FORGEJO_TOKEN}
 
