@@ -40,8 +40,25 @@ Kubernetes plugin: no Secrets, ConfigMaps, logs or exec) and its Argo CD Applica
 
 **Create** → "A repository in org ci" (admins): a name and a description make a repository in Forgejo's org `ci` with a
 `Containerfile`, a `README.md` and its `catalog-info.yaml`, registered in the catalog. Its first push runs the golden
-path (`in-cluster-ci.md`). Backstage publishes as Forgejo's user `backstage` (team `templates`: creates repositories,
-holds no other), whose token `lab infra forgejo sync` writes.
+path (`in-cluster-ci.md`). Backstage publishes as Forgejo's user `backstage` (team `templates`: creates repositories),
+whose token `lab infra forgejo sync` writes; Forgejo makes it an admin collaborator of each repository it creates (the
+threat model's G7).
+
+A template's registration lives only in Backstage's database (`backstage-db`, never backed up). After a restore or a
+lost database, the generated catalog comes back by itself but repositories the template made do not: register each
+again (**Create** → **Register Existing Component**, its `catalog-info.yaml` on Forgejo). A lost volume does not heal a
+one-instance CloudNativePG cluster: `kubectl -n backstage delete cluster backstage-db`, and Argo CD recreates it.
+
+### Production's first deploy
+
+Backstage reads its Forgejo token only at start, and the token exists only once `lab infra forgejo sync` has run. After
+the first `just infra deploy production`, refresh its secret and restart it, or its catalog (read from `ops/homelab`)
+and the template stay broken:
+
+```sh
+kubectl -n backstage annotate externalsecret backstage-forgejo force-sync="$(date +%s)" --overwrite
+kubectl -n backstage rollout restart deployment/backstage
+```
 
 ## Docs
 
@@ -50,7 +67,7 @@ TechDocs builds this repository's MkDocs site on first view, inside Backstage's 
 ## The image
 
 Backstage's app is `backstage/` (Backstage 1.56, made by `@backstage/create-app`). The sandbox builds it from the
-checkout (`scripts/build-backstage-image`, run by `just dev` when Backstage is among its optional apps); production runs
+checkout (`scripts/build-backstage-image`, run by every `just dev`); production runs
 the image `.github/workflows/backstage-image.yaml` builds from `master`, signed keyless with its SBOM attested, which
 Kyverno's `verify-backstage-image` checks. After the first release builds it, pin its digest in
 `platform/backstage/values.yaml` and drop `platform/backstage`'s exclusion from `system/argocd/values.yaml`.

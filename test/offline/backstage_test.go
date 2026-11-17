@@ -8,7 +8,7 @@ import (
 
 // platform/backstage (Backstage-1, docs/superpowers/specs/2026-11-16-backstage-design.md): the LAN Gateway only, a
 // Kubernetes reader without Secrets, logs or exec, one PostgreSQL instance never backed up, the catalog read from
-// the repository Argo CD syncs, and in the sandbox only when asked
+// the repository Argo CD syncs, and always in the sandbox
 func TestBackstageRender(t *testing.T) {
 	const chart = "platform/backstage"
 	for _, env := range []string{"", "dev"} {
@@ -27,6 +27,12 @@ func TestBackstageRender(t *testing.T) {
 		// One pod at a time: two starting together raced on the schemas and left a migration lock behind (the
 		// sandbox, 2026-11-17)
 		assert.Equal(t, "Recreate", renderVelero(t, chart, env, `select(.kind == "Deployment" and .metadata.name == "backstage") | .spec.strategy.type`), "env %q", env)
+
+		// The CloudNativePG operator (outside the mesh, no identity) polls the instance's status port: the allow beside
+		// the PeerAuthentication, as forgejo-db's
+		status := `select(.kind == "AuthorizationPolicy" and .metadata.name == "allow-cnpg-status") | .spec`
+		assert.Equal(t, "backstage-db", renderVelero(t, chart, env, status+` | .selector.matchLabels."cnpg.io/cluster"`), "env %q", env)
+		assert.Equal(t, "8000", renderVelero(t, chart, env, status+` | .rules[0].to[0].operation.ports[0]`), "env %q", env)
 
 		db := `select(.kind == "Cluster" and .metadata.name == "backstage-db") | .spec`
 		assert.Equal(t, "1", renderVelero(t, chart, env, db+` | .instances`), "env %q", env)

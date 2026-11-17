@@ -375,8 +375,8 @@ func ensureCIOrg(c *sdk.Client) error {
 }
 
 // ensureBotTeam keeps org ci's team name with write on code and bot its only member: pipeline (ci-bot) on every
-// repository of the org (clones, commit statuses), creating none; templates (backstage) creating repositories and
-// holding none it did not create
+// repository of the org (clones, commit statuses), creating none; templates (backstage) creating repositories, of
+// which Forgejo makes the creator an admin collaborator (the threat model's G7)
 func ensureBotTeam(c *sdk.Client, name, bot string, canCreate, all bool) error {
 	id, err := ensureTeam(c, name, canCreate, all, map[string]string{"repo.code": "write"})
 	if err != nil {

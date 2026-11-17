@@ -148,7 +148,7 @@ groups:
     tests: logs
   - paths: [system/opentelemetry/**, system/tempo/**, test/e2e/traces_test.go]
     tests: logs || traces
-  # Backstage (an optional component: just dev deploys it when these change)
+  # Backstage (always in the sandbox; its image built by every just dev)
   - paths: [backstage/**, platform/backstage/**, scripts/build-backstage-image, test/e2e/backstage_test.go]
     tests: backstage
   - paths: [system/kiali/**]

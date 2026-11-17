@@ -120,7 +120,9 @@ After restoring Kanidm, `lab` deletes the Secrets kaniop writes only once (`kani
    - open Forgejo's repositories and issues; if a repository looks behind, run
      `kubectl -n forgejo exec deploy/forgejo -- forgejo doctor check --all --fix`;
    - check that the other apps have their data;
-   - confirm every Argo CD Application is Synced and Healthy.
+   - confirm every Argo CD Application is Synced and Healthy;
+   - register again in Backstage the repositories its template made (its database is not backed up:
+     [Backstage](backstage.md)).
 7. Run `lab backup enable`. Daily copies start again, and the prune job keeps the newest 30.
 
 ## The sandbox

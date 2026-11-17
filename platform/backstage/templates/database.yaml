@@ -1,5 +1,7 @@
-# Backstage's PostgreSQL, one instance: the catalog and search rebuild from their sources, and only scaffolder
-# history and user settings would be lost. CloudNativePG generates the Secret backstage-db-app (owner backstage)
+# Backstage's PostgreSQL, one instance, never backed up: the catalog and search rebuild from their sources, but losing
+# it also loses the scaffolder's history, people's settings and the locations templates registered (re-register them:
+# docs/how-to-guides/backstage.md). A lost volume does not heal a one-instance Cluster: delete the Cluster and Argo CD
+# recreates it. CloudNativePG generates the Secret backstage-db-app (owner backstage)
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -40,3 +42,22 @@ spec:
   portLevelMtls:
     "8000":
       mode: PERMISSIVE
+---
+# The CloudNativePG operator (outside the mesh, so no identity) polls the instance's status port, which the
+# PeerAuthentication above leaves plaintext: deny-all would refuse it (as platform/forgejo's allow-cnpg-status)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-cnpg-status
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      cnpg.io/cluster: backstage-db
+  rules:
+    - to:
+        - operation:
+            ports: ["8000"]

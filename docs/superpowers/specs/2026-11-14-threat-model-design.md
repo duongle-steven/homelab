@@ -155,9 +155,12 @@ quotas, its own nodes).
 
 Backstage-1 *(2026-11-17)*: its template is one more way to create such a repository, open only to `homelab-admins`
 (the permission policy, server-side, tested) and limited to `fetch:*`, `publish:gitea`, `catalog:register` and
-`debug:log`; its Forgejo user `backstage` can create repositories in org `ci` and read `ops/homelab`, nothing else. Its
-token sits in Backstage's pod (namespace `backstage`, ESO): a compromised Backstage can create repositories whose
-Containerfiles the CI runs, which is what an admin can do anyway.
+`debug:log`; its Forgejo user `backstage` can create repositories in org `ci` and read `ops/homelab`, and Forgejo makes
+it an admin collaborator of every repository it creates. Its token sits in Backstage's pod (namespace `backstage`, ESO):
+a compromised Backstage, or its token taken from the pod, can push to the default branch of every repository its
+template made (the blog's included), which the golden path then builds and signs with `ci-signing`. Accepted for now
+*(Backstage-1)*: Backstage is LAN only behind Kanidm and its pod holds no other credential worth more; the fix, `lab
+infra forgejo sync` dropping `backstage`'s collaborator access on `ci` repositories after creation, is a deferred minor.
 
 ### G8. Detection blind spots
 

@@ -69,8 +69,8 @@ repository's rules if they fit.
 
 - **The sandbox is often off** *(user, 2026-11-16)*: it runs while a feature is built or a bug fixed. Nothing may assume
   it stays up; the specs pass on a fresh install.
-- **Resources**: the sandbox (13 GB WSL) is tight; Backstage (Node, a few hundred MB) plus its PostgreSQL joins only
-  when asked, like paperless and OpenCloud (14e).
+- **Resources**: the sandbox (13 GB WSL) is tight; Backstage (Node, a few hundred MB) plus its PostgreSQL fit beside the
+  rest, so it always runs there (2026-11-17); paperless and OpenCloud stay the optional apps (14e).
 - **Kanidm**: confidential client, PKCE required (Backstage's OIDC provider sends it: `openid-client` 5's strategy
   defaults to S256 when the issuer lists it, as Kanidm does), ID tokens ES256 (`tokenSignedResponseAlg: ES256`; Kiali's
   RS256 exception is not needed).
