@@ -25,6 +25,10 @@ func TestBackstageRender(t *testing.T) {
 			assert.NotContains(t, rules, verb, "env %q", env)
 		}
 
+		// One pod at a time: two starting together raced on the schemas and left a migration lock behind (the
+		// sandbox, 2026-11-17)
+		assert.Equal(t, "Recreate", renderVelero(t, chart, env, `select(.kind == "Deployment" and .metadata.name == "backstage") | .spec.strategy.type`), "env %q", env)
+
 		db := `select(.kind == "Cluster" and .metadata.name == "backstage-db") | .spec`
 		assert.Equal(t, "1", renderVelero(t, chart, env, db+` | .instances`), "env %q", env)
 		assert.Equal(t, "none", renderVelero(t, chart, env, db+` | .inheritedMetadata.labels."homelab/backup"`), "env %q", env)

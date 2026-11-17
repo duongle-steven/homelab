@@ -9,6 +9,9 @@ backstage:
       # Pinned by digest after the first release builds it (.github/workflows/backstage-image.yaml): until then
       # production excludes platform/backstage (system/argocd/values.yaml) and this placeholder never runs
       digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    # One pod at a time: two starting together race on the database's schemas and migration locks
+    strategy:
+      type: Recreate
     command: [node, --require, ./instrumentation.js, packages/backend]
     args: [--config, app-config.yaml, --config, app-config.production.yaml]
     podSecurityContext:
