@@ -10,7 +10,11 @@ whoever runs the homelab.
 Only `homelab-admins` and `homelab-editors` (Kanidm's client `backstage` admits no one else). Backstage takes who you
 are from Kanidm's token: your name and those groups (`backstage/packages/backend/src/auth/identity.ts`); people are not
 in the catalog. Admins may do everything; editors read and refresh, but neither run templates nor add or remove what
-the catalog reads (`permissions/policy.ts`). Even an admin's template runs only `fetch:*`, `publish:gitea`,
+the catalog reads (`permissions/policy.ts`).
+
+Someone removed from those groups keeps their access until Backstage refreshes their token (about an hour): each
+refresh trades Kanidm's refresh token for a new one and runs the sign-in again (`createOAuthRouteHandlers` in
+`@backstage/plugin-auth-node`), which then refuses them. Read from the code, not measured. Even an admin's template runs only `fetch:*`, `publish:gitea`,
 `catalog:register` and `debug:log`.
 
 ## What the catalog shows

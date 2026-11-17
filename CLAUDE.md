@@ -120,7 +120,7 @@ The sandbox runs Kubernetes 1.37 and only ever installs from scratch, so it does
 - zot exits at start when Kanidm is unreachable (OIDC discovery), so a Kanidm outage plus a zot restart also stops `ci` and API-key pulls and pushes.
 - The first person to log in to Actual Budget with OpenID becomes its server owner: add yourself to `homelab-budget` and log in first.
 - The first person to sign in to Matrix (tuwunel) becomes its server admin: sign in first, before anyone else.
-- Removing someone from Kanidm or a group does not revoke their zot API keys (zot keeps the groups from their last login); delete their keys in zot when offboarding. Argo Workflows' UI keeps a session up to 10 hours (its `sessionExpiry`) after someone leaves the group.
+- Removing someone from Kanidm or a group does not revoke their zot API keys (zot keeps the groups from their last login); delete their keys in zot when offboarding. Argo Workflows' UI keeps a session up to 10 hours (its `sessionExpiry`) after someone leaves the group; Backstage until its next token refresh (about an hour: each refresh runs the sign-in again, read from its code).
 - Argo CD editors may exec only into apps listed in `system/argocd/values.yaml` (`apps/*`); add new apps there.
 
 ## Ideas (not planned)
