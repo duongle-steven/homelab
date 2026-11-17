@@ -182,6 +182,7 @@ func TestSecretsListDueWorkstation(t *testing.T) {
 		"forgejo.deploy-token":    {Phase: rotate.PhaseDone, At: time.Now().Add(-95 * 24 * time.Hour), By: "steven"},
 		"forgejo.ci-bot-token":    {Phase: rotate.PhaseDone, At: time.Now().Add(-1 * 24 * time.Hour), By: "steven"},
 		"forgejo.argocd-token":    {Phase: rotate.PhaseDone, At: recent, By: "steven"},
+		"forgejo.backstage-token": {Phase: rotate.PhaseDone, At: recent, By: "steven"},
 		"ntfy.alerts-token":       {Phase: rotate.PhaseDone, At: time.Now().Add(-200 * 24 * time.Hour), By: "rotation-job"},
 	})
 	out, err := runLab(t, "", false, "secrets", "list", "--due", "--workstation")
