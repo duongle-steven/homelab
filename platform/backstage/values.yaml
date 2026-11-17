@@ -12,6 +12,8 @@ backstage:
     # One pod at a time: two starting together race on the database's schemas and migration locks
     strategy:
       type: Recreate
+      # A Deployment that rolled before keeps rollingUpdate, which Recreate forbids: null removes it
+      rollingUpdate: null
     command: [node, --require, ./instrumentation.js, packages/backend]
     args: [--config, app-config.yaml, --config, app-config.production.yaml]
     podSecurityContext:
