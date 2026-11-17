@@ -325,21 +325,6 @@
       "Smoke"
     ],
     "backstage/**": [
-      "MeshAllowsSameNamespace",
-      "MeshEnrolled",
-      "MeshMetrics",
-      "MeshOptOutAllowed",
-      "MeshPrometheusTargetsUp",
-      "MeshRejectsPlaintext",
-      "Policy",
-      "SSOActualBudget",
-      "SSOArgoCD",
-      "SSOForgejo",
-      "SSOGrafana",
-      "SSOKiali",
-      "SSOOpenCloud",
-      "SSOPaperless",
-      "SSOZot",
       "Smoke"
     ],
     "system/kiali/**": [
