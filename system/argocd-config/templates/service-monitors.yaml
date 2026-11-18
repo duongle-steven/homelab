@@ -1,5 +1,6 @@
-{{- /* Argo CD's metrics Services (system/argocd's metrics.enabled), scraped once monitoring's CRDs exist */}}
-{{- if .Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor" }}
+{{- /* Rendered whatever the cluster has: depending on the CRD (.Capabilities) left a fresh install's argocd-config
+empty yet Synced, never rendered again (#104's GitHub Actions sandboxes: no Kanidm client for Argo CD) 
+Argo CD's metrics Services (system/argocd's metrics.enabled) */}}
 {{- range list
   (dict "name" "argocd-application-controller" "service" "argocd-metrics" "component" "application-controller")
   (dict "name" "argocd-repo-server" "service" "argocd-repo-server-metrics" "component" "repo-server")
@@ -13,6 +14,9 @@ metadata:
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: argocd
+  annotations:
+    # A fresh install may sync this before its CRD exists: Argo CD applies the rest and retries this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   selector:
     matchLabels:
@@ -23,5 +27,4 @@ spec:
     - port: http-metrics
       interval: 30s
       path: /metrics
-{{- end }}
 {{- end }}

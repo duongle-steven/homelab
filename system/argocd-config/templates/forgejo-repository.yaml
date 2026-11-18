@@ -1,5 +1,5 @@
-{{- /* Skipped by the offline bootstrap render, when external-secrets does not exist yet */}}
-{{- if .Capabilities.APIVersions.Has "external-secrets.io/v1/ExternalSecret" }}
+{{- /* Rendered whatever the cluster has: depending on the CRD (.Capabilities) left a fresh install's argocd-config
+empty yet Synced, never rendered again (#104's GitHub Actions sandboxes: no Kanidm client for Argo CD) */}}
 # Argo CD reads the GitOps repository on Forgejo with the read-only token lab infra forgejo sync writes (production;
 # in the sandbox, which reads GitHub, the tests read it)
 apiVersion: external-secrets.io/v1
@@ -8,6 +8,9 @@ metadata:
   name: argocd-repo-forgejo
   # Argo CD's namespace (the root ApplicationSet deploys this chart there too)
   namespace: argocd
+  annotations:
+    # A fresh install may sync this before its CRD exists: Argo CD applies the rest and retries this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   secretStoreRef:
     kind: SecretStore
@@ -32,4 +35,3 @@ spec:
       remoteRef:
         key: argocd/forgejo
         property: token
-{{- end }}
