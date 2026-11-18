@@ -39,6 +39,7 @@ EXPECTED = {
 # StatefulSet), with the reason: Velero selects by label, so an unlabelled claim is never backed up (group none)
 UNLABELLED = {
     "platform/zot:zot-pvc": "zot's chart renders volumeClaimTemplates without labels; images are rebuilt (none)",
+    "system/trivy-operator:data": "the Trivy Operator's chart renders volumeClaimTemplates without labels; the vulnerability database downloads again (none)",
     "system/tempo:storage": "Tempo's chart renders volumeClaimTemplates without labels; traces are telemetry, like Loki's logs (none)",
 }
 
