@@ -150,3 +150,7 @@ trivy-operator:
       runAsUser: 65534
       seccompProfile:
         type: RuntimeDefault
+
+# Namespaces whose images no registry serves (the sandbox's own images, imported on the node): the operator cannot
+# pull them, so it skips them (`trivy-operator.excludeNamespaces`, set beside this) and ImageScanMissing ignores them
+nodeImportedNamespaces: []

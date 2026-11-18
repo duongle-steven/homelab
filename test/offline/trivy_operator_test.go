@@ -107,6 +107,14 @@ func TestTrivyOperatorRender(t *testing.T) {
 	assert.Equal(t, "1", renderTrivyOperator(t, "testbed", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-config") | .data["OPERATOR_CONCURRENT_SCAN_JOBS_LIMIT"]`))
 	assert.Equal(t, "2", renderTrivyOperator(t, "dev", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-config") | .data["OPERATOR_CONCURRENT_SCAN_JOBS_LIMIT"]`))
 	assert.NotEmpty(t, renderTrivyOperator(t, "dev", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-trivy-config") | .data["trivy.resources.limits.memory"]`))
+	// Images imported on the sandbox's node (Backstage's) have no registry to pull from: the operator skips their
+	// namespaces and ImageScanMissing ignores the same ones. Production pulls every image, so it skips none
+	exclude := `select(.kind == "Deployment") | .spec.template.spec.containers[].env[] | select(.name == "OPERATOR_EXCLUDE_NAMESPACES") | .value`
+	missing := `select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(.alert == "ImageScanMissing") | .expr`
+	assert.Equal(t, "backstage", renderTrivyOperator(t, "dev", exclude))
+	assert.Contains(t, renderTrivyOperator(t, "dev", missing), `unless on (namespace) kube_namespace_labels{namespace=~"backstage"}`)
+	assert.Empty(t, renderTrivyOperator(t, "production", exclude))
+	assert.NotContains(t, renderTrivyOperator(t, "production", missing), "kube_namespace_labels")
 }
 
 // idleReplicaSets drops the reports of ReplicaSets a rollout left at 0 replicas (kept as the Deployment's history)
