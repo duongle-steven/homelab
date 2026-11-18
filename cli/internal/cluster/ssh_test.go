@@ -68,8 +68,9 @@ func (service *testSSHService) start(work func()) {
 
 func (service *testSSHService) check(err error) {
 	service.t.Helper()
-	// Clients intentionally cancel transports and reject host keys in these tests.
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, syscall.ECONNRESET) {
+	// Clients intentionally cancel transports and reject host keys in these tests: a write racing the client's close
+	// meets a reset or a broken pipe (EPIPE, seen on GitHub Actions)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, syscall.ECONNRESET) && !errors.Is(err, syscall.EPIPE) {
 		service.t.Errorf("SSH fixture protocol failure: %v", err)
 	}
 }
