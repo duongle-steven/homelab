@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -97,7 +98,8 @@ func TestTrivyOperatorRender(t *testing.T) {
 			assert.Equal(t, "6h", rule("ImageScanMissing", ".for"))
 			assert.Equal(t, "warning", rule("ImageScanMissing", ".labels.severity"))
 			for _, kind := range []string{"kube_replicaset_spec_replicas", "kube_statefulset_replicas", "kube_daemonset_status_desired_number_scheduled"} {
-				assert.Contains(t, missing, kind+" > 0")
+				// Optionally narrowed by a selector (the sandbox's nodeImportedNamespaces)
+				assert.Regexp(t, regexp.QuoteMeta(kind)+`(\{[^}]*\})? > 0`, missing)
 			}
 			assert.Contains(t, missing, "unless on (namespace, resource_name) trivy_image_vulnerabilities")
 		})
@@ -112,9 +114,11 @@ func TestTrivyOperatorRender(t *testing.T) {
 	exclude := `select(.kind == "Deployment") | .spec.template.spec.containers[].env[] | select(.name == "OPERATOR_EXCLUDE_NAMESPACES") | .value`
 	missing := `select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(.alert == "ImageScanMissing") | .expr`
 	assert.Equal(t, "backstage", renderTrivyOperator(t, "dev", exclude))
-	assert.Contains(t, renderTrivyOperator(t, "dev", missing), `unless on (namespace) kube_namespace_labels{namespace=~"backstage"}`)
+	for _, kind := range []string{"kube_replicaset_spec_replicas", "kube_statefulset_replicas", "kube_daemonset_status_desired_number_scheduled"} {
+		assert.Contains(t, renderTrivyOperator(t, "dev", missing), kind+`{namespace!~"backstage"} > 0`)
+	}
 	assert.Empty(t, renderTrivyOperator(t, "production", exclude))
-	assert.NotContains(t, renderTrivyOperator(t, "production", missing), "kube_namespace_labels")
+	assert.NotContains(t, renderTrivyOperator(t, "production", missing), "namespace!~")
 }
 
 // idleReplicaSets drops the reports of ReplicaSets a rollout left at 0 replicas (kept as the Deployment's history)
