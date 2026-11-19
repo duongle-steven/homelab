@@ -201,7 +201,11 @@ argocd-apps:
               helm:
                 releaseName: '{{ .path.filename | trimSuffix ".yaml" }}'
                 valueFiles:
-                  - '$values/apps/{{ .path.filename }}'
+                  - '$values/{{ .path.path }}/{{ .path.filename }}'
+                  # Our apps on the app road: the version Kargo promoted (docs/how-to-guides/app-delivery.md); missing
+                  # before the first promotion, and for every other app (its releases source is this repository)
+                  - '$releases/{{ .path.filename | trimSuffix ".yaml" }}/production.yaml'
+                ignoreMissingValueFiles: true
                 parameters:
                   # No Cloudflare Tunnel in the sandbox: public apps use the LAN Gateway
                   - name: global.publicGateway
@@ -218,5 +222,9 @@ argocd-apps:
             - repoURL: *repoURL
               targetRevision: *revision
               ref: values
+            # ops/releases on Forgejo for the apps in the list (the templatePatch's too), this repository for the rest
+            - repoURL: '{{ if has (.path.filename | trimSuffix ".yaml") (list "blog" "delivery-test") }}http://forgejo-http.forgejo:3000/ops/releases{{ else }}{{ .metadata.annotations.repository }}{{ end }}'
+              targetRevision: '{{ if has (.path.filename | trimSuffix ".yaml") (list "blog" "delivery-test") }}main{{ else }}{{ .metadata.annotations.revision }}{{ end }}'
+              ref: releases
             - *egress
             - *secretStore

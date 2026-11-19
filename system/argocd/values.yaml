@@ -294,6 +294,8 @@ argocd-apps:
     apps:
       namespace: argocd
       # The VPN routers need NET_ADMIN: privileged under Pod Security Admission (their PolicyExceptions say why)
+      # Our apps on the app road (docs/how-to-guides/app-delivery.md; the releases source's list too): Kargo may sync
+      # the Application, and the namespace is a Kargo project's
       templatePatch: |
         {{- if has (.path.filename | trimSuffix ".yaml") (list "tailscale" "wireguard") }}
         spec:
@@ -302,6 +304,17 @@ argocd-apps:
               labels:
                 istio.io/dataplane-mode: ambient
                 pod-security.kubernetes.io/enforce: privileged
+        {{- end }}
+        {{- if has (.path.filename | trimSuffix ".yaml") (list "blog" "delivery-test") }}
+        metadata:
+          annotations:
+            kargo.akuity.io/authorized-stage: {{ .path.filename | trimSuffix ".yaml" }}:production
+        spec:
+          syncPolicy:
+            managedNamespaceMetadata:
+              labels:
+                istio.io/dataplane-mode: ambient
+                kargo.akuity.io/project: "true"
         {{- end }}
       # lab backup restore pauses one Application's automated sync while it replaces a volume: without this the
       # ApplicationSet puts it back within seconds
@@ -342,7 +355,11 @@ argocd-apps:
               helm:
                 releaseName: '{{ .path.filename | trimSuffix ".yaml" }}'
                 valueFiles:
-                  - '$values/apps/{{ .path.filename }}'
+                  - '$values/{{ .path.path }}/{{ .path.filename }}'
+                  # Our apps on the app road: the version Kargo promoted (docs/how-to-guides/app-delivery.md); missing
+                  # before the first promotion, and for every other app (its releases source is this repository)
+                  - '$releases/{{ .path.filename | trimSuffix ".yaml" }}/production.yaml'
+                ignoreMissingValueFiles: true
                 # App files template hosts as <app>.{{ .Values.global.baseDomain }}; public apps attach to
                 # the Gateway named by global.publicGateway
                 parameters:
@@ -359,6 +376,10 @@ argocd-apps:
             - repoURL: *repoURL
               targetRevision: *revision
               ref: values
+            # ops/releases on Forgejo for the apps in the list (the templatePatch's too), this repository for the rest
+            - repoURL: '{{ if has (.path.filename | trimSuffix ".yaml") (list "blog" "delivery-test") }}http://forgejo-http.forgejo:3000/ops/releases{{ else }}{{ .metadata.annotations.repository }}{{ end }}'
+              targetRevision: '{{ if has (.path.filename | trimSuffix ".yaml") (list "blog" "delivery-test") }}main{{ else }}{{ .metadata.annotations.revision }}{{ end }}'
+              ref: releases
             - *egress
             - *secretStore
           syncPolicy: *syncPolicy

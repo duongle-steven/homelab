@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -167,4 +168,38 @@ func TestRenovateLabelRerun(t *testing.T) {
 	workflow, err := os.ReadFile(repo.Root() + "/.github/workflows/sandbox-label.yaml")
 	require.NoError(t, err)
 	assert.Equal(t, 2, strings.Count(string(workflow), "'"+bot+"'"), "the job's if and its concurrency group name the bot %s", bot)
+}
+
+// Our images in zot (registry.{{ .Values.global.baseDomain }}/<app>) move on Kargo's road, not Renovate's
+// (docs/superpowers/specs/2026-11-18-app-delivery-design.md): a rule turns them off, matching the name as app files
+// write it, so no domain is needed
+func TestRenovateSkipsOurRegistry(t *testing.T) {
+	script := `const path = require("path"), fs = require("fs");
+const pkg = path.join(path.dirname(fs.realpathSync(process.argv[1])), "..", "lib", "node_modules", "renovate");
+const json5 = require(require.resolve("json5", {paths: [pkg]}));
+console.log(JSON.stringify(json5.parse(fs.readFileSync("renovate.json5", "utf8")).packageRules || []));`
+	bin, err := exec.LookPath("renovate")
+	require.NoError(t, err)
+	cmd := exec.Command("node", "-e", script, bin)
+	cmd.Dir = repo.Root()
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	var rules []struct {
+		MatchPackageNames []string `json:"matchPackageNames"`
+		Enabled           *bool    `json:"enabled"`
+	}
+	require.NoError(t, json.Unmarshal(out, &rules))
+	ours := "registry.{{ .Values.global.baseDomain }}/blog"
+	matched := false
+	for _, r := range rules {
+		for _, name := range r.MatchPackageNames {
+			if strings.HasPrefix(name, "/") && strings.HasSuffix(name, "/") &&
+				regexp.MustCompile(strings.Trim(name, "/")).MatchString(ours) && r.Enabled != nil && !*r.Enabled {
+				matched = true
+			}
+			assert.NotContains(t, name, "hoangduong", "no domain in Renovate's config")
+		}
+	}
+	assert.True(t, matched, "no rule disables %s", ours)
+	assert.False(t, regexp.MustCompile(`^registry\.\{\{`).MatchString("ghcr.io/renovatebot/renovate"))
 }
