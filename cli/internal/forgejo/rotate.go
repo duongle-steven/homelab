@@ -20,7 +20,7 @@ func TokenValid(ctx context.Context, ep Endpoint, user, token string) (bool, err
 }
 
 func findAccount(user string) (account, error) {
-	for _, a := range append(accounts, ciBot) {
+	for _, a := range append(append(accounts, ciBot), releaseAccounts[0]) {
 		if a.name == user {
 			return a, nil
 		}

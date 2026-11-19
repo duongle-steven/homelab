@@ -22,7 +22,14 @@ const (
 	Repo       = "homelab"
 	Branch     = "master"
 	DeployPath = "forgejo/deploy"
-	ArgoCDPath = "argocd/forgejo"
+
+	// ReleasesRepo holds our apps' promoted versions (<app>/production.yaml), written only by Kargo (user Kargo, its
+	// token at KargoPath) and read by Argo CD (docs/superpowers/specs/2026-11-18-app-delivery-design.md)
+	ReleasesRepo   = "releases"
+	ReleasesBranch = "main"
+	Kargo          = "kargo"
+	KargoPath      = "kargo/forgejo-token"
+	ArgoCDPath     = "argocd/forgejo"
 
 	// CIOrg holds the repositories the golden path builds (platform/ci); Forgejo's Kanidm login source maps
 	// homelab-admins to its Owners and homelab-editors to CITeam
@@ -72,6 +79,12 @@ var accounts = []account{
 
 const opsCheck = "/api/v1/repos/" + Org + "/" + Repo
 
+// releaseAccounts are ops/releases' collaborators: Kargo writes, Argo CD reads (its token is argocd's on ops/homelab)
+var releaseAccounts = []account{
+	{name: Kargo, permission: sdk.AccessModeWrite, token: "kargo", scopes: []sdk.AccessTokenScope{sdk.AccessTokenScopeRepositoryWrite}, path: KargoPath, check: "/api/v1/repos/" + Org + "/" + ReleasesRepo},
+	{name: "argocd", permission: sdk.AccessModeRead},
+}
+
 // ciBot's token writes the commit statuses of org ci's repositories (Forgejo asks for write on code)
 var ciBot = account{name: CIBot, token: "pipeline", scopes: []sdk.AccessTokenScope{sdk.AccessTokenScopeRepositoryWrite}, path: CIBotPath, check: "/api/v1/repos/search?limit=1"}
 
@@ -93,17 +106,34 @@ func Sync(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens)
 		if err := ensureUser(admin, a.name); err != nil {
 			return err
 		}
-		if err := ensureCollaborator(admin, a); err != nil {
+		if err := ensureCollaborator(admin, Repo, a); err != nil {
 			return err
 		}
 	}
-	if err := ensureProtection(admin); err != nil {
+	if err := ensureProtection(admin, Repo, Branch, "deploy"); err != nil {
 		return err
 	}
 	for _, a := range accounts {
 		if err := ensureToken(ctx, ep, admin, tokens, a); err != nil {
 			return err
 		}
+	}
+	if err := ensureRepo(admin, ReleasesRepo, ReleasesBranch, true); err != nil {
+		return err
+	}
+	for _, a := range releaseAccounts {
+		if err := ensureUser(admin, a.name); err != nil {
+			return err
+		}
+		if err := ensureCollaborator(admin, ReleasesRepo, a); err != nil {
+			return err
+		}
+	}
+	if err := ensureProtection(admin, ReleasesRepo, ReleasesBranch, Kargo); err != nil {
+		return err
+	}
+	if err := ensureToken(ctx, ep, admin, tokens, releaseAccounts[0]); err != nil {
+		return err
 	}
 	if err := ensureCIOrg(admin); err != nil {
 		return err
@@ -178,12 +208,18 @@ func ensureRepository(c *sdk.Client) error {
 	if err := ensureOrg(c, Org); err != nil {
 		return err
 	}
-	if _, resp, err := c.GetRepo(Org, Repo); err != nil {
+	// Empty: lab infra forgejo push gives it its first commit
+	return ensureRepo(c, Repo, Branch, false)
+}
+
+// ensureRepo creates org ops' private repository name on branch; initialised, the branch exists before anyone pushes
+func ensureRepo(c *sdk.Client, name, branch string, initialised bool) error {
+	if _, resp, err := c.GetRepo(Org, name); err != nil {
 		if !notFound(resp) {
-			return fmt.Errorf("repository %s/%s: %w", Org, Repo, err)
+			return fmt.Errorf("repository %s/%s: %w", Org, name, err)
 		}
-		if _, _, err := c.CreateOrgRepo(Org, sdk.CreateRepoOption{Name: Repo, Private: true, DefaultBranch: Branch}); err != nil {
-			return fmt.Errorf("create repository %s/%s: %w", Org, Repo, err)
+		if _, _, err := c.CreateOrgRepo(Org, sdk.CreateRepoOption{Name: name, Private: true, DefaultBranch: branch, AutoInit: initialised}); err != nil {
+			return fmt.Errorf("create repository %s/%s: %w", Org, name, err)
 		}
 	}
 	return nil
@@ -232,11 +268,11 @@ func ensureUser(c *sdk.Client, name string) error {
 	return nil
 }
 
-func ensureCollaborator(c *sdk.Client, a account) error {
+func ensureCollaborator(c *sdk.Client, repo string, a account) error {
 	permission := func() (sdk.AccessMode, error) {
-		result, resp, err := c.CollaboratorPermission(Org, Repo, a.name)
+		result, resp, err := c.CollaboratorPermission(Org, repo, a.name)
 		if err != nil && !notFound(resp) {
-			return "", fmt.Errorf("%s's permission on %s/%s: %w", a.name, Org, Repo, err)
+			return "", fmt.Errorf("%s's permission on %s/%s: %w", a.name, Org, repo, err)
 		}
 		if notFound(resp) || result == nil {
 			return sdk.AccessModeNone, nil
@@ -248,8 +284,8 @@ func ensureCollaborator(c *sdk.Client, a account) error {
 		return err
 	}
 	desired := a.permission
-	if _, err := c.AddCollaborator(Org, Repo, a.name, sdk.AddCollaboratorOption{Permission: &desired}); err != nil {
-		return fmt.Errorf("make %s a %s collaborator on %s/%s: %w", a.name, a.permission, Org, Repo, err)
+	if _, err := c.AddCollaborator(Org, repo, a.name, sdk.AddCollaboratorOption{Permission: &desired}); err != nil {
+		return fmt.Errorf("make %s a %s collaborator on %s/%s: %w", a.name, a.permission, Org, repo, err)
 	}
 	// Forgejo reports the highest grant: more than the collaborator's comes from a team (sync owns org ops; none
 	// should grant anything)
@@ -257,25 +293,25 @@ func ensureCollaborator(c *sdk.Client, a account) error {
 		return err
 	}
 	if current != a.permission {
-		return fmt.Errorf("%s has %s on %s/%s through a team or the org, not only %s as a collaborator: remove that grant in Forgejo", a.name, current, Org, Repo, a.permission)
+		return fmt.Errorf("%s has %s on %s/%s through a team or the org, not only %s as a collaborator: remove that grant in Forgejo", a.name, current, Org, repo, a.permission)
 	}
 	return nil
 }
 
-// ensureProtection lets only deploy push to master; a protected branch cannot be deleted, and Forgejo refuses force
-// pushes to it (the sandbox tests prove both).
-func ensureProtection(c *sdk.Client) error {
-	allow := []string{"deploy"}
-	current, resp, err := c.GetBranchProtection(Org, Repo, Branch)
+// ensureProtection lets only pusher push to repo's branch (deploy to ops/homelab's master, kargo to ops/releases'
+// main); a protected branch cannot be deleted, and Forgejo refuses force pushes to it (the sandbox tests prove both).
+func ensureProtection(c *sdk.Client, repo, branch, pusher string) error {
+	allow := []string{pusher}
+	current, resp, err := c.GetBranchProtection(Org, repo, branch)
 	if err != nil && !notFound(resp) {
-		return fmt.Errorf("protection of %s: %w", Branch, err)
+		return fmt.Errorf("protection of %s/%s: %w", repo, branch, err)
 	}
 	if notFound(resp) {
-		_, _, err := c.CreateBranchProtection(Org, Repo, sdk.CreateBranchProtectionOption{
-			RuleName: Branch, EnablePush: true, EnablePushWhitelist: true, PushWhitelistUsernames: allow,
+		_, _, err := c.CreateBranchProtection(Org, repo, sdk.CreateBranchProtectionOption{
+			RuleName: branch, EnablePush: true, EnablePushWhitelist: true, PushWhitelistUsernames: allow,
 		})
 		if err != nil {
-			return fmt.Errorf("protect %s: %w", Branch, err)
+			return fmt.Errorf("protect %s/%s: %w", repo, branch, err)
 		}
 		return nil
 	}
@@ -286,12 +322,12 @@ func ensureProtection(c *sdk.Client) error {
 	}
 	// Unprotected file patterns let any writer push matching files outside the allowlist
 	on, off, none := true, false, ""
-	_, _, err = c.EditBranchProtection(Org, Repo, Branch, sdk.EditBranchProtectionOption{
+	_, _, err = c.EditBranchProtection(Org, repo, branch, sdk.EditBranchProtectionOption{
 		EnablePush: &on, EnablePushWhitelist: &on, PushWhitelistUsernames: allow, PushWhitelistTeams: []string{}, PushWhitelistDeployKeys: &off,
 		ProtectedFilePatterns: &none, UnprotectedFilePatterns: &none,
 	})
 	if err != nil {
-		return fmt.Errorf("restore the protection of %s: %w", Branch, err)
+		return fmt.Errorf("restore the protection of %s/%s: %w", repo, branch, err)
 	}
 	return nil
 }

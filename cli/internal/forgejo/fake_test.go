@@ -60,15 +60,26 @@ type fakeForgejo struct {
 	// teams grants a permission through a team (Forgejo reports the higher one)
 	teams      map[string]string
 	protection map[string]any
-	orgTeams   map[int64]*fakeTeam
-	apps       map[int64]*fakeApp
-	hooks      map[int64]*fakeHook
-	writes     int
-	nextID     int64
+	// releases is ops/releases (Kargo's versions): its own collaborators and protection
+	releases fakeRepo
+	orgTeams map[int64]*fakeTeam
+	apps     map[int64]*fakeApp
+	hooks    map[int64]*fakeHook
+	writes   int
+	nextID   int64
+}
+
+type fakeRepo struct {
+	exists        bool
+	branch        string
+	autoInit      bool
+	collaborators map[string]string
+	protection    map[string]any
 }
 
 func newFakeForgejo(t *testing.T) (*fakeForgejo, Endpoint) {
-	f := &fakeForgejo{admin: "admin-password", orgs: map[string]string{}, orgTeams: map[int64]*fakeTeam{}, apps: map[int64]*fakeApp{}, hooks: map[int64]*fakeHook{}, users: map[string]*fakeUser{}, collaborators: map[string]string{}, teams: map[string]string{}}
+	f := &fakeForgejo{admin: "admin-password", orgs: map[string]string{}, orgTeams: map[int64]*fakeTeam{}, apps: map[int64]*fakeApp{}, hooks: map[int64]*fakeHook{}, users: map[string]*fakeUser{}, collaborators: map[string]string{}, teams: map[string]string{},
+		releases: fakeRepo{collaborators: map[string]string{}}}
 	server := httptest.NewServer(f)
 	t.Cleanup(server.Close)
 	return f, Endpoint{URL: server.URL, HTTP: server.Client()}
@@ -289,6 +300,20 @@ func (f *fakeForgejo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		reply(http.StatusOK, map[string]any{"name": "homelab", "private": true, "default_branch": "master"})
+	case path == "/repos/ops/releases" && r.Method == http.MethodGet:
+		if !f.releases.exists || (!admin && f.releases.collaborators[who] == "") {
+			reply(http.StatusNotFound, nil)
+			return
+		}
+		reply(http.StatusOK, map[string]any{"name": "releases", "private": true, "default_branch": f.releases.branch})
+	case (path == "/orgs/ops/repos" || path == "/org/ops/repos") && r.Method == http.MethodPost && admin && body["name"] == "releases":
+		if body["private"] != true {
+			reply(http.StatusUnprocessableEntity, map[string]any{"message": fmt.Sprint(body)})
+			return
+		}
+		f.releases.exists, f.releases.branch = true, fmt.Sprint(body["default_branch"])
+		f.releases.autoInit, _ = body["auto_init"].(bool)
+		reply(http.StatusCreated, map[string]any{"name": "releases"})
 	case (path == "/orgs/ops/repos" || path == "/org/ops/repos") && r.Method == http.MethodPost && admin:
 		if body["private"] != true || body["default_branch"] != "master" {
 			reply(http.StatusUnprocessableEntity, map[string]any{"message": fmt.Sprint(body)})
@@ -320,7 +345,7 @@ func (f *fakeForgejo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case len(parts) == 6 && parts[3] == "collaborators" && parts[5] == "permission" && admin:
 		// As Forgejo: 200 "none" for a user without access, the highest of collaborator and team otherwise
 		rank := map[string]int{"": 0, "none": 0, "read": 1, "write": 2, "admin": 3}
-		permission := f.collaborators[parts[4]]
+		permission := f.collaboratorsOf(parts[2])[parts[4]]
 		if rank[f.teams[parts[4]]] > rank[permission] {
 			permission = f.teams[parts[4]]
 		}
@@ -329,8 +354,24 @@ func (f *fakeForgejo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		reply(http.StatusOK, map[string]any{"permission": permission})
 	case len(parts) == 5 && parts[3] == "collaborators" && r.Method == http.MethodPut && admin:
-		f.collaborators[parts[4]] = body["permission"].(string)
+		f.collaboratorsOf(parts[2])[parts[4]] = body["permission"].(string)
 		reply(http.StatusNoContent, nil)
+	case path == "/repos/ops/releases/branch_protections/main" && r.Method == http.MethodGet && admin:
+		if f.releases.protection == nil {
+			reply(http.StatusNotFound, nil)
+			return
+		}
+		reply(http.StatusOK, f.releases.protection)
+	case path == "/repos/ops/releases/branch_protections" && r.Method == http.MethodPost && admin:
+		f.releases.protection = body
+		reply(http.StatusCreated, body)
+	case path == "/repos/ops/releases/branch_protections/main" && r.Method == http.MethodPatch && admin:
+		for k, v := range body {
+			if v != nil {
+				f.releases.protection[k] = v
+			}
+		}
+		reply(http.StatusOK, f.releases.protection)
 	case path == "/repos/ops/homelab/branch_protections/master" && r.Method == http.MethodGet && admin:
 		if f.protection == nil {
 			reply(http.StatusNotFound, nil)
@@ -443,4 +484,12 @@ func (m memoryTokens) Read(_ context.Context, path string) (map[string]string, e
 func (m memoryTokens) Write(_ context.Context, path string, data map[string]string) error {
 	m[path] = data
 	return nil
+}
+
+// collaboratorsOf is the collaborator map of ops/<repo>
+func (f *fakeForgejo) collaboratorsOf(repo string) map[string]string {
+	if repo == "releases" {
+		return f.releases.collaborators
+	}
+	return f.collaborators
 }
