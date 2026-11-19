@@ -109,8 +109,8 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, func() {
 		Eventually(ctx, func() string {
 			_, body := deliveryPage(ctx)
 			return body
-		}).WithTimeout(15*time.Minute).WithPolling(15*time.Second).Should(Equal(goodMarker))
-		Eventually(ctx, rolloutState).WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(HavePrefix("Healthy"))
+		}).WithTimeout(15 * time.Minute).WithPolling(15 * time.Second).Should(Equal(goodMarker))
+		Eventually(ctx, rolloutState).WithTimeout(10 * time.Minute).WithPolling(15 * time.Second).Should(HavePrefix("Healthy"))
 	}, SpecTimeout(40*time.Minute))
 
 	It("never promotes an image the CI did not sign", func(ctx SpecContext) {
@@ -129,7 +129,9 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, func() {
 		out, err := kube.KubectlStdin(ctx, freight, deliveryApp, "create", "-f", "-", "-o", "name")
 		Expect(err).NotTo(HaveOccurred(), out)
 		name := strings.TrimPrefix(strings.TrimSpace(out), "freight.kargo.akuity.io/")
-		DeferCleanup(func(ctx SpecContext) { _, _ = kube.Kubectl(ctx, deliveryApp, "delete", "freight", name, "--ignore-not-found") }, NodeTimeout(time.Minute))
+		DeferCleanup(func(ctx SpecContext) {
+			_, _ = kube.Kubectl(ctx, deliveryApp, "delete", "freight", name, "--ignore-not-found")
+		}, NodeTimeout(time.Minute))
 
 		// verify's check of it fails, and production keeps the good version
 		Eventually(ctx, func() string {
@@ -137,14 +139,14 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, func() {
 				`jsonpath={range .items[?(@.spec.args[0].value=="`+registryHost+"/"+deliveryApp+"@"+digest+`")]}{.status.phase}{"\n"}{end}`)
 			return out
 		}).WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(ContainSubstring("Failed"), "no failed signature check of the unsigned image")
-		Consistently(ctx, deliveryRelease).WithTimeout(3*time.Minute).WithPolling(20*time.Second).Should(ContainSubstring(good))
+		Consistently(ctx, deliveryRelease).WithTimeout(3 * time.Minute).WithPolling(20 * time.Second).Should(ContainSubstring(good))
 	}, SpecTimeout(20*time.Minute))
 
 	It("aborts a version that serves errors and keeps users on the last good one", func(ctx SpecContext) {
 		broken := deliveryCommit(ctx, deliveryContainerfile("broken", true))
 		phase, _ := ciWorkflowFor(ctx, deliveryApp, broken, "push")
 		Expect(phase).To(Equal("Succeeded"))
-		Eventually(ctx, deliveryRelease).WithTimeout(20*time.Minute).WithPolling(20*time.Second).Should(ContainSubstring(broken))
+		Eventually(ctx, deliveryRelease).WithTimeout(20 * time.Minute).WithPolling(20 * time.Second).Should(ContainSubstring(broken))
 
 		// Traffic through the Gateway while the canary runs: its 5xx are what the analysis reads
 		traffic, stop := context.WithCancel(ctx)
@@ -185,8 +187,8 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, func() {
 		Expect(getJSON(ctx, "POST", base+kargoService+"PromoteToStage", nil, "", "",
 			map[string]any{"project": deliveryApp, "stage": "production", "freight": strings.TrimSpace(out)}, nil,
 			"Authorization", "Bearer "+token)).To(Equal(http.StatusOK))
-		Eventually(ctx, deliveryRelease).WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(ContainSubstring(good))
-		Eventually(ctx, rolloutState).WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(HavePrefix("Healthy"))
+		Eventually(ctx, deliveryRelease).WithTimeout(10 * time.Minute).WithPolling(15 * time.Second).Should(ContainSubstring(good))
+		Eventually(ctx, rolloutState).WithTimeout(10 * time.Minute).WithPolling(15 * time.Second).Should(HavePrefix("Healthy"))
 		_, body := deliveryPage(ctx)
 		Expect(body).To(Equal(goodMarker))
 	}, SpecTimeout(30*time.Minute))
