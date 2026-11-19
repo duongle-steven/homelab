@@ -92,6 +92,8 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 	waitForIdentity()
 	backstageReady()
 	var good, goodMarker string
+	// The repository serves every spec below: removed once they all ran (a DeferCleanup in a spec runs when that spec ends)
+	AfterAll(func(ctx SpecContext) { forgejoAs(ctx, "", "DELETE", "/repos/ci/"+deliveryApp, nil, nil) }, NodeTimeout(time.Minute))
 
 	It("creates its repository and builds the first version", func(ctx SpecContext) {
 		backstageReadsForgejo(ctx)
@@ -100,7 +102,6 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 		admin, _, _ := backstageIdentity(ctx, "dev-admin")
 		backstageUnregister(ctx, admin, deliveryApp)
 		backstageCreateRepository(ctx, deliveryApp, "AppDelivery's app")
-		DeferCleanup(func(ctx SpecContext) { forgejoAs(ctx, "", "DELETE", "/repos/ci/"+deliveryApp, nil, nil) }, NodeTimeout(time.Minute))
 		goodMarker = fmt.Sprint("ok-", time.Now().Unix())
 		good = deliveryCommit(ctx, deliveryContainerfile(goodMarker, false))
 		// The image is what Kargo needs: the CI's last step (Forgejo's commit status) is the CI specs' to prove
