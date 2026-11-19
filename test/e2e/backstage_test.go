@@ -259,3 +259,21 @@ func backstageReadsForgejo(ctx context.Context) {
 	Expect(err).NotTo(HaveOccurred())
 	waitForApp(ctx, "https://"+backstageHost+"/.backstage/health/v1/readiness")
 }
+
+// backstageUnregister removes the catalog location of ci/<name>'s catalog-info.yaml, which template ci-repository
+// registers: a repository created again under the same name is otherwise refused (409) at its catalog:register step
+func backstageUnregister(ctx context.Context, token, name string) {
+	GinkgoHelper()
+	var locations []struct {
+		Data struct {
+			ID     string `json:"id"`
+			Target string `json:"target"`
+		} `json:"data"`
+	}
+	Expect(backstageAPI(ctx, token, http.MethodGet, "/api/catalog/locations", nil, &locations)).To(Equal(http.StatusOK))
+	for _, l := range locations {
+		if strings.Contains(l.Data.Target, "/ci/"+name+"/") {
+			Expect(backstageAPI(ctx, token, http.MethodDelete, "/api/catalog/locations/"+l.Data.ID, nil, nil)).To(BeElementOf(http.StatusNoContent, http.StatusOK))
+		}
+	}
+}

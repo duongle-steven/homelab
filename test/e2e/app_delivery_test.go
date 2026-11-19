@@ -95,8 +95,10 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 
 	It("creates its repository and builds the first version", func(ctx SpecContext) {
 		backstageReadsForgejo(ctx)
-		// Left by an interrupted run: the template refuses a repository that exists
+		// Left by an earlier run: the template refuses a repository that exists, and a location already registered
 		forgejoAs(ctx, "", "DELETE", "/repos/ci/"+deliveryApp, nil, nil)
+		admin, _, _ := backstageIdentity(ctx, "dev-admin")
+		backstageUnregister(ctx, admin, deliveryApp)
 		backstageCreateRepository(ctx, deliveryApp, "AppDelivery's app")
 		DeferCleanup(func(ctx SpecContext) { forgejoAs(ctx, "", "DELETE", "/repos/ci/"+deliveryApp, nil, nil) }, NodeTimeout(time.Minute))
 		goodMarker = fmt.Sprint("ok-", time.Now().Unix())
