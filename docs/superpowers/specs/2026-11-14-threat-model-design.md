@@ -40,6 +40,7 @@ Out of scope *(user, 2026-11-14)*: a targeted attacker with physical access to t
 | E1 | Public apps through the Cloudflare Tunnel (blog, excalidraw, ntfy) | only rendered (12b-3) | Kanidm for Headscale (13); Matrix if federated |
 | E2 | The LAN Gateway (every admin app, Kanidm, Forgejo SSH) | sandbox | production (12b-3) |
 | E2c | Backstage (Backstage-1, LAN Gateway only): homelab-admins and homelab-editors sign in with Kanidm; it reads the cluster (no Secrets, ConfigMaps, logs or exec), Argo CD (read-only) and the repository Argo CD syncs; its token creates repositories in org `ci` | sandbox (Backstage-1) | production once its image is released |
+| E2d | Kargo (app delivery, LAN Gateway only): homelab-admins administer and homelab-editors view through Kanidm (public client, PKCE); its controller writes Forgejo's `ops/releases` as user `kargo` and syncs the Applications annotated for it | sandbox (app delivery) | production |
 | E2b | OTLP into the gateway Collector (traces from the Istio Gateways, Argo CD, Grafana) | sandbox (OpenTelemetry step) | inside the cluster only: `allow-otlp` names the senders, nothing routes to it |
 | E3 | The nodes' own ports from the LAN (SSH, the API server, etcd, the kubelet, flannel's VXLAN) | production's nodes | |
 | E4 | The step-13 VPS (SSH, WireGuard, Headscale, DERP/STUN on a public address) | none | 13 |
@@ -152,6 +153,13 @@ repository may publish under another repository's name (deferred to 15b-2). Back
 
 Proposal: the two deferred minors before anyone outside the household joins org `ci`; 18b keeps its own design (Ideas: sandboxed runtime,
 quotas, its own nodes).
+
+App delivery *(2026-11-19)*: an image in zot now reaches production without a pull request, so zot's writers are its
+gate. Only the CI (user `ci`) and `homelab-admins` push; `homelab-editors` lost write. Kargo admits an image to
+`production` only after stage `verify` checked `ci-signing`'s signature on it (Kyverno's `verify-ci-images` still only
+audits until 15b-2), so an admin's hand-pushed image stops there too. User `kargo`'s token (`write:repository` on
+`ops/releases` only, pushes allowed to it alone) sits in Kargo's pod: taking it lets one choose among already-signed
+versions of our apps, not run an unsigned one. Pods pull our images as zot's read-only `puller`, per namespace.
 
 Backstage-1 *(2026-11-17)*: its template is one more way to create such a repository, open only to `homelab-admins`
 (the permission policy, server-side, tested) and limited to `fetch:*`, `publish:gitea`, `catalog:register` and

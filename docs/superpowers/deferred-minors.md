@@ -187,3 +187,5 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | Backstage-1 (final review) | `lab catalog generate` does not refuse duplicate component names (an app's route `foo-bar` against a chart `foo-bar`) | Backstage-2 |
 | Backstage-1 (final review) | Goal 2's catalog links to Argo CD and Grafana and the relations between components (an app's database) are not generated; the spec's "each host Homepage links answers" has no spec | Backstage-2 |
 | Backstage-1 (final review) | `@backstage/plugin-proxy-backend` is installed with no proxy configured; Argo CD's account `backstage` has no `passwordMtime`, so sessions from before a rotation stay valid up to 24 h; check Kanidm names can never hold the `.` identity.ts refuses | Backstage-2 |
+| App delivery (plan's review focus) | A Forgejo restart during a promotion is not driven by a spec: `KargoPromotionFailed` is only rendered | Blog |
+| App delivery | No production DNS for `auth.<domain>` from pods: Kargo's API reads Kanidm's issuer through it, like the other OIDC apps (LAN DNS step) | LAN DNS |
