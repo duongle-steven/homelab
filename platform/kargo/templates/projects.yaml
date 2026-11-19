@@ -1,0 +1,12 @@
+{{- /* Our apps on the app road (docs/how-to-guides/app-delivery.md): one Kargo Project each, named after the app's
+namespace (labelled kargo.akuity.io/project by the apps ApplicationSet). Cluster-scoped, so here rather than in the app's
+own file; the app's ProjectConfig, Warehouse and Stages stay there */ -}}
+{{- range .Values.projects }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+{{- end }}

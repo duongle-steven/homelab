@@ -49,6 +49,15 @@ func TestKargoRender(t *testing.T) {
 				assert.Equal(t, "RuntimeDefault false", renderKargo(t, e,
 					`select(.kind == "Deployment" and .metadata.name == "`+d+`") | .spec.template.spec.containers[0].securityContext | .seccompProfile.type + " " + (.allowPrivilegeEscalation | tostring)`), d)
 			}
+			// The sandbox's API (Kanidm's issuer) and controller (zot) trust its local CA
+			for _, d := range []string{"kargo-api", "kargo-controller"} {
+				want := map[string]string{"": "", "dev": "/etc/ssl/certs:/etc/homelab-dev-ca"}[e]
+				assert.Equal(t, want, renderKargo(t, e, `select(.kind == "Deployment" and .metadata.name == "`+d+`") | .spec.template.spec.containers[0].env[] | select(.name == "SSL_CERT_DIR") | .value`), d)
+			}
+			// Projects are cluster-scoped and have no spec: here, not in an app's own chart (app-template renders one)
+			projects := map[string]string{"": "", "dev": "delivery-test"}[e]
+			assert.Equal(t, projects, renderKargo(t, e, `[select(.kind == "Project") | .metadata.name] | join(",")`))
+			assert.Empty(t, renderKargo(t, e, `select(.kind == "Project") | .spec // ""`))
 			assert.Equal(t, "KargoPromotionFailed", renderKargo(t, e,
 				`select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(.alert == "KargoPromotionFailed") | .alert`))
 		})

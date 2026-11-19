@@ -1,6 +1,8 @@
 # Kargo promotes our apps' versions (docs/how-to-guides/app-delivery.md): each app's Warehouse watches its image in zot,
 # its Stage writes the tag to Forgejo's ops/releases and asks Argo CD to sync. LAN only, signing in with Kanidm
 host: kargo
+# Our apps on the app road (templates/projects.yaml)
+projects: []
 
 kargo:
   global:

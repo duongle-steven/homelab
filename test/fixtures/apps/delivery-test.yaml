@@ -124,16 +124,6 @@ rawResources:
               - pause: {duration: 1m}
               - setWeight: 50
               - pause: {duration: 1m}
-  kargo-project:
-    forceRename: delivery-test
-    manifest:
-      apiVersion: kargo.akuity.io/v1alpha1
-      kind: Project
-      metadata:
-        annotations:
-          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-      # Cluster-scoped; its settings are in its ProjectConfig
-      spec: {}
   kargo-project-config:
     forceRename: delivery-test
     manifest:
