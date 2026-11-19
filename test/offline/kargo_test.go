@@ -43,8 +43,10 @@ func TestKargoRender(t *testing.T) {
 
 			assert.Equal(t, "http://forgejo-http.forgejo:3000/ops/releases", renderKargo(t, e,
 				`select(.kind == "ExternalSecret" and .spec.target.template.metadata.labels["kargo.akuity.io/cred-type"] == "git") | .spec.target.template.data.repoURL`))
-			assert.Equal(t, "registry."+domain, renderKargo(t, e,
-				`select(.kind == "ExternalSecret" and .spec.target.template.metadata.labels["kargo.akuity.io/cred-type"] == "image") | .spec.target.template.data.repoURL`))
+			// Every repository of our zot (Kargo matches a credential's repoURL exactly unless it is a regex)
+			image := `select(.kind == "ExternalSecret" and .spec.target.template.metadata.labels["kargo.akuity.io/cred-type"] == "image") | .spec.target.template.data`
+			assert.Equal(t, `^registry\.`+strings.ReplaceAll(domain, ".", `\.`)+`/`, renderKargo(t, e, image+`.repoURL`))
+			assert.Equal(t, "true", renderKargo(t, e, image+`.repoURLIsRegex`))
 
 			for _, d := range strings.Fields(renderKargo(t, e, `select(.kind == "Deployment") | .metadata.name`)) {
 				assert.Equal(t, "RuntimeDefault false", renderKargo(t, e,
