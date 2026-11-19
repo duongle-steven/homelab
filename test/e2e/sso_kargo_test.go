@@ -40,9 +40,12 @@ var _ = Describe("SSOKargo", Label("sandbox", "sso", "kargo"), func() {
 
 	for _, c := range []struct {
 		account string
-		// Deleting a project that does not exist: 404 for whoever may delete, 403 for whoever may not; 0: refused at Kanidm
+		// A delete only an admin may make: an admin's of a project that does not exist (404, nothing deleted), an
+		// editor's of the sandbox's project delivery-test (403; Kargo answers 404 for a missing one before it checks the
+		// caller); 0: refused at Kanidm
+		project      string
 		deleteStatus int
-	}{{"dev-admin", http.StatusNotFound}, {"dev-editor", http.StatusForbidden}, {"dev-viewer", 0}, {"dev-outsider", 0}} {
+	}{{"dev-admin", "no-such-project", http.StatusNotFound}, {"dev-editor", deliveryApp, http.StatusForbidden}, {"dev-viewer", "", 0}, {"dev-outsider", "", 0}} {
 		It(c.account, func(ctx SpecContext) {
 			if c.deleteStatus == 0 {
 				Expect(browserDenied(ctx, c.account, ensureCredentials(ctx, c.account), kargoAuthorizeURL(base))).To(ContainSubstring("Access Denied"))
@@ -51,7 +54,7 @@ var _ = Describe("SSOKargo", Label("sandbox", "sso", "kargo"), func() {
 			token := browserBearer(ctx, c.account, ensureCredentials(ctx, c.account), base, base+kargoAPI, "Kargo")
 			auth := []string{"Authorization", "Bearer " + token}
 			Expect(getJSON(ctx, "GET", base+kargoAPI+"projects", nil, "", "", nil, nil, auth...)).To(Equal(http.StatusOK))
-			Expect(getJSON(ctx, "DELETE", base+kargoAPI+"projects/no-such-project", nil, "", "", nil, nil, auth...)).To(Equal(c.deleteStatus))
+			Expect(getJSON(ctx, "DELETE", base+kargoAPI+"projects/"+c.project, nil, "", "", nil, nil, auth...)).To(Equal(c.deleteStatus))
 		}, SpecTimeout(10*time.Minute))
 	}
 })
