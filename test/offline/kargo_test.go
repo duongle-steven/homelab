@@ -33,6 +33,7 @@ func TestKargoRender(t *testing.T) {
 
 			client := `select(.kind == "KanidmOAuth2Client" and .metadata.name == "kargo")`
 			assert.Equal(t, "true", renderKargo(t, e, client+` | .spec.public`))
+			assert.Equal(t, "true", renderKargo(t, e, client+` | .spec.jwtLegacyCryptoEnable`), "Kargo refuses ES256")
 			assert.Equal(t, "homelab-admins,homelab-editors", renderKargo(t, e, client+` | [.spec.scopeMap[].group] | join(",")`))
 
 			assert.Equal(t, "none", renderKargo(t, e,

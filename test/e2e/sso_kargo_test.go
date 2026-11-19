@@ -12,8 +12,8 @@ import (
 
 var kargoHost = "kargo." + suiteDomain
 
-// Kargo's API (Connect, JSON over POST)
-const kargoService = "/akuity.io.kargo.service.v1alpha1.KargoService/"
+// Kargo's REST API, which its UI calls with the bearer token
+const kargoAPI = "/v1beta1/"
 
 // kargoAuthorizeURL is the authorization request Kargo's UI sends to Kanidm (public client, PKCE): Kanidm refuses
 // accounts outside homelab-admins and homelab-editors before redirecting back
@@ -46,11 +46,10 @@ var _ = Describe("SSOKargo", Label("sandbox", "sso", "kargo"), func() {
 				Expect(browserDenied(ctx, c.account, ensureCredentials(ctx, c.account), kargoAuthorizeURL(base))).To(ContainSubstring("Access Denied"))
 				return
 			}
-			token := browserBearer(ctx, c.account, ensureCredentials(ctx, c.account), base, base+"/akuity.io.kargo", "Kargo")
+			token := browserBearer(ctx, c.account, ensureCredentials(ctx, c.account), base, base+kargoAPI, "Kargo")
 			auth := []string{"Authorization", "Bearer " + token}
-			Expect(getJSON(ctx, "POST", base+kargoService+"ListProjects", nil, "", "", map[string]any{}, nil, auth...)).To(Equal(http.StatusOK))
-			Expect(getJSON(ctx, "POST", base+kargoService+"DeleteProject", nil, "", "", map[string]any{"name": "no-such-project"}, nil, auth...)).
-				To(Equal(c.deleteStatus))
+			Expect(getJSON(ctx, "GET", base+kargoAPI+"projects", nil, "", "", nil, nil, auth...)).To(Equal(http.StatusOK))
+			Expect(getJSON(ctx, "DELETE", base+kargoAPI+"projects/no-such-project", nil, "", "", nil, nil, auth...)).To(Equal(c.deleteStatus))
 		}, SpecTimeout(10*time.Minute))
 	}
 })

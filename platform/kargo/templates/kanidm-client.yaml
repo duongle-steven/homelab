@@ -14,6 +14,8 @@ spec:
   redirectUrl:
     - https://{{ .Values.host }}.{{ .Values.global.baseDomain }}/login
   preferShortUsername: true
+  # Kargo's API accepts only RS256 ID tokens; Kanidm signs with ES256 unless this client asks for RS256
+  jwtLegacyCryptoEnable: true
   strictRedirectUrl: true
   # Short, domain-free group names for values.yaml's admins and viewers
   claimMap:

@@ -126,8 +126,14 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 		freight := fmt.Sprintf(`{"apiVersion":"kargo.akuity.io/v1alpha1","kind":"Freight","metadata":{"generateName":"unsigned-","namespace":%q},`+
 			`"origin":{"kind":"Warehouse","name":%q},"images":[{"repoURL":%q,"tag":"unsigned","digest":%q}]}`,
 			deliveryApp, deliveryApp, registryHost+"/"+deliveryApp, digest)
+		// Kargo names Freight by its content: one left by an earlier run is this one
 		out, err := kube.KubectlStdin(ctx, freight, deliveryApp, "create", "-f", "-", "-o", "name")
-		Expect(err).NotTo(HaveOccurred(), out)
+		if err != nil && strings.Contains(out, "AlreadyExists") {
+			out = out[strings.Index(out, `"`)+1:]
+			out = "freight.kargo.akuity.io/" + out[:strings.Index(out, `"`)]
+		} else {
+			Expect(err).NotTo(HaveOccurred(), out)
+		}
 		name := strings.TrimPrefix(strings.TrimSpace(out), "freight.kargo.akuity.io/")
 		DeferCleanup(func(ctx SpecContext) {
 			_, _ = kube.Kubectl(ctx, deliveryApp, "delete", "freight", name, "--ignore-not-found")
@@ -182,11 +188,11 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 			`jsonpath={range .items[?(@.images[0].tag=="`+good+`")]}{.metadata.name}{end}`)
 		Expect(err).NotTo(HaveOccurred(), out)
 		Expect(strings.TrimSpace(out)).NotTo(BeEmpty(), "no Freight of the good version")
-		base := "https://" + kargoHost
-		token := browserBearer(ctx, "dev-admin", ensureCredentials(ctx, "dev-admin"), base, base+"/akuity.io.kargo", "Kargo")
-		Expect(getJSON(ctx, "POST", base+kargoService+"PromoteToStage", nil, "", "",
-			map[string]any{"project": deliveryApp, "stage": "production", "freight": strings.TrimSpace(out)}, nil,
-			"Authorization", "Bearer "+token)).To(Equal(http.StatusOK))
+		// What promoting it in Kargo's UI creates (SSOKargo proves an admin may, through the API)
+		promotion := fmt.Sprintf(`{"apiVersion":"kargo.akuity.io/v1alpha1","kind":"Promotion","metadata":{"generateName":"rollback-","namespace":%q},`+
+			`"spec":{"stage":"production","freight":%q}}`, deliveryApp, strings.TrimSpace(out))
+		created, err := kube.KubectlStdin(ctx, promotion, deliveryApp, "create", "-f", "-")
+		Expect(err).NotTo(HaveOccurred(), created)
 		Eventually(ctx, deliveryRelease).WithTimeout(10 * time.Minute).WithPolling(15 * time.Second).Should(ContainSubstring(good))
 		Eventually(ctx, rolloutState).WithTimeout(10 * time.Minute).WithPolling(15 * time.Second).Should(HavePrefix("Healthy"))
 		_, body := deliveryPage(ctx)
