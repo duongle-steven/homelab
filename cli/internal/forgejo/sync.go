@@ -33,6 +33,11 @@ const (
 	CIBot     = "ci-bot"
 	CIBotTeam = "pipeline"
 	CIBotPath = "ci/forgejo-token"
+	// Backstage reads ops/homelab (its catalog and docs) and creates org ci's repositories from its templates
+	// (publish:gitea), through team BackstageTeam; its token is namespace backstage's (BackstagePath)
+	Backstage     = "backstage"
+	BackstageTeam = "templates"
+	BackstagePath = "backstage/forgejo-token"
 	// WebhookPath holds org ci's webhook secret (platform/generated-secrets), WebhookAppliedPath which hook sync gave
 	// which secret (Forgejo never shows a hook's authorization header)
 	WebhookPath        = "ci/generated/webhook"
@@ -51,21 +56,24 @@ type account struct {
 	name       string
 	permission sdk.AccessMode
 	token      string
-	scope      sdk.AccessTokenScope
+	scopes     []sdk.AccessTokenScope
 	path       string
 	// check is a path a valid token reads (GET /user needs read:user, which no account's scope has)
 	check string
 }
 
 var accounts = []account{
-	{name: "deploy", permission: sdk.AccessModeWrite, token: "lab", scope: sdk.AccessTokenScopeRepositoryWrite, path: DeployPath, check: opsCheck},
-	{name: "argocd", permission: sdk.AccessModeRead, token: "argocd", scope: sdk.AccessTokenScopeRepositoryRead, path: ArgoCDPath, check: opsCheck},
+	{name: "deploy", permission: sdk.AccessModeWrite, token: "lab", scopes: []sdk.AccessTokenScope{sdk.AccessTokenScopeRepositoryWrite}, path: DeployPath, check: opsCheck},
+	{name: "argocd", permission: sdk.AccessModeRead, token: "argocd", scopes: []sdk.AccessTokenScope{sdk.AccessTokenScopeRepositoryRead}, path: ArgoCDPath, check: opsCheck},
+	// Read on ops/homelab; its token also creates org ci's repositories (write:organization) and pushes their first
+	// commit (write:repository), which team BackstageTeam allows
+	{name: Backstage, permission: sdk.AccessModeRead, token: "backstage", scopes: []sdk.AccessTokenScope{sdk.AccessTokenScopeOrganizationWrite, sdk.AccessTokenScopeRepositoryWrite}, path: BackstagePath, check: opsCheck},
 }
 
 const opsCheck = "/api/v1/repos/" + Org + "/" + Repo
 
 // ciBot's token writes the commit statuses of org ci's repositories (Forgejo asks for write on code)
-var ciBot = account{name: CIBot, token: "pipeline", scope: sdk.AccessTokenScopeRepositoryWrite, path: CIBotPath, check: "/api/v1/repos/search?limit=1"}
+var ciBot = account{name: CIBot, token: "pipeline", scopes: []sdk.AccessTokenScope{sdk.AccessTokenScopeRepositoryWrite}, path: CIBotPath, check: "/api/v1/repos/search?limit=1"}
 
 // Sync makes orgs ops and ci match the design: what is right is kept, what is wrong is fixed, what is missing is
 // created. It waits for Forgejo, and for the webhook's secret in
@@ -103,7 +111,10 @@ func Sync(ctx context.Context, ep Endpoint, adminPassword string, tokens Tokens)
 	if err := ensureUser(admin, CIBot); err != nil {
 		return err
 	}
-	if err := ensureCIBotTeam(admin); err != nil {
+	if err := ensureBotTeam(admin, CIBotTeam, CIBot, false, true); err != nil {
+		return err
+	}
+	if err := ensureBotTeam(admin, BackstageTeam, Backstage, true, false); err != nil {
 		return err
 	}
 	if err := ensureToken(ctx, ep, admin, tokens, ciBot); err != nil {
@@ -343,7 +354,7 @@ func ensureToken(ctx context.Context, ep Endpoint, admin *sdk.Client, tokens Tok
 			}
 		}
 	}
-	created, _, err := user.CreateAccessToken(a.name, sdk.CreateAccessTokenOption{Name: a.token, Scopes: []sdk.AccessTokenScope{a.scope}})
+	created, _, err := user.CreateAccessToken(a.name, sdk.CreateAccessTokenOption{Name: a.token, Scopes: a.scopes})
 	if err != nil {
 		return fmt.Errorf("create %s's token: %w", a.name, err)
 	}
@@ -363,10 +374,11 @@ func ensureCIOrg(c *sdk.Client) error {
 	return err
 }
 
-// ensureCIBotTeam keeps org ci's team pipeline: write on code of every repository of the org (clones, commit
-// statuses), creating none, and ci-bot its only member
-func ensureCIBotTeam(c *sdk.Client) error {
-	id, err := ensureTeam(c, CIBotTeam, false, true, map[string]string{"repo.code": "write"})
+// ensureBotTeam keeps org ci's team name with write on code and bot its only member: pipeline (ci-bot) on every
+// repository of the org (clones, commit statuses), creating none; templates (backstage) creating repositories, of
+// which Forgejo makes the creator an admin collaborator (the threat model's G7)
+func ensureBotTeam(c *sdk.Client, name, bot string, canCreate, all bool) error {
+	id, err := ensureTeam(c, name, canCreate, all, map[string]string{"repo.code": "write"})
 	if err != nil {
 		return err
 	}
@@ -374,26 +386,26 @@ func ensureCIBotTeam(c *sdk.Client) error {
 	for page := 1; ; page++ {
 		list, _, err := c.ListTeamMembers(id, sdk.ListTeamMembersOptions{ListOptions: sdk.ListOptions{Page: page, PageSize: 50}})
 		if err != nil {
-			return fmt.Errorf("members of team %s/%s: %w", CIOrg, CIBotTeam, err)
+			return fmt.Errorf("members of team %s/%s: %w", CIOrg, name, err)
 		}
 		members = append(members, list...)
 		if len(list) < 50 {
 			break
 		}
 	}
-	bot := false
+	present := false
 	for _, m := range members {
-		if m.UserName == CIBot {
-			bot = true
+		if m.UserName == bot {
+			present = true
 			continue
 		}
 		if _, err := c.RemoveTeamMember(id, m.UserName); err != nil {
-			return fmt.Errorf("remove %s from team %s/%s: %w", m.UserName, CIOrg, CIBotTeam, err)
+			return fmt.Errorf("remove %s from team %s/%s: %w", m.UserName, CIOrg, name, err)
 		}
 	}
-	if !bot {
-		if _, err := c.AddTeamMember(id, CIBot); err != nil {
-			return fmt.Errorf("add %s to team %s/%s: %w", CIBot, CIOrg, CIBotTeam, err)
+	if !present {
+		if _, err := c.AddTeamMember(id, bot); err != nil {
+			return fmt.Errorf("add %s to team %s/%s: %w", bot, CIOrg, name, err)
 		}
 	}
 	return nil

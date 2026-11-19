@@ -1,3 +1,8 @@
 apiVersion: v2
 name: kiali
 version: 0.0.0
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Kiali"
+  homelab/description: "A graph of the mesh"
+  homelab/host: kiali

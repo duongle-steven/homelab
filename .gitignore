@@ -23,3 +23,7 @@ test/reports/
 
 # The Ginkgo binary the e2e runs build
 test/e2e/e2e.test
+
+# direnv's cache and mkdocs build's output (scripts/ci-check docs)
+.direnv/
+site/

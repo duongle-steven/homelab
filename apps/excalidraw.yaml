@@ -68,3 +68,10 @@ rawResources:
         matchConditions:
           - name: excalidraw
             expression: "object.metadata.namespace == 'excalidraw' && object.metadata.name.startsWith('excalidraw')"
+# One description per route (lab catalog generate: Backstage's catalog and homepage's services)
+homelab:
+  - route: main
+    name: "Excalidraw"
+    description: "Virtual whiteboard"
+    group: Utilities
+    icon: excalidraw.svg

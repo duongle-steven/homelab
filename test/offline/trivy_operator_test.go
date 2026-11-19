@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -97,7 +98,8 @@ func TestTrivyOperatorRender(t *testing.T) {
 			assert.Equal(t, "6h", rule("ImageScanMissing", ".for"))
 			assert.Equal(t, "warning", rule("ImageScanMissing", ".labels.severity"))
 			for _, kind := range []string{"kube_replicaset_spec_replicas", "kube_statefulset_replicas", "kube_daemonset_status_desired_number_scheduled"} {
-				assert.Contains(t, missing, kind+" > 0")
+				// Optionally narrowed by a selector (the sandbox's nodeImportedNamespaces)
+				assert.Regexp(t, regexp.QuoteMeta(kind)+`(\{[^}]*\})? > 0`, missing)
 			}
 			assert.Contains(t, missing, "unless on (namespace, resource_name) trivy_image_vulnerabilities")
 		})
@@ -107,6 +109,16 @@ func TestTrivyOperatorRender(t *testing.T) {
 	assert.Equal(t, "1", renderTrivyOperator(t, "testbed", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-config") | .data["OPERATOR_CONCURRENT_SCAN_JOBS_LIMIT"]`))
 	assert.Equal(t, "2", renderTrivyOperator(t, "dev", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-config") | .data["OPERATOR_CONCURRENT_SCAN_JOBS_LIMIT"]`))
 	assert.NotEmpty(t, renderTrivyOperator(t, "dev", `select(.kind == "ConfigMap" and .metadata.name == "trivy-operator-trivy-config") | .data["trivy.resources.limits.memory"]`))
+	// Images imported on the sandbox's node (Backstage's) have no registry to pull from: the operator skips their
+	// namespaces and ImageScanMissing ignores the same ones. Production pulls every image, so it skips none
+	exclude := `select(.kind == "Deployment") | .spec.template.spec.containers[].env[] | select(.name == "OPERATOR_EXCLUDE_NAMESPACES") | .value`
+	missing := `select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(.alert == "ImageScanMissing") | .expr`
+	assert.Equal(t, "backstage", renderTrivyOperator(t, "dev", exclude))
+	for _, kind := range []string{"kube_replicaset_spec_replicas", "kube_statefulset_replicas", "kube_daemonset_status_desired_number_scheduled"} {
+		assert.Contains(t, renderTrivyOperator(t, "dev", missing), kind+`{namespace!~"backstage"} > 0`)
+	}
+	assert.Empty(t, renderTrivyOperator(t, "production", exclude))
+	assert.NotContains(t, renderTrivyOperator(t, "production", missing), "namespace!~")
 }
 
 // idleReplicaSets drops the reports of ReplicaSets a rollout left at 0 replicas (kept as the Deployment's history)

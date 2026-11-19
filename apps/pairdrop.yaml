@@ -66,3 +66,8 @@ rawResources:
         matchConditions:
           - name: pairdrop
             expression: "object.metadata.namespace == 'pairdrop' && object.metadata.name.startsWith('pairdrop')"
+# One description per route (lab catalog generate: Backstage's catalog and homepage's services)
+homelab:
+  - route: main
+    name: "PairDrop"
+    description: "Send files between devices on the LAN"

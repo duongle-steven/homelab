@@ -253,3 +253,13 @@ rawResources:
         matchConditions:
           - name: matrix-client
             expression: "object.metadata.namespace == 'matrix' && object.metadata.name.startsWith('matrix-client')"
+# One description per route (lab catalog generate: Backstage's catalog and homepage's services)
+homelab:
+  - route: client
+    name: "Matrix"
+    description: "Chat client"
+    group: Popular
+    icon: element.svg
+  - route: server
+    name: "Matrix server"
+    description: "The Matrix homeserver (tuwunel)"

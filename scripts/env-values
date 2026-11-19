@@ -24,8 +24,16 @@ esac
 pick "$object" | yq '.. | select(tag == "!!str") | (path | join(".")) + "=" + .' | while IFS='=' read -r name value; do
   field=$(printf '%s' "$value" | sed -n 's/^{{ *\(\.[A-Za-z0-9_.]*\) *}}$/\1/p')
   case "$field" in
-    # The cluster Secret's annotations (infra/_modules/argocd/cluster-secret.sh): offline, only the backup endpoint
+    # The cluster Secret's annotations (infra/_modules/argocd/cluster-secret.sh): offline, the backup endpoint from
+    # the environment, and the repository and branch each environment syncs (production's once on Forgejo)
     .metadata.annotations.backupS3Url) value=${BACKUP_S3_URL:-} ;;
+    .metadata.annotations.repository)
+      case "$env" in
+        prod) value=http://forgejo-http.forgejo:3000/ops/homelab ;;
+        *) value=$(yq -p json -o yaml .seed_repository "$config") ;;
+      esac ;;
+    .metadata.annotations.revision)
+      case "$env" in prod) value=master ;; dev) value=sandbox ;; *) value=$env ;; esac ;;
     .metadata.annotations.*) echo "${field#.metadata.annotations.} is not an annotation env-values knows" >&2; exit 1 ;;
     ?*)
       value=$(yq -p json -o yaml "$field" "$config")

@@ -55,7 +55,15 @@ kyverno-policies:
 # Registries images may come from (templates/images.yaml); zot (registry.<domain>) is added there
 registries: [docker.io, ghcr.io, quay.io, registry.k8s.io, gcr.io, code.forgejo.org, public.ecr.aws, lscr.io]
 
-# lab's signature and SBOM (templates/lab-image-policy.yaml): production only
-labImagePolicy:
+# Images GitHub Actions signs keyless on master with their SBOM (templates/signed-image-policies.yaml): production only
+signedImages:
   enabled: true
-  image: ghcr.io/duongle-steven/homelab-lab*
+  images:
+    lab:
+      what: lab's image (platform/secrets-rotation)
+      image: ghcr.io/duongle-steven/homelab-lab*
+      workflow: lab-image.yaml
+    backstage:
+      what: Backstage's image (platform/backstage)
+      image: ghcr.io/duongle-steven/homelab-backstage*
+      workflow: backstage-image.yaml

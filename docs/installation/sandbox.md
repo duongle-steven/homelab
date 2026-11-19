@@ -117,7 +117,9 @@ just dev   # pushes this commit to the branch sandbox and runs every sandbox tes
 git push -u origin feat/harness-the-sun   # then open a PR into dev
 ```
 
-ArgoCD in the sandbox syncs the GitHub branch `sandbox`. `just dev` force-pushes the commit you are on to it (so commit first) and runs the smoke, identity, SSO (including OpenCloud), Gateway, Forgejo, mesh, monitoring and egress tests against it, so a branch is tested before its pull request. After the merge, run `just dev` on `dev` once more. `dev` is merged into `master` through periodic pull requests.
+ArgoCD in the sandbox syncs the GitHub branch `sandbox`. `just dev` force-pushes the commit you are on to it (so commit
+first) and runs the specs the branch's changes can affect (`test/scopes.yaml`; nothing when only docs or comments
+changed), so a branch is tested before its pull request ([sandbox tests](../how-to-guides/sandbox-tests.md)).
 
 Only the components listed in `system/argocd/values-dev.yaml` are synced: system and platform charts in the `root` ApplicationSet, apps in the `apps` ApplicationSet.
 
@@ -130,6 +132,29 @@ Check how ArgoCD will render something with:
 scripts/render-chart apps/excalidraw.yaml dev
 scripts/render-chart platform/kanidm dev
 ```
+
+## What runs where
+
+The sandbox runs every component and app except what needs real hardware, the internet's side of the homelab or
+production's data. The authoritative lists are `system/argocd/values-dev.yaml` (sandbox), `values-testbed.yaml`
+(testbed) and `values.yaml` (production: every `system/*` and `platform/*`, every app).
+
+| | Sandbox | Testbed | Production |
+|---|---|---|---|
+| Networking: Istio (Gateways, ambient mesh), egress, cert-manager | yes | Istio, cert-manager | yes |
+| Storage | csi-driver-host-path | Ceph | Ceph |
+| Addresses | ServiceLB on the k3d node | kube-vip | kube-vip |
+| Security: Kyverno, Falco, Trivy Operator, the public scan | yes | no | yes |
+| Observability: Prometheus, Alertmanager, Loki, OpenTelemetry, Tempo, Kiali, Grafana | yes | no | yes |
+| Backups: Velero (to versitygw), CloudNativePG | yes | no | yes (to R2) |
+| Identity and secrets: Kanidm, OpenBao, External Secrets, rotation | yes | no | yes |
+| Git and CI: Forgejo, zot, Argo Workflows and Events, the golden path | yes | no | yes |
+| Backstage (built from the checkout) | yes | no | after its first release |
+| Apps: Actual Budget, Excalidraw, Homepage, Matrix, ntfy, PairDrop, Speedtest | yes | no | yes |
+| Optional: paperless, OpenCloud | when asked or changed | no | yes |
+| Cloudflare Tunnel, external-dns, Renovate, Jellyfin and its *arr apps, Tailscale, WireGuard, the blog | no | no | yes |
+
+"Changed" means the branch changes the app's file, not only its `homelab:` description.
 
 ## Resource usage
 

@@ -29,6 +29,13 @@ spec:
       to:
         - operation:
             ports: ["3000"]
+    # Backstage reads ops/homelab (production's catalog) and its templates create org ci's repositories
+    - from:
+        - source:
+            principals: ["cluster.local/ns/backstage/sa/backstage"]
+      to:
+        - operation:
+            ports: ["3000"]
 {{- if and .Values.database.cnpg .Values.database.cnpg.enabled }}
 ---
 # The CloudNativePG operator (outside the mesh, so no identity) polls each instance's status port

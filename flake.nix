@@ -38,7 +38,8 @@
             nixie.packages.${system}.default
             nixos-anywhere
             nixos-rebuild # lab cluster upgrade
-            nodejs_24 # platform/renovate's token script (test/renovate_test.go), the major in Renovate's image
+            nodejs_24 # platform/renovate's token script (test/renovate_test.go), the major in Renovate's image; backstage/
+            yarn-berry # backstage/'s package manager (Yarn 4)
             openssh_gssapi
             unstable.opentofu # Drop-in replacement for Terraform (nixos-26.05 ships 1.11)
             unstable.terragrunt

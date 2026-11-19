@@ -50,5 +50,15 @@ secrets:
   - name: ntfy.phone-password
     key: password
     destinations: [ntfy/generated/phone-password]
+  # Argo CD's local account backstage (system/argocd-config bcrypts it into argocd-secret), and Backstage's Argo CD
+  # plugin signing in with it
+  - name: argocd.backstage-password
+    key: password
+    destinations: [argocd/generated/backstage-password, backstage/generated/argocd-password]
+  # Backstage's session cookies
+  - name: backstage.session-secret
+    key: secret
+    length: 64
+    destinations: [backstage/generated/session-secret]
 # Environment-specific additions, so the list above does not have to be restated
 extraSecrets: []

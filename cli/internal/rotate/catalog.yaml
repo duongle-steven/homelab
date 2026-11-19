@@ -219,6 +219,14 @@
     - {namespace: kiali, workloads: [{kind: Deployment, name: kiali}]}
   settings: {client: kiali, namespace: kiali}
 
+- name: kanidm-client.backstage
+  kind: kaniop-client
+  class: 2
+  reason: a sign-in to Backstage fails until it restarts (it reads the secret at start); open sessions stay
+  readers:
+    - {namespace: backstage, workloads: [{kind: Deployment, name: backstage}]}
+  settings: {client: backstage, namespace: backstage}
+
 - name: kanidm-client.argo-workflows
   kind: kaniop-client
   class: 2
@@ -410,3 +418,35 @@
 - name: tls.certificates
   kind: automatic
   reason: cert-manager renews them
+
+- name: forgejo.backstage-token
+  # Its method needs Forgejo's admin password, which reaches ops/homelab and so the cluster: never the CronJob's
+  workstation: true
+  kind: forgejo-token
+  class: 0
+  reason: a new Forgejo access token is created, Backstage restarts on it, then the old one is deleted
+  period: 2160h
+  paths: [backstage/forgejo-token]
+  readers:
+    - {namespace: backstage, externalSecrets: [backstage-forgejo], workloads: [{kind: Deployment, name: backstage}]}
+  settings: {account: backstage}
+
+- name: argocd.backstage-password
+  kind: generated
+  class: 1
+  reason: >-
+    Argo CD reads argocd-secret live; Backstage restarts on the new password, its Argo CD tab failing in between
+  paths: [argocd/generated/backstage-password, backstage/generated/argocd-password]
+  readers:
+    - {namespace: argocd, externalSecrets: [argocd-backstage-account]}
+    - {namespace: backstage, externalSecrets: [backstage-argocd], workloads: [{kind: Deployment, name: backstage}]}
+  settings: {key: password, length: 32, special: false}
+
+- name: backstage.session-secret
+  kind: generated
+  class: 2
+  reason: every Backstage session ends (people sign in again)
+  paths: [backstage/generated/session-secret]
+  readers:
+    - {namespace: backstage, externalSecrets: [backstage-session], workloads: [{kind: Deployment, name: backstage}]}
+  settings: {key: secret, length: 64, special: false}

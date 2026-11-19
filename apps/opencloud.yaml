@@ -210,3 +210,10 @@ rawResources:
         scopeMap:
           - group: homelab-files
             scopes: [openid, profile, email]
+# One description per route (lab catalog generate: Backstage's catalog and homepage's services)
+homelab:
+  - route: main
+    name: "OpenCloud"
+    description: "File storage and sharing"
+    group: Popular
+    icon: open-cloud.svg

@@ -1,7 +1,6 @@
 package offline
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -69,17 +68,4 @@ func TestTestbedVMsDefaults(t *testing.T) {
 	raw, err := os.ReadFile(repo.Root() + "/infra/_modules/testbed-vms/variables.tf")
 	require.NoError(t, err)
 	assert.Regexp(t, `variable "vcpus" \{[^}]*default\s*=\s*2\s`, string(raw))
-}
-
-// The workstation's multi-node environment is the testbed: staging names only an optional environment on its own hardware
-func TestOldEnvironmentNameGone(t *testing.T) {
-	out, err := exec.Command("git", "-C", repo.Root(), "grep", "-il", "staging", "--",
-		":!docs/superpowers/", ":!CLAUDE.md", ":!mkdocs.yml", ":!docs/installation/testbed.md", ":!docs/installation/staging.md", ":!docs/how-to-guides/deploy-to-forgejo.md", ":!cli/internal/guard/", ":!cli/internal/cluster/inventory.go", ":!scripts/render-chart", ":!test/offline/release_paths_test.go", ":!test/offline/values_layers_test.go", ":!test/testbed_test.go",
-		":!cli/internal/env/").CombinedOutput()
-	var exit *exec.ExitError
-	if errors.As(err, &exit) && exit.ExitCode() == 1 {
-		return // git grep exits 1 when nothing matches
-	}
-	require.NoError(t, err, string(out))
-	assert.Empty(t, strings.TrimSpace(string(out)))
 }

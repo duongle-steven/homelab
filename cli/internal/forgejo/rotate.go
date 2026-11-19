@@ -91,7 +91,7 @@ func RotateToken(ctx context.Context, ep Endpoint, adminPassword string, tokens 
 			return nil, fmt.Errorf("delete %s's unkept token %s: %w", a.name, newName, err)
 		}
 	}
-	created, _, err := c.CreateAccessToken(a.name, sdk.CreateAccessTokenOption{Name: newName, Scopes: []sdk.AccessTokenScope{a.scope}})
+	created, _, err := c.CreateAccessToken(a.name, sdk.CreateAccessTokenOption{Name: newName, Scopes: a.scopes})
 	if err != nil {
 		return nil, fmt.Errorf("create %s's token %s: %w", a.name, newName, err)
 	}

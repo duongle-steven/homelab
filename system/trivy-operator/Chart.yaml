@@ -5,3 +5,7 @@ dependencies:
   - name: trivy-operator
     version: 0.38.1
     repository: https://aquasecurity.github.io/helm-charts/
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Trivy Operator"
+  homelab/description: "Vulnerability and secret scans of running images"

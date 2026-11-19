@@ -5,3 +5,7 @@ dependencies:
   - name: external-dns
     version: 1.23.0
     repository: https://kubernetes-sigs.github.io/external-dns
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "external-dns"
+  homelab/description: "The public apps' DNS records on Cloudflare"

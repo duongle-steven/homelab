@@ -1,3 +1,7 @@
 apiVersion: v2
 name: secrets-rotation
 version: 0.0.0
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Secrets rotation"
+  homelab/description: "The scheduled rotation of secrets"

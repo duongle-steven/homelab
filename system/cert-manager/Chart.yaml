@@ -9,3 +9,7 @@ dependencies:
     version: v0.25.0
     repository: https://charts.jetstack.io
     condition: trust-manager.enabled
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "cert-manager"
+  homelab/description: "Certificates: Let's Encrypt in production, a local CA in the sandbox"

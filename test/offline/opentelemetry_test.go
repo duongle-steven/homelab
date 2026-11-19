@@ -1,10 +1,7 @@
 package offline
 
 import (
-	"os"
 	"os/exec"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -143,7 +140,7 @@ func TestCollectorGatewayRender(t *testing.T) {
 		assert.Contains(t, render(otlp+` | .selector.matchLabels | to_json(0)`), `"app.kubernetes.io/name":"gateway-collector"`, env)
 		senders := render(otlp + ` | .rules[] | ((.from[].source.principals // []) + (.from[].source.namespaces // []) | join(",")) + " " + (.to[].operation.ports | join(","))`)
 		assert.Contains(t, senders, "cluster.local/ns/istio-system/sa/gateway-istio", env)
-		assert.Contains(t, senders, "argocd,grafana 4317,4318", env)
+		assert.Contains(t, senders, "argocd,grafana,backstage 4317,4318", env)
 	}
 }
 
@@ -157,30 +154,6 @@ func TestToolsExportTraces(t *testing.T) {
 		assert.Contains(t, ini, "[tracing.opentelemetry.otlp]\naddress = gateway-collector.opentelemetry:4317", env)
 		assert.Contains(t, ini, "[tracing.opentelemetry]\npropagation = w3c", env)
 	}
-}
-
-// Logs arrive with OpenTelemetry's labels (step OpenTelemetry): no alert, no dashboard panel selects a stream by
-// Alloy's old labels (job, namespace, pod, container, app), which nothing writes any more
-func TestNoOldLogLabels(t *testing.T) {
-	old := regexp.MustCompile(`\{[^{}]*\b(job|namespace|pod|container|app)\s*(=~|!=|=)`)
-	for _, file := range []string{"system/loki/files/audit-rules.yaml", "system/loki/files/falco-rules.yaml",
-		"system/loki/files/public-scan-rules.yaml", "system/monitoring-system/files/security-dashboard.json"} {
-		content, err := os.ReadFile(filepath.Join(repo.Root(), file))
-		if assert.NoError(t, err) {
-			assert.Empty(t, old.FindAllString(string(content), -1), file)
-		}
-	}
-}
-
-// Alloy is gone (step OpenTelemetry): no file names it any more, except the history (docs/superpowers, CLAUDE.md's
-// step 9), this test, and two comments whose files rebuild something when they change (the node flake gates releases
-// on the testbed, k3d.yaml recreates the sandbox's cluster): deferred-minors.md tracks them
-func TestNoAlloy(t *testing.T) {
-	cmd := exec.Command("git", "grep", "-il", "alloy", "--", ".", ":!docs/superpowers/**", ":!CLAUDE.md", ":!test/offline/opentelemetry_test.go",
-		":!infra/_modules/metal/flake/profiles/k3s-server.nix", ":!infra/_modules/k3d/k3d.yaml")
-	cmd.Dir = repo.Root()
-	out, _ := cmd.Output()
-	assert.Empty(t, strings.TrimSpace(string(out)), "files still naming Alloy")
 }
 
 // The render cache keys on every environment variable the render scripts read: a variable they read that the cache

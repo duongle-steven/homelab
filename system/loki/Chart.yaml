@@ -5,3 +5,7 @@ dependencies:
   - name: loki
     version: 18.17.0
     repository: https://grafana-community.github.io/helm-charts
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Loki"
+  homelab/description: "Logs, the audit logs included"

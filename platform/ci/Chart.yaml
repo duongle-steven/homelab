@@ -1,3 +1,7 @@
 apiVersion: v2
 name: ci
 version: 0.0.0
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "CI golden path"
+  homelab/description: "Builds, signs and attests the images of org ci's repositories"

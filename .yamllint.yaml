@@ -3,6 +3,9 @@ ignore: |
   mkdocs.yml
   .direnv/
   site/
+  # backstage/'s dependencies (yarn install) and its build output
+  node_modules/
+  dist-types/
   .terragrunt-cache/
   # Upstream's manifests, vendored unchanged (csi-driver-host-path)
   system/csi-hostpath/files/

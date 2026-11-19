@@ -191,3 +191,35 @@ rawResources:
         matchConditions:
           - name: jellyfin
             expression: "object.metadata.namespace == 'jellyfin' && object.metadata.name.startsWith('jellyfin')"
+# One description per route (lab catalog generate: Backstage's catalog and homepage's services)
+homelab:
+  - route: main
+    name: "Jellyfin"
+    description: "Media system (movies, music, etc.)"
+    group: Popular
+    icon: jellyfin.svg
+  - route: transmission
+    name: "Transmission"
+    description: "Bittorrent client"
+    group: Management
+    icon: transmission.svg
+  - route: prowlarr
+    name: "Prowlarr"
+    description: "Indexer manager"
+    group: Management
+    icon: prowlarr.svg
+  - route: radarr
+    name: "Radarr"
+    description: "Movie manager"
+    group: Management
+    icon: radarr.svg
+  - route: sonarr
+    name: "Sonarr"
+    description: "TV show manager"
+    group: Management
+    icon: sonarr.svg
+  - route: jellyseerr
+    name: "Jellyseerr"
+    description: "Request media"
+    group: Popular
+    icon: jellyseerr.svg

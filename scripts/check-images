@@ -56,7 +56,10 @@ for t in $targets; do
 	fi
 done
 sort -u "$work/old" -o "$work/old"
-sort -u "$work/new" | comm -23 - "$work/old" >"$work/scan"
+# Images this repository builds (lab's, Backstage's: ghcr.io/duongle-steven/homelab-*, and the sandbox's homelab-*:dev)
+# are in no registry until a release builds them: their Dockerfiles are check-iac's, the running image the Trivy
+# Operator's
+sort -u "$work/new" | comm -23 - "$work/old" | grep -vE '^(ghcr\.io/duongle-steven/)?homelab-[a-z-]+[:@]' >"$work/scan" || true
 
 if [ "${IMAGES_ONLY:-}" = 1 ]; then
 	cat "$work/scan"

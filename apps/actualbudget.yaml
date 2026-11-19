@@ -137,3 +137,8 @@ rawResources:
         matchConditions:
           - name: actualbudget
             expression: "object.metadata.namespace == 'actualbudget' && object.metadata.name.startsWith('actualbudget')"
+# One description per route (lab catalog generate: Backstage's catalog and homepage's services)
+homelab:
+  - route: main
+    name: "Actual Budget"
+    description: "Personal budgeting"

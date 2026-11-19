@@ -59,6 +59,7 @@ argocd-apps:
                           - path: platform/argo-events
                           - path: platform/ci
                           - path: platform/secrets-rotation
+                          - path: platform/backstage
                     - git: &config
                         repoURL: *repoURL
                         revision: *revision
@@ -111,6 +112,10 @@ argocd-apps:
                     seedRepository: '{{ .seed_repository }}'
                     # Empty in the sandbox: Velero's location keeps values-dev.yaml's endpoint
                     backupS3Url: '{{ .metadata.annotations.backupS3Url }}'
+                    # The repository and revision this Application syncs (the cluster Secret's): what Backstage's catalog reads (not
+                    # global.repository: external-secrets' chart reads that as its image registry)
+                    gitRepository: '{{ .metadata.annotations.repository }}'
+                    gitRevision: '{{ .metadata.annotations.revision }}'
                     addresses: &addresses
                       apiVIP: '{{ .vip }}'
                       router: '{{ .network.gateway }}'

@@ -5,3 +5,7 @@ dependencies:
   - name: falco
     version: 9.2.2
     repository: https://falcosecurity.github.io/charts
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Falco"
+  homelab/description: "Runtime detection"

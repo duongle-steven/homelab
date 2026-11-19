@@ -5,3 +5,10 @@ dependencies:
   - name: forgejo
     version: 17.3.0
     repository: oci://code.forgejo.org/forgejo-helm
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Forgejo"
+  homelab/description: "Git forge"
+  homelab/group: Development
+  homelab/icon: "forgejo.svg"
+  homelab/host: git

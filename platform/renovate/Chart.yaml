@@ -5,3 +5,7 @@ dependencies:
   - name: renovate
     version: 46.372.0
     repository: https://docs.renovatebot.com/helm-charts
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Renovate"
+  homelab/description: "Dependency updates as pull requests"

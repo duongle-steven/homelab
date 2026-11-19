@@ -1,0 +1,5 @@
+# Built by the in-cluster CI on every push; a push to main also lands in zot, signed and attested
+FROM docker.io/library/busybox:1.37.0
+COPY README.md /srv/README.md
+# Not root: nobody, which busybox has (Pod Security restricted runs it as is)
+USER 65534

@@ -5,3 +5,7 @@ dependencies:
   - name: external-secrets
     version: 2.12.0
     repository: https://charts.external-secrets.io
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "External Secrets"
+  homelab/description: "Secrets from OpenBao into namespaces"

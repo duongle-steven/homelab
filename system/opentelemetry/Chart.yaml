@@ -5,3 +5,7 @@ dependencies:
   - name: opentelemetry-operator
     version: 0.129.0
     repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "OpenTelemetry"
+  homelab/description: "The Collectors: pod and audit logs to Loki, traces to Tempo"

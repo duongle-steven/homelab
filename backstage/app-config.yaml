@@ -1,0 +1,191 @@
+# The homelab's Backstage (docs/superpowers/specs/2026-11-16-backstage-design.md). Nothing here depends on the
+# environment: platform/backstage passes every value below as an environment variable, from global.* and the cluster
+# Secret (the repository Argo CD reads)
+app:
+  title: Homelab
+  baseUrl: ${BACKSTAGE_BASE_URL}
+  # Every installed frontend package (packages/app/package.json) is discovered
+  packages: all
+  extensions:
+    # The home page is the landing page; the catalog keeps /catalog
+    - page:home:
+        config:
+          path: /
+          defaultConfig:
+            - component: HomePageSearchBar
+              column: 0
+              row: 0
+              width: 12
+              height: 2
+              deletable: false
+            - component: HomelabIntro
+              column: 0
+              row: 2
+              width: 12
+              height: 3
+            - component: HomePageStarredEntities
+              column: 0
+              row: 5
+              width: 6
+              height: 4
+            - component: HomePageToolkit
+              column: 6
+              row: 5
+              width: 6
+              height: 4
+            - component: HomePageRecentlyVisited
+              column: 0
+              row: 9
+              width: 6
+              height: 4
+            - component: HomePageMostVisited
+              column: 6
+              row: 9
+              width: 6
+              height: 4
+    # Visits feed the recently and most visited widgets (stored through user settings)
+    - api:home/visits: true
+    - app-root-element:home/visit-listener: true
+    - home-page-widget:home/toolkit:
+        config:
+          tools:
+            - url: ${ARGOCD_PUBLIC_URL}
+              label: Argo CD
+              icon: dashboard
+            - url: ${GRAFANA_PUBLIC_URL}
+              label: Grafana
+              icon: dashboard
+            - url: ${HOMEPAGE_PUBLIC_URL}
+              label: Homepage
+              icon: home
+    # The generated template's widgets are not used
+    - home-page-widget:home/world-clock: false
+    - home-page-widget:home/random-joke: false
+
+organization:
+  name: Homelab
+
+# The environment's domain: a component's homelab/host becomes https://<host>.<domain> (catalog/hostLinks.ts)
+homelab:
+  domain: ${HOMELAB_DOMAIN}
+
+backend:
+  baseUrl: ${BACKSTAGE_BASE_URL}
+  listen:
+    port: 7007
+  csp:
+    connect-src: ["'self'", 'http:', 'https:']
+  cors:
+    origin: ${BACKSTAGE_BASE_URL}
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  database:
+    client: pg
+    # One database (backstage, which CloudNativePG creates and the user owns), a schema per plugin: the user has no
+    # CREATEDB, which Backstage's default database per plugin needs
+    pluginDivisionMode: schema
+    connection:
+      database: backstage
+      host: ${POSTGRES_HOST}
+      port: ${POSTGRES_PORT}
+      user: ${POSTGRES_USER}
+      password: ${POSTGRES_PASSWORD}
+  # No MCP actions server: nothing outside Backstage runs its actions
+  actions:
+    pluginSources: []
+
+integrations:
+  # The sandbox reads the public GitHub repository (no token)
+  github:
+    - host: github.com
+  # Production reads Forgejo's ops/homelab, and templates publish to its org ci, as user backstage
+  gitea:
+    - host: ${FORGEJO_HOST}
+      # In the cluster, plain HTTP on Forgejo's port (the mesh encrypts it); the integration assumes https otherwise
+      baseUrl: http://${FORGEJO_HOST}
+      username: backstage
+      password: ${FORGEJO_TOKEN}
+
+techdocs:
+  # Built on first view inside the pod (mkdocs-techdocs-core in the image) and cached on its disk: no object storage
+  builder: local
+  generator:
+    runIn: local
+  publisher:
+    type: local
+
+auth:
+  environment: production
+  session:
+    secret: ${AUTH_SESSION_SECRET}
+  providers:
+    # Kanidm: a confidential client with PKCE (openid-client sends S256), ES256 ID tokens; only homelab-admins and
+    # homelab-editors get a token (its scopeMap), and the sign-in resolver is packages/backend/src/auth/identity.ts
+    oidc:
+      production:
+        metadataUrl: ${KANIDM_ISSUER}/.well-known/openid-configuration
+        clientId: ${AUTH_OIDC_CLIENT_ID}
+        clientSecret: ${AUTH_OIDC_CLIENT_SECRET}
+        tokenSignedResponseAlg: ES256
+        additionalScopes: [profile, email, groups]
+        prompt: auto
+
+scaffolder:
+  defaultAuthor:
+    name: Backstage
+    email: backstage@homelab.invalid
+  defaultCommitMessage: 'Initial commit from Backstage'
+
+catalog:
+  rules:
+    - allow: [Component, System, Domain, Group, Resource, Location, Template]
+  locations:
+    # The repository Argo CD reads: catalog-info.yaml at its root (lab catalog generate), and the templates
+    - type: url
+      target: ${CATALOG_LOCATION}
+    - type: url
+      target: ${TEMPLATES_LOCATION}
+      rules:
+        - allow: [Template]
+
+kubernetes:
+  serviceLocatorMethod:
+    type: multiTenant
+  # What platform/backstage's ClusterRole lets it read: no ConfigMaps (some hold configuration worth keeping), no
+  # Secrets, no logs
+  objectTypes:
+    - pods
+    - services
+    - deployments
+    - replicasets
+    - statefulsets
+    - daemonsets
+    - jobs
+    - cronjobs
+    - horizontalpodautoscalers
+    - ingresses
+    - limitranges
+    - resourcequotas
+  clusterLocatorMethods:
+    - type: config
+      clusters:
+        # The cluster Backstage runs in, read with its ServiceAccount (a ClusterRole without Secrets, logs or exec)
+        - name: homelab
+          url: https://kubernetes.default.svc
+          authProvider: serviceAccount
+          caFilePath: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          skipMetricsLookup: true
+
+argocd:
+  baseUrl: ${ARGOCD_PUBLIC_URL}
+  # Account backstage, role readonly (system/argocd)
+  username: backstage
+  password: ${ARGOCD_PASSWORD}
+  appLocatorMethods:
+    - type: config
+      instances:
+        - name: homelab
+          url: ${ARGOCD_URL}
+
+permission:
+  enabled: true

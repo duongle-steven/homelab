@@ -17,10 +17,10 @@ top-level container only, from the fixed list in `test/scopes.yaml` (`labels:`):
 ## Optional apps
 
 Paperless and OpenCloud take about 900 MB, so the local sandbox runs them only when asked (the justfile's
-`optional_apps`):
+`optional_apps`; Backstage always runs, its image built by every `just dev`):
 
-- **automatically**, when the branch changes their app file (`apps/paperless.yaml`, `apps/opencloud.yaml`): an upgrade
-  is tested before production;
+- **automatically**, when the branch changes their app file (`apps/paperless.yaml`, `apps/opencloud.yaml`) outside its
+  `homelab:` description: an upgrade is tested before production;
 - **on request**: `just dev --apps paperless`, `--apps paperless,opencloud`, or `--apps all`, for example with
   `just dev-fresh --apps all`.
 

@@ -1,3 +1,7 @@
 apiVersion: v2
 name: infra-secrets
 version: 0.0.0
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Infra secrets"
+  homelab/description: "OpenTofu's secrets pushed to OpenBao"

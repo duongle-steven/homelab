@@ -18,6 +18,9 @@ argo-cd:
           - .webhooks[]?.failurePolicy
       # Needed for the editor role; also lets admins open a terminal in the UI
       exec.enabled: "true"
+      # Backstage's Argo CD plugin signs in as backstage (role readonly); its password comes from OpenBao
+      # (system/argocd-config's templates/backstage-account.yaml)
+      accounts.backstage: login
       # The chart templates url (only): from global.baseDomain
       url: https://argocd.{{ .Values.global.baseDomain }}
       # $argocd-oidc:issuer comes from templates/oidc-secret.yaml (the chart does not template this)
@@ -61,6 +64,7 @@ argo-cd:
         g, homelab-admins, role:admin
         g, homelab-editors, role:editor
         g, homelab-users, role:readonly
+        g, backstage, role:readonly
   server:
     # templates/httproute.yaml: the chart's route does not template its host names
     httproute:
@@ -138,6 +142,10 @@ argocd-apps:
                           - path: system/csi-hostpath
                             exclude: true
                           - path: platform/*
+                          # Until the first release builds its image and platform/backstage/values.yaml pins its digest
+                          # (CLAUDE.md, before the first production deploy)
+                          - path: platform/backstage
+                            exclude: true
                           # Behind the stage (the generator below)
                           - path: system/public-scan
                             exclude: true
@@ -192,6 +200,10 @@ argocd-apps:
                     seedRepository: '{{ .seed_repository }}'
                     # Production's R2 endpoint, which holds the account id (never in git); empty elsewhere
                     backupS3Url: '{{ .metadata.annotations.backupS3Url }}'
+                    # The repository and revision this Application syncs (the cluster Secret's): what Backstage's catalog reads (not
+                    # global.repository: external-secrets' chart reads that as its image registry)
+                    gitRepository: '{{ .metadata.annotations.repository }}'
+                    gitRevision: '{{ .metadata.annotations.revision }}'
                     addresses: &addresses
                       apiVIP: '{{ .vip }}'
                       router: '{{ .network.gateway }}'

@@ -1,0 +1,32 @@
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmOAuth2Client
+metadata:
+  name: backstage
+  namespace: {{ .Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+    namespace: kanidm
+  displayname: Backstage
+  # Confidential client; Backstage's OIDC provider sends PKCE (S256), which Kanidm requires
+  origin: https://{{ .Values.host }}.{{ .Values.global.baseDomain }}
+  redirectUrl:
+    - https://{{ .Values.host }}.{{ .Values.global.baseDomain }}/api/auth/oidc/handler/frame
+  disableConsentPrompt: true
+  preferShortUsername: true
+  strictRedirectUrl: true
+  claimMap:
+    - name: homelab_groups
+      joinStrategy: array
+      valuesMap:
+        {{- range list "homelab-admins" "homelab-editors" }}
+        - group: {{ . }}
+          values:
+            - {{ . }}
+        {{- end }}
+  # Only the people who run the homelab: admins and editors (Backstage's permission policy splits them)
+  scopeMap:
+    {{- range list "homelab-admins" "homelab-editors" }}
+    - group: {{ . }}
+      scopes: [openid, profile, email, groups]
+    {{- end }}

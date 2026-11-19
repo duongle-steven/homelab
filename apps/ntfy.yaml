@@ -186,3 +186,8 @@ rawResources:
         matchConditions:
           - name: ntfy
             expression: "object.metadata.namespace == 'ntfy' && object.metadata.name.startsWith('ntfy')"
+# One description per route (lab catalog generate: Backstage's catalog and homepage's services)
+homelab:
+  - route: main
+    name: "ntfy"
+    description: "Push notifications: the alerts' first path"
