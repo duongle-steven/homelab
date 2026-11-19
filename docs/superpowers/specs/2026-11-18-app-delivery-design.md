@@ -56,8 +56,10 @@ API) releases. Both are learned here and both serve the teaching app later.
 
 - Two writers of one file: Kargo never writes to `ops/homelab`, and the platform road never writes to `ops/releases`.
 - A promotion that skips the CI's signature: only the pipeline (zot user `ci`) and `homelab-admins` push to our apps'
-  repositories in zot *(user, 2026-11-18: editors lose write there)*, and the promotion runs `cosign verify` against
-  the pipeline's key before it writes the tag. Kyverno's `verify-ci-images` stays in Audit until 15b-2, so it is a
+  repositories in zot *(user, 2026-11-18: editors lose write there)*, and an image reaches `production` only after a
+  stage `verify` whose verification runs `cosign verify` against the pipeline's key *(Claude's call, 2026-11-19: Kargo's
+  open-source promotion steps have no signature check, and Kargo admits Freight to a stage only once an upstream stage
+  verified it)*. Kyverno's `verify-ci-images` stays in Audit until 15b-2, so it is a
   report, not this gate.
 - A rollout that keeps sending users to a failing canary: the analysis aborts on its own, no person needed.
 - Kargo's UI or API reachable from the internet, or by anyone outside `homelab-admins` (and `homelab-editors` read-only).
@@ -123,8 +125,10 @@ How promotion is gated: per app *(user)*: automatic for the blog, manual for the
   app's own (one namespace per app already carries its mesh `allow`, egress and RBAC):
   - a `Warehouse` on `registry.<domain>/<app>` (zot, read through the read-only pull account), image selection by newest
     build for commit-tagged apps and by semantic version for the others;
-  - a `Stage` `production` whose promotion template verifies the image's signature (`cosign verify` with the
-    pipeline's public key), writes the tag into `ops/releases/<app>/production.yaml`, commits
+  - a `Stage` `verify` whose verification is an `AnalysisTemplate` Job running `cosign verify` with the pipeline's
+    public key; it promotes nothing;
+  - a `Stage` `production` that takes Freight only from `verify`, whose promotion template writes the tag into
+    `ops/releases/<app>/production.yaml`, commits
     as `kargo`, pushes, and asks Argo CD to sync the app's Application (`argocd-update`);
   - auto-promotion on for the blog, off for an app that needs approval;
   - optional verification after promotion: the same analysis or a smoke check (the app decides).
