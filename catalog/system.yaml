@@ -3,6 +3,22 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   annotations:
+    argocd/app-name: argo-rollouts
+    backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=argo-rollouts
+    backstage.io/kubernetes-namespace: argo-rollouts
+  description: Canary releases of our apps
+  name: argo-rollouts
+  title: Argo Rollouts
+spec:
+  lifecycle: production
+  owner: group:default/homelab-admins
+  system: homelab-system
+  type: platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  annotations:
     argocd/app-name: argocd-config
     backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=argocd-config
     backstage.io/kubernetes-namespace: argocd-config

@@ -1,0 +1,22 @@
+# A rollout whose analysis failed is aborted: users are back on the stable version, git still names the bad one
+# (docs/how-to-guides/app-delivery.md: fix forward, or promote the previous Freight in Kargo)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argo-rollouts
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: argo-rollouts
+      rules:
+        - alert: RolloutAborted
+          expr: max by (namespace, name) (rollout_info{phase="Degraded"}) == 1
+          for: 1m
+          labels:
+            severity: warning
+            source: argo-rollouts
+          annotations:
+            summary: Rollout {{`{{ $labels.namespace }}/{{ $labels.name }}`}} aborted
+            description: >-
+              Its canary failed its analysis and every request is back on the stable version; the release file in
+              ops/releases still names the failed tag (docs/how-to-guides/app-delivery.md).

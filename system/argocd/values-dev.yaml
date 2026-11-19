@@ -46,6 +46,7 @@ argocd-apps:
                           - path: system/falco
                           - path: system/opentelemetry
                           - path: system/tempo
+                          - path: system/argo-rollouts
                           - path: platform/external-secrets
                           - path: platform/openbao
                           - path: platform/generated-secrets

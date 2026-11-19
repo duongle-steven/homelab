@@ -86,6 +86,7 @@ labels:
   - hardware-proof
   - kiali
   - backstage
+  - delivery
   - grafana
   - zot
   - actual-budget
@@ -99,7 +100,7 @@ labels:
 always: smoke
 # Each runs by itself after the main run, in this order (#78)
 alone: [backup-restore, node-power-cut, node-restart, rotation]
-full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || traces || ci || backstage || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
+full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || traces || ci || backstage || delivery || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
 groups:
   - paths:
       - justfile
@@ -151,6 +152,9 @@ groups:
   # Backstage (always in the sandbox; its image built by every just dev)
   - paths: [backstage/**, platform/backstage/**, scripts/build-backstage-image, test/e2e/backstage_test.go]
     tests: backstage
+  # App delivery: Argo Rollouts and Kargo, driven end to end by AppDelivery
+  - paths: [system/argo-rollouts/**, test/e2e/argo_rollouts_test.go]
+    tests: delivery
   - paths: [system/kiali/**]
     tests: kiali
   - paths: [system/kyverno/**]

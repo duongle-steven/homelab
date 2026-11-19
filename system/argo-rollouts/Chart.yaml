@@ -1,0 +1,11 @@
+apiVersion: v2
+name: argo-rollouts
+version: 0.0.0
+dependencies:
+  - name: argo-rollouts
+    version: 2.43.12
+    repository: https://argoproj.github.io/argo-helm
+# Its description (lab catalog generate: Backstage's catalog and homepage's services)
+annotations:
+  homelab/name: "Argo Rollouts"
+  homelab/description: "Canary releases of our apps"
