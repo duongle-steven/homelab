@@ -87,6 +87,7 @@ labels:
   - kiali
   - backstage
   - delivery
+  - kargo
   - grafana
   - zot
   - actual-budget
@@ -155,6 +156,8 @@ groups:
   # App delivery: Argo Rollouts and Kargo, driven end to end by AppDelivery
   - paths: [system/argo-rollouts/**, test/e2e/argo_rollouts_test.go]
     tests: delivery
+  - paths: [platform/kargo/**, test/e2e/sso_kargo_test.go]
+    tests: kargo || delivery
   - paths: [system/kiali/**]
     tests: kiali
   - paths: [system/kyverno/**]

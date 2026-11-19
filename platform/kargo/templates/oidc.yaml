@@ -1,0 +1,8 @@
+# What the subchart cannot template: Kanidm's issuer for client kargo (values.yaml's api.env)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kargo-homelab
+  namespace: {{ .Release.Namespace }}
+data:
+  issuer: https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/kargo

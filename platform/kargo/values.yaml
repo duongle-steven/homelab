@@ -1,0 +1,61 @@
+# Kargo promotes our apps' versions (docs/how-to-guides/app-delivery.md): each app's Warehouse watches its image in zot,
+# its Stage writes the tag to Forgejo's ops/releases and asks Argo CD to sync. LAN only, signing in with Kanidm
+host: kargo
+
+kargo:
+  global:
+    # Shared credentials (Forgejo's ops/releases, zot) and cluster-level Secrets live here, where this namespace's
+    # SecretStore and ExternalSecrets are; the chart's own namespaces would have neither
+    sharedResources:
+      namespace: kargo
+      createNamespace: false
+    systemResources:
+      namespace: kargo
+      createNamespace: false
+    securityContext:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+  api:
+    # Kanidm only: no local admin
+    adminAccount:
+      enabled: false
+    # The Gateway terminates TLS
+    tls:
+      enabled: false
+      terminatedUpstream: true
+    oidc:
+      enabled: true
+      clientID: kargo
+      # issuerURL comes from templates/oidc.yaml (it holds the domain): env OIDC_ISSUER_URL below
+      issuerURL: unused
+      usernameClaim: preferred_username
+      additionalScopes: [groups]
+      admins:
+        claims:
+          homelab_groups: [homelab-admins]
+      viewers:
+        claims:
+          homelab_groups: [homelab-editors]
+    env:
+      - name: OIDC_ISSUER_URL
+        valueFrom:
+          configMapKeyRef: {name: kargo-homelab, key: issuer}
+  controller:
+    # Forgejo's ops/releases over the mesh (mTLS): http://forgejo-http.forgejo:3000
+    allowCredentialsOverHTTP: true
+    gitClient:
+      name: kargo
+      email: kargo@noreply.invalid
+    metrics:
+      enabled: true
+  # The API server calls these: outside the mesh, as every webhook pod
+  webhooksServer:
+    podLabels:
+      istio.io/dataplane-mode: none
+  # No webhook receivers: promotions start from the Warehouses' own polling
+  externalWebhooksServer:
+    enabled: false

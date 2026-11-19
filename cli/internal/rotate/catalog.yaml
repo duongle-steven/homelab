@@ -444,6 +444,18 @@
     - {namespace: backstage, externalSecrets: [backstage-forgejo], workloads: [{kind: Deployment, name: backstage}]}
   settings: {account: backstage}
 
+- name: forgejo.kargo-token
+  # Its method needs Forgejo's admin password, which reaches ops/homelab and so the cluster: never the CronJob's
+  workstation: true
+  kind: forgejo-token
+  class: 0
+  reason: a new Forgejo access token is created, Kargo's controller reads it at its next promotion, then the old one is deleted
+  period: 2160h
+  paths: [kargo/forgejo-token]
+  readers:
+    - {namespace: kargo, externalSecrets: [kargo-forgejo]}
+  settings: {account: kargo}
+
 - name: argocd.backstage-password
   kind: generated
   class: 1

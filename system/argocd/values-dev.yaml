@@ -61,6 +61,7 @@ argocd-apps:
                           - path: platform/ci
                           - path: platform/secrets-rotation
                           - path: platform/backstage
+                          - path: platform/kargo
                     - git: &config
                         repoURL: *repoURL
                         revision: *revision

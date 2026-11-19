@@ -184,6 +184,23 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   annotations:
+    argocd/app-name: kargo
+    backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=kargo
+    backstage.io/kubernetes-namespace: kargo
+    homelab/host: kargo
+  description: Promotes our apps' versions
+  name: kargo
+  title: Kargo
+spec:
+  lifecycle: production
+  owner: group:default/homelab-admins
+  system: homelab-platform
+  type: platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  annotations:
     argocd/app-name: openbao
     backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=openbao
     backstage.io/kubernetes-namespace: openbao

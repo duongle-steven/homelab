@@ -1,0 +1,22 @@
+# A promotion that cannot finish (Forgejo or Argo CD unreachable, a step failing) keeps erroring in the controller's
+# promotion reconciler: the version stays where it was, and nobody notices without this
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kargo
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: kargo
+      rules:
+        - alert: KargoPromotionFailed
+          expr: sum(increase(controller_runtime_reconcile_errors_total{namespace="{{ .Release.Namespace }}", controller="promotion"}[15m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+            source: kargo
+          annotations:
+            summary: Kargo cannot finish a promotion
+            description: >-
+              Kargo's promotion reconciler keeps failing: open the Promotion in Kargo's UI (kargo.<domain>) for the failed
+              step (docs/how-to-guides/app-delivery.md).
