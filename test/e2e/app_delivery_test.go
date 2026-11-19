@@ -103,8 +103,9 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 		DeferCleanup(func(ctx SpecContext) { forgejoAs(ctx, "", "DELETE", "/repos/ci/"+deliveryApp, nil, nil) }, NodeTimeout(time.Minute))
 		goodMarker = fmt.Sprint("ok-", time.Now().Unix())
 		good = deliveryCommit(ctx, deliveryContainerfile(goodMarker, false))
-		phase, _ := ciWorkflowFor(ctx, deliveryApp, good, "push")
-		Expect(phase).To(Equal("Succeeded"))
+		// The image is what Kargo needs: the CI's last step (Forgejo's commit status) is the CI specs' to prove
+		_, digest := ciWorkflowFor(ctx, deliveryApp, good, "push")
+		Expect(digest).NotTo(BeEmpty(), "the CI pushed no image")
 	}, SpecTimeout(45*time.Minute))
 
 	It("verifies and promotes it to production by itself", func(ctx SpecContext) {
@@ -154,8 +155,8 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 
 	It("aborts a version that serves errors and keeps users on the last good one", func(ctx SpecContext) {
 		broken := deliveryCommit(ctx, deliveryContainerfile("broken", true))
-		phase, _ := ciWorkflowFor(ctx, deliveryApp, broken, "push")
-		Expect(phase).To(Equal("Succeeded"))
+		_, digest := ciWorkflowFor(ctx, deliveryApp, broken, "push")
+		Expect(digest).NotTo(BeEmpty(), "the CI pushed no image")
 		Eventually(ctx, deliveryRelease).WithTimeout(20 * time.Minute).WithPolling(20 * time.Second).Should(ContainSubstring(broken))
 
 		// Traffic through the Gateway while the canary runs: its 5xx are what the analysis reads
