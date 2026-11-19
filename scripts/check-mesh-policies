@@ -76,6 +76,8 @@ EXTRA = [
     ("platform/forgejo", None, 8000, "Cluster", "the CloudNativePG operator polls forgejo-db's status port"),
     ("system/monitoring-system", GRAFANA, 9090, None, "Grafana's Prometheus data source"),
     ("system/monitoring-system", GRAFANA, 9093, "Alertmanager", "Grafana's Alertmanager data source"),
+    ("system/monitoring-system", "cluster.local/ns/argo-rollouts/sa/argo-rollouts", 9090, None,
+     "Argo Rollouts' analysis of a canary (ClusterAnalysisTemplate gateway-success-rate)"),
     ("platform/ci", "cluster.local/ns/forgejo/sa/default", 12000, None,
      "org ci's webhook (lab infra forgejo sync) to the EventSource forgejo-eventsource-svc.ci"),
     ("system/loki", GRAFANA, 3100, None, "Grafana's Loki data source"),

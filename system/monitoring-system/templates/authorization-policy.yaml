@@ -29,6 +29,13 @@ spec:
       to:
         - operation:
             ports: ["9090"]
+    # Argo Rollouts' analysis of our apps' canaries (system/argo-rollouts' gateway-success-rate)
+    - from:
+        - source:
+            principals: ["cluster.local/ns/argo-rollouts/sa/argo-rollouts"]
+      to:
+        - operation:
+            ports: ["9090"]
     # Grafana's Alertmanager data source
     - from:
         - source:
