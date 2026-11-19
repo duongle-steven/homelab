@@ -64,6 +64,19 @@
   idle: paperless
   settings: {key: PAPERLESS_SECRET_KEY, length: 64, special: false}
 
+- name: registry.puller
+  kind: generated
+  class: 1
+  reason: >-
+    zot's htpasswd (user puller) and every namespace that pulls our images read it (system/secret-store's zot-pull);
+    a pull while they differ fails and the kubelet retries it
+  period: 2160h
+  paths: [zot/generated/puller, kargo/generated/zot-puller]
+  readers:
+    - {namespace: zot, externalSecrets: [zot-auth], workloads: [{kind: StatefulSet, name: zot}]}
+    - {namespace: kargo, externalSecrets: [zot-pull]}
+  settings: {key: password, length: 32, special: false}
+
 - name: registry.ci
   kind: generated
   class: 2

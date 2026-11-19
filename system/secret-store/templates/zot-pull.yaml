@@ -1,0 +1,27 @@
+{{- if has .Release.Namespace .Values.zotPull }}
+# Pulls our images from zot as its read-only user puller (values.yaml's zotPull)
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: zot-pull
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # A fresh install may sync this before External Secrets' CRDs exist: Argo CD applies the rest and retries this
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  secretStoreRef:
+    kind: SecretStore
+    name: openbao
+  target:
+    name: zot-pull
+    template:
+      engineVersion: v2
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: '{"auths":{"registry.{{ .Values.global.baseDomain }}":{"username":"puller","password":"{{ "{{ .password }}" }}","auth":"{{ "{{ printf \"puller:%s\" .password | b64enc }}" }}"}}}'
+  data:
+    - secretKey: password
+      remoteRef:
+        key: {{ .Release.Namespace }}/generated/zot-puller
+        property: password
+{{- end }}

@@ -26,6 +26,11 @@
       inherit hostConfig;
       pkgsUnstable = nixpkgs-unstable.legacyPackages.x86_64-linux;
       network = cluster.network;
+      # registry.<domain> on the LAN Gateway's VIP (profiles/network.nix)
+      registry = {
+        name = "registry.${cluster.domain}";
+        address = cluster.service_vips.gateway;
+      };
       # The environment's disk (config.json's disk) when hosts.json names none: nixie keeps only the fields it knows
       defaultDisk = cluster.disk or null;
       timezone = cluster.timezone;

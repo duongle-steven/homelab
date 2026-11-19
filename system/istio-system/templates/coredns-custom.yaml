@@ -1,12 +1,17 @@
-{{- if .Values.corednsRewrite }}
-# k3s's CoreDNS imports *.override keys from this ConfigMap into its server block (the Corefile itself is
-# managed by k3s); pods would otherwise resolve the sandbox's names (*.127-0-0-1.nip.io) to their own loopback
+# k3s's CoreDNS imports *.override keys from this ConfigMap into its server block (the Corefile itself is managed by
+# k3s). The sandbox: pods would otherwise resolve its names (*.127-0-0-1.nip.io) to their own loopback. Production:
+# the LAN apps' names are in no public DNS until the LAN DNS step, and pods pull our images from zot by its name
+# (docs/how-to-guides/app-delivery.md), so registry.<domain> goes to the LAN Gateway
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: coredns-custom
   namespace: kube-system
 data:
+  {{- if .Values.corednsRewrite }}
   nip-io.override: |
     rewrite name regex (.*)\.{{ .Values.global.baseDomain | replace "." "\\." }} gateway-istio.istio-system.svc.cluster.local answer auto
-{{- end }}
+  {{- else }}
+  registry.override: |
+    rewrite name exact registry.{{ .Values.global.baseDomain }} gateway-istio.istio-system.svc.cluster.local
+  {{- end }}

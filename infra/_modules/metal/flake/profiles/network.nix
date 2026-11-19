@@ -1,9 +1,17 @@
-{ hostConfig, network, ... }:
+{
+  hostConfig,
+  network,
+  registry,
+  ...
+}:
 
 {
   networking = {
     useDHCP = false;
     useNetworkd = true;
+    # containerd pulls our images from zot by name (docs/how-to-guides/app-delivery.md): the LAN apps' names are in no
+    # public DNS until the LAN DNS step, so the node resolves the registry to the LAN Gateway's VIP itself
+    hosts.${registry.address} = [ registry.name ];
   };
 
   systemd.network.networks."10-uplink" = {

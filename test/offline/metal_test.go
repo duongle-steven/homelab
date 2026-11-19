@@ -39,10 +39,11 @@ type metalNode struct {
 		Label   string          `json:"label"`
 		Content json.RawMessage `json:"content"`
 	} `json:"data"`
-	Disk             string   `json:"disk"`
-	DNS              []string `json:"dns"`
-	TimeZone         string   `json:"timeZone"`
-	Kernel           string   `json:"kernel"`
+	Disk             string              `json:"disk"`
+	DNS              []string            `json:"dns"`
+	Hosts            map[string][]string `json:"hosts"`
+	TimeZone         string              `json:"timeZone"`
+	Kernel           string              `json:"kernel"`
 	PoweroffDeadline struct {
 		WantedBy     []string `json:"wantedBy"`
 		Dependencies bool     `json:"dependencies"`
@@ -98,6 +99,7 @@ func metalEval(t *testing.T) map[string]metalNode {
 			data = { inherit (c.config.disko.devices.disk.main.content.partitions.data) label content; };
 			disk = c.config.disko.devices.disk.main.device;
 			dns = c.config.systemd.network.networks."10-uplink".dns;
+			hosts = c.config.networking.hosts;
 			timeZone = c.config.time.timeZone;
 			kernel = c.config.boot.kernelPackages.kernel.version;
 			tunnelOffload = let s = c.config.systemd.services.vm-tunnel-offload or null; in if s == null then {} else {
@@ -503,4 +505,12 @@ func TestNoRebootDaemon(t *testing.T) {
 	assert.Empty(t, strings.TrimSpace(string(tracked)), "system/kured deploys a reboot daemon")
 	out, _ := exec.Command("git", "-C", repo.Root(), "grep", "-l", "needs-restarting", "--", "system", "platform", "apps").Output()
 	assert.Empty(t, strings.TrimSpace(string(out)), "a reboot sentinel for another distribution")
+}
+
+// containerd pulls our images from zot by name (docs/how-to-guides/app-delivery.md): until LAN DNS, every node resolves
+// registry.<domain> to the LAN Gateway's VIP itself
+func TestMetalRegistryHost(t *testing.T) {
+	for name, node := range metalEval(t) {
+		assert.Contains(t, node.Hosts["10.0.0.2"], "registry.example.test", name)
+	}
 }

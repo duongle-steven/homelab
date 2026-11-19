@@ -25,3 +25,6 @@ readers:
   zot:
     externalSecrets: [zot-auth]
     statefulsets: [zot]
+  # registry.puller: the namespaces that pull our images (system/secret-store's zotPull)
+  kargo:
+    externalSecrets: [zot-pull]
