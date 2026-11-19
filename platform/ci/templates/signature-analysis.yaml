@@ -20,7 +20,8 @@ spec:
       provider:
         job:
           spec:
-            backoffLimit: 0
+            # A passing failure (DNS in a new pod's first seconds) must not fail a signed image: twice more
+            backoffLimit: 2
             template:
               spec:
                 serviceAccountName: ci-signature
@@ -39,8 +40,9 @@ spec:
                       - |
                         set -eu
                         sa=/var/run/secrets/kubernetes.io/serviceaccount
-                        curl -fsS --cacert "$sa/ca.crt" -H "Authorization: Bearer $(cat $sa/token)" \
-                          https://kubernetes.default.svc/api/v1/namespaces/ci/configmaps/ci-signing-public-key \
+                        # The API server by its address (no DNS), retried
+                        curl -fsS --retry 5 --retry-all-errors --cacert "$sa/ca.crt" -H "Authorization: Bearer $(cat $sa/token)" \
+                          "https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/api/v1/namespaces/ci/configmaps/ci-signing-public-key" \
                           | sed -n 's/.*"cosign.pub": *"\([^"]*\)".*/\1/p' | sed 's/\\n/\n/g' >/key/cosign.pub
                         grep -q "END PUBLIC KEY" /key/cosign.pub
                     volumeMounts:

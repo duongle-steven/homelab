@@ -63,6 +63,11 @@ func TestCISignatureAnalysis(t *testing.T) {
 			assert.Contains(t, script, want, env)
 		}
 		assert.NotContains(t, script, "--allow-insecure-registry", env)
+		// A passing DNS failure in the Job's first seconds failed signed images (the sandbox, 2026-11-19): the API server by
+		// its address, curl retrying, the Job twice more
+		assert.Contains(t, script, "https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/api/v1/namespaces/ci/configmaps/ci-signing-public-key", env)
+		assert.Contains(t, script, "--retry 5 --retry-all-errors", env)
+		assert.Equal(t, "2", renderVelero(t, "platform/ci", env, tmpl+` | .spec.metrics[0].provider.job.spec.backoffLimit`), env)
 		assert.Equal(t, "zot-pull", renderVelero(t, "platform/ci", env, pod+` | .volumes[] | select(.name == "docker-config") | .secret.secretName`), env)
 
 		readers := renderVelero(t, "platform/ci", env, `select(.kind == "RoleBinding" and .metadata.name == "ci-signing-public-key-readers") | [.subjects[] | .namespace + "/" + .name] | join(",")`)
