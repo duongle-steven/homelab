@@ -9,4 +9,4 @@ server: http://openbao.openbao.svc.cluster.local:8200
 # Namespaces that pull our images from zot (docs/how-to-guides/app-delivery.md): each gets Secret zot-pull, a
 # dockerconfigjson for registry.<domain> as zot's read-only user puller, read from its own <namespace>/generated/zot-puller
 # (platform/generated-secrets' registry.puller lists the same namespaces)
-zotPull: [kargo]
+zotPull: [kargo, delivery-test]

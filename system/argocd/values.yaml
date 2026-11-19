@@ -315,6 +315,13 @@ argocd-apps:
               labels:
                 istio.io/dataplane-mode: ambient
                 kargo.akuity.io/project: "true"
+          # Argo Rollouts moves these during a canary (the Gateway API plugin's weights, its pod-template-hash selector)
+          ignoreDifferences:
+            - group: gateway.networking.k8s.io
+              kind: HTTPRoute
+              jqPathExpressions: [".spec.rules[].backendRefs[].weight"]
+            - kind: Service
+              jsonPointers: [/spec/selector/rollouts-pod-template-hash]
         {{- end }}
       # lab backup restore pauses one Application's automated sync while it replaces a volume: without this the
       # ApplicationSet puts it back within seconds
@@ -358,7 +365,7 @@ argocd-apps:
                   - '$values/{{ .path.path }}/{{ .path.filename }}'
                   # Our apps on the app road: the version Kargo promoted (docs/how-to-guides/app-delivery.md); missing
                   # before the first promotion, and for every other app (its releases source is this repository)
-                  - '$releases/{{ .path.filename | trimSuffix ".yaml" }}/production.yaml'
+                  - '$releases/{{ .path.filename }}'
                 ignoreMissingValueFiles: true
                 # App files template hosts as <app>.{{ .Values.global.baseDomain }}; public apps attach to
                 # the Gateway named by global.publicGateway

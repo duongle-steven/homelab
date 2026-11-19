@@ -154,7 +154,7 @@ groups:
   - paths: [backstage/**, platform/backstage/**, scripts/build-backstage-image, test/e2e/backstage_test.go]
     tests: backstage
   # App delivery: Argo Rollouts and Kargo, driven end to end by AppDelivery
-  - paths: [system/argo-rollouts/**, test/e2e/argo_rollouts_test.go]
+  - paths: [system/argo-rollouts/**, test/e2e/argo_rollouts_test.go, test/e2e/app_delivery_test.go, test/fixtures/apps/**, platform/ci/templates/signature-analysis.yaml]
     tests: delivery
   - paths: [platform/kargo/**, test/e2e/sso_kargo_test.go]
     tests: kargo || delivery

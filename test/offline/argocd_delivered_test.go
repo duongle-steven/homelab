@@ -69,13 +69,17 @@ func TestDeliveredAppsReadReleases(t *testing.T) {
 			src := spec.Template.Spec.Sources[releases]
 			files := spec.Template.Spec.Sources[chart].Helm.ValueFiles
 			assert.Equal(t, "$values/"+c.dir+"/"+c.file, argoTemplate(t, files[0], params), "env=%s %s: its own file first", env, app)
-			assert.Equal(t, "$releases/"+app+"/production.yaml", argoTemplate(t, files[len(files)-1], params), "env=%s %s", env, app)
+			assert.Equal(t, "$releases/"+c.file, argoTemplate(t, files[len(files)-1], params), "env=%s %s", env, app)
 			patch := argoTemplate(t, spec.TemplatePatch, params)
 			if c.delivered {
 				assert.Equal(t, "http://forgejo-http.forgejo:3000/ops/releases", argoTemplate(t, src.RepoURL, params), "env=%s %s", env, app)
 				assert.Equal(t, "main", argoTemplate(t, src.TargetRevision, params), "env=%s %s", env, app)
 				assert.Contains(t, patch, "kargo.akuity.io/authorized-stage: "+app+":production", "env=%s %s", env, app)
 				assert.Contains(t, patch, `kargo.akuity.io/project: "true"`, "env=%s %s", env, app)
+				// Argo Rollouts moves the HTTPRoute's weights and the Services' selectors during a canary: Argo CD must not
+				// put them back (ServerSideApply and RespectIgnoreDifferences are on for every Application)
+				assert.Contains(t, patch, ".spec.rules[].backendRefs[].weight", "env=%s %s", env, app)
+				assert.Contains(t, patch, "/spec/selector/rollouts-pod-template-hash", "env=%s %s", env, app)
 			} else {
 				assert.Equal(t, "https://github.com/x/homelab", argoTemplate(t, src.RepoURL, params), "env=%s %s: no Forgejo for it", env, app)
 				assert.Equal(t, "abc", argoTemplate(t, src.TargetRevision, params), "env=%s %s", env, app)

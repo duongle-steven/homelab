@@ -1,0 +1,251 @@
+# Sandbox only (system/argocd/values-dev.yaml): the app road end to end for the spec AppDelivery
+# (docs/how-to-guides/app-delivery.md). Its repository ci/delivery-test comes from Backstage's template during the spec;
+# until Kargo's first promotion (ops/releases/delivery-test.yaml) it runs Argo Rollouts' demo image
+defaultPodOptions:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  # Our images in zot, as its read-only user puller (system/secret-store's zotPull)
+  imagePullSecrets:
+    - name: zot-pull
+controllers:
+  main:
+    # The Rollout below runs the pods from this template (workloadRef): the Deployment itself runs none
+    replicas: 0
+    # Not ci-signature (below), which only the signature check uses
+    serviceAccount:
+      name: default
+    defaultContainerOptionsStrategy: merge
+    defaultContainerOptions:
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+    containers:
+      main:
+        image:
+          repository: docker.io/argoproj/rollouts-demo
+          tag: blue@sha256:211345b036e25b71ac57eb73d2742c399dc773d514fe97714c7f12a376d7e6e0
+service:
+  # Stable and canary: the Rollout points each at its own pods
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8080
+        protocol: HTTP
+  canary:
+    controller: main
+    ports:
+      http:
+        port: 8080
+        protocol: HTTP
+route:
+  main:
+    hostnames:
+      - delivery-test.{{ .Values.global.baseDomain }}
+    parentRefs:
+      - name: gateway
+        namespace: istio-system
+        sectionName: https
+    rules:
+      - backendRefs:
+          - identifier: main
+            port: 8080
+          - identifier: canary
+            port: 8080
+# Kargo's signature check (platform/ci's ClusterAnalysisTemplate ci-signature) runs as it
+serviceAccount:
+  ci-signature:
+    forceRename: ci-signature
+rawResources:
+  # Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
+  authorization-policy:
+    forceRename: allow
+    manifest:
+      apiVersion: security.istio.io/v1
+      kind: AuthorizationPolicy
+      spec:
+        action: ALLOW
+        rules:
+          - from:
+              - source:
+                  namespaces: ['{{ .Release.Namespace }}']
+          - from:
+              - source:
+                  principals: ['cluster.local/ns/istio-system/sa/gateway-istio']
+            to:
+              - operation:
+                  ports: ["8080"]
+  rollout:
+    forceRename: delivery-test
+    manifest:
+      apiVersion: argoproj.io/v1alpha1
+      kind: Rollout
+      metadata:
+        annotations:
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: delivery-test
+            app.kubernetes.io/instance: delivery-test
+            app.kubernetes.io/controller: main
+        workloadRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: delivery-test
+          scaleDown: never
+        strategy:
+          canary:
+            stableService: delivery-test-main
+            canaryService: delivery-test-canary
+            trafficRouting:
+              plugins:
+                argoproj-labs/gatewayAPI:
+                  httpRoute: delivery-test
+                  namespace: '{{ .Release.Namespace }}'
+            analysis:
+              startingStep: 1
+              templates:
+                - templateName: gateway-success-rate
+                  clusterScope: true
+              args:
+                - name: service
+                  value: delivery-test-canary
+                - name: namespace
+                  value: '{{ .Release.Namespace }}'
+            steps:
+              - setWeight: 20
+              - pause: {duration: 1m}
+              - setWeight: 50
+              - pause: {duration: 1m}
+  kargo-project:
+    forceRename: delivery-test
+    manifest:
+      apiVersion: kargo.akuity.io/v1alpha1
+      kind: Project
+      metadata:
+        annotations:
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+      # Cluster-scoped; its settings are in its ProjectConfig
+      spec: {}
+  kargo-project-config:
+    forceRename: delivery-test
+    manifest:
+      apiVersion: kargo.akuity.io/v1alpha1
+      kind: ProjectConfig
+      metadata:
+        annotations:
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+      spec:
+        # This app promotes itself; an app that waits for a person leaves its production out
+        promotionPolicies:
+          - stageSelector: {name: verify}
+            autoPromotionEnabled: true
+          - stageSelector: {name: production}
+            autoPromotionEnabled: true
+  kargo-warehouse:
+    forceRename: delivery-test
+    manifest:
+      apiVersion: kargo.akuity.io/v1alpha1
+      kind: Warehouse
+      metadata:
+        annotations:
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+      spec:
+        interval: 1m
+        subscriptions:
+          - image:
+              repoURL: registry.{{ .Values.global.baseDomain }}/delivery-test
+              imageSelectionStrategy: NewestBuild
+              discoveryLimit: 5
+  # An image reaches production only once verify checked the CI's signature on it
+  kargo-stage-verify:
+    forceRename: verify
+    manifest:
+      apiVersion: kargo.akuity.io/v1alpha1
+      kind: Stage
+      metadata:
+        annotations:
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+      spec:
+        vars:
+          - name: image
+            value: registry.{{ .Values.global.baseDomain }}/delivery-test
+        requestedFreight:
+          - origin: {kind: Warehouse, name: delivery-test}
+            sources: {direct: true}
+        promotionTemplate:
+          spec:
+            steps:
+              # Nothing to deploy here: the stage exists for its verification
+              - uses: compose-output
+                config:
+                  image: ${{ "{{" }} vars.image {{ "}}" }}
+        verification:
+          analysisTemplates:
+            - name: ci-signature
+              kind: ClusterAnalysisTemplate
+          args:
+            - name: image
+              value: ${{ "{{" }} vars.image {{ "}}" }}@${{ "{{" }} imageFrom(vars.image).Digest {{ "}}" }}
+  kargo-stage-production:
+    forceRename: production
+    manifest:
+      apiVersion: kargo.akuity.io/v1alpha1
+      kind: Stage
+      metadata:
+        annotations:
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+      spec:
+        vars:
+          - name: image
+            value: registry.{{ .Values.global.baseDomain }}/delivery-test
+          - name: releases
+            value: http://forgejo-http.forgejo:3000/ops/releases
+        requestedFreight:
+          - origin: {kind: Warehouse, name: delivery-test}
+            sources:
+              stages: [verify]
+        promotionTemplate:
+          spec:
+            steps:
+              - uses: git-clone
+                config:
+                  repoURL: ${{ "{{" }} vars.releases {{ "}}" }}
+                  checkout:
+                    - branch: main
+                      path: ./out
+              # The whole file (yaml-update only changes keys that exist): app-template's image of the app's container
+              - uses: file-write
+                config:
+                  path: ./out/delivery-test.yaml
+                  overwrite: true
+                  contents: |
+                    controllers:
+                      main:
+                        containers:
+                          main:
+                            image:
+                              repository: ${{ "{{" }} vars.image {{ "}}" }}
+                              tag: ${{ "{{" }} imageFrom(vars.image).Tag {{ "}}" }}@${{ "{{" }} imageFrom(vars.image).Digest {{ "}}" }}
+              - uses: git-commit
+                as: commit
+                config:
+                  path: ./out
+                  message: 'delivery-test: ${{ "{{" }} imageFrom(vars.image).Tag {{ "}}" }}'
+              - uses: git-push
+                config:
+                  path: ./out
+              - uses: argocd-update
+                config:
+                  apps:
+                    - name: delivery-test
+                      sources:
+                        - repoURL: ${{ "{{" }} vars.releases {{ "}}" }}
+                          desiredRevision: ${{ "{{" }} outputs.commit.commit {{ "}}" }}

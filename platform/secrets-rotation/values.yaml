@@ -28,3 +28,5 @@ readers:
   # registry.puller: the namespaces that pull our images (system/secret-store's zotPull)
   kargo:
     externalSecrets: [zot-pull]
+  delivery-test:
+    externalSecrets: [zot-pull]
