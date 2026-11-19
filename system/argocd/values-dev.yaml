@@ -46,7 +46,6 @@ argocd-apps:
                           - path: system/falco
                           - path: system/opentelemetry
                           - path: system/tempo
-                          - path: system/argo-rollouts
                           - path: platform/external-secrets
                           - path: platform/openbao
                           - path: platform/generated-secrets
@@ -61,13 +60,31 @@ argocd-apps:
                           - path: platform/ci
                           - path: platform/secrets-rotation
                           - path: platform/backstage
-                          - path: platform/kargo
                     - git: &config
                         repoURL: *repoURL
                         revision: *revision
                         files:
                           - path: infra/sandbox/cluster/config.json
                         pathParamPrefix: config
+        # The app road (Kargo, Argo Rollouts), optional like the apps below: only with the cluster Secret's
+        # homelab/app-delivery-test, which just dev writes when the run selects the delivery or kargo specs
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/app-delivery-test: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        directories:
+                          - path: system/argo-rollouts
+                          - path: platform/kargo
+                    - git: *config
         # The public scan, only at stage all (system/argocd/values.yaml; the sandbox is always all)
         - matrix:
             generators:
@@ -156,7 +173,22 @@ argocd-apps:
                           - path: apps/ntfy.yaml
                           - path: apps/pairdrop.yaml
                           - path: apps/speedtest.yaml
-                          # Sandbox only: the app road's end-to-end spec (AppDelivery)
+                    - git: *config
+        # The app road's end-to-end test app (AppDelivery), with Kargo and Argo Rollouts above
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/app-delivery-test: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
                           - path: test/fixtures/apps/delivery-test.yaml
                     - git: *config
         # Optional apps (about 900 MB): only when the cluster Secret carries homelab/app-<name>, which the bootstrap

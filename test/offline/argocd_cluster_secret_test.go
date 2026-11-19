@@ -208,9 +208,14 @@ func TestArgoCDOptionalApps(t *testing.T) {
 		}
 		optional[app] = true
 		assert.Equal(t, map[string]any{"homelab/bootstrap": "true", "homelab/stage": "all", "homelab/app-" + app: "true"}, labels)
-		assert.Equal(t, []string{"apps/" + app + ".yaml", "infra/sandbox/cluster/config.json"}, files)
+		file := "apps/" + app + ".yaml"
+		if app == "delivery-test" {
+			// The app road's test app is sandbox-only, outside apps/ (production's apps/*.yaml never sees it)
+			file = "test/fixtures/apps/delivery-test.yaml"
+		}
+		assert.Equal(t, []string{file, "infra/sandbox/cluster/config.json"}, files)
 	}
-	assert.Equal(t, map[string]bool{"paperless": true, "opencloud": true}, optional)
+	assert.Equal(t, map[string]bool{"paperless": true, "opencloud": true, "delivery-test": true}, optional)
 
 	raw, err := json.Marshal(renderAppSets(t, ""))
 	require.NoError(t, err)

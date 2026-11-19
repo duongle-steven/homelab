@@ -33,6 +33,8 @@ func kargoAuthorizeURL(appBase string) string {
 // Admins administer Kargo, editors only see it, nobody else signs in (docs/how-to-guides/app-delivery.md)
 var _ = Describe("SSOKargo", Label("sandbox", "sso", "kargo"), func() {
 	base := "https://" + kargoHost
+	// Optional in the sandbox (just dev deploys it with the specs that need it): skip before waiting for it
+	BeforeEach(func(ctx SpecContext) { skipUnlessDeployed(ctx, deliveryApp) })
 	waitForIdentity()
 	waitForAppBeforeEach(base + "/")
 

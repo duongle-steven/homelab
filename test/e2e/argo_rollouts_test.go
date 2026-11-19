@@ -13,6 +13,7 @@ import (
 // controller that stays Ready has it. AppDelivery drives a canary through it
 var _ = Describe("ArgoRollouts", Label("sandbox", "delivery"), func() {
 	It("runs with the Gateway API plugin", func(ctx SpecContext) {
+		skipUnlessDeployed(ctx, deliveryApp)
 		Eventually(ctx, func() string {
 			out, _ := kube.Kubectl(ctx, "argo-rollouts", "get", "deploy", "argo-rollouts", "-o", "jsonpath={.status.availableReplicas}")
 			return strings.TrimSpace(out)

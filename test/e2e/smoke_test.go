@@ -17,7 +17,7 @@ import (
 
 // optionalApps are deployed in the sandbox only when just dev asks (the justfile's optional_apps,
 // docs/superpowers/specs/2026-10-28-sandbox-optional-apps-design.md); always in production and the release sandbox
-var optionalApps = map[string]bool{"paperless": true, "opencloud": true}
+var optionalApps = map[string]bool{"paperless": true, "opencloud": true, "delivery-test": true}
 
 // wantedApps are the optional apps just dev deployed (HOMELAB_SANDBOX_APPS, space-separated)
 func wantedApps() []string { return strings.Fields(os.Getenv("HOMELAB_SANDBOX_APPS")) }

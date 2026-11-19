@@ -158,7 +158,7 @@ def main():
                 failures.append(f"{target} ({env}): renders an untemplated .Values.global reference")
             # Istio has its own global.network (a network name): our values must not take its keys
             for (kind, name), dumped in objects.items():
-                values = yaml.safe_load(dumped).get("data", {}).get("values") if kind == "ConfigMap" else None
+                values = ((yaml.safe_load(dumped) or {}).get("data") or {}).get("values") if kind == "ConfigMap" else None
                 if values and values.lstrip().startswith("{"):
                     network = json.loads(values).get("global", {}).get("network")
                     if network is not None and not isinstance(network, str):

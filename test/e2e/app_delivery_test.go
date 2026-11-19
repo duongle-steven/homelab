@@ -87,6 +87,8 @@ func rolloutState(ctx context.Context) string {
 // canary; an unsigned image never reaches production, a version that fails is stopped with users back on the last
 // good one, and promoting the previous Freight undoes it
 var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueOnFailure, func() {
+	// Optional in the sandbox (just dev deploys it with the specs that need it): skip before waiting for anything
+	BeforeEach(func(ctx SpecContext) { skipUnlessDeployed(ctx, deliveryApp) })
 	waitForIdentity()
 	backstageReady()
 	var good, goodMarker string

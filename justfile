@@ -13,7 +13,7 @@ terragrunt_apply := terragrunt + " run --all apply --non-interactive -- -auto-ap
 # Apps the sandbox deploys only when asked (just dev --apps paperless,opencloud or all) or when the branch changes
 # their app file since --base, outside its homelab: description, which only lab catalog generate reads (--apps none:
 # never, even then): docs/how-to-guides/sandbox-tests.md
-optional_apps := "paperless opencloud"
+optional_apps := "paperless opencloud delivery-test"
 testbed_kubeconfig := justfile_directory() / "infra/testbed/kubeconfig.yaml"
 # The power specs' labels, on a healthy testbed, one run each since each takes the whole cluster down
 # (docs/how-to-guides/power.md): --tests runs others (cut-postgres). They do not count towards the mark
@@ -54,14 +54,16 @@ dev $full="" $tests="" $apps="" $revision="" $base="origin/dev": sandbox-checkou
     if [ -z "$main$alone" ]; then echo "just dev: nothing to test in the sandbox (no change outside test/scopes.yaml's skip)"; exit 0; fi
     echo "just dev: main run '$main', then alone '$(printf '%s' "$alone" | tr '\n' ' ')'"
     opt=$( { if [ "$apps" = none ]; then :; elif [ "$apps" = all ]; then echo "{{ optional_apps }}"; else echo "$apps" | tr , ' '; fi
-        [ "$apps" = none ] || for a in {{ optional_apps }}; do [ "$(git show "$(git merge-base "$base" HEAD):apps/$a.yaml" 2>/dev/null | yq 'del(.homelab)')" = "$(yq 'del(.homelab)' "apps/$a.yaml")" ] || echo "$a"; done; } |
+        [ "$apps" = none ] || for a in {{ optional_apps }}; do [ -f "apps/$a.yaml" ] || continue; [ "$(git show "$(git merge-base "$base" HEAD):apps/$a.yaml" 2>/dev/null | yq 'del(.homelab)')" = "$(yq 'del(.homelab)' "apps/$a.yaml")" ] || echo "$a"; done
+        # The app road (Kargo, Argo Rollouts, delivery-test) whenever the run selects its specs
+        [ "$apps" = none ] || case "$main $alone" in *delivery*|*kargo*) echo delivery-test ;; esac; } |
         tr ' ' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ')
     for a in $opt; do case " {{ optional_apps }} " in *" $a "*) ;; *) echo "just dev: $a is not an optional app ({{ optional_apps }})" >&2; exit 1 ;; esac; done
     echo "just dev: optional apps '$opt'"
     if [ -z "$revision" ]; then {{ just }} sandbox-push; fi
     scripts/warm-image-cache
     (cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$([ -z "$revision" ] || git rev-parse HEAD)" HOMELAB_SANDBOX_APPS="$opt" {{ terragrunt_apply }})
-    for a in {{ optional_apps }}; do case " $opt " in *" $a "*) ;; *) kubectl delete namespace "$a" --ignore-not-found --wait=false >/dev/null ;; esac; done
+    for a in {{ optional_apps }}; do case " $opt " in *" $a "*) ;; *) kubectl delete namespace $([ "$a" = delivery-test ] && echo "delivery-test kargo argo-rollouts" || echo "$a") --ignore-not-found --wait=false >/dev/null ;; esac; done
     scripts/build-lab-image
     scripts/build-backstage-image
     export HOMELAB_SANDBOX_APPS="$opt"
