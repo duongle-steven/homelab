@@ -61,6 +61,21 @@ options:
       # (infra/_modules/metal/flake/seccomp, mounted by main.tf)
       - arg: --kubelet-arg=seccomp-default=true
         nodeFilters: [server:*]
+      # The one node under the whole suite starves etcd now and then: with the default 15 s leases the controller
+      # manager lost its lease and k3s restarted every 70 to 80 minutes (the CI's webhooks lost meanwhile). The testbed's
+      # longer leases (k3s-server.nix's slow_control_plane); etcd's heartbeat does not matter on one member
+      - arg: --kube-controller-manager-arg=leader-elect-lease-duration=60s
+        nodeFilters: [server:*]
+      - arg: --kube-controller-manager-arg=leader-elect-renew-deadline=40s
+        nodeFilters: [server:*]
+      - arg: --kube-scheduler-arg=leader-elect-lease-duration=60s
+        nodeFilters: [server:*]
+      - arg: --kube-scheduler-arg=leader-elect-renew-deadline=40s
+        nodeFilters: [server:*]
+      - arg: --kube-cloud-controller-manager-arg=leader-elect-lease-duration=60s
+        nodeFilters: [server:*]
+      - arg: --kube-cloud-controller-manager-arg=leader-elect-renew-deadline=40s
+        nodeFilters: [server:*]
   kubeconfig:
     updateDefaultKubeconfig: false
     switchCurrentContext: false
