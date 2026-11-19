@@ -60,6 +60,11 @@ variable "cache" {
   description = "Pull through the caches below; GitHub Actions turns it off (a new runner each time: an empty cache only adds a hop)"
 }
 
+variable "registry" {
+  type        = string
+  description = "zot's name (registry.<domain>): the node reaches it on its own loopback (the domain is *.127-0-0-1.nip.io), and the Gateway's certificate is the local CA's, made after the cluster, so containerd skips its verification for this one host"
+}
+
 variable "caches" {
   type = map(object({ remote = string, port = number }))
   default = {
@@ -77,6 +82,8 @@ locals {
   cache_names = var.cache ? { for host, _ in var.caches : host => "homelab-cache-${replace(host, ".", "-")}" } : {}
   registries = yamlencode({
     mirrors = { for host, name in local.cache_names : host => { endpoint = ["http://k3d-${name}:5000"] } }
+    # Our images in zot (docs/how-to-guides/app-delivery.md): pods pull them with their namespace's zot-pull Secret
+    configs = { (var.registry) = { tls = { insecure_skip_verify = true } } }
   })
   registries_file = "${var.manifest_dir}/registries.yaml"
   cache_image     = "docker.io/library/registry:3.1.2"

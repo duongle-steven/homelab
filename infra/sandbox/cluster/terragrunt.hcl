@@ -8,6 +8,7 @@ terraform {
 
 inputs = {
   manifest_dir     = get_terragrunt_dir()
+  registry         = "registry.${jsondecode(file("${get_terragrunt_dir()}/config.json")).domain}"
   audit_policy     = "${get_repo_root()}/infra/_modules/metal/flake/audit-policy.yaml"
   seccomp_profiles = "${get_repo_root()}/infra/_modules/metal/flake/seccomp"
   # HOMELAB_SANDBOX_PROXY=0 (GitHub Actions): no localhost proxy, its ports may be taken on the runner
