@@ -86,7 +86,7 @@ func rolloutState(ctx context.Context) string {
 // template, built and signed by the CI, verified and promoted by Kargo into ops/releases, released by Argo Rollouts'
 // canary; an unsigned image never reaches production, a version that fails is stopped with users back on the last
 // good one, and promoting the previous Freight undoes it
-var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, func() {
+var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueOnFailure, func() {
 	waitForIdentity()
 	backstageReady()
 	var good, goodMarker string

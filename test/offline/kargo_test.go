@@ -1,25 +1,16 @@
 package offline
 
 import (
-	"os/exec"
 	"strings"
 	"testing"
 
-	"github.com/duongle-steven/homelab/test/internal/repo"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // renderKargo renders platform/kargo for env ("" or dev) and runs a yq expression on it
 func renderKargo(t *testing.T, env, expr string) string {
 	t.Helper()
-	cmd := exec.Command("sh", "-c", `scripts/render-chart platform/kargo $1 | yq -N "$0"`, expr, env)
-	cmd.Dir = repo.Root()
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	require.NoError(t, err, stderr.String())
-	return strings.TrimSpace(string(out))
+	return renderVelero(t, "platform/kargo", env, expr)
 }
 
 // docs/superpowers/specs/2026-11-18-app-delivery-design.md: Kargo on the LAN only, signing in with Kanidm (admins

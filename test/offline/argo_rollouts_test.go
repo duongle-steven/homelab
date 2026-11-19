@@ -1,25 +1,16 @@
 package offline
 
 import (
-	"os/exec"
 	"strings"
 	"testing"
 
-	"github.com/duongle-steven/homelab/test/internal/repo"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // renderArgoRollouts renders system/argo-rollouts for env ("" or dev) and runs a yq expression on it
 func renderArgoRollouts(t *testing.T, env, expr string) string {
 	t.Helper()
-	cmd := exec.Command("sh", "-c", `scripts/render-chart system/argo-rollouts $1 | yq -N "$0"`, expr, env)
-	cmd.Dir = repo.Root()
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	require.NoError(t, err, stderr.String())
-	return strings.TrimSpace(string(out))
+	return renderVelero(t, "system/argo-rollouts", env, expr)
 }
 
 // docs/superpowers/specs/2026-11-18-app-delivery-design.md: the controller with the Gateway API traffic-router plugin,

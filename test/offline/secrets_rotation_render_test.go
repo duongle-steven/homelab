@@ -22,7 +22,7 @@ func TestSecretsCronJobRender(t *testing.T) {
 
 	roles := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role") | .metadata.namespace`)
 	// Not argocd: Forgejo's tokens rotate from the workstation
-	assert.ElementsMatch(t, []string{"secrets-rotation", "openbao", "velero", "monitoring-system", "ntfy", "ci", "zot"}, strings.Fields(roles))
+	assert.ElementsMatch(t, []string{"secrets-rotation", "openbao", "velero", "monitoring-system", "ntfy", "ci", "zot", "kargo", "delivery-test"}, strings.Fields(roles))
 	exec := renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and (.rules[].resources[] == "pods/exec")) | .metadata.namespace`)
 	assert.Equal(t, "ntfy", exec)
 	assert.Empty(t, renderVelero(t, "platform/secrets-rotation", "", `select(.kind == "Role" and (.rules[].resources[] == "persistentvolumeclaims")) | .metadata.namespace`))
