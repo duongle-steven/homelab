@@ -211,7 +211,7 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 			`jsonpath={range .items[?(@.images[0].tag=="`+good+`")]}{.metadata.name}{end}`)
 		Expect(err).NotTo(HaveOccurred(), out)
 		Expect(strings.TrimSpace(out)).NotTo(BeEmpty(), "no Freight of the good version")
-		// What promoting it in Kargo's UI creates (SSOKargo proves an admin may, through the API)
+		// What promoting it in Kargo's UI creates (SSOKargo proves Kargo's admin role reaches its admins)
 		promotion := fmt.Sprintf(`{"apiVersion":"kargo.akuity.io/v1alpha1","kind":"Promotion","metadata":{"generateName":"rollback-","namespace":%q},`+
 			`"spec":{"stage":"production","freight":%q}}`, deliveryApp, strings.TrimSpace(out))
 		created, err := kube.KubectlStdin(ctx, promotion, deliveryApp, "create", "-f", "-")

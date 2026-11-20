@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/duongle-steven/homelab/test/internal/identity"
+	"github.com/duongle-steven/homelab/test/internal/kube"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -40,16 +41,23 @@ var _ = Describe("SSOKargo", Label("sandbox", "sso", "kargo"), func() {
 
 	for _, c := range []struct {
 		account string
-		// A delete only an admin may make: an admin's of a project that does not exist (404, nothing deleted), an
-		// editor's of the sandbox's project delivery-test (403; Kargo answers 404 for a missing one before it checks the
-		// caller); 0: refused at Kanidm
+		// A delete only an admin may make: an admin's of a throwaway project the spec creates (200: Kargo answers 404 for a
+		// missing one before it checks the caller, which would prove nothing), an editor's of the sandbox's project
+		// delivery-test (403); 0: refused at Kanidm
 		project      string
 		deleteStatus int
-	}{{"dev-admin", "no-such-project", http.StatusNotFound}, {"dev-editor", deliveryApp, http.StatusForbidden}, {"dev-viewer", "", 0}, {"dev-outsider", "", 0}} {
+	}{{"dev-admin", "sso-kargo-admin", http.StatusOK}, {"dev-editor", deliveryApp, http.StatusForbidden}, {"dev-viewer", "", 0}, {"dev-outsider", "", 0}} {
 		It(c.account, func(ctx SpecContext) {
 			if c.deleteStatus == 0 {
 				Expect(browserDenied(ctx, c.account, ensureCredentials(ctx, c.account), kargoAuthorizeURL(base))).To(ContainSubstring("Access Denied"))
 				return
+			}
+			if c.deleteStatus == http.StatusOK {
+				out, err := kube.KubectlStdin(ctx, `{"apiVersion":"kargo.akuity.io/v1alpha1","kind":"Project","metadata":{"name":"`+c.project+`"}}`, "", "apply", "-f", "-")
+				Expect(err).NotTo(HaveOccurred(), out)
+				DeferCleanup(func(ctx SpecContext) {
+					_, _ = kube.Kubectl(ctx, "", "delete", "projects.kargo.akuity.io", c.project, "--ignore-not-found", "--wait=false")
+				}, NodeTimeout(time.Minute))
 			}
 			token := browserBearer(ctx, c.account, ensureCredentials(ctx, c.account), base, base+kargoAPI, "Kargo")
 			auth := []string{"Authorization", "Bearer " + token}

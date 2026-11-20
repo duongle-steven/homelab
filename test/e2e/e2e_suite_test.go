@@ -59,7 +59,8 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 // before Argo CD reads Forgejo: our apps' versions come from ops/releases (docs/how-to-guides/app-delivery.md), which
 // Applications read from their first sync. A Forgejo that never answers leaves its specs to fail on their own
 func syncForgejo(ctx SpecContext) {
-	if suiteEnv() != "dev" {
+	// Forgejo is group git's: a run without it has nothing to sync (waiting cost every such run 15 minutes)
+	if suiteEnv() != "dev" || !appDeployed(ctx, "forgejo") {
 		return
 	}
 	deadline := time.Now().Add(15 * time.Minute)
