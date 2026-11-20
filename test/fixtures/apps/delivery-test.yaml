@@ -85,7 +85,6 @@ rawResources:
     manifest:
       apiVersion: argoproj.io/v1alpha1
       kind: Rollout
-      metadata:
       spec:
         replicas: 1
         selector:
@@ -127,7 +126,6 @@ rawResources:
     manifest:
       apiVersion: kargo.akuity.io/v1alpha1
       kind: ProjectConfig
-      metadata:
       spec:
         # This app promotes itself; an app that waits for a person leaves its production out
         promotionPolicies:
@@ -140,7 +138,6 @@ rawResources:
     manifest:
       apiVersion: kargo.akuity.io/v1alpha1
       kind: Warehouse
-      metadata:
       spec:
         interval: 1m
         subscriptions:
@@ -154,7 +151,6 @@ rawResources:
     manifest:
       apiVersion: kargo.akuity.io/v1alpha1
       kind: Stage
-      metadata:
       spec:
         vars:
           - name: image
@@ -181,7 +177,6 @@ rawResources:
     manifest:
       apiVersion: kargo.akuity.io/v1alpha1
       kind: Stage
-      metadata:
       spec:
         vars:
           - name: image
