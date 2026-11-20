@@ -29,3 +29,6 @@ argo-rollouts:
   # Argo CD and Kargo show rollouts: no dashboard
   dashboard:
     enabled: false
+# canary-responds' requests (templates/analysis-template.yaml): the same curl as platform/ci's
+images:
+  curl: docker.io/curlimages/curl:8.23.0

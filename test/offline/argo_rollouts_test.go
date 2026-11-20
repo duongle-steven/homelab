@@ -27,7 +27,7 @@ func TestArgoRolloutsRender(t *testing.T) {
 			assert.Regexp(t, `^[0-9a-f]{64}$`, renderArgoRollouts(t, e, plugins+` | .sha256`))
 
 			analysis := `select(.kind == "ClusterAnalysisTemplate" and .metadata.name == "gateway-success-rate")`
-			assert.Equal(t, "max-error-ratio,max-p95-ms,namespace,service",
+			assert.Equal(t, "max-error-ratio,max-p95-ms,namespace,port,service",
 				renderArgoRollouts(t, e, analysis+` | [.spec.args[].name] | sort | join(",")`))
 			queries := renderArgoRollouts(t, e, analysis+` | [.spec.metrics[].provider.prometheus.query] | join("\n")`)
 			assert.Contains(t, queries, "istio_requests_total")
@@ -61,7 +61,7 @@ func TestGatewaySuccessRateMeasuresTheCanary(t *testing.T) {
 		require.NoError(t, err, d)
 		return v.Seconds()
 	}
-	metrics := strings.Split(renderVelero(t, "system/argo-rollouts", "", `select(.kind == "ClusterAnalysisTemplate" and .metadata.name == "gateway-success-rate") | .spec.metrics[] | .name + " " + (.initialDelay // "0s") + " " + .interval + " " + (.count | tostring)`), "\n")
+	metrics := strings.Split(renderVelero(t, "system/argo-rollouts", "", `select(.kind == "ClusterAnalysisTemplate" and .metadata.name == "gateway-success-rate") | .spec.metrics[] | select(.provider.prometheus) | .name + " " + (.initialDelay // "0s") + " " + .interval + " " + (.count | tostring)`), "\n")
 	pauses := 0.0
 	for _, p := range strings.Fields(renderVelero(t, "test/fixtures/apps/delivery-test.yaml", "dev", `select(.kind == "Rollout") | .spec.strategy.canary.steps[] | select(has("pause")) | .pause.duration`)) {
 		pauses += seconds(p)
@@ -102,4 +102,18 @@ func TestKargoPromotionFailedReadsThePhase(t *testing.T) {
 	expr := renderVelero(t, "platform/kargo", "", `select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(.alert == "KargoPromotionFailed") | .expr`)
 	assert.Contains(t, expr, "kargo_promotion_phase")
 	assert.Contains(t, expr, `phase=~"Failed|Errored"`)
+}
+
+// A canary of a quiet app gets no visitors, and gateway-success-rate passes on no data: canary-responds requests the
+// canary Service itself from a Job in the app's namespace and fails on a 5xx or no answer (the app delivery review: a
+// broken blog would go out at night)
+func TestGatewaySuccessRateRequestsTheCanary(t *testing.T) {
+	metric := `select(.kind == "ClusterAnalysisTemplate" and .metadata.name == "gateway-success-rate") | .spec.metrics[] | select(.name == "canary-responds")`
+	args := renderArgoRollouts(t, "", metric+` | .provider.job.spec.template.spec.containers[0].args[0]`)
+	assert.Contains(t, args, "http://{{args.service}}.{{args.namespace}}:{{args.port}}")
+	assert.Contains(t, args, "5*")
+	assert.Equal(t, "0", renderArgoRollouts(t, "", metric+` | .failureLimit`))
+	assert.Equal(t, "true", renderArgoRollouts(t, "", metric+` | .provider.job.spec.template.spec.securityContext.runAsNonRoot`))
+	assert.Equal(t, "8080", renderVelero(t, "test/fixtures/apps/delivery-test.yaml", "dev",
+		`select(.kind == "Rollout") | .spec.strategy.canary.analysis.args[] | select(.name == "port") | .value`))
 }

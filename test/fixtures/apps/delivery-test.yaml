@@ -117,6 +117,8 @@ rawResources:
               args:
                 - name: service
                   value: delivery-test-canary
+                - name: port
+                  value: "8080"
                 - name: namespace
                   value: '{{ .Release.Namespace }}'
             steps:

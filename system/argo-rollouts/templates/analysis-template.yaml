@@ -15,6 +15,9 @@ spec:
       value: "0.05"
     - name: max-p95-ms
       value: "1000"
+    # The canary Service's port, for canary-responds
+    - name: port
+      value: "80"
   metrics:
     - name: error-ratio
       initialDelay: 45s
@@ -40,3 +43,45 @@ spec:
           address: http://monitoring-system-kube-pro-prometheus.monitoring-system:9090
           query: |
             histogram_quantile(0.95, sum by (le) (rate(istio_request_duration_milliseconds_bucket{destination_service_name="{{ "{{args.service}}" }}", destination_service_namespace="{{ "{{args.namespace}}" }}"}[1m])))
+    # A quiet app's canary gets no visitors, and the two above pass on no data: this one sends 20 requests to the
+    # canary Service itself, from a Job in the app's namespace (the mesh admits its own namespace), once the canary
+    # has been up 30 s. One 5xx or no answer fails it, and the canary is aborted
+    - name: canary-responds
+      initialDelay: 30s
+      count: 1
+      failureLimit: 0
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            activeDeadlineSeconds: 120
+            template:
+              spec:
+                restartPolicy: Never
+                automountServiceAccountToken: false
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  runAsGroup: 65532
+                  seccompProfile:
+                    type: RuntimeDefault
+                containers:
+                  - name: requests
+                    image: {{ .Values.images.curl }}
+                    command: [sh, -c]
+                    args:
+                      - |
+                        url='http://{{ "{{args.service}}" }}.{{ "{{args.namespace}}" }}:{{ "{{args.port}}" }}/'
+                        for i in $(seq 1 20); do
+                          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url" || true)
+                          case $code in
+                          5* | 000 | "") echo "request $i to $url: ${code:-no answer}"; exit 1 ;;
+                          esac
+                          sleep 1
+                        done
+                        echo "20 requests to $url answered"
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                        drop: [ALL]

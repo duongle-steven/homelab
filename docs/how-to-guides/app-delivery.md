@@ -30,8 +30,9 @@ Renovate leaves our images alone (`renovate.json5`: names starting `registry.{{`
    latency at the Gateway, from 45 s after the canary takes traffic, four times 20 s apart. A failed analysis aborts it:
    every request is back on the stable version, `RolloutAborted` fires (ntfy, Telegram), and `ops/releases` still
    names the failed version. A canary that never becomes healthy is aborted at its progress deadline
-   (`progressDeadlineAbort`) and alerts the same way. With no traffic there is nothing to judge, so the analysis
-   passes: a version of a quiet app (the blog at night) goes out on its health checks alone.
+   (`progressDeadlineAbort`) and alerts the same way. With no visitors the Gateway's metrics have nothing to judge
+   and pass, so `canary-responds` also sends 20 requests to the canary Service itself, from a Job in the app's
+   namespace, and fails on any 5xx or no answer: a quiet app (the blog at night) is still judged, on its main page.
 
 ## When a version is aborted
 
