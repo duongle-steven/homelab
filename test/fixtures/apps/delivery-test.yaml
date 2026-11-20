@@ -97,6 +97,9 @@ rawResources:
           kind: Deployment
           name: delivery-test
           scaleDown: never
+        # A canary that never becomes healthy (an image that exits) is aborted at the deadline, not left half-out
+        progressDeadlineSeconds: 300
+        progressDeadlineAbort: true
         strategy:
           canary:
             stableService: delivery-test-main
@@ -144,6 +147,8 @@ rawResources:
           - image:
               repoURL: registry.{{ .Values.global.baseDomain }}/delivery-test
               imageSelectionStrategy: NewestBuild
+              # Only the CI's builds (tagged with their commit): never cosign's .sig/.att tags or a hand-pushed one
+              allowTagsRegexes: ["^[0-9a-f]{40}$"]
               discoveryLimit: 5
   # An image reaches production only once verify checked the CI's signature on it
   kargo-stage-verify:

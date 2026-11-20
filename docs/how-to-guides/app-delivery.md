@@ -27,8 +27,11 @@ Renovate leaves our images alone (`renovate.json5`: names starting `registry.{{`
    CD to sync the app's Application.
 5. The app's `Rollout` (Argo Rollouts, `system/argo-rollouts`) sends 20%, then 50% of the traffic to the new version
    through its `HTTPRoute` (the Gateway API plugin), while `gateway-success-rate` reads its share of 5xx and its p95
-   latency at the Gateway. A failed analysis aborts it: every request is back on the stable version, `RolloutAborted`
-   fires (ntfy, Telegram), and `ops/releases` still names the failed version.
+   latency at the Gateway, from 45 s after the canary takes traffic, four times 20 s apart. A failed analysis aborts it:
+   every request is back on the stable version, `RolloutAborted` fires (ntfy, Telegram), and `ops/releases` still
+   names the failed version. A canary that never becomes healthy is aborted at its progress deadline
+   (`progressDeadlineAbort`) and alerts the same way. With no traffic there is nothing to judge, so the analysis
+   passes: a version of a quiet app (the blog at night) goes out on its health checks alone.
 
 ## When a version is aborted
 
@@ -39,8 +42,8 @@ on hold (Kargo's auto-promotion hold, shown on the Stage): later versions still 
 the one you chose until someone promotes a newer Freight by hand, which releases the hold. So after a rollback, the
 fix goes out when you promote it.
 
-`KargoPromotionFailed` means a promotion could not finish (Forgejo or Argo CD unreachable, a step failing): open the
-Promotion in Kargo's UI for the failed step. Nothing changed in production.
+`KargoPromotionFailed` means a Promotion ended Failed or Errored (Forgejo or Argo CD unreachable, a step failing): open
+it in Kargo's UI for the failed step. Nothing changed in production.
 
 ## Adding an app to the road
 
@@ -49,18 +52,22 @@ In the app's file (`apps/<app>.yaml`, the platform road):
 - the image as `registry.{{ .Values.global.baseDomain }}/<app>` with a base tag the app runs before its first
   promotion, and `defaultPodOptions.imagePullSecrets: [{name: zot-pull}]`;
 - two Services (stable and canary), its `HTTPRoute` naming both, a `Rollout` with `workloadRef` to the Deployment
-  (which runs no pods) and `gateway-success-rate`'s analysis, a ServiceAccount `ci-signature`;
-- its Kargo `Project`, `ProjectConfig` (which stages promote themselves), `Warehouse` and Stages `verify` and
-  `production`, as `test/fixtures/apps/delivery-test.yaml` has them.
+  (which runs no pods), `gateway-success-rate`'s analysis and `progressDeadlineAbort: true`, a ServiceAccount
+  `ci-signature`;
+- its Kargo `ProjectConfig` (which stages promote themselves), `Warehouse` (`allowTags` on commit hashes) and Stages
+  `verify` and `production`, as `test/fixtures/apps/delivery-test.yaml` has them.
 
 Then:
 
+- its Kargo `Project` in `platform/kargo/values.yaml`'s `projects` (a Project has no spec, which an app file cannot
+  render);
 - the app in the list of `system/argocd/values.yaml`'s `apps` ApplicationSet (`releases` source and `templatePatch`,
-  both `(list "blog" "delivery-test")`): it reads `ops/releases`, Kargo may sync it, its namespace is a Kargo project's,
-  and Argo CD leaves the canary's weights and selectors alone;
+  both `(list "blog" "delivery-test")`): it reads `ops/releases`, syncs under AppProject `delivered`, Kargo may sync it,
+  its namespace is a Kargo project's, and Argo CD leaves the canary's weights and selectors alone; and in
+  `system/argocd-config/values.yaml`'s `deliveredApps`;
 - its namespace in `system/secret-store/values.yaml`'s `zotPull`, a destination `<app>/generated/zot-puller` of
   `registry.puller` (`platform/generated-secrets`), its paths in the rotation catalog, OpenBao's policy `rotator` and
-  `platform/secrets-rotation`'s readers;
+  `system/secret-store`'s `rotationReaders`;
 - its namespace in `platform/ci/values.yaml`'s `publicKeyReaders`.
 
 ## In the sandbox

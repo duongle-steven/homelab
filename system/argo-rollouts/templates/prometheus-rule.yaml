@@ -10,10 +10,11 @@ spec:
     - name: argo-rollouts
       rules:
         - alert: RolloutAborted
-          # The controller reports an aborted rollout as phase Abort; the rollout's namespace arrives as
+          # The controller reports an aborted rollout as phase Abort, one whose canary never became healthy as Timeout
+          # (progressDeadlineAbort), a broken spec as Error or InvalidSpec; the rollout's namespace arrives as
           # exported_namespace (the target's own is the controller's)
           expr: >-
-            max by (namespace, name) (label_replace(rollout_info{phase="Abort"}, "namespace", "$1", "exported_namespace", "(.+)")) == 1
+            max by (namespace, name) (label_replace(rollout_info{phase=~"Abort|Timeout|Error|InvalidSpec"}, "namespace", "$1", "exported_namespace", "(.+)")) == 1
           for: 1m
           labels:
             severity: warning

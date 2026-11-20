@@ -83,7 +83,9 @@ func TestGatewaySuccessRateMeasuresTheCanary(t *testing.T) {
 // own (AppDelivery 2026-11-20: the alert never fired)
 func TestRolloutAbortedReadsTheController(t *testing.T) {
 	expr := renderArgoRollouts(t, "", `select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(.alert == "RolloutAborted") | .expr`)
-	assert.Contains(t, expr, `phase="Abort"`)
+	// A canary that never becomes healthy ends Timeout (progressDeadlineAbort), a broken spec Error or InvalidSpec
+	assert.Contains(t, expr, `phase=~"Abort|Timeout|Error|InvalidSpec"`)
+	assert.Equal(t, "true", renderVelero(t, "test/fixtures/apps/delivery-test.yaml", "dev", `select(.kind == "Rollout") | .spec.progressDeadlineAbort`))
 	assert.Contains(t, expr, `"namespace", "$1", "exported_namespace"`)
 }
 
