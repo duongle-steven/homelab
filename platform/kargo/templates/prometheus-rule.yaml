@@ -12,10 +12,10 @@ spec:
       rules:
         - alert: KargoPromotionFailed
           expr: >-
-            count by (namespace, stage) (kube_customresource_kargo_promotion_phase{phase=~"Failed|Errored"} == 1)
-            unless count by (namespace, stage) (kube_customresource_kargo_promotion_phase{phase=~"Failed|Errored"} offset 15m == 1)
-            or count by (namespace, stage) (kube_customresource_kargo_promotion_phase{phase=~"Failed|Errored"} == 1)
-            > count by (namespace, stage) (kube_customresource_kargo_promotion_phase{phase=~"Failed|Errored"} offset 15m == 1)
+            count by (namespace, stage) (kargo_promotion_phase{phase=~"Failed|Errored"} == 1)
+            unless count by (namespace, stage) (kargo_promotion_phase{phase=~"Failed|Errored"} offset 15m == 1)
+            or count by (namespace, stage) (kargo_promotion_phase{phase=~"Failed|Errored"} == 1)
+            > count by (namespace, stage) (kargo_promotion_phase{phase=~"Failed|Errored"} offset 15m == 1)
           labels:
             severity: warning
             source: kargo

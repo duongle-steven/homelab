@@ -100,7 +100,9 @@ func TestKargoPromotionFailedReadsThePhase(t *testing.T) {
 	rules := renderVelero(t, "system/monitoring-system", "", `select(.kind == "ClusterRole" and (.metadata.name | test("kube-state-metrics"))) | .rules[] | select(.apiGroups[0] == "kargo.akuity.io") | .resources[]`)
 	assert.Equal(t, "promotions", rules)
 	expr := renderVelero(t, "platform/kargo", "", `select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(.alert == "KargoPromotionFailed") | .expr`)
-	assert.Contains(t, expr, "kargo_promotion_phase")
+	// kube-state-metrics names the family after metricNamePrefix alone (no kube_customresource_ before it)
+	assert.Contains(t, expr, "(kargo_promotion_phase{")
+	assert.NotContains(t, expr, "kube_customresource_")
 	assert.Contains(t, expr, `phase=~"Failed|Errored"`)
 }
 
