@@ -70,7 +70,7 @@ argocd-apps:
               path: '{{ .path.path }}'
               targetRevision: *revision
               helm:
-                # CRDs come from system/crds, synced first (scripts/vendor-crds); system/crds' own are templates
+                # CRDs come from system/crds, applied by the bootstrap first (scripts/vendor-crds)
                 skipCrds: true
                 # values-local.yaml: what the sandbox and the testbed share (the local CA, the tests' fixtures)
                 valueFiles:

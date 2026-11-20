@@ -6,8 +6,6 @@ metadata:
   name: falco
   namespace: {{ .Release.Namespace }}
   annotations:
-    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "Falco loads its eBPF probe into the node's kernel and reads every process through the host's /proc, /sys, /etc and the container runtime's sockets (hostPath): a privileged container as root"
 spec:
   policyRefs:

@@ -6,8 +6,6 @@ metadata:
   name: agent
   namespace: {{ .Release.Namespace }}
   annotations:
-    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "The agent reads every pod's log files and the API server's audit log on its node (/var/log/pods, /var/log/kubernetes/audit: hostPath), which root owns, and keeps its positions and queue in /var/lib/otelcol (hostPath); every capability dropped"
 spec:
   policyRefs:

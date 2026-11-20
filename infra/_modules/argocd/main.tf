@@ -1,5 +1,5 @@
-# Apply Argo CD from the repository's system/argocd chart, again whenever its files, the values, the revision or the
-# cluster change; Argo CD syncs everything else (system/argocd-config among it), not itself (upstream nixos's model).
+# Apply every CRD (system/crds) and Argo CD from the repository's system/argocd chart, again whenever their files, the
+# values, the revision or the cluster change; Argo CD syncs everything else (system/argocd-config among it), not itself (upstream nixos's model).
 terraform {
   required_version = ">= 1.13"
 }
@@ -92,7 +92,10 @@ data "external" "values" {
 locals {
   # Helm writes charts/ and Chart.lock: hash only what the repository holds
   files = sort(setunion(fileset(var.chart, "*.yaml"), fileset(var.chart, "templates/**")))
-  hash  = sha1(join("", [for f in local.files : filesha1("${var.chart}/${f}")]))
+  # system/crds, which the bootstrap applies before Argo CD's ApplicationSets
+  crds = "${var.chart}/../crds"
+  hash = sha1(join("", concat([for f in local.files : filesha1("${var.chart}/${f}")],
+  [for f in sort(fileset(local.crds, "**")) : filesha1("${local.crds}/${f}")])))
   environment = {
     KUBECONFIG      = var.kubeconfig
     CHART           = var.chart

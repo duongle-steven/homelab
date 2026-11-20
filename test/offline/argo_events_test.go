@@ -16,7 +16,9 @@ func TestArgoEventsRender(t *testing.T) {
 		// The image runs as root unless told otherwise; runAsNonRoot alone refuses to start it (the sandbox, 2026-11-13)
 		assert.Equal(t, "65532", render(`select(.kind == "Deployment") | .spec.template.spec.securityContext.runAsUser`), env)
 		assert.Equal(t, "false", render(`select(.kind == "Deployment") | .spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation`), env)
-		assert.Contains(t, render(`select(.kind == "CustomResourceDefinition") | .metadata.name`), "eventbus.argoproj.io", env)
+		// Its CRDs come from system/crds (scripts/vendor-crds)
+		assert.Empty(t, render(`select(.kind == "CustomResourceDefinition") | .metadata.name`), env)
+		assert.Contains(t, renderVelero(t, "system/crds", env, `select(.kind == "CustomResourceDefinition") | .metadata.name`), "eventbus.argoproj.io", env)
 		// The JetStream version platform/ci's EventBus names, on NATS's latest images: the chart's own list (nats 2.10.29,
 		// the exporter and reloader 0.14.0) carries CRITICAL CVEs with fixes (the sandbox's TrivyOperator spec)
 		jetstream := `select(.kind == "ConfigMap" and .metadata.name == "argo-events-controller-manager") | .data["controller-config.yaml"] | from_yaml | .eventBus.jetstream.versions[]`

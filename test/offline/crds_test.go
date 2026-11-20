@@ -72,9 +72,58 @@ func TestVendorCRDsCheck(t *testing.T) {
 	raw, err := os.ReadFile(file)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(file, []byte(strings.Replace(string(raw), "kind: CustomResourceDefinition", "kind: CustomResourceDefinitionX", 1)), 0o644))
-	check := exec.Command("scripts/vendor-crds", "--check")
+	// One component: checking all of them renders every chart again
+	check := exec.Command("scripts/vendor-crds", "--check", "kyverno")
 	check.Dir = dir
 	out, err = check.CombinedOutput()
 	assert.Error(t, err)
 	assert.Contains(t, string(out), "scripts/vendor-crds kyverno")
+}
+
+// The bootstrap applies every CRD before Argo CD's ApplicationSets exist, so no Application ever syncs ahead of a
+// CRD it uses (an ApplicationSet's sync waves would not order its Applications)
+func TestBootstrapAppliesCRDsFirst(t *testing.T) {
+	dir, env := fakeBin(t, map[string]string{"kubectl": `case "$*" in
+  *"create namespace"*) printf 'apiVersion: v1\nkind: Namespace\nmetadata: {name: argocd}\n' ;;
+  *wait*) ;;
+  *"get secret"*) ;;
+  *apply*) yq -N '.kind + "/" + .metadata.name' >> "$FIXTURES/applied" ;;
+  *) exit 1 ;;
+esac`})
+	root, err := filepath.Abs(repo.Root())
+	require.NoError(t, err)
+	cmd := exec.Command("sh", root+"/infra/_modules/argocd/bootstrap.sh")
+	cmd.Env = append(env, "CHART="+root+"/system/argocd", "VALUES=values-dev.yaml", "ENVIRONMENT=dev",
+		"REPOSITORY=https://github.com/example/homelab", "BRANCH=sandbox", "KUBECONFIG=/dev/null")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	raw, err := os.ReadFile(filepath.Join(dir, "applied"))
+	require.NoError(t, err)
+	applied := strings.Fields(string(raw))
+	crd, appset := -1, -1
+	for i, o := range applied {
+		if o == "CustomResourceDefinition/policyexceptions.kyverno.io" && crd < 0 {
+			crd = i
+		}
+		if strings.HasPrefix(o, "ApplicationSet/") && appset < 0 {
+			appset = i
+		}
+	}
+	require.GreaterOrEqual(t, crd, 0, "system/crds never applied: %v", applied)
+	require.GreaterOrEqual(t, appset, 0)
+	assert.Less(t, crd, appset, "an ApplicationSet before system/crds")
+}
+
+// Argo CD does not manage system/crds (the bootstrap does, like system/argocd), and nothing waits on a CRD any more
+func TestNoCRDOrderWorkarounds(t *testing.T) {
+	for _, env := range []string{"", "dev", "testbed"} {
+		dirs := renderVelero(t, "system/argocd", env, `select(.kind == "ApplicationSet" and .metadata.name == "root") | .. | select(has("path") and .path == "system/crds") | (.exclude // false)`)
+		for _, excluded := range strings.Fields(dirs) {
+			assert.Equal(t, "true", excluded, "env=%s: root syncs system/crds", env)
+		}
+	}
+	cmd := exec.Command("git", "grep", "-l", "SkipDryRunOnMissingResource", "--", "system", "platform", "apps")
+	cmd.Dir = repo.Root()
+	out, _ := cmd.Output()
+	assert.Empty(t, strings.TrimSpace(string(out)), "files still waiting on a CRD")
 }

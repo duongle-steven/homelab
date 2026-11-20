@@ -133,6 +133,9 @@ argocd-apps:
                           # Applied by infra/_modules/argocd: Argo CD does not manage itself
                           - path: system/argocd
                             exclude: true
+                          # Applied by infra/_modules/argocd before Argo CD's ApplicationSets: every CRD first
+                          - path: system/crds
+                            exclude: true
                           # Rendered into every namespace by each Application (template below), not on its own
                           - path: system/egress
                             exclude: true
@@ -192,7 +195,7 @@ argocd-apps:
               path: '{{ .path.path }}'
               targetRevision: *revision
               helm:
-                # CRDs come from system/crds, synced first (scripts/vendor-crds); system/crds' own are templates
+                # CRDs come from system/crds, applied by the bootstrap first (scripts/vendor-crds)
                 skipCrds: true
                 # scripts/env-values resolves these offline for scripts/render-chart
                 valuesObject: &values
