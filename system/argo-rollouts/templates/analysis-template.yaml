@@ -1,5 +1,8 @@
 # Judges a canary from the Istio Gateways' request metrics (system/istio-system's PodMonitor "gateways"): its share of
-# 5xx and its p95 latency through the Gateway, each minute. No traffic is no evidence against it, so it passes
+# 5xx and its p95 latency through the Gateway over the last minute. No traffic is no evidence against it, so it passes.
+# It measures from 45 s after the canary takes traffic (a minute's rate over 30 s scrapes needs two samples: measured
+# at once, it found nothing and passed a canary serving only errors, AppDelivery 2026-11-20), every 20 s, four times:
+# inside the canary's two minutes of pauses, two failures abort it
 apiVersion: argoproj.io/v1alpha1
 kind: ClusterAnalysisTemplate
 metadata:
@@ -14,8 +17,9 @@ spec:
       value: "1000"
   metrics:
     - name: error-ratio
-      interval: 30s
-      count: 2
+      initialDelay: 45s
+      interval: 20s
+      count: 4
       failureLimit: 1
       successCondition: len(result) == 0 || isNaN(result[0]) || result[0] <= {{ "{{args.max-error-ratio}}" }}
       provider:
@@ -26,8 +30,9 @@ spec:
             /
             sum(rate(istio_requests_total{destination_service_name="{{ "{{args.service}}" }}", destination_service_namespace="{{ "{{args.namespace}}" }}"}[1m]))
     - name: p95-latency
-      interval: 30s
-      count: 2
+      initialDelay: 45s
+      interval: 20s
+      count: 4
       failureLimit: 1
       successCondition: len(result) == 0 || isNaN(result[0]) || result[0] <= {{ "{{args.max-p95-ms}}" }}
       provider:

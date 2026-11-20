@@ -1,10 +1,13 @@
 package offline
 
 import (
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // renderArgoRollouts renders system/argo-rollouts for env ("" or dev) and runs a yq expression on it
@@ -46,5 +49,31 @@ func TestArgoRolloutsRender(t *testing.T) {
 			assert.Equal(t, "argo-rollouts", renderArgoRollouts(t, e,
 				`select(.kind == "AuthorizationPolicy" and .metadata.name == "allow") | .metadata.namespace`))
 		})
+	}
+}
+
+// gateway-success-rate judges a canary on data: its first measurement waits for a minute's rate to have two scrapes,
+// and its last falls inside the test app's canary pauses (measured at once it found nothing and passed a canary
+// serving only errors, AppDelivery 2026-11-20)
+func TestGatewaySuccessRateMeasuresTheCanary(t *testing.T) {
+	seconds := func(d string) float64 {
+		v, err := time.ParseDuration(d)
+		require.NoError(t, err, d)
+		return v.Seconds()
+	}
+	metrics := strings.Split(renderVelero(t, "system/argo-rollouts", "", `select(.kind == "ClusterAnalysisTemplate" and .metadata.name == "gateway-success-rate") | .spec.metrics[] | .name + " " + (.initialDelay // "0s") + " " + .interval + " " + (.count | tostring)`), "\n")
+	pauses := 0.0
+	for _, p := range strings.Fields(renderVelero(t, "test/fixtures/apps/delivery-test.yaml", "dev", `select(.kind == "Rollout") | .spec.strategy.canary.steps[] | select(has("pause")) | .pause.duration`)) {
+		pauses += seconds(p)
+	}
+	require.NotZero(t, pauses)
+	for _, m := range metrics {
+		f := strings.Fields(m)
+		require.Len(t, f, 4, m)
+		count, err := strconv.Atoi(f[3])
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, seconds(f[1]), 30.0, "%s measures before a minute's rate has two scrapes", f[0])
+		assert.GreaterOrEqual(t, count, 3, "%s: too few measurements to judge", f[0])
+		assert.LessOrEqual(t, seconds(f[1])+float64(count-1)*seconds(f[2]), pauses, "%s measures after the canary ended", f[0])
 	}
 }

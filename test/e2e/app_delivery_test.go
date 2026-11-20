@@ -166,12 +166,8 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 	}, SpecTimeout(20*time.Minute))
 
 	It("aborts a version that serves errors and keeps users on the last good one", func(ctx SpecContext) {
-		broken := deliveryCommit(ctx, deliveryContainerfile("broken", true))
-		_, digest := ciWorkflowFor(ctx, deliveryApp, broken, "push")
-		Expect(digest).NotTo(BeEmpty(), "the CI pushed no image")
-		Eventually(ctx, deliveryRelease).WithTimeout(20 * time.Minute).WithPolling(20 * time.Second).Should(ContainSubstring(broken))
-
-		// Traffic through the Gateway while the canary runs: its 5xx are what the analysis reads
+		// Traffic through the Gateway from before the release, so the canary meets it from its first second: its 5xx
+		// are what the analysis reads
 		traffic, stop := context.WithCancel(ctx)
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -183,6 +179,11 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 			}
 		}()
 		DeferCleanup(func() { stop(); wg.Wait() })
+
+		broken := deliveryCommit(ctx, deliveryContainerfile("broken", true))
+		_, digest := ciWorkflowFor(ctx, deliveryApp, broken, "push")
+		Expect(digest).NotTo(BeEmpty(), "the CI pushed no image")
+		Eventually(ctx, deliveryRelease).WithTimeout(20 * time.Minute).WithPolling(20 * time.Second).Should(ContainSubstring(broken))
 
 		Eventually(ctx, rolloutState).WithTimeout(15*time.Minute).WithPolling(10*time.Second).Should(Equal("Degraded abort=true"),
 			"the analysis did not abort the canary")
