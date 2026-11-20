@@ -243,6 +243,20 @@ func checkGeneratorSettings(root string, entries []Entry) []string {
 	}
 	var problems []string
 	seen := map[string]bool{}
+	// An environment's extraDestinations (values-dev.yaml: the sandbox's own readers) add to an entry's destinations:
+	// the catalog lists every environment's paths
+	extra := map[string][]string{}
+	for _, v := range files {
+		m, _ := v.doc["extraDestinations"].(map[string]any)
+		for name, list := range m {
+			items, _ := list.([]any)
+			for _, d := range items {
+				if p, ok := d.(string); ok {
+					extra[name] = append(extra[name], p)
+				}
+			}
+		}
+	}
 	for _, v := range files {
 		for _, list := range []string{"secrets", "extraSecrets"} {
 			for _, s := range v.list(list) {
@@ -273,6 +287,7 @@ func checkGeneratorSettings(root string, entries []Entry) []string {
 						problems = append(problems, fmt.Sprintf("%s: %s is %q in the catalog, %q in platform/generated-secrets %s", name, c.setting, got, c.want, v.file))
 					}
 				}
+				destinations = append(destinations, extra[name]...)
 				if !slices.Equal(e.Paths, destinations) {
 					problems = append(problems, fmt.Sprintf("%s: paths %v in the catalog, destinations %v in platform/generated-secrets %s", name, e.Paths, destinations, v.file))
 				}

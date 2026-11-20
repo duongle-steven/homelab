@@ -112,7 +112,7 @@ func TestCheckReportsMissingValues(t *testing.T) {
 // namespaces of the periodic entries' readers, and OpenBao's policy rotator names each of their paths
 func TestCheckScheduledAccess(t *testing.T) {
 	root := t.TempDir()
-	write(t, root, "platform/secrets-rotation/values.yaml", "readers:\n  ntfy: {externalSecrets: [ntfy-auth, stale], deployments: [ntfy]}\n  extra: {externalSecrets: [x]}\n")
+	write(t, root, "system/secret-store/values.yaml", "rotationReaders:\n  ntfy: {externalSecrets: [ntfy-auth, stale], deployments: [ntfy]}\n  extra: {externalSecrets: [x]}\n")
 	// zot's path appears only in another policy, and a's rotation record is missing from rotator
 	write(t, root, "platform/openbao/values.yaml", `request "other" {
   policy = "path \"secret/data/zot/generated/ci\" { capabilities = [\"read\"] }"

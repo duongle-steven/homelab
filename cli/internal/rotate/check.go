@@ -298,13 +298,17 @@ func Scheduled(e Entry) bool {
 }
 
 // CheckScheduled compares what the scheduled rotation may touch with what its entries need: the readers in
-// platform/secrets-rotation/values.yaml (its RBAC: namespaces, ExternalSecrets, Deployments, StatefulSets) and the
+// system/secret-store/values.yaml's rotationReaders (the RBAC each reader's namespace grants it: ExternalSecrets,
+// Deployments, StatefulSets) and the
 // paths in platform/openbao/values.yaml (policy rotator).
+// readersFile holds the scheduled rotation's access to its readers' namespaces
+const readersFile = "system/secret-store/values.yaml"
+
 func CheckScheduled(root string, entries []Entry) []string {
 	var problems []string
-	raw, err := os.ReadFile(filepath.Join(root, "platform/secrets-rotation/values.yaml"))
+	raw, err := os.ReadFile(filepath.Join(root, readersFile))
 	if err != nil {
-		return []string{fmt.Sprintf("platform/secrets-rotation/values.yaml: %v", err)}
+		return []string{fmt.Sprintf("%s: %v", readersFile, err)}
 	}
 	type access struct {
 		ExternalSecrets []string `yaml:"externalSecrets"`
@@ -312,10 +316,10 @@ func CheckScheduled(root string, entries []Entry) []string {
 		StatefulSets    []string `yaml:"statefulsets"`
 	}
 	var v struct {
-		Readers map[string]access `yaml:"readers"`
+		Readers map[string]access `yaml:"rotationReaders"`
 	}
 	if err := yaml.Unmarshal(raw, &v); err != nil {
-		return []string{fmt.Sprintf("platform/secrets-rotation/values.yaml: %v", err)}
+		return []string{fmt.Sprintf("%s: %v", readersFile, err)}
 	}
 	values, err := os.ReadFile(filepath.Join(root, "platform/openbao/values.yaml"))
 	if err != nil {
@@ -340,7 +344,7 @@ func CheckScheduled(root string, entries []Entry) []string {
 				needed[r.Namespace] = map[string][]string{}
 			}
 			if _, ok := v.Readers[r.Namespace]; !ok {
-				problems = append(problems, fmt.Sprintf("%s: %s's readers are there, not in platform/secrets-rotation's readers", r.Namespace, e.Name))
+				problems = append(problems, fmt.Sprintf("%s: %s's readers are there, not in system/secret-store's rotationReaders", r.Namespace, e.Name))
 			}
 			needed[r.Namespace]["ExternalSecret"] = append(needed[r.Namespace]["ExternalSecret"], r.ExternalSecrets...)
 			for _, w := range r.Workloads {

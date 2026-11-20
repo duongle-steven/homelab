@@ -1,6 +1,6 @@
 # What the scheduled rotation may touch, and nothing else: its locks here, OpenBao through the API server's proxy
-# (role rotator decides the paths), Velero's backups (the backup check), and in each readers' namespace their
-# ExternalSecrets and workloads (refresh, rolling restart, wait)
+# (role rotator decides the paths) and Velero's backups (the backup check). Its access to each reader's namespace
+# (refresh, rolling restart, wait) is that namespace's own: system/secret-store's rotationReaders
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -56,50 +56,27 @@ rules:
     resources: [backups]
     verbs: [get, list]
 {{- include "secrets-rotation.binding" (dict "namespace" "velero" "from" .Release.Namespace) }}
-{{- range $ns, $r := .Values.readers }}
+---
+# Which readers' namespaces exist (lab leaves the others out of a rotation): the only cluster-wide read
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: secrets-rotation-namespaces
+rules:
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRoleBinding
 metadata:
-  name: secrets-rotation
-  namespace: {{ $ns }}
-rules:
-  - apiGroups: [external-secrets.io]
-    resources: [externalsecrets]
-    resourceNames: {{ $r.externalSecrets | toJson }}
-    verbs: [get, patch]
-  {{- if or $r.deployments $r.statefulsets }}
-  # Listing finds who owns what (Kanidm's StatefulSets are kaniop's); only the named ones are patched (restarted)
-  - apiGroups: [apps]
-    resources: [deployments, statefulsets, replicasets]
-    verbs: [get, list]
-  {{- with $r.deployments }}
-  - apiGroups: [apps]
-    resources: [deployments]
-    resourceNames: {{ . | toJson }}
-    verbs: [patch]
-  {{- end }}
-  {{- with $r.statefulsets }}
-  - apiGroups: [apps]
-    resources: [statefulsets]
-    resourceNames: {{ . | toJson }}
-    verbs: [patch]
-  {{- end }}
-  # Waiting restarts a crash-looping pod once
-  - apiGroups: [""]
-    resources: [pods]
-    verbs: [get, list, delete]
-  {{- end }}
-  {{- if $r.idle }}
-  # The idle wait lists the golden path's runs (an entry's idle: ci)
-  - apiGroups: [argoproj.io]
-    resources: [workflows]
-    verbs: [get, list]
-  {{- end }}
-  {{- if $r.exec }}
-  - apiGroups: [""]
-    resources: [pods/exec]
-    verbs: [create, get]
-  {{- end }}
-{{- include "secrets-rotation.binding" (dict "namespace" $ns "from" $.Release.Namespace) }}
-{{- end }}
+  name: secrets-rotation-namespaces
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: secrets-rotation-namespaces
+subjects:
+  - kind: ServiceAccount
+    name: secrets-rotation
+    namespace: {{ .Release.Namespace }}
+
