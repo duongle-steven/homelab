@@ -73,7 +73,13 @@ func TestStageGatesApps(t *testing.T) {
 		}
 		// root's generators: each matrix's own cluster stage and the directories it lists
 		gated := yq(`select(.metadata.name == "root") | .spec.generators[] | select(.matrix.generators[0].clusters.selector.matchLabels["homelab/stage"] == "all") | .. | select(has("directories")) | .directories[] | select(.exclude != true) | .path`)
-		assert.ElementsMatch(t, gatedByEnv[env], gated, "env=%q: root's gated generator", env)
+		want := gatedByEnv[env]
+		if env == "dev" {
+			// The sandbox's groups (test/scopes.yaml deployGroups): every one at stage all, which the sandbox always is
+			want = append(want, yq(`select(.metadata.name == "root") | .spec.generators[] | select(.matrix.generators[0].clusters.selector.matchLabels | keys | .[] | test("^homelab/group-")) | .. | select(has("directories")) | .directories[] | .path`)...)
+			want = slices.DeleteFunc(slices.Compact(slices.Sorted(slices.Values(want))), func(p string) bool { return p == "" })
+		}
+		assert.ElementsMatch(t, want, gated, "env=%q: root's gated generator", env)
 		ungated := yq(`select(.metadata.name == "root") | .spec.generators[] | select(.matrix.generators[0].clusters.selector.matchLabels["homelab/stage"] != "all") | .. | select(has("directories")) | .directories[] | select(.exclude != true) | .path`)
 		for _, path := range []string{"apps/*", "apps/matrix", "system/public-scan"} {
 			assert.NotContains(t, ungated, path, "env=%q: an ungated generator deploys %s", env, path)

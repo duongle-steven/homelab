@@ -12,6 +12,7 @@ import (
 	"github.com/duongle-steven/homelab/test/internal/repo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // clusterSecret runs cluster-secret.sh with env and returns its output
@@ -34,13 +35,13 @@ func yqOn(t *testing.T, doc, expr string) string {
 }
 
 // The bootstrap's cluster Secret carries what the ApplicationSets read: every annotation always present, one label per
-// optional app asked
+// sandbox group deployed
 func TestArgoCDClusterSecret(t *testing.T) {
-	out, err := clusterSecret(t, "REPOSITORY=https://github.com/example/homelab", "BRANCH=sandbox", "OPTIONAL_APPS=paperless paperless")
+	out, err := clusterSecret(t, "REPOSITORY=https://github.com/example/homelab", "BRANCH=sandbox", "SANDBOX_GROUPS=metrics ci metrics")
 	require.NoError(t, err)
 	assert.Equal(t, `"Secret"`, yqOn(t, out, ".kind"))
 	assert.Equal(t, `{"name":"in-cluster","namespace":"argocd"}`, yqOn(t, out, `.metadata | {"name": .name, "namespace": .namespace}`))
-	assert.JSONEq(t, `{"argocd.argoproj.io/secret-type":"cluster","homelab/bootstrap":"true","homelab/stage":"all","homelab/app-paperless":"true"}`,
+	assert.JSONEq(t, `{"argocd.argoproj.io/secret-type":"cluster","homelab/bootstrap":"true","homelab/stage":"all","homelab/group-ci":"true","homelab/group-metrics":"true"}`,
 		yqOn(t, out, ".metadata.labels"))
 	assert.JSONEq(t, `{"repository":"https://github.com/example/homelab","revision":"sandbox","backupS3Url":""}`,
 		yqOn(t, out, ".metadata.annotations"))
@@ -50,7 +51,7 @@ func TestArgoCDClusterSecret(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `"abc123"`, yqOn(t, out, ".metadata.annotations.revision"))
 	assert.Equal(t, `"https://s3.example"`, yqOn(t, out, ".metadata.annotations.backupS3Url"))
-	assert.Equal(t, `[]`, yqOn(t, out, `[.metadata.labels | keys | .[] | select(test("^homelab/app-"))]`))
+	assert.Equal(t, `[]`, yqOn(t, out, `[.metadata.labels | keys | .[] | select(test("^homelab/(app|group)-"))]`))
 
 	_, err = clusterSecret(t, "BRANCH=sandbox")
 	assert.Error(t, err, "no REPOSITORY")
@@ -177,38 +178,63 @@ func TestArgoCDReadsClusterSecret(t *testing.T) {
 	}
 }
 
-// The sandbox's optional apps come only through their own generators, each selecting the cluster Secret's label
-func TestArgoCDOptionalApps(t *testing.T) {
-	apps := asList(dig(renderAppSets(t, "dev")["apps"], "spec", "generators"))
-	optional := map[string]bool{}
-	for _, g := range apps {
-		labels, _ := dig(g, "matrix", "generators", 0, "clusters", "selector", "matchLabels").(map[string]any)
-		var files []string
-		walk(dig(g, "matrix", "generators", 1), func(m map[string]any) {
-			for _, f := range asList(m["files"]) {
-				files = append(files, f.(map[string]any)["path"].(string))
-			}
-		})
-		app := ""
-		for key := range labels {
-			if name, ok := strings.CutPrefix(key, "homelab/app-"); ok {
-				app = name
-			}
-		}
-		if app == "" {
-			assert.NotContains(t, files, "apps/paperless.yaml")
-			assert.NotContains(t, files, "apps/opencloud.yaml")
-			continue
-		}
-		optional[app] = true
-		assert.Equal(t, map[string]any{"homelab/bootstrap": "true", "homelab/stage": "all", "homelab/app-" + app: "true"}, labels)
-		assert.Equal(t, []string{"apps/" + app + ".yaml", "infra/sandbox/cluster/config.json"}, files)
-	}
-	assert.Equal(t, map[string]bool{"paperless": true, "opencloud": true}, optional)
-
-	raw, err := json.Marshal(renderAppSets(t, ""))
+// docs/superpowers/specs/2026-11-20-sandbox-groups-design.md: the sandbox's generators are test/scopes.yaml's core and
+// groups, each group gated by the cluster Secret's label homelab/group-<name>
+func TestArgoCDSandboxGroups(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(repo.Root(), "test", "scopes.yaml"))
 	require.NoError(t, err)
-	assert.False(t, strings.Contains(string(raw), "homelab/app-"), "production has no optional apps")
+	var scopes struct {
+		Core struct {
+			Components []string `yaml:"components"`
+		} `yaml:"core"`
+		DeployGroups map[string]struct {
+			Components []string `yaml:"components"`
+		} `yaml:"deployGroups"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &scopes))
+	// What each generator lists, by the group label it selects ("" for the core)
+	listed := map[string][]string{}
+	appSets := renderAppSets(t, "dev")
+	for _, set := range []string{"root", "apps"} {
+		for _, g := range asList(dig(appSets[set], "spec", "generators")) {
+			labels, _ := dig(g, "matrix", "generators", 0, "clusters", "selector", "matchLabels").(map[string]any)
+			group := ""
+			for key := range labels {
+				if name, ok := strings.CutPrefix(key, "homelab/group-"); ok {
+					group = name
+					assert.Equal(t, map[string]any{"homelab/bootstrap": "true", "homelab/stage": "all", key: "true"}, labels)
+				}
+			}
+			walk(dig(g, "matrix", "generators", 1), func(m map[string]any) {
+				for _, key := range []string{"directories", "files"} {
+					for _, f := range asList(m[key]) {
+						if path := f.(map[string]any)["path"].(string); path != "infra/sandbox/cluster/config.json" {
+							listed[group] = append(listed[group], path)
+						}
+					}
+				}
+			})
+		}
+	}
+	// system/crds is the bootstrap's; egress and the SecretStore are every Application's sources
+	var core []string
+	for _, c := range scopes.Core.Components {
+		if c != "system/crds" && c != "system/egress" && c != "system/secret-store" {
+			core = append(core, c)
+		}
+	}
+	assert.ElementsMatch(t, core, listed[""], "the core's generators")
+	for name, g := range scopes.DeployGroups {
+		assert.ElementsMatch(t, g.Components, listed[name], "group %s", name)
+		delete(listed, name)
+	}
+	delete(listed, "")
+	assert.Empty(t, listed, "generators of groups test/scopes.yaml does not have")
+
+	all, err := json.Marshal(renderAppSets(t, ""))
+	require.NoError(t, err)
+	assert.False(t, strings.Contains(string(all), "homelab/group-"), "production has no groups")
+	assert.False(t, strings.Contains(string(all), "homelab/app-"), "the optional apps' labels are gone")
 }
 
 // dig follows keys (string for a map, int for a list) under v; nil when one is missing

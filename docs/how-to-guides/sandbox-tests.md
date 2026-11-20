@@ -14,27 +14,36 @@ top-level container only, from the fixed list in `test/scopes.yaml` (`labels:`):
 | `just dev --revision <sha>` | The same selection, syncing that commit without pushing branch `sandbox` (what GitHub Actions runs, [CI](ci.md)); it must be the commit checked out (HEAD), because the specs and their scope come from the checkout |
 | `just test e2e --env <sandbox\|testbed\|production> [--labels '<filter>'] [--focus <regex>] [--verbose]` | The suite against an environment's cluster as it is, no build; `--env` is required, and `&& <env>` is added to the filter |
 
-## Optional apps
+## Groups: the sandbox runs what the specs need
 
-Paperless and OpenCloud take about 900 MB, so the local sandbox runs them only when asked (the justfile's
-`optional_apps`; Backstage always runs, its image built by every `just dev`):
+The sandbox is for testing what is being built, so a run deploys only the **core** (Argo CD's config, Istio,
+cert-manager, the volumes, External Secrets, OpenBao, Kanidm, and every CRD from `system/crds`) and the **groups** its
+specs need; everything else is removed. One file says which: `test/scopes.yaml`'s `core:` and `deployGroups:`
+(`docs/superpowers/specs/2026-11-20-sandbox-groups-design.md`). A group goes in when:
 
-- **automatically**, when the branch changes their app file (`apps/paperless.yaml`, `apps/opencloud.yaml`) outside its
-  `homelab:` description: an upgrade is tested before production;
-- **on request**: `just dev --apps paperless`, `--apps paperless,opencloud`, or `--apps all`, for example with
-  `just dev-fresh --apps all`.
+- a selected spec carries one of its `labels` (a spec's every label counts: `BackstageTemplate` carries `ci`, so
+  `--tests ci` also deploys `backstage`);
+- the branch changes one of its components (compared with `--base`): an upgrade is tested before production;
+- `--apps` names it: `just dev --apps paperless,opencloud`, `--apps all` for every group;
+- a deployed group `needs` it (`backstage` needs `ci`, which needs `git`).
 
-`--apps none` (alone, never with names) leaves both out even when the branch changes their files: a branch that touches every app can then be
-proved in two runs that each fit in memory, `just dev --full --apps none` and then
-`just dev --apps all --tests 'paperless || opencloud || smoke'`.
+`just dev` prints them (`groups '...'`; `lab test scope ... --groups` prints the same) and refuses a name that is no
+group. A group left out is removed: Argo CD deletes its Applications (the cluster Secret loses its label
+`homelab/group-<name>`), and `just dev` deletes its namespaces, volumes included. lab's image is built only with
+`backup` (the scheduled rotation) and Backstage's only with `backstage`. `--full`, `just dev-fresh` and GitHub Actions'
+release, retarget and on-demand sandboxes (`--apps all`) deploy every group, so `master` is still proven on everything
+together.
 
-`just dev` prints the list (`optional apps '...'`) and refuses a name that is not an optional app. An app left out is
-removed: Argo CD deletes its Application, and `just dev` deletes its namespace (Argo CD keeps namespaces it created),
-volumes included. Its specs skip (`SSOPaperless`, `SSOOpenCloud`, its smoke spec), and in the sandbox
-`lab secrets rotate --all` skips its secrets ("not deployed here"). An app the list names but that is absent fails
-its specs instead. GitHub Actions' release, retarget and on-demand sandboxes run with `--apps all`, so paperless and
-OpenCloud are proved before every release; a pull request labelled `sandbox` deploys them only when it changes their
-files, as `just dev` does.
+A spec whose labels need a group that is not deployed skips, naming the group; a group the run asked for but the
+cluster lacks fails its specs instead. In the sandbox `lab secrets rotate --all` skips the secrets whose readers'
+namespaces are gone ("not deployed here").
+
+A new label goes in `core.labels` (its specs need nothing more) or in a group's `labels`; a new component in the core
+or in one group, with its directory or app file in that group's generator in `system/argocd/values-dev.yaml`
+(`just cli check` and `TestArgoCDSandboxGroups` fail otherwise).
+
+Before closing WSL, `just dev-stop` stops the sandbox so it stays stopped (Docker would start it with WSL); the next
+`just dev` rebuilds it from scratch.
 
 For example, the Loki and OpenBao specs only, then Kiali's (`sso && kiali`: a family and an extra label):
 

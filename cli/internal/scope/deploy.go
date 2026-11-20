@@ -56,6 +56,15 @@ func (c Config) GroupsFor(filter string, specs []Spec, changed []string) []strin
 			}
 		}
 	}
+	return c.WithNeeds(keys(wanted))
+}
+
+// WithNeeds returns groups and every group they need, sorted; an unknown name is an error's to report (Unknown).
+func (c Config) WithNeeds(groups []string) []string {
+	wanted := map[string]bool{}
+	for _, g := range groups {
+		wanted[g] = true
+	}
 	for queue := keys(wanted); len(queue) > 0; queue = queue[1:] {
 		for _, need := range c.DeployGroups[queue[0]].Needs {
 			if !wanted[need] {

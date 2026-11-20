@@ -43,7 +43,7 @@ export KUBECONFIG=$PWD/infra/sandbox/kubeconfig.yaml  # from the repository root
 - <https://grafana.127-0-0-1.nip.io> ("Sign in with Kanidm", or user `admin` with `kubectl -n grafana get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`)
 - <https://registry.127-0-0-1.nip.io> (zot; log in with Kanidm, then create an API key under your user menu and `docker login registry.127-0-0-1.nip.io -u <username> -p <key>`)
 - <https://git.127-0-0-1.nip.io> (Forgejo; "Sign in with Kanidm", or user `forgejo_admin` with `kubectl -n forgejo get secret forgejo-admin -o jsonpath='{.data.password}' | base64 -d`; `ops/homelab` stays empty until `TestForgejoDeploy` runs `lab infra forgejo sync` and `push`; SSH on `127.0.0.1:22`)
-- <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io> (only with `just dev --apps paperless`: paperless and OpenCloud are optional here, [Sandbox tests](../how-to-guides/sandbox-tests.md#optional-apps)): log in with Kanidm (paperless also has a local `admin`, password in OpenBao `secret/paperless/generated/admin`, property `PAPERLESS_ADMIN_PASSWORD`)
+- <https://budget.127-0-0-1.nip.io> (Actual Budget) and <https://paperless.127-0-0-1.nip.io> (each app only when its group is deployed, e.g. `just dev --apps actualbudget,paperless`: [Sandbox tests](../how-to-guides/sandbox-tests.md#groups-the-sandbox-runs-what-the-specs-need)): log in with Kanidm (paperless also has a local `admin`, password in OpenBao `secret/paperless/generated/admin`, property `PAPERLESS_ADMIN_PASSWORD`)
 - <https://drive.127-0-0-1.nip.io> (OpenCloud): log in with Kanidm and accept the consent page once
 - <https://home.127-0-0-1.nip.io>, <https://drop.127-0-0-1.nip.io>, <https://speedtest.127-0-0-1.nip.io>
 
@@ -151,10 +151,10 @@ production's data. The authoritative lists are `system/argocd/values-dev.yaml` (
 | Git and CI: Forgejo, zot, Argo Workflows and Events, the golden path | yes | no | yes |
 | Backstage (built from the checkout) | yes | no | after its first release |
 | Apps: Actual Budget, Excalidraw, Homepage, Matrix, ntfy, PairDrop, Speedtest | yes | no | yes |
-| Optional: paperless, OpenCloud | when asked or changed | no | yes |
 | Cloudflare Tunnel, external-dns, Renovate, Jellyfin and its *arr apps, Tailscale, WireGuard, the blog | no | no | yes |
 
-"Changed" means the branch changes the app's file, not only its `homelab:` description.
+In the sandbox, everything outside the core runs only when a run needs it: its groups, chosen from the specs a run
+selects, the components the branch changes and `just dev --apps` ([Sandbox tests](../how-to-guides/sandbox-tests.md#groups-the-sandbox-runs-what-the-specs-need)).
 
 ## Resource usage
 

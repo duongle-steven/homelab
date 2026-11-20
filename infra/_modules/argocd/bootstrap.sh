@@ -4,7 +4,7 @@
 # Env: KUBECONFIG, CHART (system/argocd), VALUES (file name in CHART, chosen by choose-values.sh: the seed on
 # production's first install), ENVIRONMENT (prod, testbed, dev or seed, for scripts/env-values: the chart gets the same
 # global values Argo CD passes it), REQUESTED_STAGE (optional, resolve-stage.sh), and cluster-secret.sh's REPOSITORY, BRANCH,
-# REVISION, BACKUP_S3_URL and OPTIONAL_APPS:
+# REVISION, BACKUP_S3_URL and SANDBOX_GROUPS:
 # what is not in git or known only now reaches the ApplicationSets through the cluster Secret, not a rewrite of the render
 set -eu
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null

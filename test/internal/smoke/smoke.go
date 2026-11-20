@@ -42,16 +42,16 @@ func Apps(env string) []App {
 	}
 }
 
-// OptionalAppState decides about an optional app: skip it when it was not asked for and is absent, fail when it was
-// asked for and is absent (the release sandbox must never go green without it) or when the cluster cannot say
-func OptionalAppState(app string, wanted []string, present bool, err error) (skip bool, failure string) {
+// GroupState decides about a sandbox deploy group: skip its specs when it was not asked for and is absent, fail when it
+// was asked for and is absent (the release sandbox must never go green without it) or when the cluster cannot say
+func GroupState(group string, wanted []string, present bool, err error) (skip bool, failure string) {
 	switch {
 	case err != nil:
-		return false, fmt.Sprintf("cannot tell whether %s is deployed: %v", app, err)
+		return false, fmt.Sprintf("cannot tell whether the group %s is deployed: %v", group, err)
 	case present:
 		return false, ""
-	case slices.Contains(wanted, app):
-		return false, fmt.Sprintf("%s was asked for (HOMELAB_SANDBOX_APPS) but its Application does not exist", app)
+	case slices.Contains(wanted, group):
+		return false, fmt.Sprintf("the group %s was asked for (HOMELAB_SANDBOX_GROUPS) but the cluster Secret does not carry it", group)
 	}
 	return true, ""
 }

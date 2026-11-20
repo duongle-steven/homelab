@@ -18,6 +18,7 @@ func newTestCmd() *cobra.Command {
 
 func newTestScopeCmd() *cobra.Command {
 	var base, tests, config string
+	var add []string
 	var alone, each, full, check, groups bool
 	cmd := &cobra.Command{
 		Use:   "scope",
@@ -78,6 +79,11 @@ func newTestScopeCmd() *cobra.Command {
 			}
 			main, aloneLabels := c.Filter(s, specs)
 			if groups {
+				for _, name := range add {
+					if _, ok := c.DeployGroups[name]; !ok {
+						return fmt.Errorf("%s is no group of test/scopes.yaml (deployGroups: %s)", name, strings.Join(c.AllGroups(), " "))
+					}
+				}
 				names := c.AllGroups()
 				if !s.Full {
 					runs := append([]string{main}, aloneLabels...)
@@ -89,6 +95,7 @@ func newTestScopeCmd() *cobra.Command {
 					}
 					names = c.GroupsFor(strings.Trim(strings.Join(nonEmpty(runs), " || "), " |"), specs, changed)
 				}
+				names = c.WithNeeds(append(names, add...))
 				for _, name := range names {
 					fmt.Fprintln(cmd.OutOrStdout(), name)
 				}
@@ -114,6 +121,7 @@ func newTestScopeCmd() *cobra.Command {
 	flags.BoolVar(&full, "full", false, "the whole suite")
 	flags.StringVar(&tests, "tests", "", "exactly these specs (a Ginkgo label filter)")
 	flags.BoolVar(&groups, "groups", false, "print the deploy groups the selection needs, one per line (--full: every group)")
+	flags.StringSliceVar(&add, "add", nil, "with --groups, these groups too (and their needs): just dev --apps")
 	flags.BoolVar(&check, "check", false, "verify the map instead of printing a selection")
 	flags.StringVar(&config, "config", "test/scopes.yaml", "the map, relative to the repository root")
 	cmd.MarkFlagsMutuallyExclusive("full", "tests", "check")

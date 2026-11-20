@@ -35,51 +35,159 @@ argocd-apps:
                         directories:
                           - path: system/argocd-config
                           - path: system/istio-system
-                          - path: system/csi-hostpath
-                          - path: system/velero
                           - path: system/cert-manager
-                          - path: system/monitoring-system
-                          - path: system/loki
-                          - path: system/kiali
-                          - path: system/kyverno
-                          - path: system/trivy-operator
-                          - path: system/falco
-                          - path: system/opentelemetry
-                          - path: system/tempo
+                          - path: system/csi-hostpath
                           - path: platform/external-secrets
                           - path: platform/openbao
                           - path: platform/generated-secrets
                           - path: platform/infra-secrets
                           - path: platform/kanidm
-                          - path: platform/grafana
-                          - path: platform/zot
-                          - path: platform/cloudnative-pg
-                          - path: platform/forgejo
-                          - path: platform/argo-workflows
-                          - path: platform/argo-events
-                          - path: platform/ci
-                          - path: platform/secrets-rotation
-                          - path: platform/backstage
                     - git: &config
                         repoURL: *repoURL
                         revision: *revision
                         files:
                           - path: infra/sandbox/cluster/config.json
                         pathParamPrefix: config
-        # The public scan, only at stage all (system/argocd/values.yaml; the sandbox is always all)
+        # One generator per group of test/scopes.yaml (deployGroups), deployed when the cluster Secret carries
+        # homelab/group-<name>, which the bootstrap writes for the groups just dev chose (lab test scope --groups);
+        # the sandbox is always at stage all (system/argocd/values.yaml)
         - matrix:
             generators:
-              - clusters: &appsCluster
+              - clusters:
                   selector:
                     matchLabels:
                       homelab/bootstrap: "true"
                       homelab/stage: all
+                      homelab/group-backstage: "true"
               - matrix:
                   generators:
                     - git:
                         repoURL: *repoURL
                         revision: *revision
                         directories:
+                          - path: platform/backstage
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-backup: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        directories:
+                          - path: system/velero
+                          - path: platform/secrets-rotation
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-ci: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        directories:
+                          - path: platform/zot
+                          - path: platform/argo-workflows
+                          - path: platform/argo-events
+                          - path: platform/ci
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-git: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        directories:
+                          - path: platform/cloudnative-pg
+                          - path: platform/forgejo
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-metrics: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        directories:
+                          - path: system/monitoring-system
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-observability: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        directories:
+                          - path: system/loki
+                          - path: system/tempo
+                          - path: system/opentelemetry
+                          - path: system/kiali
+                          - path: platform/grafana
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-policy: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        directories:
+                          - path: system/kyverno
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-security: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        directories:
+                          - path: system/trivy-operator
+                          - path: system/falco
                           - path: system/public-scan
                     - git: *config
       template:
@@ -140,25 +248,7 @@ argocd-apps:
                 valuesObject: *values
     apps:
       generators:
-        - matrix:
-            generators:
-              - clusters: *appsCluster
-              - matrix:
-                  generators:
-                    - git:
-                        repoURL: *repoURL
-                        revision: *revision
-                        files:
-                          - path: apps/actualbudget.yaml
-                          - path: apps/excalidraw.yaml
-                          - path: apps/homepage.yaml
-                          - path: apps/matrix.yaml
-                          - path: apps/ntfy.yaml
-                          - path: apps/pairdrop.yaml
-                          - path: apps/speedtest.yaml
-                    - git: *config
-        # Optional apps (about 900 MB): only when the cluster Secret carries homelab/app-<name>, which the bootstrap
-        # writes for what just dev --apps asks (or the branch changes)
+        # Every app is a group's (test/scopes.yaml deployGroups): deployed when the cluster Secret carries its label
         - matrix:
             generators:
               - clusters:
@@ -166,7 +256,119 @@ argocd-apps:
                     matchLabels:
                       homelab/bootstrap: "true"
                       homelab/stage: all
-                      homelab/app-paperless: "true"
+                      homelab/group-actualbudget: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/actualbudget.yaml
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-excalidraw: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/excalidraw.yaml
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-homepage: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/homepage.yaml
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-matrix: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/matrix.yaml
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-ntfy: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/ntfy.yaml
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-opencloud: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/opencloud.yaml
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-pairdrop: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/pairdrop.yaml
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+                      homelab/group-paperless: "true"
               - matrix:
                   generators:
                     - git:
@@ -182,14 +384,14 @@ argocd-apps:
                     matchLabels:
                       homelab/bootstrap: "true"
                       homelab/stage: all
-                      homelab/app-opencloud: "true"
+                      homelab/group-speedtest: "true"
               - matrix:
                   generators:
                     - git:
                         repoURL: *repoURL
                         revision: *revision
                         files:
-                          - path: apps/opencloud.yaml
+                          - path: apps/speedtest.yaml
                     - git: *config
       template:
         spec:

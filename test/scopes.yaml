@@ -118,7 +118,8 @@ deployGroups:
   observability:
     components: [system/loki, system/tempo, system/opentelemetry, system/kiali, platform/grafana]
     needs: [metrics]
-    labels: [logs, security-logs, traces, kiali, grafana]
+    # Rotation checks Grafana after rotating its admin password
+    labels: [logs, security-logs, traces, kiali, grafana, rotation]
   # TestSupplyChain checks Kyverno's verify-lab-image against an image in zot
   policy:
     components: [system/kyverno]

@@ -149,11 +149,15 @@ func TestCommandGroups(t *testing.T) {
 		{[]string{"--tests", "smoke", "--groups"}, ""},
 		{[]string{"--full", "--groups"}, "metrics\nobservability\n"},
 		{[]string{"--base", "dev", "--groups"}, ""},
+		{[]string{"--tests", "smoke", "--groups", "--add", "observability"}, "metrics\nobservability\n"},
 	} {
 		out, err := lab(t, tc.args...)
 		if err != nil || out != tc.want {
 			t.Errorf("%v: got %q %v", tc.args, out, err)
 		}
+	}
+	if out, err := lab(t, "--tests", "smoke", "--groups", "--add", "nope"); err == nil {
+		t.Errorf("an unknown group accepted: %q", out)
 	}
 	// A changed component brings its group even when no spec needs it
 	write(t, dir, "system/monitoring-system/values.yaml", "a: 1\n")
