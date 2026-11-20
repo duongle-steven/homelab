@@ -68,6 +68,22 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   annotations:
+    argocd/app-name: crds
+    backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=crds
+    backstage.io/kubernetes-namespace: crds
+  description: Every component's custom resource definitions
+  name: crds
+  title: CRDs
+spec:
+  lifecycle: production
+  owner: group:default/homelab-admins
+  system: homelab-system
+  type: platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  annotations:
     argocd/app-name: csi-hostpath
     backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=csi-hostpath
     backstage.io/kubernetes-namespace: csi-hostpath

@@ -101,6 +101,9 @@ always: smoke
 alone: [backup-restore, node-power-cut, node-restart, rotation]
 full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || traces || ci || backstage || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
 groups:
+  # Every component's CRDs: what every spec stands on
+  - paths: [system/crds/**, scripts/vendor-crds]
+    tests: full
   - paths:
       - justfile
       - test/justfile

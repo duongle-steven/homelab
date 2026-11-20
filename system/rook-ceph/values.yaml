@@ -3,6 +3,8 @@ policyExceptions: true
 rook-ceph:
   monitoring:
     enabled: true
+  crds:
+    enabled: false
 # Rook's recommended values for the drivers chart (deploy/charts/ceph-csi-drivers/values.yaml in Rook v1.21.1): the
 # drivers named after the operator's namespace, the image set Rook writes
 ceph-csi-drivers:
@@ -146,3 +148,5 @@ rook-ceph-cluster:
     enabled: true
     isDefault: false
   cephObjectStores: []
+snapshot-controller:
+  installCRDs: false

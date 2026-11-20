@@ -192,6 +192,8 @@ argocd-apps:
               path: '{{ .path.path }}'
               targetRevision: *revision
               helm:
+                # CRDs come from system/crds, synced first (scripts/vendor-crds); system/crds' own are templates
+                skipCrds: true
                 # scripts/env-values resolves these offline for scripts/render-chart
                 valuesObject: &values
                   global:
