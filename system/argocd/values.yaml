@@ -315,6 +315,8 @@ argocd-apps:
           annotations:
             kargo.akuity.io/authorized-stage: {{ .path.filename | trimSuffix ".yaml" }}:production
         spec:
+          # Its release file is a whole values file: AppProject delivered (system/argocd-config) keeps it in its namespace
+          project: delivered
           syncPolicy:
             managedNamespaceMetadata:
               labels:

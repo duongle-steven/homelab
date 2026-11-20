@@ -38,3 +38,17 @@ func TestArgoCDReadsReleases(t *testing.T) {
 	assert.Contains(t, s, "key: argocd/forgejo")
 	assert.Equal(t, "argocd", renderVelero(t, "platform/forgejo", "", `select(.kind == "ExternalSecret" and .metadata.name == "argocd-repo-releases") | .metadata.namespace`))
 }
+
+// Our apps on the app road sync under AppProject delivered: their release file (ops/releases, which user kargo writes)
+// is a whole values overlay, so the project keeps whatever it renders inside their own namespaces and away from every
+// cluster-scoped kind but their Namespace (the app delivery review: under default it reached cluster-admin)
+func TestDeliveredAppsProject(t *testing.T) {
+	project := `select(.kind == "AppProject" and .metadata.name == "delivered")`
+	dests := strings.Fields(renderVelero(t, "system/argocd-config", "", project+` | .spec.destinations[] | .namespace`))
+	assert.ElementsMatch(t, []string{"blog", "delivery-test"}, dests)
+	assert.Equal(t, `[{"group":"","kind":"Namespace"}]`, renderVelero(t, "system/argocd-config", "", project+` | .spec.clusterResourceWhitelist | @json`))
+	for _, env := range []string{"", "dev"} {
+		patch := renderVelero(t, "system/argocd", env, `select(.kind == "ApplicationSet" and .metadata.name == "apps") | .spec.templatePatch`)
+		assert.Contains(t, patch, "project: delivered", "env %q", env)
+	}
+}

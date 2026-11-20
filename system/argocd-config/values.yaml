@@ -2,3 +2,6 @@
 # namespace argocd (its templatePatch in system/argocd/values.yaml)
 global:
   baseDomain: ""
+# Our apps on the app road, which sync under AppProject delivered (templates/delivered-project.yaml): the same list as
+# the apps ApplicationSet's templatePatch in system/argocd/values.yaml
+deliveredApps: [blog, delivery-test]

@@ -157,9 +157,14 @@ quotas, its own nodes).
 App delivery *(2026-11-19)*: an image in zot now reaches production without a pull request, so zot's writers are its
 gate. Only the CI (user `ci`) and `homelab-admins` push; `homelab-editors` lost write. Kargo admits an image to
 `production` only after stage `verify` checked `ci-signing`'s signature on it (Kyverno's `verify-ci-images` still only
-audits until 15b-2), so an admin's hand-pushed image stops there too. User `kargo`'s token (`write:repository` on
-`ops/releases` only, pushes allowed to it alone) sits in Kargo's pod: taking it lets one choose among already-signed
-versions of our apps, not run an unsigned one. Pods pull our images as zot's read-only `puller`, per namespace.
+audits until 15b-2), so an admin's hand-pushed image stops there too, unless a Kargo admin approves Freight for
+`production` directly, which skips `verify`. The CI publishes a repository's image only under that repository's own
+name, so a new repository in org `ci` cannot publish another app's image under the CI's signature. User `kargo`'s token
+(`write:repository` on `ops/releases` only, pushes allowed to it alone) sits in Kargo's pod: a release file is a whole
+values file, so taking the token lets one deploy any image and any namespaced object into our delivered apps'
+namespaces, but nothing cluster-wide and no other namespace (AppProject `delivered`, *2026-11-20*, after the app delivery
+review found it reached cluster-admin under `default`); `verify-ci-images` in Enforce (15b-2) then refuses an unsigned
+image at admission. Pods pull our images as zot's read-only `puller`, per namespace.
 
 Backstage-1 *(2026-11-17)*: its template is one more way to create such a repository, open only to `homelab-admins`
 (the permission policy, server-side, tested) and limited to `fetch:*`, `publish:gitea`, `catalog:register` and

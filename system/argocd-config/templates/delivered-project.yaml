@@ -1,0 +1,20 @@
+# Our apps on the app road (docs/how-to-guides/app-delivery.md): their release file in ops/releases, which user kargo
+# writes, is merged as a whole values file, so whoever can push it chooses what the app renders. This project keeps
+# that inside the apps' own namespaces: no cluster-scoped kind but their Namespace (Argo CD creates it), no other
+# namespace. The apps ApplicationSet's templatePatch puts the apps on the road here; the list matches it
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: delivered
+  namespace: argocd
+spec:
+  description: Our apps on the app road (Kargo, Argo Rollouts)
+  sourceRepos: ["*"]
+  destinations:
+    {{- range .Values.deliveredApps }}
+    - server: https://kubernetes.default.svc
+      namespace: {{ . }}
+    {{- end }}
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
