@@ -1,5 +1,6 @@
-# A promotion that cannot finish (Forgejo or Argo CD unreachable, a step failing) keeps erroring in the controller's
-# promotion reconciler: the version stays where it was, and nobody notices without this
+# A promotion that cannot finish (Forgejo or Argo CD unreachable, a step failing) ends Failed or Errored: the version
+# stays where it was, and nobody notices without this. kube-state-metrics exports each Promotion's phase
+# (system/monitoring-system); it fires for 15 minutes after a Promotion fails (Kargo keeps the failed ones)
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -10,13 +11,16 @@ spec:
     - name: kargo
       rules:
         - alert: KargoPromotionFailed
-          expr: sum(increase(controller_runtime_reconcile_errors_total{namespace="{{ .Release.Namespace }}", controller="promotion"}[15m])) > 0
-          for: 5m
+          expr: >-
+            count by (namespace, stage) (kube_customresource_kargo_promotion_phase{phase=~"Failed|Errored"} == 1)
+            unless count by (namespace, stage) (kube_customresource_kargo_promotion_phase{phase=~"Failed|Errored"} == 1 offset 15m)
+            or count by (namespace, stage) (kube_customresource_kargo_promotion_phase{phase=~"Failed|Errored"} == 1)
+            > count by (namespace, stage) (kube_customresource_kargo_promotion_phase{phase=~"Failed|Errored"} == 1 offset 15m)
           labels:
             severity: warning
             source: kargo
           annotations:
-            summary: Kargo cannot finish a promotion
+            summary: A promotion to {{`{{ $labels.namespace }}`}}/{{`{{ $labels.stage }}`}} failed
             description: >-
-              Kargo's promotion reconciler keeps failing: open the Promotion in Kargo's UI (kargo.<domain>) for the failed
-              step (docs/how-to-guides/app-delivery.md).
+              A Kargo Promotion ended Failed or Errored: open it in Kargo's UI (kargo.<domain>) for the failed step
+              (docs/how-to-guides/app-delivery.md).

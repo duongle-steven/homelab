@@ -86,3 +86,18 @@ func TestRolloutAbortedReadsTheController(t *testing.T) {
 	assert.Contains(t, expr, `phase="Abort"`)
 	assert.Contains(t, expr, `"namespace", "$1", "exported_namespace"`)
 }
+
+// KargoPromotionFailed reads the Promotions' phase, which kube-state-metrics exports from promotions.kargo.akuity.io
+// (Kargo itself was never scraped, and a failing step is no reconcile error: the alert could never fire, the app
+// delivery review)
+func TestKargoPromotionFailedReadsThePhase(t *testing.T) {
+	ksm := `select(.kind == "ConfigMap" and (.data["config.yaml"] // "" | test("kargo.akuity.io"))) | .data["config.yaml"]`
+	config := renderVelero(t, "system/monitoring-system", "", ksm)
+	assert.Contains(t, config, "kind: Promotion")
+	assert.Contains(t, config, "metricNamePrefix: kargo_promotion")
+	rules := renderVelero(t, "system/monitoring-system", "", `select(.kind == "ClusterRole" and (.metadata.name | test("kube-state-metrics"))) | .rules[] | select(.apiGroups[0] == "kargo.akuity.io") | .resources[]`)
+	assert.Equal(t, "promotions", rules)
+	expr := renderVelero(t, "platform/kargo", "", `select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(.alert == "KargoPromotionFailed") | .expr`)
+	assert.Contains(t, expr, "kargo_promotion_phase")
+	assert.Contains(t, expr, `phase=~"Failed|Errored"`)
+}
