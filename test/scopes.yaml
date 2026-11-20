@@ -105,9 +105,19 @@ full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monito
 # its labels, when the branch changes one of its components, or when a deployed group needs it. Every label a sandbox
 # spec carries is the core's or a group's (lab test scope --check); --full deploys every group
 core:
-  components: [system/crds, system/argocd-config, system/istio-system, system/cert-manager, system/csi-hostpath,
-    system/egress, system/secret-store, platform/external-secrets, platform/openbao, platform/generated-secrets,
-    platform/infra-secrets, platform/kanidm]
+  components:
+    - system/crds
+    - system/argocd-config
+    - system/istio-system
+    - system/cert-manager
+    - system/csi-hostpath
+    - system/egress
+    - system/secret-store
+    - platform/external-secrets
+    - platform/openbao
+    - platform/generated-secrets
+    - platform/infra-secrets
+    - platform/kanidm
   # sso's specs also carry their app's label
   labels: [smoke, argocd, identity, sso, gateway, egress, secrets, node-restart, node-power-cut, scan]
 deployGroups:

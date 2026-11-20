@@ -322,12 +322,22 @@ def main():
                 if svc_ns in OUTSIDE:
                     print(f"ok   {where}: namespace outside the mesh")
                     continue
+                owner, owner_ns_of = docs, ns_of
                 service = next((d for d in docs if d.get("kind") == "Service" and d["metadata"]["name"] == svc_name and ns_of(d) == svc_ns), None)
                 if service is None:
-                    failures.append(f"{where}: Service not rendered by this component")
+                    # A CRD's conversion webhook (system/crds) calls the Service of the component it came from
+                    for _, other_ns, other_env, other_docs in renders:
+                        other_ns_of = lambda d, other_ns=other_ns: (d.get("metadata") or {}).get("namespace") or other_ns
+                        found = next((d for d in other_docs if other_env == env and d.get("kind") == "Service"
+                                      and d["metadata"]["name"] == svc_name and other_ns_of(d) == svc_ns), None)
+                        if found is not None:
+                            service, owner, owner_ns_of = found, other_docs, other_ns_of
+                            break
+                if service is None:
+                    failures.append(f"{where}: Service rendered by no component")
                     continue
                 selector = (service.get("spec") or {}).get("selector") or {}
-                pods = [d for d in docs if d.get("kind") in WORKLOADS and ns_of(d) == svc_ns
+                pods = [d for d in owner if d.get("kind") in WORKLOADS and owner_ns_of(d) == svc_ns
                         and selector.items() <= (d["spec"]["template"]["metadata"].get("labels") or {}).items()]
                 if not pods:
                     failures.append(f"{where}: no workload matches the Service selector {selector}")
