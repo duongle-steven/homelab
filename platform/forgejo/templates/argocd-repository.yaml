@@ -1,12 +1,11 @@
-{{- /* Rendered whatever the cluster has: depending on the CRD (.Capabilities) left a fresh install's argocd-config
-empty yet Synced, never rendered again (#104's GitHub Actions sandboxes: no Kanidm client for Argo CD) */}}
 # Argo CD reads the GitOps repository on Forgejo with the read-only token lab infra forgejo sync writes (production;
-# in the sandbox, which reads GitHub, the tests read it)
+# in the sandbox, which reads GitHub, the tests read it). Forgejo's, not argocd-config's: the token exists only where
+# Forgejo runs (the sandbox's group git; the testbed runs none), and without it the ExternalSecret stays Degraded
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: argocd-repo-forgejo
-  # Argo CD's namespace (the root ApplicationSet deploys this chart there too)
+  # Argo CD's namespace, which has its SecretStore openbao (system/argocd-config's sources)
   namespace: argocd
 spec:
   secretStoreRef:
