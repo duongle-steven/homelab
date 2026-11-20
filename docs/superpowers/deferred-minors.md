@@ -194,3 +194,13 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | sandbox-groups (final review) | `system/argocd/values-seed.yaml` still disables Argo CD's metrics for "no Prometheus CRDs yet"; `system/crds` now installs them before Argo CD | 12b-3 |
 | sandbox-groups (final review) | A group's namespaces are deleted all at once: a controller's finalizer on an object in another namespace of the same group (Argo Events' EventBus, CloudNativePG's `forgejo-db`) could leave one Terminating; not seen yet | any |
 | sandbox-groups (final review) | An Ordered container's `BeforeAll` runs before the suite-wide group check, so a hand-run filter missing its group can fail there instead of skipping | any |
+| App delivery (final review) | After a rollback the Stage's auto-promotion hold stops the app's releases until a person promotes: nothing alerts on a hold older than a few hours | Blog |
+| App delivery (final review) | A Kargo admin can approve Freight for `production` directly, skipping `verify` (the threat model says so) | 15b-2 |
+| App delivery (final review) | Apps not on the road read `$releases/<name>.yaml` at this repository's root (a future app named like a root file would merge it), and `ignoreMissingValueFiles` now also hides a missing `$values` file | any |
+| App delivery (final review) | Sandbox-only names in production values: `zotPull`'s and `rotationReaders`' delivery-test, `publicKeyReaders`, OpenBao `rotator`'s paths, the templatePatch, releases and `deliveredApps` lists (harmless: rendered only where the namespace exists) | any |
+| App delivery (final review) | The spec lags its rulings: `<app>.yaml` not `<app>/production.yaml`, Renovate's rule in `renovate.json5`, RolloutAborted's phases | any |
+| App delivery (final review) | Kargo's and Argo Rollouts' sandbox memory not yet written into the guide | Blog |
+| App delivery (final review) | AppDelivery's unsigned image is pushed with `ci`'s account (the plan said an admin's) and its `:unsigned` tag stays in zot | any |
+| App delivery (final review) | Argo Rollouts downloads its Gateway API plugin from GitHub at every controller start (sha256-checked): a GitHub outage stops rollouts; an init-container image would not | Blog |
+| App delivery (final review) | Deleting or renaming a Kargo `Project` may delete the adopted app namespace and its volumes (Kargo's keep-namespace annotation): check before the blog | Blog |
+
