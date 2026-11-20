@@ -34,7 +34,7 @@ secrets:
   # zotPull: its Secret zot-pull)
   - name: registry.puller
     key: password
-    destinations: [zot/generated/puller, kargo/generated/zot-puller, delivery-test/generated/zot-puller]
+    destinations: [zot/generated/puller, kargo/generated/zot-puller]
   # Forgejo's org ci webhook to Argo Events (Authorization: Bearer, set by lab infra forgejo sync)
   - name: ci.webhook
     key: token
@@ -67,3 +67,6 @@ secrets:
     destinations: [backstage/generated/session-secret]
 # Environment-specific additions, so the list above does not have to be restated
 extraSecrets: []
+# More destinations for an entry above, by name: an environment's own readers (values-dev.yaml: the sandbox's
+# delivery-test), since Helm replaces a list a values file restates
+extraDestinations: {}
