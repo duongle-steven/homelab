@@ -97,6 +97,11 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 
 	It("creates its repository and builds the first version", func(ctx SpecContext) {
 		backstageReadsForgejo(ctx)
+		// A run cut off after its rollback leaves production held (Kargo's auto-promotion hold): nothing would promote
+		// this run's version by itself, so say so now instead of after the promotion's 20 minutes
+		held, _ := kube.Kubectl(ctx, deliveryApp, "get", "stage", "production", "--ignore-not-found", "-o", "jsonpath={.status.autoPromotionHolds}")
+		Expect(strings.TrimSpace(held)).To(BeEmpty(), "production is held by an earlier run's rollback: promote its newest Freight in Kargo "+
+			"(docs/how-to-guides/app-delivery.md), or rebuild the sandbox")
 		// Left by an earlier run: the template refuses a repository that exists, and a location already registered
 		forgejoAs(ctx, "", "DELETE", "/repos/ci/"+deliveryApp, nil, nil)
 		admin, _, _ := backstageIdentity(ctx, "dev-admin")
