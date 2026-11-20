@@ -47,6 +47,9 @@ The sandbox also starts again whenever WSL starts (Docker's restart policy), loa
    `--tests delivery` repeats it when it rebases) stays under 75% of the node's memory and shows no thrashing (block
    reads under 50 MB/s on average over the run), recorded in the sandbox guide.
 
+8. **CRDs first.** Every CRD comes from `system/crds`; no `SkipDryRunOnMissingResource` or sync wave remains whose only
+   reason was a missing CRD; a fresh sandbox's first sync is measured before and after.
+
 ## Non-goals
 
 - Changing what production or the testbed deploy: groups are the sandbox's (`values-dev.yaml`); the testbed keeps its
@@ -65,7 +68,7 @@ The sandbox also starts again whenever WSL starts (Docker's restart policy), loa
 
 | Group | Components | Needs |
 | --- | --- | --- |
-| core (always) | `system/crds` (new: Kyverno's and prometheus-operator's CRDs, below), `argocd-config`, `istio-system`, `cert-manager`, `csi-hostpath`, `platform/external-secrets`, `openbao`, `generated-secrets`, `infra-secrets`, `kanidm`, and every Application's `system/egress` and `system/secret-store` | |
+| core (always) | `system/crds` (new: every component's CRDs, below), `argocd-config`, `istio-system`, `cert-manager`, `csi-hostpath`, `platform/external-secrets`, `openbao`, `generated-secrets`, `infra-secrets`, `kanidm`, and every Application's `system/egress` and `system/secret-store` | |
 | metrics | `system/monitoring-system` (prometheus-operator, Prometheus, Alertmanager) | |
 | observability | `system/loki`, `tempo`, `opentelemetry`, `kiali`, `platform/grafana` | metrics |
 | policy | `system/kyverno` | |
@@ -79,12 +82,33 @@ The sandbox also starts again whenever WSL starts (Docker's restart policy), loa
 App delivery adds `delivery` (`system/argo-rollouts`, `platform/kargo`, `test/fixtures/apps/delivery-test.yaml`;
 needs ci, backstage, metrics) when it rebases on this step.
 
-**CRDs in the core** *(Claude's call)*. Components in every group, the core included, carry Kyverno `PolicyException`s
-and prometheus-operator monitors; Argo CD refuses a whole sync holding a kind whose CRD is missing. So the core
-installs those CRDs alone (`system/crds`: Kyverno's and prometheus-operator's CRD charts, their latest releases), and
-`system/kyverno` and `system/monitoring-system` stop installing them, in every environment (production has not
-deployed yet, so no CRD changes owner on a live cluster). With `policy` or `metrics` off, the exceptions and monitors
-sit inert. The CRDs cost etcd a few MB and no memory.
+**Every CRD in one component, `system/crds`** *(user, 2026-11-20: all of them in this step, not piecemeal)*.
+Components in every group, the core included, carry other components' kinds (Kyverno `PolicyException`s,
+prometheus-operator monitors, cert-manager `Certificate`s, ESO `ExternalSecret`s, Istio policies), and Argo CD refuses a
+whole sync holding a kind whose CRD is missing. Until now each such dependency was patched where it bit
+(`SkipDryRunOnMissingResource` on 33 files, 12 sync waves, a 20-minute first sync with retries); managing CRDs apart from
+their controllers is the common GitOps practice that removes the cause (upstream projects ship CRD-only charts for it,
+and this repository already installs the Gateway API's CRDs apart). So:
+
+- `system/crds` holds the CRDs of every component that ships some: cert-manager, Istio, external-secrets, kaniop,
+  Kyverno, prometheus-operator, the OpenTelemetry Operator, Velero, the Trivy Operator, CloudNativePG, Argo Workflows,
+  Argo Events, external-dns, the CSI snapshot CRDs, rook-ceph (and Kargo and Argo Rollouts when app delivery rebases).
+  Argo CD's own CRDs stay with `system/argocd`, which the bootstrap applies before Argo CD exists; the Gateway API's stay
+  in k3s's manifests.
+- Each CRD file is generated from the component's own pinned chart (`scripts/vendor-crds`: the chart rendered with its
+  CRDs, the `CustomResourceDefinition`s kept), so the CRDs always match the controller's version by construction; a basic
+  check (`crds`) fails when a component's chart changed and its CRDs were not regenerated (a Renovate bump fails it until
+  someone runs the script, which the guide says).
+- Every component stops installing its CRDs (its chart's toggle where it has one, `skipCrds` in the ApplicationSets'
+  Helm sources for charts that keep them in `crds/`).
+- `system/crds` syncs first everywhere (it is core in the sandbox, a root Application in production, wave -1); CRDs are
+  never pruned by it (`Prune=false`), so deleting it or a mistake in it never deletes every object of a kind.
+- The workarounds that existed only for CRD order go: `SkipDryRunOnMissingResource` where a CRD was the reason, the sync
+  waves that ordered CRDs before their users, and their explanations in `CLAUDE.md`. Workarounds with another reason stay
+  (ESO's webhooks' `failurePolicy: Ignore` waits for an endpoint, not a CRD; monitoring-system's waves order the operator
+  before Prometheus).
+- With `policy` or `metrics` off, the exceptions and monitors sit inert. The CRDs cost etcd a few MB and no memory.
+- Measured: a fresh sandbox's first sync to every Application synced and healthy, before and after (Goal 8).
 
 **Which groups a run gets** *(Claude's call)*: the groups of every label on every spec the selection picks (so a
 selected spec never misses its component), plus, when `just dev` compares with a base, the group of every component the
@@ -130,7 +154,6 @@ delivery). The builder sets the list from the specs; a label that needs nothing 
 
 ## Left to the builder
 
-The exact groups of each label, the CRD charts' versions and how the two components stop installing theirs, the
-generator layout, the skip helper's shape, and whether a group's removal also
+The exact groups of each label, each chart's way to stop installing its CRDs, the generator layout, the skip helper's shape, and whether a group's removal also
 deletes its cluster-scoped leftovers (CRDs and webhooks stay today for optional apps; a webhook left with
 `failurePolicy: Ignore` is harmless).
