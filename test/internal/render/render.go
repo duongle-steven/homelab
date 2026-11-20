@@ -19,7 +19,7 @@ var Renders sync.Map
 
 // renderEnv are the environment variables scripts/render-chart and scripts/env-values read: a test that sets one
 // gets its own render
-var renderEnv = []string{"BACKUP_S3_URL"}
+var renderEnv = []string{"BACKUP_S3_URL", "HOMELAB_RENDER_CRDS"}
 
 // Yq renders a chart (scripts/render-chart, once per directory, env and renderEnv's values) and runs a yq expression
 // on it

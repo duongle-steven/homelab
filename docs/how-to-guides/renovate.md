@@ -57,6 +57,10 @@ sandbox's k3s image and Gateway API CRDs (`infra/_modules/k3d`, regex managers).
 Renovate finds, offline. A new commit from Renovate on its labelled pull request (a rebase, a newer version) runs
 `sandbox-label` again.
 
+A chart bump whose CRDs changed fails the basic check `crds` until someone regenerates `system/crds` on that pull
+request: check it out, run `scripts/vendor-crds <component>` (the component's directory name) and push the result
+(`docs/superpowers/specs/2026-11-20-sandbox-groups-design.md`).
+
 ## Add a repository
 
 Install the App on it (App → Configure → Repository access) and add a `renovate.json5`; the next run finds it

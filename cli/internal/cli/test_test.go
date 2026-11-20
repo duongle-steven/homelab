@@ -17,7 +17,19 @@ full: smoke || logs || node-restart
 groups:
   - paths: ["system/loki/**"]
     tests: logs
+  - paths: ["system/monitoring-system/**"]
+    tests: ""
 components: ["system/*/"]
+core:
+  components: [system/kanidm]
+  labels: [smoke, node-restart]
+deployGroups:
+  metrics:
+    components: [system/monitoring-system]
+  observability:
+    components: [system/loki]
+    needs: [metrics]
+    labels: [logs]
 `
 
 const testSpecs = "package e2e\n\n" +
@@ -124,6 +136,37 @@ func TestCommandFullAndManual(t *testing.T) {
 		if err != nil || out != tc.want {
 			t.Errorf("%v: got %q %v", tc.args, out, err)
 		}
+	}
+}
+
+func TestCommandGroups(t *testing.T) {
+	dir := repo(t)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--tests", "logs", "--groups"}, "metrics\nobservability\n"},
+		{[]string{"--tests", "smoke", "--groups"}, ""},
+		{[]string{"--full", "--groups"}, "metrics\nobservability\n"},
+		{[]string{"--base", "dev", "--groups"}, ""},
+		{[]string{"--tests", "smoke", "--groups", "--add", "observability"}, "metrics\nobservability\n"},
+	} {
+		out, err := lab(t, tc.args...)
+		if err != nil || out != tc.want {
+			t.Errorf("%v: got %q %v", tc.args, out, err)
+		}
+	}
+	if out, err := lab(t, "--tests", "smoke", "--add", "observability"); err == nil {
+		t.Errorf("--add without --groups accepted: %q", out)
+	}
+	if out, err := lab(t, "--tests", "smoke", "--groups", "--add", "nope"); err == nil {
+		t.Errorf("an unknown group accepted: %q", out)
+	}
+	// A changed component brings its group even when no spec needs it
+	write(t, dir, "system/monitoring-system/values.yaml", "a: 1\n")
+	commit(t, dir)
+	if out, err := lab(t, "--base", "dev", "--groups"); err != nil || out != "metrics\n" {
+		t.Errorf("changed monitoring-system: got %q %v", out, err)
 	}
 }
 

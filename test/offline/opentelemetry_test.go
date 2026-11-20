@@ -28,7 +28,9 @@ func TestOpenTelemetryOperatorRender(t *testing.T) {
 				assert.True(t, strings.HasSuffix(line, " Ignore"), "%s: %s", env, line)
 			}
 		}
-		crds := render(`select(.kind == "CustomResourceDefinition") | .metadata.name`)
+		// Its CRDs come from system/crds (scripts/vendor-crds)
+		assert.Empty(t, render(`select(.kind == "CustomResourceDefinition") | .metadata.name`), env)
+		crds := renderVelero(t, "system/crds", env, `select(.kind == "CustomResourceDefinition") | .metadata.name`)
 		assert.Contains(t, crds, "opentelemetrycollectors.opentelemetry.io", env)
 		assert.Contains(t, crds, "instrumentations.opentelemetry.io", env)
 	}
@@ -163,6 +165,6 @@ func TestRenderCacheKnowsTheRenderEnv(t *testing.T) {
 	cmd.Dir = repo.Root()
 	out, err := cmd.Output()
 	if assert.NoError(t, err) {
-		assert.Equal(t, []string{"BACKUP_S3_URL"}, strings.Fields(string(out)), "add the new ones to render.renderEnv")
+		assert.Equal(t, []string{"BACKUP_S3_URL", "HOMELAB_RENDER_CRDS"}, strings.Fields(string(out)), "add the new ones to render.renderEnv")
 	}
 }

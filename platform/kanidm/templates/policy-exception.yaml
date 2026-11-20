@@ -5,8 +5,6 @@ metadata:
   name: kanidm
   namespace: {{ .Release.Namespace }}
   annotations:
-    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "kaniop creates Kanidm's StatefulSet and takes only the pod's securityContext (seccomp is set), not the container's; Kanidm's image runs as root (no USER)"
 spec:
   policyRefs:

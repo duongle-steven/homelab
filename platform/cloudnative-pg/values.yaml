@@ -5,3 +5,5 @@ cloudnative-pg:
     istio.io/dataplane-mode: none
   monitoring:
     podMonitorEnabled: true
+  crds:
+    create: false

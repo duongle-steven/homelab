@@ -6,8 +6,6 @@ metadata:
   name: node-agent
   namespace: {{ .Release.Namespace }}
   annotations:
-    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "Velero's node agent reads every pod's volumes on its node as root"
 spec:
   policyRefs:
@@ -23,8 +21,6 @@ metadata:
   name: velero
   namespace: {{ .Release.Namespace }}
   annotations:
-    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "velero's image runs as the non-numeric user cnb, so runAsNonRoot cannot be stated without guessing its uid: revisit; so do the Kopia repository maintenance Jobs Velero creates from it (<repository>-default-kopia-maintain-job-<n>)"
 spec:
   policyRefs:

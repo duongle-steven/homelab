@@ -16,3 +16,4 @@ snapshot-controller:
         drop: [ALL]
     # The API server calls its webhook-free controller only through CRs: no mesh exception needed
     replicaCount: 1
+  installCRDs: false

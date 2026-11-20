@@ -9,9 +9,6 @@ apiVersion: argoproj.io/v1alpha1
 kind: ClusterAnalysisTemplate
 metadata:
   name: ci-signature
-  annotations:
-    # Its CRD comes from system/argo-rollouts, which may sync later (a fresh cluster)
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   args:
     - name: image

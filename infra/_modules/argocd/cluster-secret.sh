@@ -5,21 +5,22 @@
 # ApplicationSet would delete its Applications.
 # Env: REPOSITORY (required: the homelab repository Argo CD syncs), BRANCH (required: sandbox, testbed or master),
 # REVISION (optional: a commit overriding BRANCH, just dev --revision), BACKUP_S3_URL (optional: production's R2
-# endpoint), OPTIONAL_APPS (optional, space-separated: the sandbox's optional apps, one label each), STAGE (required:
+# endpoint), SANDBOX_GROUPS (optional, space-separated: the sandbox's deploy groups of test/scopes.yaml, one label
+# homelab/group-<name> each), STAGE (required:
 # platform or all, resolve-stage.sh's answer; the label homelab/stage gates whatever deploys an app, step 12b-2)
 set -eu
 : "${REPOSITORY:?REPOSITORY is required}" "${BRANCH:?BRANCH is required}" "${STAGE:?STAGE is required}"
-# shellcheck disable=SC2086 # one app per word
-apps=$(printf '%s\n' ${OPTIONAL_APPS:-} | sort -u | jq -R . | jq -s .)
+# shellcheck disable=SC2086 # one group per word
+groups=$(printf '%s\n' ${SANDBOX_GROUPS:-} | sort -u | jq -R . | jq -s .)
 jq -n --arg repository "$REPOSITORY" --arg revision "${REVISION:-$BRANCH}" --arg backup "${BACKUP_S3_URL:-}" \
-	--arg stage "$STAGE" --argjson apps "$apps" '{
+	--arg stage "$STAGE" --argjson groups "$groups" '{
   apiVersion: "v1",
   kind: "Secret",
   metadata: {
     name: "in-cluster",
     namespace: "argocd",
     labels: ({"argocd.argoproj.io/secret-type": "cluster", "homelab/bootstrap": "true", "homelab/stage": $stage}
-      + ([$apps[] | select(. != "") | {key: ("homelab/app-" + .), value: "true"}] | from_entries)),
+      + ([$groups[] | select(. != "") | {key: ("homelab/group-" + .), value: "true"}] | from_entries)),
     annotations: {repository: $repository, revision: $revision, backupS3Url: $backup}
   },
   stringData: {name: "in-cluster", server: "https://kubernetes.default.svc"}

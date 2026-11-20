@@ -86,8 +86,6 @@ rawResources:
       apiVersion: argoproj.io/v1alpha1
       kind: Rollout
       metadata:
-        annotations:
-          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
       spec:
         replicas: 1
         selector:
@@ -130,8 +128,6 @@ rawResources:
       apiVersion: kargo.akuity.io/v1alpha1
       kind: ProjectConfig
       metadata:
-        annotations:
-          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
       spec:
         # This app promotes itself; an app that waits for a person leaves its production out
         promotionPolicies:
@@ -145,8 +141,6 @@ rawResources:
       apiVersion: kargo.akuity.io/v1alpha1
       kind: Warehouse
       metadata:
-        annotations:
-          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
       spec:
         interval: 1m
         subscriptions:
@@ -161,8 +155,6 @@ rawResources:
       apiVersion: kargo.akuity.io/v1alpha1
       kind: Stage
       metadata:
-        annotations:
-          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
       spec:
         vars:
           - name: image
@@ -190,8 +182,6 @@ rawResources:
       apiVersion: kargo.akuity.io/v1alpha1
       kind: Stage
       metadata:
-        annotations:
-          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
       spec:
         vars:
           - name: image

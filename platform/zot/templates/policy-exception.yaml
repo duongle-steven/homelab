@@ -6,8 +6,6 @@ metadata:
   name: zot
   namespace: {{ .Release.Namespace }}
   annotations:
-    # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     homelab/reason: "zot's image runs as root (USER 0) and its chart has no securityContext values"
 spec:
   policyRefs:

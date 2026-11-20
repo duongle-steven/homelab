@@ -10,10 +10,6 @@ just := just_executable()
 lab := env("HOMELAB_LAB", "go -C cli run ./cmd/lab")
 terragrunt := env("HOMELAB_TERRAGRUNT", "terragrunt")
 terragrunt_apply := terragrunt + " run --all apply --non-interactive -- -auto-approve"
-# Apps the sandbox deploys only when asked (just dev --apps paperless,opencloud or all) or when the branch changes
-# their app file since --base, outside its homelab: description, which only lab catalog generate reads (--apps none:
-# never, even then): docs/how-to-guides/sandbox-tests.md
-optional_apps := "paperless opencloud delivery-test"
 testbed_kubeconfig := justfile_directory() / "infra/testbed/kubeconfig.yaml"
 # The power specs' labels, on a healthy testbed, one run each since each takes the whole cluster down
 # (docs/how-to-guides/power.md): --tests runs others (cut-postgres). They do not count towards the mark
@@ -53,20 +49,29 @@ dev $full="" $tests="" $apps="" $revision="" $base="origin/dev": sandbox-checkou
     alone=$({{ lab }} test scope "${sel[@]}" --alone --each)
     if [ -z "$main$alone" ]; then echo "just dev: nothing to test in the sandbox (no change outside test/scopes.yaml's skip)"; exit 0; fi
     echo "just dev: main run '$main', then alone '$(printf '%s' "$alone" | tr '\n' ' ')'"
-    opt=$( { if [ "$apps" = none ]; then :; elif [ "$apps" = all ]; then echo "{{ optional_apps }}"; else echo "$apps" | tr , ' '; fi
-        [ "$apps" = none ] || for a in {{ optional_apps }}; do [ -f "apps/$a.yaml" ] || continue; [ "$(git show "$(git merge-base "$base" HEAD):apps/$a.yaml" 2>/dev/null | yq 'del(.homelab)')" = "$(yq 'del(.homelab)' "apps/$a.yaml")" ] || echo "$a"; done
-        # The app road (Kargo, Argo Rollouts, delivery-test) whenever the run selects its specs
-        [ "$apps" = none ] || case "$main $alone" in *delivery*|*kargo*) echo delivery-test ;; esac; } |
-        tr ' ' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ')
-    for a in $opt; do case " {{ optional_apps }} " in *" $a "*) ;; *) echo "just dev: $a is not an optional app ({{ optional_apps }})" >&2; exit 1 ;; esac; done
-    echo "just dev: optional apps '$opt'"
+    # The deploy groups (test/scopes.yaml deployGroups): those the selected specs and the branch's changes need, plus
+    # --apps (group names, comma-separated, or all), each with what it needs; the others are removed
+    every=$({{ lab }} test scope --full --groups | tr '\n' ' ')
+    if [ "$apps" = all ]; then groups="$every"
+    else groups=$({{ lab }} test scope "${sel[@]}" --groups ${apps:+--add "$apps"} | tr '\n' ' '); fi
+    echo "just dev: groups '$groups'"
+    # A running sandbox gets the commit's CRDs before Argo CD can see the commit (infra/_modules/argocd/apply-crds.sh)
+    if kubectl --request-timeout=10s get namespace argocd >/dev/null 2>&1; then infra/_modules/argocd/apply-crds.sh "$PWD"; fi
     if [ -z "$revision" ]; then {{ just }} sandbox-push; fi
     scripts/warm-image-cache
-    (cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$([ -z "$revision" ] || git rev-parse HEAD)" HOMELAB_SANDBOX_APPS="$opt" {{ terragrunt_apply }})
-    for a in {{ optional_apps }}; do case " $opt " in *" $a "*) ;; *) kubectl delete namespace $([ "$a" = delivery-test ] && echo "delivery-test kargo argo-rollouts" || echo "$a") --ignore-not-found --wait=false >/dev/null ;; esac; done
-    scripts/build-lab-image
-    scripts/build-backstage-image
-    export HOMELAB_SANDBOX_APPS="$opt"
+    (cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$([ -z "$revision" ] || git rev-parse HEAD)" HOMELAB_SANDBOX_GROUPS="$groups" {{ terragrunt_apply }})
+    # A group left out: its Applications go with the cluster Secret's label, its namespaces here (a component's or an
+    # app's name)
+    for g in $every; do
+        case " $groups " in *" $g "*) continue ;; esac
+        for ns in $(yq ".deployGroups.$g.components[]" test/scopes.yaml | sed 's|.*/||; s|\.yaml$||'); do
+            kubectl delete namespace "$ns" --ignore-not-found --wait=false >/dev/null
+        done
+    done
+    # The images only their groups run: lab's for the scheduled rotation, Backstage's
+    case " $groups " in *" backup "*) scripts/build-lab-image ;; esac
+    case " $groups " in *" backstage "*) scripts/build-backstage-image ;; esac
+    export HOMELAB_SANDBOX_GROUPS="$groups"
     status=0
     if [ -n "$main" ]; then {{ just }} sandbox-refresh && {{ just }} test e2e --env sandbox --labels "$main" || status=$?; fi
     if [ "$status" = 0 ] && [ -n "$alone" ]; then
@@ -87,6 +92,13 @@ dev $full="" $tests="" $apps="" $revision="" $base="origin/dev": sandbox-checkou
 dev-fresh $apps="" $tests="":
     {{ just }} dev-clean
     {{ just }} dev --full ${apps:+--apps "$apps"} ${tests:+--tests "$tests"}
+
+# Stopped, the sandbox stays stopped across WSL restarts (Docker would start it again otherwise); the next just dev
+# rebuilds it from scratch (scripts/sandbox-stopped)
+[doc("Stop the sandbox until the next just dev")]
+dev-stop: sandbox-checkout
+    k3d cluster stop homelab-dev
+    docker stop homelab-dev-proxy >/dev/null 2>&1 || true
 
 [doc("Remove the sandbox")]
 dev-clean: sandbox-checkout
@@ -147,6 +159,10 @@ testbed: sandbox-checkout sandbox-clean
     scripts/testbed-guard testbed
     scripts/ssh-key-loaded testbed
     gh auth status >/dev/null || { echo "just testbed: gh is not logged in, so the mark could not be written" >&2; exit 1; }
+    # A running testbed gets the commit's CRDs before its Argo CD can see the commit (infra/_modules/argocd/apply-crds.sh)
+    if kubectl --kubeconfig {{ testbed_kubeconfig }} --request-timeout=10s get namespace argocd >/dev/null 2>&1; then
+        KUBECONFIG={{ testbed_kubeconfig }} infra/_modules/argocd/apply-crds.sh "$PWD"
+    fi
     git push --force origin "$proof_commit:refs/heads/testbed"
     (cd infra/testbed && {{ terragrunt_apply }})
     kubectl --kubeconfig {{ testbed_kubeconfig }} -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1 || true

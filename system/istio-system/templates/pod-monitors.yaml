@@ -13,8 +13,6 @@ kind: PodMonitor
 metadata:
   name: {{ $name }}
   namespace: {{ $.Release.Namespace }}
-  annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   selector:
     {{- with $monitor.labels }}

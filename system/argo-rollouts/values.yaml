@@ -1,6 +1,8 @@
 # Progressive delivery for our apps (docs/how-to-guides/app-delivery.md): a Rollout shifts weight between its stable
 # and canary Services on its own HTTPRoute through the Gateway API plugin, judged by gateway-success-rate
 argo-rollouts:
+  # Its CRDs come from system/crds (scripts/vendor-crds)
+  installCRDs: false
   controller:
     # The plugin is downloaded at start (egress 443, system/egress) and checked against its release's sha256
     trafficRouterPlugins:

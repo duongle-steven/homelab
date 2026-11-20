@@ -10,50 +10,69 @@ import (
 	"time"
 
 	"github.com/duongle-steven/homelab/test/internal/kube"
+	"github.com/duongle-steven/homelab/test/internal/scopes"
 	"github.com/duongle-steven/homelab/test/internal/smoke"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-// optionalApps are deployed in the sandbox only when just dev asks (the justfile's optional_apps,
-// docs/superpowers/specs/2026-10-28-sandbox-optional-apps-design.md); always in production and the release sandbox
-var optionalApps = map[string]bool{"paperless": true, "opencloud": true, "delivery-test": true}
+// wantedGroups are the deploy groups just dev chose (HOMELAB_SANDBOX_GROUPS, space-separated): one of them missing
+// fails a spec instead of skipping it
+func wantedGroups() []string { return strings.Fields(os.Getenv("HOMELAB_SANDBOX_GROUPS")) }
 
-// wantedApps are the optional apps just dev deployed (HOMELAB_SANDBOX_APPS, space-separated)
-func wantedApps() []string { return strings.Fields(os.Getenv("HOMELAB_SANDBOX_APPS")) }
-
-// appPresent reports whether the optional app's Application exists and is not being deleted
-func appPresent(ctx context.Context, app string) (bool, error) {
-	out, err := kube.Kubectl(ctx, "argocd", "get", "applications.argoproj.io", app,
-		"--ignore-not-found", "-o", "jsonpath={.metadata.name}{.metadata.deletionTimestamp}")
-	if err != nil {
-		return false, err
-	}
-	return strings.TrimSpace(out) == app, nil
+// scopeMap is test/scopes.yaml's core and groups
+func scopeMap() scopes.Map {
+	GinkgoHelper()
+	m, err := scopes.Load()
+	Expect(err).NotTo(HaveOccurred())
+	return m
 }
 
-// appDeployed reports whether an app is deployed: an optional one only when its Application exists; it fails the
-// spec when smoke.OptionalAppState says so
-func appDeployed(ctx context.Context, app string) bool {
-	if !optionalApps[app] {
+// groupDeployed reports whether the sandbox runs a deploy group (the cluster Secret's homelab/group-<name>; always
+// outside the sandbox); it fails the spec when smoke.GroupState says so
+func groupDeployed(ctx context.Context, group string) bool {
+	if suiteEnv() != "dev" {
 		return true
 	}
-	present, err := appPresent(ctx, app)
-	skip, failure := smoke.OptionalAppState(app, wantedApps(), present, err)
+	// A single API error (a busy API server) is not an answer: retried for a minute
+	var out string
+	var err error
+	for try := 0; try < 6; try++ {
+		if out, err = kube.Kubectl(ctx, "argocd", "get", "secret", "in-cluster", "-o", `jsonpath={.metadata.labels.homelab/group-`+group+`}`); err == nil {
+			break
+		}
+		sleep(ctx, 10*time.Second)
+	}
+	skip, failure := smoke.GroupState(group, wantedGroups(), strings.TrimSpace(out) == "true", err)
 	if failure != "" {
 		Fail(failure)
 	}
 	return !skip
 }
 
-// skipUnlessDeployed skips a spec of an optional app the sandbox does not run now
-func skipUnlessDeployed(ctx context.Context, app string) {
-	if !appDeployed(ctx, app) {
-		Skip(fmt.Sprintf("%s is not deployed (optional in the sandbox: just dev --apps %s)", app, app))
+// skipUnlessGroups skips a spec whose groups the sandbox does not run now
+func skipUnlessGroups(ctx context.Context, groups []string) {
+	for _, g := range groups {
+		if !groupDeployed(ctx, g) {
+			Skip(fmt.Sprintf("needs the sandbox group %s, not deployed (just dev deploys what the specs it selects need; --apps %s)", g, g))
+		}
 	}
 }
 
-// deployedSmokeApps is smoke.Apps without the optional apps that are not deployed
+// appDeployed reports whether the app (or component) in namespace ns runs: always when it is the core's
+func appDeployed(ctx context.Context, ns string) bool {
+	g := scopeMap().GroupOfNamespace(ns)
+	return g == "" || groupDeployed(ctx, g)
+}
+
+// skipUnlessDeployed skips a spec of an app (or component) the sandbox does not run now
+func skipUnlessDeployed(ctx context.Context, ns string) {
+	if g := scopeMap().GroupOfNamespace(ns); g != "" {
+		skipUnlessGroups(ctx, []string{g})
+	}
+}
+
+// deployedSmokeApps is smoke.Apps without those whose group the sandbox does not run
 func deployedSmokeApps(ctx context.Context, env string) []smoke.App {
 	var apps []smoke.App
 	for _, a := range smoke.Apps(env) {

@@ -5,9 +5,6 @@ kind: ExternalSecret
 metadata:
   name: zot-pull
   namespace: {{ .Release.Namespace }}
-  annotations:
-    # A fresh install may sync this before External Secrets' CRDs exist: Argo CD applies the rest and retries this
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   secretStoreRef:
     kind: SecretStore

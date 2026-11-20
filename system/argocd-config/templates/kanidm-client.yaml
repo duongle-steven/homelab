@@ -6,9 +6,6 @@ metadata:
   name: argocd
   # Argo CD's namespace (the root ApplicationSet deploys this chart there too)
   namespace: argocd
-  annotations:
-    # A fresh install may sync this before its CRD exists: Argo CD applies the rest and retries this
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   kanidmRef:
     name: kanidm

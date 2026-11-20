@@ -25,20 +25,16 @@ func TestArgoCDConfigWithoutItsCRDs(t *testing.T) {
 	for _, kind := range []string{"kind: KanidmOAuth2Client", "kind: ExternalSecret", "kind: ServiceMonitor"} {
 		assert.Contains(t, string(out), kind)
 	}
-	resources := strings.Count(string(out), "\nkind: ")
-	assert.Equal(t, resources, strings.Count(string(out), "argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true"),
-		"every resource waits for its CRD")
+	// Their CRDs come from system/crds, applied before Argo CD exists: nothing waits for one
+	assert.NotContains(t, string(out), "SkipDryRunOnMissingResource")
 }
 
 // Argo CD reads our apps' versions from ops/releases with argocd's read-only token (docs/how-to-guides/app-delivery.md)
 func TestArgoCDReadsReleases(t *testing.T) {
-	cmd := exec.Command("sh", "-c", `helm template argocd-config system/argocd-config --namespace argocd --set global.baseDomain=example.com | yq 'select(.kind == "ExternalSecret" and .metadata.name == "argocd-repo-releases")'`)
-	cmd.Dir = repo.Root()
-	out, err := cmd.Output()
-	require.NoError(t, err)
-	s := string(out)
+	// Forgejo's, beside argocd-repo-forgejo: the token exists only where Forgejo runs
+	s := renderVelero(t, "platform/forgejo", "", `select(.kind == "ExternalSecret" and .metadata.name == "argocd-repo-releases") | to_yaml`)
 	assert.Contains(t, s, "url: http://forgejo-http.forgejo:3000/ops/releases")
 	assert.Contains(t, s, "argocd.argoproj.io/secret-type: repository")
 	assert.Contains(t, s, "key: argocd/forgejo")
-	assert.Contains(t, s, "SkipDryRunOnMissingResource=true")
+	assert.Equal(t, "argocd", renderVelero(t, "platform/forgejo", "", `select(.kind == "ExternalSecret" and .metadata.name == "argocd-repo-releases") | .metadata.namespace`))
 }

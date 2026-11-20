@@ -28,6 +28,8 @@ opentelemetry-operator:
     fsGroup: 65532
     seccompProfile:
       type: RuntimeDefault
+  crds:
+    create: false
 # The agent Collector (templates/agent.yaml)
 agent:
   resources:

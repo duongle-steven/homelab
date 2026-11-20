@@ -2,7 +2,7 @@
 # platform/ci declares in namespace ci, where Forgejo's webhook becomes a Workflow
 argo-events:
   crds:
-    install: true
+    install: false
     keep: true
   global:
     # The image's user is root: a numeric non-root user (the static binary needs none of root's rights)

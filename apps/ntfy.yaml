@@ -177,8 +177,6 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
-          # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
-          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
           homelab/reason: "ntfy's image runs as root (no USER); a non-root user needs its cache and auth files owned by it"
       spec:
         policyRefs:

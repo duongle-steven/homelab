@@ -5,6 +5,9 @@ host: kargo
 projects: []
 
 kargo:
+  # Its CRDs come from system/crds (scripts/vendor-crds)
+  crds:
+    install: false
   global:
     # Shared credentials (Forgejo's ops/releases, zot) and cluster-level Secrets live here, where this namespace's
     # SecretStore and ExternalSecrets are; the chart's own namespaces would have neither

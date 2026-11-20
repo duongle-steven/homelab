@@ -30,6 +30,26 @@ base: &ambient
     # the CNI plugin's hard-coded 5 s and the mesh never recovered (2026-11-14). nftables commits per network
     # namespace. On k3s this needs Istio 1.32 (istio#61078, fixed by istio#61079)
     nativeNftables: true
+  base:
+    enableCRDTemplates: true
+    # Every Istio CRD comes from system/crds (scripts/vendor-crds renders them with this list emptied): the chart's
+    # switch off would dump them raw instead
+    excludedCRDs:
+      - authorizationpolicies.security.istio.io
+      - destinationrules.networking.istio.io
+      - envoyfilters.networking.istio.io
+      - gateways.networking.istio.io
+      - peerauthentications.security.istio.io
+      - proxyconfigs.networking.istio.io
+      - requestauthentications.security.istio.io
+      - serviceentries.networking.istio.io
+      - sidecars.networking.istio.io
+      - telemetries.telemetry.istio.io
+      - trafficextensions.extensions.istio.io
+      - virtualservices.networking.istio.io
+      - wasmplugins.extensions.istio.io
+      - workloadentries.networking.istio.io
+      - workloadgroups.networking.istio.io
 istiod:
   <<: *ambient
   # Pod Security restricted (system/kyverno)

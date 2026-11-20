@@ -30,7 +30,7 @@ func renderSecretStore(t *testing.T, namespace string) string {
 func TestSecretStoreWithoutItsCRD(t *testing.T) {
 	out := renderSecretStore(t, "grafana")
 	assert.Contains(t, out, "kind: SecretStore")
-	assert.Contains(t, out, "argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true")
+	assert.NotContains(t, out, "SkipDryRunOnMissingResource", "its CRD comes from system/crds, applied before Argo CD exists")
 	// Still none where the mesh and egress are not managed either
 	assert.NotContains(t, renderSecretStore(t, "istio-system"), "kind: SecretStore")
 }
