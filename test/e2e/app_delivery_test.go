@@ -102,6 +102,17 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 		admin, _, _ := backstageIdentity(ctx, "dev-admin")
 		backstageUnregister(ctx, admin, deliveryApp)
 		backstageCreateRepository(ctx, deliveryApp, "AppDelivery's app")
+		// The template's own first commit is built too: its build must finish before ours starts, or the two run
+		// side by side, the template's image may be built last, and the Warehouse (NewestBuild) takes it
+		var branch struct {
+			Commit struct {
+				ID string `json:"id"`
+			} `json:"commit"`
+		}
+		Eventually(ctx, func() int {
+			return forgejoAs(ctx, "", "GET", "/repos/ci/"+deliveryApp+"/branches/main", nil, &branch)
+		}).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Equal(http.StatusOK))
+		ciWorkflowFor(ctx, deliveryApp, branch.Commit.ID, "push")
 		goodMarker = fmt.Sprint("ok-", time.Now().Unix())
 		good = deliveryCommit(ctx, deliveryContainerfile(goodMarker, false))
 		// The image is what Kargo needs: the CI's last step (Forgejo's commit status) is the CI specs' to prove
