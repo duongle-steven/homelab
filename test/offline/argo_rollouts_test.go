@@ -77,3 +77,12 @@ func TestGatewaySuccessRateMeasuresTheCanary(t *testing.T) {
 		assert.LessOrEqual(t, seconds(f[1])+float64(count-1)*seconds(f[2]), pauses, "%s measures after the canary ended", f[0])
 	}
 }
+
+// RolloutAborted reads the phase the controller reports for an aborted rollout (rollout_info{phase="Abort"}; never
+// "Degraded") and names the rollout's namespace, which Prometheus keeps as exported_namespace beside the controller's
+// own (AppDelivery 2026-11-20: the alert never fired)
+func TestRolloutAbortedReadsTheController(t *testing.T) {
+	expr := renderArgoRollouts(t, "", `select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(.alert == "RolloutAborted") | .expr`)
+	assert.Contains(t, expr, `phase="Abort"`)
+	assert.Contains(t, expr, `"namespace", "$1", "exported_namespace"`)
+}
