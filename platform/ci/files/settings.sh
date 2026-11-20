@@ -59,6 +59,12 @@ if [ "$EVENT" = push ] && [ "$REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
 	publish=true
 fi
 
+# A publishing run signs what it pushes with the CI's key, which Kargo's verify trusts: under another name (another
+# app's, image: blog) a new repository would publish that app's image, signed, and see it promoted
+if [ "$publish" = true ] && [ "$image" != "${REPO##*/}" ]; then
+	fail "image $image: a push to the default branch publishes only under the repository's own name (${REPO##*/})"
+fi
+
 printf '%s' "$build" >"$OUT/build"
 printf '%s' "$publish" >"$OUT/publish"
 printf '%s' "$context" >"$OUT/context"
