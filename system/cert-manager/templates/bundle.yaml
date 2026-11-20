@@ -5,6 +5,9 @@ apiVersion: trust.cert-manager.io/v1alpha1
 kind: Bundle
 metadata:
   name: homelab-dev-ca
+  # After trust-manager (wave 1), whose webhook validates it
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   sources:
     - secret:
