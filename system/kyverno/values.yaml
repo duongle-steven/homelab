@@ -46,6 +46,8 @@ kyverno:
         memory: 128Mi
       limits:
         memory: 512Mi
+  crds:
+    install: false
 kyverno-policies:
   podSecurityStandard: restricted
   validationFailureAction: Audit
@@ -54,7 +56,6 @@ kyverno-policies:
   podSecurityUserNamespaces: true
 # Registries images may come from (templates/images.yaml); zot (registry.<domain>) is added there
 registries: [docker.io, ghcr.io, quay.io, registry.k8s.io, gcr.io, code.forgejo.org, public.ecr.aws, lscr.io]
-
 # Images GitHub Actions signs keyless on master with their SBOM (templates/signed-image-policies.yaml): production only
 signedImages:
   enabled: true

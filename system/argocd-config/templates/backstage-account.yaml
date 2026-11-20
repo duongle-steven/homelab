@@ -6,9 +6,6 @@ kind: ExternalSecret
 metadata:
   name: argocd-backstage-account
   namespace: argocd
-  annotations:
-    # A fresh install may sync this before its CRD exists: Argo CD applies the rest and retries this
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   # bcrypt salts each run anew: write only when this changes (lab secrets rotate annotates it), not every refresh
   refreshPolicy: OnChange

@@ -42,6 +42,9 @@ type Config struct {
 	Groups []Group `yaml:"groups"`
 	// Globs of what the map must cover (a trailing slash names directories)
 	Components []string `yaml:"components"`
+	// What every sandbox runs, and the groups it runs only when a run needs them (deploy.go)
+	Core         Core                   `yaml:"core"`
+	DeployGroups map[string]DeployGroup `yaml:"deployGroups"`
 }
 
 // Group maps changed paths to specs: a label filter, "" (only Always) or FullKeyword.

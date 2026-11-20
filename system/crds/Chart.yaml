@@ -1,0 +1,8 @@
+apiVersion: v2
+name: crds
+version: 0.0.0
+# Every component's CustomResourceDefinitions, generated from its own pinned chart by scripts/vendor-crds and synced
+# before everything else; the components install none (Argo CD's stay with system/argocd)
+annotations:
+  homelab/name: "CRDs"
+  homelab/description: "Every component's custom resource definitions"

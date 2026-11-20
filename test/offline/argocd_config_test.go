@@ -25,7 +25,6 @@ func TestArgoCDConfigWithoutItsCRDs(t *testing.T) {
 	for _, kind := range []string{"kind: KanidmOAuth2Client", "kind: ExternalSecret", "kind: ServiceMonitor"} {
 		assert.Contains(t, string(out), kind)
 	}
-	resources := strings.Count(string(out), "\nkind: ")
-	assert.Equal(t, resources, strings.Count(string(out), "argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true"),
-		"every resource waits for its CRD")
+	// Their CRDs come from system/crds, applied before Argo CD exists: nothing waits for one
+	assert.NotContains(t, string(out), "SkipDryRunOnMissingResource")
 }

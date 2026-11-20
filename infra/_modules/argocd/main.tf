@@ -1,5 +1,5 @@
-# Apply Argo CD from the repository's system/argocd chart, again whenever its files, the values, the revision or the
-# cluster change; Argo CD syncs everything else (system/argocd-config among it), not itself (upstream nixos's model).
+# Apply every CRD (system/crds) and Argo CD from the repository's system/argocd chart, again whenever their files, the
+# values, the revision or the cluster change; Argo CD syncs everything else (system/argocd-config among it), not itself (upstream nixos's model).
 terraform {
   required_version = ">= 1.13"
 }
@@ -51,10 +51,10 @@ variable "seed_repository" {
   description = "Repository the seed syncs from (config.json's seed_repository), until choose-values.sh switches to repository"
 }
 
-variable "optional_apps" {
+variable "sandbox_groups" {
   type        = list(string)
   default     = []
-  description = "The sandbox's optional apps to deploy (a label each on the cluster Secret): paperless, opencloud"
+  description = "The sandbox's deploy groups (test/scopes.yaml deployGroups; a label homelab/group-<name> each on the cluster Secret)"
 }
 
 variable "stage" {
@@ -92,7 +92,10 @@ data "external" "values" {
 locals {
   # Helm writes charts/ and Chart.lock: hash only what the repository holds
   files = sort(setunion(fileset(var.chart, "*.yaml"), fileset(var.chart, "templates/**")))
-  hash  = sha1(join("", [for f in local.files : filesha1("${var.chart}/${f}")]))
+  # system/crds, which the bootstrap applies before Argo CD's ApplicationSets
+  crds = "${var.chart}/../crds"
+  hash = sha1(join("", concat([for f in local.files : filesha1("${var.chart}/${f}")],
+  [for f in sort(fileset(local.crds, "**")) : filesha1("${local.crds}/${f}")])))
   environment = {
     KUBECONFIG      = var.kubeconfig
     CHART           = var.chart
@@ -100,7 +103,7 @@ locals {
     ENVIRONMENT     = data.external.values.result.environment
     REVISION        = var.revision
     BACKUP_S3_URL   = var.backup_s3_url
-    OPTIONAL_APPS   = join(" ", var.optional_apps)
+    SANDBOX_GROUPS  = join(" ", var.sandbox_groups)
     REPOSITORY      = data.external.values.result.repository
     BRANCH          = var.branch
     REQUESTED_STAGE = var.stage
@@ -110,7 +113,7 @@ locals {
 
 # It has no destroy-time action: destroying it leaves Argo CD running
 resource "terraform_data" "bootstrap" {
-  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, data.external.values.result.repository, var.branch, var.revision, var.backup_s3_url, var.optional_apps, var.stage]
+  triggers_replace = [local.hash, data.external.values.result.values, var.cluster_id, data.external.values.result.repository, var.branch, var.revision, var.backup_s3_url, var.sandbox_groups, var.stage]
 
   lifecycle {
     precondition {

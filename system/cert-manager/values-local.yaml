@@ -6,3 +6,7 @@ trust-manager:
   # Testbed and the sandbox need no public CA bundle
   defaultPackage:
     enabled: false
+  # Its Issuer and Certificate need cert-manager's webhook (wave 0) up, and its Deployment that certificate: the whole
+  # chart a wave later
+  commonAnnotations:
+    argocd.argoproj.io/sync-wave: "1"

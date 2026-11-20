@@ -7,3 +7,4 @@ external-secrets:
     # The API server (outside the mesh) calls it: keep it out of the mesh's strict mTLS
     podLabels:
       istio.io/dataplane-mode: none
+  installCRDs: false

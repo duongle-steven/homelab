@@ -119,7 +119,7 @@ var _ = Describe("Rotation", Ordered, ContinueOnFailure, Serial, Label("sandbox"
 		Expect(results).To(ContainSubstring("ntfy.phone-token: waiting for people"))
 		Expect(results).To(ContainSubstring("cloudflare.cert-manager: skipped: production only"))
 		Expect(results).To(ContainSubstring("grafana.admin: rotated"))
-		// paperless is optional in the sandbox: --all skips its entries when it is not deployed
+		// paperless is its own group in the sandbox: --all skips its entries when it is not deployed
 		if !appDeployed(ctx, "paperless") {
 			Expect(results).To(ContainSubstring("paperless.secret-key: skipped: not deployed here"))
 		}

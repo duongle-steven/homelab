@@ -23,6 +23,6 @@ inputs = {
   cluster_id = dependency.cluster.outputs.cluster_id
   # GitHub Actions tests one commit (just dev --revision <sha>) instead of branch sandbox
   revision = get_env("HOMELAB_SANDBOX_REVISION", "")
-  # The optional apps just dev asks for (space-separated; docs/installation/sandbox.md)
-  optional_apps = compact(split(" ", get_env("HOMELAB_SANDBOX_APPS", "")))
+  # The deploy groups just dev chose (space-separated, lab test scope --groups; docs/how-to-guides/sandbox-tests.md)
+  sandbox_groups = compact(split(" ", get_env("HOMELAB_SANDBOX_GROUPS", "")))
 }

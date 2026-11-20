@@ -184,5 +184,7 @@ kube-prometheus-stack:
                 message: Watchdog heartbeats stopped
                 delay: 15m
                 sequence_id: watchdog
+  crds:
+    enabled: false
 # Telegram, the second path for every alert (templates/telegram-secret.yaml): off in the sandbox, which has no bot
 telegram: true

@@ -14,9 +14,6 @@ metadata:
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: argocd
-  annotations:
-    # A fresh install may sync this before its CRD exists: Argo CD applies the rest and retries this
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   selector:
     matchLabels:

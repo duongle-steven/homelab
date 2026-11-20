@@ -57,8 +57,6 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
-          # Its CRD comes from system/kyverno, which may sync later (a fresh cluster): apply the rest and retry this
-          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
           homelab/reason: "production only: openspeedtest's user 101 is unproven here (nginx on port 3000): revisit in 12b"
       spec:
         policyRefs:

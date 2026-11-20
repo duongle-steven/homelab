@@ -1,10 +1,10 @@
 #!/bin/sh
 # The basic checks, one per name, as GitHub Actions runs them (.github/workflows/checks.yaml) and as the workstation
-# runs them before a commit (scripts/ci-check all). Run in the dev shell (nix develop). render renders the charts
+# runs them before a commit (scripts/ci-check all); several names run each. Run in the dev shell (nix develop). render renders the charts
 # changed since $BASE (default origin/dev; lab test charts).
 set -eu
 cd "$(git rev-parse --show-toplevel)"
-checks='render go cli infra docs mesh backup-groups rotation-catalog catalog backstage env-config secret-stores lint leaks iac images policy workflows'
+checks='render go cli infra docs mesh backup-groups rotation-catalog catalog crds backstage env-config secret-stores lint leaks iac images policy workflows'
 
 check() {
 	case "$1" in
@@ -27,6 +27,8 @@ check() {
 		rotation-catalog) go -C cli run ./cmd/lab secrets check --root "$PWD" ;;
 		# Backstage's catalog and homepage's services, generated from each app's and component's description
 		catalog) go -C cli run ./cmd/lab catalog check ;;
+		# system/crds against the components' charts: a bumped chart needs scripts/vendor-crds <component>
+		crds) scripts/vendor-crds --check ;;
 		# backstage/'s own checks (types, lint, unit tests), only when the branch changes it
 		backstage)
 			if git diff --quiet "${BASE:-origin/dev}...HEAD" -- backstage && git diff --quiet HEAD -- backstage; then
@@ -46,8 +48,13 @@ check() {
 	esac
 }
 
-if [ "${1:?usage: ci-check <check>|all}" = all ]; then
-	for c in $checks; do echo "== $c"; check "$c"; done
-else
-	check "$1"
+# One or more checks, or all; each named check runs (a second name was once ignored silently)
+: "${1:?usage: ci-check <check>...|all}"
+if [ "$1" = all ]; then
+	# shellcheck disable=SC2086 # one check per word
+	set -- $checks
 fi
+for c in "$@"; do
+	[ $# = 1 ] || echo "== $c"
+	check "$c"
+done

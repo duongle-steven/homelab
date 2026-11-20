@@ -14,7 +14,7 @@ import (
 // whole suite), labels outside labels: (in a filter or on a spec) or on no spec, filters that select no spec, and alone
 // labels or alone specs that do not meet.
 func (c Config) Check(tracked []string, specs []Spec) []string {
-	var problems []string
+	problems := c.CheckGroups(specs)
 	uncovered := map[string]bool{}
 	for _, file := range tracked {
 		if component := c.component(file); component != "" && !c.known(file) {

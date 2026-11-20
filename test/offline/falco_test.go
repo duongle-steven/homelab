@@ -86,8 +86,8 @@ func TestFalcoRender(t *testing.T) {
 			}
 			assert.Len(t, strings.Fields(exceptions), 1)
 			assert.NotEmpty(t, renderFalco(t, env, `select(.kind == "PolicyException") | .metadata.annotations["homelab/reason"]`))
-			assert.Contains(t, renderFalco(t, env, `select(.kind == "PolicyException") | .metadata.annotations["argocd.argoproj.io/sync-options"]`),
-				"SkipDryRunOnMissingResource=true")
+			assert.Empty(t, renderFalco(t, env, `select(.kind == "PolicyException") | .metadata.annotations["argocd.argoproj.io/sync-options"] // ""`),
+				"its CRD comes from system/crds")
 			assert.Len(t, strings.Fields(monitors), 1)
 		})
 	}

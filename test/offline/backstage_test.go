@@ -48,9 +48,7 @@ func TestBackstageRender(t *testing.T) {
 	assert.Equal(t, "https://github.com/duongle-steven/homelab/blob/sandbox/backstage/templates/ci-repository/template.yaml", env("dev", "TEMPLATES_LOCATION"))
 	assert.Equal(t, "https://backstage.127-0-0-1.nip.io", env("dev", "BACKSTAGE_BASE_URL"))
 
-	// The sandbox always syncs it (decided 2026-11-17); production waits for its first release
-	assert.Contains(t, renderVelero(t, "system/argocd", "dev", `select(.kind == "ApplicationSet" and .metadata.name == "root") | .spec.generators | @json`),
+	// The sandbox syncs it with its group backstage (test/scopes.yaml); production waits for its first release
+	assert.Contains(t, renderVelero(t, "system/argocd", "dev", `select(.kind == "ApplicationSet" and .metadata.name == "root") | .spec.generators[] | select(.matrix.generators[0].clusters.selector.matchLabels["homelab/group-backstage"] == "true") | @json`),
 		`"path":"platform/backstage"`)
-	assert.NotContains(t, renderVelero(t, "system/argocd", "dev", `select(.kind == "ApplicationSet" and .metadata.name == "root") | .spec.generators | @json`),
-		`homelab/app-backstage`)
 }

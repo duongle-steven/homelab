@@ -1,0 +1,6 @@
+{{- /* Every file under files/ is one CRD written by scripts/vendor-crds, read as it is (never templated: some CRDs'
+descriptions hold Go template braces) */ -}}
+{{- range $path, $_ := .Files.Glob "files/**.yaml" }}
+---
+{{ $.Files.Get $path }}
+{{- end }}

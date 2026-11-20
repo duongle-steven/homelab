@@ -21,6 +21,12 @@ func TestE2E(t *testing.T) {
 // order and the first specs' long waits let a fresh sandbox or testbed finish its first sync before the shorter ones. So
 // every local run first waits, at most 20 minutes, for Argo CD's Applications to settle; then the specs run as they
 // are, each failing on its own (a Degraded app fails its specs, not the suite). Production is never waited on
+// A spec whose labels need a sandbox group the run did not deploy is skipped, or fails when the run asked for it
+// (test/scopes.yaml deployGroups; just dev deploys what its selection needs, so this only meets a hand-run filter)
+var _ = BeforeEach(func(ctx SpecContext) {
+	skipUnlessGroups(ctx, scopeMap().GroupsOfLabels(CurrentSpecReport().Labels()))
+})
+
 var _ = BeforeSuite(func(ctx SpecContext) {
 	if _, local := map[string]bool{"dev": true, "testbed": true}[suiteEnv()]; !local {
 		return

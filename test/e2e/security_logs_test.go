@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -213,8 +214,13 @@ func lokiLines(ctx context.Context, query string, since time.Duration) []string 
 // No generated secret's value is in either audit log (a Secret's body is never logged, OpenBao HMACs values)
 var _ = Describe("SecurityLogsNoSecretValues", Label("sandbox", "testbed", "security-logs", "logs"), func() {
 	It("keeps generated values out of the audit logs", func(ctx SpecContext) {
-		// On a fresh cluster the suite may reach this before Argo CD synced the apps (terratest's 60 tries 10 s apart)
-		for _, ns := range []string{"grafana", "forgejo"} {
+		// On a fresh cluster the suite may reach this before Argo CD synced the apps (terratest's 60 tries 10 s apart).
+		// Grafana is the logs' own group (observability); Forgejo's value only when its group runs
+		admins := []string{"grafana"}
+		if appDeployed(ctx, "forgejo") {
+			admins = append(admins, "forgejo")
+		}
+		for _, ns := range admins {
 			Eventually(ctx, func() error {
 				_, err := kube.Kubectl(ctx, ns, "get", "secret", ns+"-admin", "-o", "name")
 				return err
@@ -222,8 +228,10 @@ var _ = Describe("SecurityLogsNoSecretValues", Label("sandbox", "testbed", "secu
 		}
 		values := map[string]string{
 			"grafana/grafana-admin": secretValue(ctx, "grafana", "grafana-admin", "admin-password"),
-			"forgejo/forgejo-admin": secretValue(ctx, "forgejo", "forgejo-admin", "password"),
 			"ntfy alerts token":     ntfyToken(ctx, "alerts"),
+		}
+		if slices.Contains(admins, "forgejo") {
+			values["forgejo/forgejo-admin"] = secretValue(ctx, "forgejo", "forgejo-admin", "password")
 		}
 		lines := lokiLines(ctx, `{service_name=~"k3s-audit|openbao-audit"}`, 2*time.Hour)
 		Expect(lines).NotTo(BeEmpty(), "no audit line in the last 2 hours")
