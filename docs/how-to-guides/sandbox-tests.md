@@ -42,6 +42,26 @@ A new label goes in `core.labels` (its specs need nothing more) or in a group's 
 or in one group, with its directory or app file in that group's generator in `system/argocd/values-dev.yaml`
 (`just cli check` and `TestArgoCDSandboxGroups` fail otherwise).
 
+### What a run deploys, measured
+
+On 2026-11-19 a `just dev --tests delivery` run deployed the whole platform: the k3d node held 10–11.6 GiB of its
+12.66 GiB, and with no room left for the page cache it re-read its files without pause, **2.5 TB read and 135 GB
+written in 66 minutes** (0.6–1 GB/s): the workstation's disk at 100%, k3s losing its leases, new pods' DNS failing. On
+2026-11-20, with groups, from scratch (`just dev-clean`, then `just dev --tests ci`: the in-cluster CI's Buildah builds,
+the heaviest load `dev` has; `docker stats` of the node every 15 s):
+
+| | Whole platform (2026-11-19) | Groups `backstage ci git` (2026-11-20) |
+|---|---|---|
+| Applications | every one | 16 |
+| First sync, from the ApplicationSets to every Application synced and healthy | about 20 minutes | 7 min 26 s |
+| Node memory | 10–11.6 GiB (79–92%) | at most 8.08 GiB (64%), 7.1 GiB on average |
+| Block reads | 0.6–1 GB/s | 2.4 MB/s on average, 22.6 MB/s at most (15 s) |
+| Block writes | 34 MB/s | 17 MB/s |
+| Specs | | 15 passed in 16.5 minutes |
+
+`just dev --tests logs` (groups `metrics observability`, 15 Applications) passed its 13 specs in 3.6 minutes on a
+synced sandbox.
+
 Before closing WSL, `just dev-stop` stops the sandbox so it stays stopped (Docker would start it with WSL); the next
 `just dev` rebuilds it from scratch.
 
