@@ -153,7 +153,12 @@ func TestEveryKindHasItsCRD(t *testing.T) {
 		targets = append(targets, rel)
 	}
 	for _, target := range targets {
-		for _, env := range []string{"", "dev", "testbed"} {
+		envs := []string{"", "dev", "testbed"}
+		if strings.HasPrefix(target, "apps/") {
+			// The testbed runs no apps
+			envs = envs[:2]
+		}
+		for _, env := range envs {
 			for _, gk := range strings.Fields(renderVelero(t, target, env, `select(.apiVersion != null) | (.apiVersion | sub("/[^/]*$", "")) + "/" + .kind`)) {
 				group := gk[:strings.LastIndex(gk, "/")]
 				// Built in: the core group, the k8s.io groups (the Gateway API's from k3s's manifests), and Argo CD's
