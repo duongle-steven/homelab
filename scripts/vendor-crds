@@ -10,7 +10,8 @@ cd "$(dirname "$0")/.."
 # component directory | the helm arguments that turn its chart's templated CRDs on (its values.yaml turns them off);
 # charts that keep CRDs in crds/ need none (scripts/render-chart's HOMELAB_RENDER_CRDS=1)
 COMPONENTS=(
-  "system/cert-manager|--set cert-manager.crds.enabled=true --set trust-manager.crds.enabled=true"
+  # trust-manager runs only in the sandbox and the testbed (values-local.yaml): enabled here so its CRD is vendored
+  "system/cert-manager|--set cert-manager.crds.enabled=true --set trust-manager.enabled=true --set trust-manager.crds.enabled=true"
   "system/external-dns|"
   "system/istio-system|--set-json base.base.excludedCRDs=[]"
   "system/kyverno|--set kyverno.crds.install=true"

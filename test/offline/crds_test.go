@@ -127,3 +127,43 @@ func TestNoCRDOrderWorkarounds(t *testing.T) {
 	out, _ := cmd.Output()
 	assert.Empty(t, strings.TrimSpace(string(out)), "files still waiting on a CRD")
 }
+
+// Every kind a chart or app renders in any environment has its CRD in system/crds (or Argo CD's own, or is built in):
+// a CRD only one environment's values enable (trust-manager's Bundle, the sandbox's) is vendored too
+func TestEveryKindHasItsCRD(t *testing.T) {
+	served := map[string]bool{}
+	for _, chart := range []string{"system/crds", "system/argocd"} {
+		for _, gk := range strings.Fields(renderVelero(t, chart, "", `select(.kind == "CustomResourceDefinition") | .spec.group + "/" + .spec.names.kind`)) {
+			served[gk] = true
+		}
+	}
+	dirs, err := filepath.Glob(filepath.Join(repo.Root(), "*", "*", "Chart.yaml"))
+	require.NoError(t, err)
+	apps, err := filepath.Glob(filepath.Join(repo.Root(), "apps", "*.yaml"))
+	require.NoError(t, err)
+	var targets []string
+	for _, c := range dirs {
+		dir, _ := filepath.Rel(repo.Root(), filepath.Dir(c))
+		if strings.HasPrefix(dir, "system/") || strings.HasPrefix(dir, "platform/") {
+			targets = append(targets, dir)
+		}
+	}
+	for _, a := range apps {
+		rel, _ := filepath.Rel(repo.Root(), a)
+		targets = append(targets, rel)
+	}
+	for _, target := range targets {
+		for _, env := range []string{"", "dev", "testbed"} {
+			for _, gk := range strings.Fields(renderVelero(t, target, env, `select(.apiVersion != null) | (.apiVersion | sub("/[^/]*$", "")) + "/" + .kind`)) {
+				group := gk[:strings.LastIndex(gk, "/")]
+				// Built in: the core group, the k8s.io groups (the Gateway API's from k3s's manifests), and Argo CD's
+				// rook-ceph ships csi.ceph.io's CRDs itself (TestNoComponentShipsCRDs)
+				if !strings.Contains(group, ".") || strings.HasSuffix(group, ".k8s.io") || served[gk] ||
+					(target == "system/rook-ceph" && group == "csi.ceph.io") {
+					continue
+				}
+				assert.Fail(t, "kind without its CRD", "%s (env %q) uses %s: run scripts/vendor-crds for its component", target, env, gk)
+			}
+		}
+	}
+}
