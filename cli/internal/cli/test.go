@@ -18,7 +18,7 @@ func newTestCmd() *cobra.Command {
 
 func newTestScopeCmd() *cobra.Command {
 	var base, tests, config string
-	var alone, each, full, check bool
+	var alone, each, full, check, groups bool
 	cmd := &cobra.Command{
 		Use:   "scope",
 		Short: "Print the Ginkgo label filter of the sandbox specs a change can affect",
@@ -77,6 +77,23 @@ func newTestScopeCmd() *cobra.Command {
 				}
 			}
 			main, aloneLabels := c.Filter(s, specs)
+			if groups {
+				names := c.AllGroups()
+				if !s.Full {
+					runs := append([]string{main}, aloneLabels...)
+					var changed []string
+					if !s.Manual {
+						if changed, err = scope.Changed(root, base); err != nil {
+							return err
+						}
+					}
+					names = c.GroupsFor(strings.Trim(strings.Join(nonEmpty(runs), " || "), " |"), specs, changed)
+				}
+				for _, name := range names {
+					fmt.Fprintln(cmd.OutOrStdout(), name)
+				}
+				return nil
+			}
 			switch {
 			case !alone:
 				fmt.Fprintln(cmd.OutOrStdout(), main)
@@ -96,10 +113,22 @@ func newTestScopeCmd() *cobra.Command {
 	flags.BoolVar(&each, "each", false, "with --alone, one label per line, each its own run")
 	flags.BoolVar(&full, "full", false, "the whole suite")
 	flags.StringVar(&tests, "tests", "", "exactly these specs (a Ginkgo label filter)")
+	flags.BoolVar(&groups, "groups", false, "print the deploy groups the selection needs, one per line (--full: every group)")
 	flags.BoolVar(&check, "check", false, "verify the map instead of printing a selection")
 	flags.StringVar(&config, "config", "test/scopes.yaml", "the map, relative to the repository root")
 	cmd.MarkFlagsMutuallyExclusive("full", "tests", "check")
 	return cmd
+}
+
+// nonEmpty drops the empty filters (a run with nothing to select)
+func nonEmpty(filters []string) []string {
+	var out []string
+	for _, f := range filters {
+		if f != "" {
+			out = append(out, "("+f+")")
+		}
+	}
+	return out
 }
 
 // zeroSHA is what GitHub sends as the previous commit of a push that creates a branch

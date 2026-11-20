@@ -23,6 +23,7 @@ func testConfig() Config {
 			{Paths: []string{"system/velero/**"}, Tests: "backup-restore"},
 			{Paths: []string{"system/kured/**"}, Tests: ""},
 		},
+		Core: Core{Labels: []string{"smoke", "identity", "logs", "security-logs", "node-restart", "backup-restore", "proof"}},
 	}
 }
 

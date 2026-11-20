@@ -100,6 +100,74 @@ always: smoke
 # Each runs by itself after the main run, in this order (#78)
 alone: [backup-restore, node-power-cut, node-restart, rotation]
 full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || traces || ci || backstage || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
+# What every sandbox runs, and the groups of components it deploys only when a run needs them
+# (docs/superpowers/specs/2026-11-20-sandbox-groups-design.md): a group goes in when a selected spec carries one of
+# its labels, when the branch changes one of its components, or when a deployed group needs it. Every label a sandbox
+# spec carries is the core's or a group's (lab test scope --check); --full deploys every group
+core:
+  components: [system/crds, system/argocd-config, system/istio-system, system/cert-manager, system/csi-hostpath,
+    system/egress, system/secret-store, platform/external-secrets, platform/openbao, platform/generated-secrets,
+    platform/infra-secrets, platform/kanidm]
+  # sso's specs also carry their app's label
+  labels: [smoke, argocd, identity, sso, gateway, egress, secrets, node-restart, node-power-cut, scan]
+deployGroups:
+  # MeshMetrics and MeshPrometheusTargetsUp read Prometheus
+  metrics:
+    components: [system/monitoring-system]
+    labels: [monitoring, mesh]
+  observability:
+    components: [system/loki, system/tempo, system/opentelemetry, system/kiali, platform/grafana]
+    needs: [metrics]
+    labels: [logs, security-logs, traces, kiali, grafana]
+  # TestSupplyChain checks Kyverno's verify-lab-image against an image in zot
+  policy:
+    components: [system/kyverno]
+    labels: [policy, supply-chain]
+  security:
+    components: [system/trivy-operator, system/falco, system/public-scan]
+    needs: [metrics]
+    labels: [trivy-operator, falco, public]
+  # Rotation restarts the readers of every scheduled entry: Forgejo's and ntfy's among them
+  backup:
+    components: [system/velero, platform/secrets-rotation]
+    needs: [git, ntfy]
+    labels: [backup-restore, rotation]
+  git:
+    components: [platform/cloudnative-pg, platform/forgejo]
+    labels: [forgejo, deploy]
+  ci:
+    components: [platform/zot, platform/argo-workflows, platform/argo-events, platform/ci]
+    needs: [git]
+    labels: [ci, zot, seccomp, supply-chain]
+  backstage:
+    components: [platform/backstage]
+    needs: [ci]
+    labels: [backstage]
+  # Alertmanager's delivery to ntfy is what its specs check
+  ntfy:
+    components: [apps/ntfy.yaml]
+    needs: [metrics]
+    labels: [ntfy]
+  matrix:
+    components: [apps/matrix.yaml]
+    labels: [matrix]
+  actualbudget:
+    components: [apps/actualbudget.yaml]
+    labels: [actual-budget]
+  paperless:
+    components: [apps/paperless.yaml]
+    labels: [paperless]
+  opencloud:
+    components: [apps/opencloud.yaml]
+    labels: [opencloud]
+  excalidraw:
+    components: [apps/excalidraw.yaml]
+  homepage:
+    components: [apps/homepage.yaml]
+  pairdrop:
+    components: [apps/pairdrop.yaml]
+  speedtest:
+    components: [apps/speedtest.yaml]
 groups:
   # Every component's CRDs: what every spec stands on
   - paths: [system/crds/**, scripts/vendor-crds]
