@@ -17,7 +17,8 @@ top-level container only, from the fixed list in `test/scopes.yaml` (`labels:`):
 ## Groups: the sandbox runs what the specs need
 
 The sandbox is for testing what is being built, so a run deploys only the **core** (Argo CD's config, Istio,
-cert-manager, the volumes, External Secrets, OpenBao, Kanidm, and every CRD from `system/crds`) and the **groups** its
+cert-manager, the volumes, External Secrets, OpenBao, Kanidm, Excalidraw as the specs' sample workload, and every
+CRD from `system/crds`) and the **groups** its
 specs need; everything else is removed. One file says which: `test/scopes.yaml`'s `core:` and `deployGroups:`
 (`docs/superpowers/specs/2026-11-20-sandbox-groups-design.md`). A group goes in when:
 
@@ -40,7 +41,12 @@ namespaces are gone ("not deployed here").
 
 A new label goes in `core.labels` (its specs need nothing more) or in a group's `labels`; a new component in the core
 or in one group, with its directory or app file in that group's generator in `system/argocd/values-dev.yaml`
-(`just cli check` and `TestArgoCDSandboxGroups` fail otherwise).
+(`just cli check` and `TestArgoCDSandboxGroups` fail otherwise). A spec that names another group's namespace needs
+one of that group's labels, or checks it with `appDeployed` (`TestSpecsNamespacesDeployed`).
+
+On a running sandbox `just dev` applies the commit's `system/crds` before it pushes the commit
+(`infra/_modules/argocd/apply-crds.sh`): a component that stops rendering a CRD would otherwise have Argo CD prune it,
+with every object of its kind.
 
 ### What a run deploys, measured
 

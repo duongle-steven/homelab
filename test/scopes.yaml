@@ -118,6 +118,8 @@ core:
     - platform/generated-secrets
     - platform/infra-secrets
     - platform/kanidm
+    # A small static page: the egress, Gateway, mesh, policy and Trivy specs' sample workload
+    - apps/excalidraw.yaml
   # sso's specs also carry their app's label
   labels: [smoke, argocd, identity, sso, gateway, egress, secrets, node-restart, node-power-cut, scan]
 deployGroups:
@@ -128,37 +130,41 @@ deployGroups:
   observability:
     components: [system/loki, system/tempo, system/opentelemetry, system/kiali, platform/grafana]
     needs: [metrics]
-    # Rotation checks Grafana after rotating its admin password
-    labels: [logs, security-logs, traces, kiali, grafana, rotation]
+    # Rotation checks Grafana after rotating its admin password; the secrets specs read Grafana's Secrets
+    labels: [logs, security-logs, traces, kiali, grafana, rotation, secrets]
   # TestSupplyChain checks Kyverno's verify-lab-image against an image in zot
   policy:
     components: [system/kyverno]
     labels: [policy, supply-chain]
+  # Falco's and the public scan's alerts are Loki's ruler's
   security:
     components: [system/trivy-operator, system/falco, system/public-scan]
-    needs: [metrics]
+    needs: [observability]
     labels: [trivy-operator, falco, public]
   # Rotation restarts the readers of every scheduled entry: Forgejo's and ntfy's among them
   backup:
     components: [system/velero, platform/secrets-rotation]
     needs: [git, ntfy]
     labels: [backup-restore, rotation]
+  # NodePowerCut checks Forgejo's data after the cut; SecretsGeneratedOnlyInOpenBao reads its Secrets
   git:
     components: [platform/cloudnative-pg, platform/forgejo]
-    labels: [forgejo, deploy]
+    labels: [forgejo, deploy, node-power-cut, secrets]
   ci:
     components: [platform/zot, platform/argo-workflows, platform/argo-events, platform/ci]
     needs: [git]
-    labels: [ci, zot, seccomp, supply-chain]
+    # Rotation rotates zot's ci password; SecretsGeneratedOnlyInOpenBao reads the CI's Secrets
+    labels: [ci, zot, seccomp, supply-chain, rotation, secrets]
   backstage:
     components: [platform/backstage]
     needs: [ci]
     labels: [backstage]
-  # Alertmanager's delivery to ntfy is what its specs check
+  # Alertmanager's delivery to ntfy is what its specs check; ntfy is a public route (GatewayPublicAllowList) and
+  # NodePowerCut checks its data after the cut
   ntfy:
     components: [apps/ntfy.yaml]
     needs: [metrics]
-    labels: [ntfy]
+    labels: [ntfy, public, node-power-cut]
   matrix:
     components: [apps/matrix.yaml]
     labels: [matrix]
@@ -171,8 +177,6 @@ deployGroups:
   opencloud:
     components: [apps/opencloud.yaml]
     labels: [opencloud]
-  excalidraw:
-    components: [apps/excalidraw.yaml]
   homepage:
     components: [apps/homepage.yaml]
   pairdrop:

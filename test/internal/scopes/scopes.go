@@ -63,3 +63,24 @@ func (m Map) GroupOfNamespace(ns string) string {
 	}
 	return ""
 }
+
+// WithNeeds returns groups and every group they need, sorted
+func (m Map) WithNeeds(groups []string) []string {
+	wanted := map[string]bool{}
+	queue := append([]string{}, groups...)
+	for len(queue) > 0 {
+		g := queue[0]
+		queue = queue[1:]
+		if wanted[g] {
+			continue
+		}
+		wanted[g] = true
+		queue = append(queue, m.DeployGroups[g].Needs...)
+	}
+	out := make([]string, 0, len(wanted))
+	for g := range wanted {
+		out = append(out, g)
+	}
+	sort.Strings(out)
+	return out
+}

@@ -36,7 +36,16 @@ render() { # dir sets outdir -> writes outdir/<crd>.yaml for each of the compone
   [ -n "$sets" ] && set -- "$@" "" $sets
   local all
   all=$(mktemp --suffix .yaml)
-  HOMELAB_RENDER_CRDS=1 scripts/render-chart "$@" 2>/dev/null >"$all"
+  local err
+  err=$(mktemp)
+  # Helm's chatter (dependency downloads) only when the render fails, naming the component
+  if ! HOMELAB_RENDER_CRDS=1 scripts/render-chart "$@" 2>"$err" >"$all"; then
+    echo "vendor-crds: rendering $dir failed:" >&2
+    cat "$err" >&2
+    rm -f "$err" "$all"
+    exit 1
+  fi
+  rm -f "$err"
   # rook-ceph's ceph-csi-operator templates its csi.ceph.io CRDs with no switch: they stay with rook-ceph (never in the
   # sandbox), the one component that installs CRDs
   yq 'select(.kind == "CustomResourceDefinition" and .spec.group != "csi.ceph.io")

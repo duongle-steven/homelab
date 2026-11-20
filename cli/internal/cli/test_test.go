@@ -156,6 +156,9 @@ func TestCommandGroups(t *testing.T) {
 			t.Errorf("%v: got %q %v", tc.args, out, err)
 		}
 	}
+	if out, err := lab(t, "--tests", "smoke", "--add", "observability"); err == nil {
+		t.Errorf("--add without --groups accepted: %q", out)
+	}
 	if out, err := lab(t, "--tests", "smoke", "--groups", "--add", "nope"); err == nil {
 		t.Errorf("an unknown group accepted: %q", out)
 	}

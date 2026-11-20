@@ -248,7 +248,23 @@ argocd-apps:
                 valuesObject: *values
     apps:
       generators:
-        # Every app is a group's (test/scopes.yaml deployGroups): deployed when the cluster Secret carries its label
+        # The core's app (test/scopes.yaml core): the specs' sample workload, at stage all like every app
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/excalidraw.yaml
+                    - git: *config
+        # Every other app is a group's (test/scopes.yaml deployGroups): deployed when the cluster Secret carries its label
         - matrix:
             generators:
               - clusters:
@@ -264,22 +280,6 @@ argocd-apps:
                         revision: *revision
                         files:
                           - path: apps/actualbudget.yaml
-                    - git: *config
-        - matrix:
-            generators:
-              - clusters:
-                  selector:
-                    matchLabels:
-                      homelab/bootstrap: "true"
-                      homelab/stage: all
-                      homelab/group-excalidraw: "true"
-              - matrix:
-                  generators:
-                    - git:
-                        repoURL: *repoURL
-                        revision: *revision
-                        files:
-                          - path: apps/excalidraw.yaml
                     - git: *config
         - matrix:
             generators:

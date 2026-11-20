@@ -34,7 +34,15 @@ func groupDeployed(ctx context.Context, group string) bool {
 	if suiteEnv() != "dev" {
 		return true
 	}
-	out, err := kube.Kubectl(ctx, "argocd", "get", "secret", "in-cluster", "-o", `jsonpath={.metadata.labels.homelab/group-`+group+`}`)
+	// A single API error (a busy API server) is not an answer: retried for a minute
+	var out string
+	var err error
+	for try := 0; try < 6; try++ {
+		if out, err = kube.Kubectl(ctx, "argocd", "get", "secret", "in-cluster", "-o", `jsonpath={.metadata.labels.homelab/group-`+group+`}`); err == nil {
+			break
+		}
+		sleep(ctx, 10*time.Second)
+	}
 	skip, failure := smoke.GroupState(group, wantedGroups(), strings.TrimSpace(out) == "true", err)
 	if failure != "" {
 		Fail(failure)

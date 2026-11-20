@@ -55,6 +55,8 @@ dev $full="" $tests="" $apps="" $revision="" $base="origin/dev": sandbox-checkou
     if [ "$apps" = all ]; then groups="$every"
     else groups=$({{ lab }} test scope "${sel[@]}" --groups ${apps:+--add "$apps"} | tr '\n' ' '); fi
     echo "just dev: groups '$groups'"
+    # A running sandbox gets the commit's CRDs before Argo CD can see the commit (infra/_modules/argocd/apply-crds.sh)
+    if kubectl --request-timeout=10s get namespace argocd >/dev/null 2>&1; then infra/_modules/argocd/apply-crds.sh "$PWD"; fi
     if [ -z "$revision" ]; then {{ just }} sandbox-push; fi
     scripts/warm-image-cache
     (cd infra/sandbox && HOMELAB_SANDBOX_REVISION="$([ -z "$revision" ] || git rev-parse HEAD)" HOMELAB_SANDBOX_GROUPS="$groups" {{ terragrunt_apply }})
@@ -157,6 +159,10 @@ testbed: sandbox-checkout sandbox-clean
     scripts/testbed-guard testbed
     scripts/ssh-key-loaded testbed
     gh auth status >/dev/null || { echo "just testbed: gh is not logged in, so the mark could not be written" >&2; exit 1; }
+    # A running testbed gets the commit's CRDs before its Argo CD can see the commit (infra/_modules/argocd/apply-crds.sh)
+    if kubectl --kubeconfig {{ testbed_kubeconfig }} --request-timeout=10s get namespace argocd >/dev/null 2>&1; then
+        KUBECONFIG={{ testbed_kubeconfig }} infra/_modules/argocd/apply-crds.sh "$PWD"
+    fi
     git push --force origin "$proof_commit:refs/heads/testbed"
     (cd infra/testbed && {{ terragrunt_apply }})
     kubectl --kubeconfig {{ testbed_kubeconfig }} -n argocd annotate applicationsets --all argocd.argoproj.io/application-set-refresh=true --overwrite >/dev/null 2>&1 || true

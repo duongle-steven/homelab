@@ -78,6 +78,9 @@ func newTestScopeCmd() *cobra.Command {
 				}
 			}
 			main, aloneLabels := c.Filter(s, specs)
+			if len(add) > 0 && !groups {
+				return fmt.Errorf("--add names groups for --groups")
+			}
 			if groups {
 				for _, name := range add {
 					if _, ok := c.DeployGroups[name]; !ok {

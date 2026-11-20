@@ -172,3 +172,55 @@ func TestEveryKindHasItsCRD(t *testing.T) {
 		}
 	}
 }
+
+// A running cluster gets a commit's CRDs before its Argo CD can see the commit: a component that stops rendering a CRD
+// would otherwise have it pruned, with every object of its kind, before the bootstrap ran (the sandbox-groups review)
+func TestCRDsBeforePush(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(repo.Root(), "justfile"))
+	require.NoError(t, err)
+	justfile := string(raw)
+	recipe := func(name string) string {
+		start := strings.Index(justfile, "\n"+name)
+		require.GreaterOrEqual(t, start, 0, name)
+		end := strings.Index(justfile[start+1:], "\n\n")
+		return justfile[start : start+1+end]
+	}
+	for name, push := range map[string]string{"dev $full": "sandbox-push", "testbed:": `git push --force origin "$proof_commit`} {
+		body := recipe(name)
+		crds, pushed := strings.Index(body, "apply-crds.sh"), strings.Index(body, push)
+		require.GreaterOrEqual(t, crds, 0, "%s applies no CRDs", name)
+		require.GreaterOrEqual(t, pushed, 0, "%s pushes nothing", name)
+		assert.Less(t, crds, pushed, "%s pushes before it applies the CRDs", name)
+	}
+}
+
+// A chart that keeps CRDs in crds/ renders none through scripts/render-chart (--skip-crds, like Argo CD's skipCrds), so
+// TestNoComponentShipsCRDs cannot see them: rendered with them, every CRD a component ships is vendored in system/crds
+// (else its controller would find none: the sandbox-groups review)
+func TestShippedCRDsVendored(t *testing.T) {
+	t.Setenv("HOMELAB_RENDER_CRDS", "1")
+	dirs, err := filepath.Glob(filepath.Join(repo.Root(), "*", "*", "Chart.yaml"))
+	require.NoError(t, err)
+	for _, c := range dirs {
+		dir, _ := filepath.Rel(repo.Root(), filepath.Dir(c))
+		if !strings.HasPrefix(dir, "system/") && !strings.HasPrefix(dir, "platform/") || dir == "system/argocd" || dir == "system/crds" {
+			continue
+		}
+		for _, env := range []string{"", "dev"} {
+			for _, name := range strings.Fields(renderVelero(t, dir, env, `select(.kind == "CustomResourceDefinition" and .spec.group != "csi.ceph.io") | .metadata.name`)) {
+				_, err := os.Stat(filepath.Join(repo.Root(), "system", "crds", "files", filepath.Base(dir), name+".yaml"))
+				assert.NoError(t, err, "%s (%s) ships %s, which system/crds lacks: add the component to scripts/vendor-crds", dir, env, name)
+			}
+		}
+	}
+}
+
+// scripts/ci-check runs every check it is given, not only the first (the sandbox-groups ledger: three tasks' checks
+// had run one each)
+func TestCICheckRunsEveryName(t *testing.T) {
+	cmd := exec.Command("scripts/ci-check", "workflows", "no-such-check")
+	cmd.Dir = repo.Root()
+	out, err := cmd.CombinedOutput()
+	assert.Error(t, err)
+	assert.Contains(t, string(out), "unknown check no-such-check")
+}

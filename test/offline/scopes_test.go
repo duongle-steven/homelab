@@ -13,7 +13,7 @@ func TestScopesGroups(t *testing.T) {
 	m, err := scopes.Load()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"observability"}, m.GroupsOfLabels([]string{"sandbox", "testbed", "logs"}))
-	assert.Equal(t, []string{"backup", "observability"}, m.GroupsOfLabels([]string{"sandbox", "rotation", "alone"}))
+	assert.Equal(t, []string{"backup", "ci", "observability"}, m.GroupsOfLabels([]string{"sandbox", "rotation", "alone"}))
 	assert.Empty(t, m.GroupsOfLabels([]string{"sandbox", "smoke"}))
 	assert.Equal(t, "paperless", m.GroupOfNamespace("paperless"))
 	assert.Equal(t, "observability", m.GroupOfNamespace("grafana"))
