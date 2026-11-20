@@ -216,4 +216,42 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 		_, body := deliveryPage(ctx)
 		Expect(body).To(Equal(goodMarker))
 	}, SpecTimeout(30*time.Minute))
+
+	// A person's rollback holds production's auto-promotion (Kargo's hold): verify still takes the fix, production
+	// keeps the rolled-back version until someone promotes the fix, which releases the hold. A run that ends held
+	// would leave the next run's first version waiting forever (2026-11-20)
+	It("holds production after the rollback until a person promotes the fix", func(ctx SpecContext) {
+		fixMarker := fmt.Sprint("fix-", time.Now().Unix())
+		fix := deliveryCommit(ctx, deliveryContainerfile(fixMarker, false))
+		_, digest := ciWorkflowFor(ctx, deliveryApp, fix, "push")
+		Expect(digest).NotTo(BeEmpty(), "the CI pushed no image")
+		var freight string
+		Eventually(ctx, func() string {
+			out, _ := kube.Kubectl(ctx, deliveryApp, "get", "freight", "-o",
+				`jsonpath={range .items[?(@.images[0].tag=="`+fix+`")]}{.metadata.name} {.status.verifiedIn.verify.verifiedAt}{end}`)
+			fields := strings.Fields(out)
+			if len(fields) < 2 {
+				return ""
+			}
+			freight = fields[0]
+			return fields[1]
+		}).WithTimeout(20*time.Minute).WithPolling(20*time.Second).ShouldNot(BeEmpty(), "verify did not take the fix")
+		Consistently(ctx, deliveryRelease).WithTimeout(2*time.Minute).WithPolling(20*time.Second).Should(ContainSubstring(good),
+			"production moved by itself while held")
+		holds := func() string {
+			out, _ := kube.Kubectl(ctx, deliveryApp, "get", "stage", "production", "-o", "jsonpath={.status.autoPromotionHolds}")
+			return strings.TrimSpace(out)
+		}
+		Expect(holds()).NotTo(BeEmpty(), "no hold after the rollback")
+		// What "Promote" on the fix in Kargo's UI creates
+		promotion := fmt.Sprintf(`{"apiVersion":"kargo.akuity.io/v1alpha1","kind":"Promotion","metadata":{"generateName":"resume-","namespace":%q},`+
+			`"spec":{"stage":"production","freight":%q}}`, deliveryApp, freight)
+		created, err := kube.KubectlStdin(ctx, promotion, deliveryApp, "create", "-f", "-")
+		Expect(err).NotTo(HaveOccurred(), created)
+		Eventually(ctx, func() string {
+			_, body := deliveryPage(ctx)
+			return body
+		}).WithTimeout(15 * time.Minute).WithPolling(15 * time.Second).Should(Equal(fixMarker))
+		Eventually(ctx, holds).WithTimeout(2*time.Minute).WithPolling(10*time.Second).Should(BeEmpty(), "the hold outlived the promotion of the fix")
+	}, SpecTimeout(45*time.Minute))
 })

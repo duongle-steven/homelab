@@ -34,7 +34,10 @@ Renovate leaves our images alone (`renovate.json5`: names starting `registry.{{`
 
 Fix it and push: the next good build goes through the same road and replaces it. To go back without a new build,
 promote the previous Freight to `production` in Kargo (`https://kargo.<domain>`, `homelab-admins` only: editors see
-Kargo but change nothing); the Rollout returns to Healthy on it.
+Kargo but change nothing); the Rollout returns to Healthy on it. Promoting an older Freight by hand puts `production`
+on hold (Kargo's auto-promotion hold, shown on the Stage): later versions still pass `verify`, but production stays on
+the one you chose until someone promotes a newer Freight by hand, which releases the hold. So after a rollback, the
+fix goes out when you promote it.
 
 `KargoPromotionFailed` means a promotion could not finish (Forgejo or Argo CD unreachable, a step failing): open the
 Promotion in Kargo's UI for the failed step. Nothing changed in production.
@@ -65,4 +68,5 @@ Then:
 Kargo and Argo Rollouts run there; the suite's setup runs `lab infra forgejo sync`, so `ops/releases` exists before
 anything reads it. The spec `AppDelivery` (`just dev --tests delivery`) drives the whole road with `delivery-test`,
 which runs only there: Backstage's template creates `ci/delivery-test`, and the spec checks a promotion, an unsigned
-image stopped at `verify`, an aborted canary and a rollback by Freight.
+image stopped at `verify`, an aborted canary, a rollback by Freight, and the hold that follows it until the fix is
+promoted by hand.
