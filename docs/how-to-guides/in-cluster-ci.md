@@ -41,7 +41,7 @@ flowchart LR
     ```yaml
     context: web                       # the build context, inside the repository (default: .)
     containerfile: web/Containerfile   # default: <context>/Containerfile, else <context>/Dockerfile
-    image: site                        # zot repository name, [a-z0-9][a-z0-9._-]* (default: the repository's name)
+    image: site                        # zot repository name: on a push to the default branch only the repository's own
     ```
 
 Builds run with Buildah in their own user namespace under the seccomp profile `homelab/buildah.json`
@@ -93,3 +93,5 @@ All in OpenBao and the rotation catalog ([Secrets rotation](secrets-rotation.md)
 | zot's `ci` password | `zot/generated/ci`, `ci/generated/registry` | `registry.ci`, once no run is unfinished |
 | Kanidm client `argo-workflows` | kaniop's Secret | `kanidm-client.argo-workflows` |
 | the signing key | OpenBao transit `ci-signing` | `ci.signing-key`, manual (Kyverno needs the new public key) |
+
+A signed image of one of our apps reaches production through Kargo and Argo Rollouts: [app delivery](app-delivery.md).

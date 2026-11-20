@@ -1,0 +1,26 @@
+# A promotion that cannot finish (Forgejo or Argo CD unreachable, a step failing) ends Failed or Errored: the version
+# stays where it was, and nobody notices without this. kube-state-metrics exports each Promotion's phase
+# (system/monitoring-system); it fires for 15 minutes after a Promotion fails (Kargo keeps the failed ones)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kargo
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: kargo
+      rules:
+        - alert: KargoPromotionFailed
+          expr: >-
+            count by (namespace, stage) (kargo_promotion_phase{phase=~"Failed|Errored"} == 1)
+            unless count by (namespace, stage) (kargo_promotion_phase{phase=~"Failed|Errored"} offset 15m == 1)
+            or count by (namespace, stage) (kargo_promotion_phase{phase=~"Failed|Errored"} == 1)
+            > count by (namespace, stage) (kargo_promotion_phase{phase=~"Failed|Errored"} offset 15m == 1)
+          labels:
+            severity: warning
+            source: kargo
+          annotations:
+            summary: A promotion to {{`{{ $labels.namespace }}`}}/{{`{{ $labels.stage }}`}} failed
+            description: >-
+              A Kargo Promotion ended Failed or Errored: open it in Kargo's UI (kargo.<domain>) for the failed step
+              (docs/how-to-guides/app-delivery.md).

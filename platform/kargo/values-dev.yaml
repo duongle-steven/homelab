@@ -1,0 +1,27 @@
+# The app road's end-to-end test app (test/fixtures/apps/delivery-test.yaml)
+projects: [delivery-test]
+kargo:
+  api:
+    # Helm replaces lists: values.yaml's issuer restated, with the sandbox CA for Kanidm
+    env:
+      - name: OIDC_ISSUER_URL
+        valueFrom:
+          configMapKeyRef: {name: kargo-homelab, key: issuer}
+      - &devCA
+        name: SSL_CERT_DIR
+        value: /etc/ssl/certs:/etc/homelab-dev-ca
+    volumes: &volumes
+      - name: dev-ca
+        configMap:
+          name: homelab-dev-ca
+          optional: true
+    volumeMounts: &volumeMounts
+      - name: dev-ca
+        mountPath: /etc/homelab-dev-ca
+        readOnly: true
+  # zot's certificate (the Warehouses) and Forgejo's
+  controller:
+    env:
+      - *devCA
+    volumes: *volumes
+    volumeMounts: *volumeMounts

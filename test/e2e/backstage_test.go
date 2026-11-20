@@ -136,18 +136,7 @@ var _ = Describe("BackstageTemplate", Label("sandbox", "backstage", "ci"), func(
 	waitForIdentity()
 	backstageReady()
 	It("creates a repository the golden path builds", func(ctx SpecContext) {
-		lab(ctx, "infra", "forgejo", "sync", "--env", labEnv)
-		_, err := kube.Kubectl(ctx, "backstage", "annotate", "externalsecret", "backstage-forgejo", "force-sync="+fmt.Sprint(time.Now().Unix()), "--overwrite")
-		Expect(err).NotTo(HaveOccurred())
-		Eventually(ctx, func() error {
-			_, err := kube.Kubectl(ctx, "backstage", "get", "secret", "backstage-forgejo")
-			return err
-		}).WithTimeout(2 * time.Minute).Should(Succeed())
-		_, err = kube.Kubectl(ctx, "backstage", "rollout", "restart", "deployment/backstage")
-		Expect(err).NotTo(HaveOccurred())
-		_, err = kube.Kubectl(ctx, "backstage", "rollout", "status", "deployment/backstage", "--timeout=10m")
-		Expect(err).NotTo(HaveOccurred())
-		waitForApp(ctx, "https://"+backstageHost+"/.backstage/health/v1/readiness")
+		backstageReadsForgejo(ctx)
 
 		name := fmt.Sprint("bs-test-", time.Now().Unix())
 		DeferCleanup(func(ctx SpecContext) { forgejoAs(ctx, "", "DELETE", "/repos/ci/"+name, nil, nil) }, NodeTimeout(time.Minute))
@@ -156,16 +145,7 @@ var _ = Describe("BackstageTemplate", Label("sandbox", "backstage", "ci"), func(
 		editor, _, _ := backstageIdentity(ctx, "dev-editor")
 		Expect(backstageAPI(ctx, editor, http.MethodPost, "/api/scaffolder/v2/tasks", task, nil)).To(Equal(http.StatusForbidden))
 
-		admin, _, _ := backstageIdentity(ctx, "dev-admin")
-		var created struct{ ID string }
-		Eventually(ctx, func() int {
-			return backstageAPI(ctx, admin, http.MethodPost, "/api/scaffolder/v2/tasks", task, &created)
-		}).WithTimeout(5*time.Minute).WithPolling(20*time.Second).Should(Equal(http.StatusCreated), "the template is not in the catalog yet")
-		var status struct{ Status string }
-		Eventually(ctx, func() string {
-			backstageAPI(ctx, admin, http.MethodGet, "/api/scaffolder/v2/tasks/"+created.ID, nil, &status)
-			return status.Status
-		}).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Equal("completed"))
+		admin := backstageCreateRepository(ctx, name, "Backstage's spec")
 
 		var branch struct {
 			Commit struct{ ID string } `json:"commit"`
@@ -244,3 +224,56 @@ var _ = Describe("BackstageRecovers", Label("sandbox", "backstage"), func() {
 		waitForApp(ctx, "https://"+backstageHost+"/.backstage/health/v1/readiness")
 	}, SpecTimeout(20*time.Minute))
 })
+
+// backstageCreateRepository runs template ci-repository as dev-admin, creating ci/<name>, and waits for the task to
+// complete; it returns dev-admin's Backstage token. Backstage must hold lab infra forgejo sync's token (BackstageTemplate)
+func backstageCreateRepository(ctx context.Context, name, description string) string {
+	GinkgoHelper()
+	task := map[string]any{"templateRef": "template:default/ci-repository", "values": map[string]string{"name": name, "description": description}}
+	admin, _, _ := backstageIdentity(ctx, "dev-admin")
+	var created struct{ ID string }
+	Eventually(ctx, func() int {
+		return backstageAPI(ctx, admin, http.MethodPost, "/api/scaffolder/v2/tasks", task, &created)
+	}).WithTimeout(5*time.Minute).WithPolling(20*time.Second).Should(Equal(http.StatusCreated), "the template is not in the catalog yet")
+	var status struct{ Status string }
+	Eventually(ctx, func() string {
+		backstageAPI(ctx, admin, http.MethodGet, "/api/scaffolder/v2/tasks/"+created.ID, nil, &status)
+		return status.Status
+	}).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Equal("completed"))
+	return admin
+}
+
+// backstageReadsForgejo gives Backstage lab infra forgejo sync's token (Backstage reads it only at start)
+func backstageReadsForgejo(ctx context.Context) {
+	GinkgoHelper()
+	lab(ctx, "infra", "forgejo", "sync", "--env", labEnv)
+	_, err := kube.Kubectl(ctx, "backstage", "annotate", "externalsecret", "backstage-forgejo", "force-sync="+fmt.Sprint(time.Now().Unix()), "--overwrite")
+	Expect(err).NotTo(HaveOccurred())
+	Eventually(ctx, func() error {
+		_, err := kube.Kubectl(ctx, "backstage", "get", "secret", "backstage-forgejo")
+		return err
+	}).WithTimeout(2 * time.Minute).Should(Succeed())
+	_, err = kube.Kubectl(ctx, "backstage", "rollout", "restart", "deployment/backstage")
+	Expect(err).NotTo(HaveOccurred())
+	_, err = kube.Kubectl(ctx, "backstage", "rollout", "status", "deployment/backstage", "--timeout=10m")
+	Expect(err).NotTo(HaveOccurred())
+	waitForApp(ctx, "https://"+backstageHost+"/.backstage/health/v1/readiness")
+}
+
+// backstageUnregister removes the catalog location of ci/<name>'s catalog-info.yaml, which template ci-repository
+// registers: a repository created again under the same name is otherwise refused (409) at its catalog:register step
+func backstageUnregister(ctx context.Context, token, name string) {
+	GinkgoHelper()
+	var locations []struct {
+		Data struct {
+			ID     string `json:"id"`
+			Target string `json:"target"`
+		} `json:"data"`
+	}
+	Expect(backstageAPI(ctx, token, http.MethodGet, "/api/catalog/locations", nil, &locations)).To(Equal(http.StatusOK))
+	for _, l := range locations {
+		if strings.Contains(l.Data.Target, "/ci/"+name+"/") {
+			Expect(backstageAPI(ctx, token, http.MethodDelete, "/api/catalog/locations/"+l.Data.ID, nil, nil)).To(BeElementOf(http.StatusNoContent, http.StatusOK))
+		}
+	}
+}

@@ -5,3 +5,35 @@
 exclude: [istio-system, rook-ceph]
 
 server: http://openbao.openbao.svc.cluster.local:8200
+
+# Namespaces that pull our images from zot (docs/how-to-guides/app-delivery.md): each gets Secret zot-pull, a
+# dockerconfigjson for registry.<domain> as zot's read-only user puller, read from its own <namespace>/generated/zot-puller
+# (platform/generated-secrets' registry.puller lists the same namespaces)
+zotPull: [kargo, delivery-test]
+
+# The scheduled rotation (platform/secrets-rotation) in the namespaces of its entries' readers: it may patch only these
+# ExternalSecrets (refresh) and workloads (rolling restart), exec into the pods of `exec`, and list the runs of `idle`
+# (an entry's idle wait: the golden path's Workflows). Rendered here, by each namespace's own Application, so the access
+# exists exactly where the namespace does (a reader an environment never runs, or a sandbox run leaves out, costs
+# nothing). lab secrets check compares this with the catalog (cli/internal/rotate/catalog.yaml)
+rotationNamespace: secrets-rotation
+rotationReaders:
+  monitoring-system:
+    externalSecrets: [ntfy]
+  ntfy:
+    externalSecrets: [ntfy-auth]
+    deployments: [ntfy]
+    # ntfy denies callers outside the mesh: the new token is checked from its own pod
+    exec: true
+  # registry.ci: the golden path's push (platform/ci); its idle wait lists the runs
+  ci:
+    externalSecrets: [registry]
+    idle: true
+  zot:
+    externalSecrets: [zot-auth]
+    statefulsets: [zot]
+  # registry.puller: the namespaces that pull our images (system/secret-store's zotPull)
+  kargo:
+    externalSecrets: [zot-pull]
+  delivery-test:
+    externalSecrets: [zot-pull]

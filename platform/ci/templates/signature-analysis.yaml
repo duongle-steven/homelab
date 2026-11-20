@@ -1,0 +1,104 @@
+{{- /*
+The signature gate of our apps' road (docs/how-to-guides/app-delivery.md): Kargo admits an image to an app's stage
+production only once its stage verify ran this on it. A Job in the app's namespace, as its ServiceAccount
+ci-signature: the init container reads ci-signing's public key from ConfigMap ci/ci-signing-public-key through the API
+server (TLS checked against the cluster's CA; publicKeyReaders may read it), cosign verifies the image against zot with
+the namespace's zot-pull. No transparency log: the pipeline signs without one (templates/pipeline.yaml)
+*/ -}}
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterAnalysisTemplate
+metadata:
+  name: ci-signature
+spec:
+  args:
+    - name: image
+  metrics:
+    - name: signature
+      provider:
+        job:
+          spec:
+            # A passing failure (DNS in a new pod's first seconds) must not fail a signed image: twice more
+            backoffLimit: 2
+            template:
+              spec:
+                serviceAccountName: ci-signature
+                restartPolicy: Never
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  runAsGroup: 65532
+                  seccompProfile:
+                    type: RuntimeDefault
+                initContainers:
+                  - name: public-key
+                    image: {{ .Values.images.curl }}
+                    command: [sh, -c]
+                    args:
+                      - |
+                        set -eu
+                        sa=/var/run/secrets/kubernetes.io/serviceaccount
+                        # The API server by its address (no DNS), retried
+                        curl -fsS --retry 5 --retry-all-errors --cacert "$sa/ca.crt" -H "Authorization: Bearer $(cat $sa/token)" \
+                          "https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/api/v1/namespaces/ci/configmaps/ci-signing-public-key" \
+                          | sed -n 's/.*"cosign.pub": *"\([^"]*\)".*/\1/p' | sed 's/\\n/\n/g' >/key/cosign.pub
+                        grep -q "END PUBLIC KEY" /key/cosign.pub
+                    volumeMounts:
+                      - {name: key, mountPath: /key}
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop: [ALL]
+                containers:
+                  - name: verify
+                    image: {{ .Values.images.cosign }}
+                    command: [sh, -c]
+                    args:
+                      - cosign verify --key /key/cosign.pub --insecure-ignore-tlog=true "{{ "{{args.image}}" }}" >/dev/null
+                    env:
+                      - {name: DOCKER_CONFIG, value: /docker}
+                      - {name: HOME, value: /tmp}
+                      {{- if .Values.devCA }}
+                      - {name: SSL_CERT_FILE, value: /etc/homelab-dev-ca/ca.crt}
+                      {{- end }}
+                    volumeMounts:
+                      - {name: key, mountPath: /key, readOnly: true}
+                      - {name: docker-config, mountPath: /docker, readOnly: true}
+                      {{- if .Values.devCA }}
+                      - {name: dev-ca, mountPath: /etc/homelab-dev-ca, readOnly: true}
+                      {{- end }}
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop: [ALL]
+                volumes:
+                  - name: key
+                    emptyDir:
+                      medium: Memory
+                  - name: docker-config
+                    secret:
+                      secretName: zot-pull
+                      items:
+                        - {key: .dockerconfigjson, path: config.json}
+                  {{- if .Values.devCA }}
+                  - name: dev-ca
+                    configMap: {name: homelab-dev-ca, optional: true}
+                  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-signing-public-key-readers
+  namespace: {{ .Release.Namespace }}
+rules:
+  - {apiGroups: [""], resources: [configmaps], resourceNames: [ci-signing-public-key], verbs: [get]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-signing-public-key-readers
+  namespace: {{ .Release.Namespace }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: ci-signing-public-key-readers}
+subjects:
+  {{- range .Values.publicKeyReaders }}
+  - {kind: ServiceAccount, name: ci-signature, namespace: {{ . }}}
+  {{- end }}

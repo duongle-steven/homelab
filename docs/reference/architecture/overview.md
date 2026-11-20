@@ -93,3 +93,7 @@ Portal: Backstage (`platform/backstage`, LAN only) catalogs every app and compon
 files (`lab catalog generate`, which also writes Homepage's services), serves these docs (TechDocs) and starts
 repositories in Forgejo's org `ci` from a template; admins and editors sign in with Kanidm
 ([Backstage](../../how-to-guides/backstage.md)).
+
+Our apps' versions: Kargo (`platform/kargo`, LAN only) promotes a signed image the in-cluster CI built by writing its
+tag to Forgejo's `ops/releases`, and Argo Rollouts (`system/argo-rollouts`) releases it as a canary on its HTTPRoute,
+judged at the Gateway ([app delivery](../../how-to-guides/app-delivery.md)).

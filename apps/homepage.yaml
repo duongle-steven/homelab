@@ -124,6 +124,10 @@ configMaps:
               href: https://grafana.{{ .Values.global.baseDomain }}
               description: Observability dashboards
               icon: grafana.svg
+          - Kargo:
+              href: https://kargo.{{ .Values.global.baseDomain }}
+              description: Promotes our apps' versions
+              icon: argocd.svg
           - Registry:
               href: https://registry.{{ .Values.global.baseDomain }}
               description: Container registry

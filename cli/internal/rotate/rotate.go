@@ -288,6 +288,19 @@ func (r *Rotator) rotate(ctx context.Context, e Entry, o Options, holder string)
 	if reason := r.Skip(e, o); reason != "" {
 		return Result{Name: e.Name, Outcome: "skipped: " + reason}
 	}
+	// A reader whose namespace does not exist reads nothing: left out of every phase (production never runs the
+	// sandbox's delivery-test, a sandbox run leaves groups out), where refreshing it would fail the entry half-rotated
+	if r.Deployed != nil {
+		var present []Reader
+		for _, rd := range e.Readers {
+			if r.Deployed(rd.Namespace) {
+				present = append(present, rd)
+			} else {
+				fmt.Fprintf(r.Out, "%s: namespace %s does not exist here, its readers are left out\n", e.Name, rd.Namespace)
+			}
+		}
+		e.Readers = present
+	}
 	// lost is why the lock ended under the run, if another run took it over
 	lost := func() error {
 		var l *LostLockError

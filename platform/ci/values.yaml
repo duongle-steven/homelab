@@ -22,3 +22,6 @@ images:
   curl: docker.io/curlimages/curl:8.23.0
 # The sandbox and the testbed trust their local CA (values-local.yaml)
 devCA: false
+# Namespaces whose ServiceAccount ci-signature may read ConfigMap ci-signing-public-key: our apps on the app road, whose
+# Kargo stage verify runs ClusterAnalysisTemplate ci-signature (docs/how-to-guides/app-delivery.md)
+publicKeyReaders: [delivery-test]

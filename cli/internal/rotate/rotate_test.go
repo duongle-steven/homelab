@@ -1058,3 +1058,38 @@ func TestRotateAllSkipsMissingNamespaces(t *testing.T) {
 		t.Fatalf("without Deployed every namespace counts as present: %q", got)
 	}
 }
+
+// readersSeen records the readers every phase of a rotation is given
+type readersSeen struct {
+	fakeMethod
+	seen *[]string
+}
+
+func (m readersSeen) Switch(ctx context.Context, e Entry) error {
+	for _, r := range e.Readers {
+		*m.seen = append(*m.seen, r.Namespace)
+	}
+	return m.fakeMethod.Switch(ctx, e)
+}
+
+// A reader whose namespace does not exist (production never runs the sandbox's delivery-test; a sandbox run leaves a
+// group out) is left out of the rotation, in every environment: refreshing or restarting there failed the whole entry
+// half-rotated (the app delivery review). The entry still rotates for the readers that exist
+func TestRotateLeavesOutMissingReaders(t *testing.T) {
+	e := Entry{Name: "registry.puller", Kind: KindGenerated, Period: 2160 * time.Hour,
+		Readers: []Reader{{Namespace: "zot"}, {Namespace: "kargo"}, {Namespace: "delivery-test"}}}
+	r, calls, _ := rotator([]Entry{e}, nil)
+	seen := &[]string{}
+	r.Methods[KindGenerated] = readersSeen{fakeMethod: fakeMethod{calls: calls}, seen: seen}
+	r.Deployed = func(ns string) bool { return ns != "delivery-test" }
+	results, err := r.Run(context.Background(), r.Entries, Options{Env: "production", Yes: true, SkipBackupCheck: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Outcome != "rotated" {
+		t.Fatalf("results: %+v", results)
+	}
+	if !slices.Equal(*seen, []string{"zot", "kargo"}) {
+		t.Fatalf("Switch saw readers %v, want zot and kargo", *seen)
+	}
+}

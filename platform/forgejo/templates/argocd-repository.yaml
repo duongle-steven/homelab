@@ -31,3 +31,35 @@ spec:
       remoteRef:
         key: argocd/forgejo
         property: token
+---
+# Our apps' versions, which only Kargo writes (docs/how-to-guides/app-delivery.md): the same read-only token
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: argocd-repo-releases
+  # Argo CD's namespace (the root ApplicationSet deploys this chart there too)
+  namespace: argocd
+spec:
+  secretStoreRef:
+    kind: SecretStore
+    name: openbao
+  target:
+    template:
+      engineVersion: v2
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      data:
+        type: git
+        url: http://forgejo-http.forgejo:3000/ops/releases
+        username: {{` "{{ .username }}" `}}
+        password: {{` "{{ .token }}" `}}
+  data:
+    - secretKey: username
+      remoteRef:
+        key: argocd/forgejo
+        property: username
+    - secretKey: token
+      remoteRef:
+        key: argocd/forgejo
+        property: token

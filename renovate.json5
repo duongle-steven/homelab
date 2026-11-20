@@ -42,6 +42,12 @@
     },
   ],
   packageRules: [
+    // Our own images in zot (registry.{{ .Values.global.baseDomain }}/<app>): Kargo promotes their versions
+    // (docs/how-to-guides/app-delivery.md), never Renovate
+    {
+      matchPackageNames: ['/^registry\\.\\{\\{/'],
+      enabled: false,
+    },
     {
       matchUpdateTypes: ['minor', 'patch'],
       groupName: 'all non-major dependencies',

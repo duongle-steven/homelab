@@ -377,3 +377,68 @@ func TestSyncCreatesBackstageUser(t *testing.T) {
 		t.Fatal("a second sync replaced backstage's valid token")
 	}
 }
+
+// docs/superpowers/specs/2026-11-18-app-delivery-design.md: ops/releases holds our apps' promoted versions, written
+// only by Kargo (user kargo) and read by Argo CD; the platform road's deploy never touches it
+func TestSyncCreatesReleases(t *testing.T) {
+	f, ep := newFakeForgejo(t)
+	tokens := ciTokens()
+	if err := Sync(context.Background(), ep, f.admin, tokens); err != nil {
+		t.Fatal(err)
+	}
+	r := f.releases
+	if !r.exists || r.branch != "main" || !r.autoInit {
+		t.Fatalf("ops/releases: %+v", r)
+	}
+	if u := f.users[Kargo]; u == nil || !u.restricted {
+		t.Errorf("user kargo: %+v", u)
+	}
+	for name, want := range map[string]string{Kargo: "write", "argocd": "read"} {
+		if r.collaborators[name] != want {
+			t.Errorf("%s is %q on ops/releases, want %s", name, r.collaborators[name], want)
+		}
+	}
+	for _, name := range []string{"deploy", Backstage} {
+		if r.collaborators[name] != "" {
+			t.Errorf("%s is %q on ops/releases, want nothing", name, r.collaborators[name])
+		}
+	}
+	if f.collaborators[Kargo] != "" {
+		t.Errorf("kargo is %q on ops/homelab, want nothing", f.collaborators[Kargo])
+	}
+	if got := r.protection["push_whitelist_usernames"]; !reflect.DeepEqual(got, []any{Kargo}) || r.protection["enable_push_whitelist"] != true {
+		t.Errorf("ops/releases protection = %v", r.protection)
+	}
+	token := tokens[KargoPath]["token"]
+	found := false
+	for _, tk := range f.users[Kargo].tokens {
+		if tk.sha1 == token && reflect.DeepEqual(tk.scopes, []string{"write:repository"}) {
+			found = true
+		}
+	}
+	if !found || tokens[KargoPath]["username"] != Kargo {
+		t.Errorf("%s holds %v, not kargo's write:repository token", KargoPath, tokens[KargoPath])
+	}
+}
+
+func TestSyncRestoresReleasesProtection(t *testing.T) {
+	f, ep := newFakeForgejo(t)
+	if err := Sync(context.Background(), ep, f.admin, ciTokens()); err != nil {
+		t.Fatal(err)
+	}
+	f.releases.protection["push_whitelist_usernames"] = []any{Kargo, "deploy"}
+	if err := Sync(context.Background(), ep, f.admin, ciTokens()); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.releases.protection["push_whitelist_usernames"]; !reflect.DeepEqual(got, []any{Kargo}) {
+		t.Errorf("ops/releases pushers = %v", got)
+	}
+}
+
+// lab secrets rotate forgejo.kargo-token finds Kargo's account (its scope and its check on ops/releases)
+func TestFindAccountKnowsKargo(t *testing.T) {
+	a, err := findAccount(Kargo)
+	if err != nil || a.path != KargoPath || a.check != "/api/v1/repos/ops/releases" {
+		t.Fatalf("findAccount(kargo) = %+v, %v", a, err)
+	}
+}

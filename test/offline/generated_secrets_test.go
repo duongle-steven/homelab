@@ -29,6 +29,9 @@ func TestGeneratedSecrets(t *testing.T) {
 	var entries []gensecrets.Entry
 	require.NoError(t, json.Unmarshal(values, &entries))
 	require.NotEmpty(t, entries)
+	// The sandbox's own readers add destinations (values-dev.yaml's extraDestinations: delivery-test)
+	extraDev := map[string][]string{}
+	require.NoError(t, json.Unmarshal([]byte(runIn(t, `yq -o=json -I=0 '.extraDestinations // {}' platform/generated-secrets/values-dev.yaml`)), &extraDev))
 	for _, env := range []string{"prod", "dev"} {
 		kinds := renderGenerated(t, env, `[.kind] | .[]`)
 		assert.NotContains(t, kinds, `"ExternalSecret"`, env)
@@ -87,7 +90,11 @@ func TestGeneratedSecrets(t *testing.T) {
 				assert.Equal(t, e.Key, d.Match.RemoteRef.Property, e.Name)
 				remoteKeys = append(remoteKeys, d.Match.RemoteRef.RemoteKey)
 			}
-			assert.Equal(t, e.Destinations, remoteKeys, e.Name)
+			want := e.Destinations
+			if env == "dev" {
+				want = append(append([]string{}, want...), extraDev[e.Name]...)
+			}
+			assert.Equal(t, want, remoteKeys, "%s (%s)", e.Name, env)
 		}
 	}
 }

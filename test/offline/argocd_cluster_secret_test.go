@@ -157,6 +157,12 @@ func TestArgoCDReadsClusterSecret(t *testing.T) {
 					return
 				}
 				homelab++
+				if m["ref"] == "releases" {
+					// Forgejo's ops/releases for our apps on the app road, this repository (the cluster Secret's) for the rest
+					assert.True(t, strings.HasSuffix(url, "{{ else }}{{ .metadata.annotations.repository }}{{ end }}"), "env %q %s: %s", env, name, url)
+					assert.True(t, strings.HasSuffix(revision, "{{ else }}{{ .metadata.annotations.revision }}{{ end }}"), "env %q %s: %s", env, name, revision)
+					return
+				}
 				assert.Equal(t, "{{ .metadata.annotations.repository }}", url, "env %q %s", env, name)
 				assert.Equal(t, "{{ .metadata.annotations.revision }}", revision, "env %q %s", env, name)
 			})

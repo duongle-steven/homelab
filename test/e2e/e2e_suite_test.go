@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +32,7 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 	if _, local := map[string]bool{"dev": true, "testbed": true}[suiteEnv()]; !local {
 		return
 	}
+	syncForgejo(ctx)
 	deadline := time.Now().Add(20 * time.Minute)
 	var waiting []string
 	for {
@@ -51,4 +53,32 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 		sleep(ctx, 15*time.Second)
 		Expect(ctx.Err()).NotTo(HaveOccurred())
 	}
-}, NodeTimeout(25*time.Minute))
+}, NodeTimeout(45*time.Minute))
+
+// syncForgejo runs lab infra forgejo sync once Forgejo answers, at most 15 minutes, as production's deploy does
+// before Argo CD reads Forgejo: our apps' versions come from ops/releases (docs/how-to-guides/app-delivery.md), which
+// Applications read from their first sync. A Forgejo that never answers leaves its specs to fail on their own
+func syncForgejo(ctx SpecContext) {
+	// Forgejo is group git's: a run without it has nothing to sync (waiting cost every such run 15 minutes)
+	if suiteEnv() != "dev" || !appDeployed(ctx, "forgejo") {
+		return
+	}
+	deadline := time.Now().Add(15 * time.Minute)
+	for {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+forgejoHost+"/api/healthz", nil)
+		Expect(err).NotTo(HaveOccurred())
+		if resp, err := insecureClient.Do(req); err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				lab(ctx, "infra", "forgejo", "sync", "--env", labEnv)
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			GinkgoWriter.Printf("Forgejo has not answered after 15 minutes: no lab infra forgejo sync before the specs\n")
+			return
+		}
+		sleep(ctx, 15*time.Second)
+		Expect(ctx.Err()).NotTo(HaveOccurred())
+	}
+}

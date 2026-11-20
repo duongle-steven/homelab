@@ -1,0 +1,34 @@
+# Kargo's UI and CLI sign in with PKCE and no secret: a public client. Admins administer, editors only see
+apiVersion: kaniop.rs/v1beta1
+kind: KanidmOAuth2Client
+metadata:
+  name: kargo
+  namespace: {{ .Release.Namespace }}
+spec:
+  kanidmRef:
+    name: kanidm
+    namespace: kanidm
+  displayname: Kargo
+  public: true
+  origin: https://{{ .Values.host }}.{{ .Values.global.baseDomain }}
+  redirectUrl:
+    - https://{{ .Values.host }}.{{ .Values.global.baseDomain }}/login
+  preferShortUsername: true
+  # Kargo's API accepts only RS256 ID tokens; Kanidm signs with ES256 unless this client asks for RS256
+  jwtLegacyCryptoEnable: true
+  strictRedirectUrl: true
+  # Short, domain-free group names for values.yaml's admins and viewers
+  claimMap:
+    - name: homelab_groups
+      joinStrategy: array
+      valuesMap:
+        {{- range list "homelab-admins" "homelab-editors" }}
+        - group: {{ . }}
+          values:
+            - {{ . }}
+        {{- end }}
+  scopeMap:
+    {{- range list "homelab-admins" "homelab-editors" }}
+    - group: {{ . }}
+      scopes: [openid, profile, email, groups]
+    {{- end }}

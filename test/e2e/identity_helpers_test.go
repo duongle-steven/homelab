@@ -495,12 +495,18 @@ func actualOpenIDLogin(specCtx context.Context, account string, c identity.Crede
 // client) and returns the bearer token the web UI then sends to the Graph API. The web UI keeps its tokens in
 // the browser, so there are no session cookies to reuse.
 func openCloudLogin(specCtx context.Context, account string, c identity.Credentials, appBase string) string {
+	return browserBearer(specCtx, account, c, appBase, appBase+"/graph/", "OpenCloud")
+}
+
+// browserBearer signs account in to a single-page app at appBase through Kanidm in a browser and returns the bearer
+// token the app then sends to its API (requests under apiPrefix): public clients doing PKCE in the browser
+func browserBearer(specCtx context.Context, account string, c identity.Credentials, appBase, apiPrefix, app string) string {
 	ctx, cancel := newBrowser(specCtx)
 	defer cancel()
 	tokens := make(chan string, 1)
 	chromedp.ListenTarget(ctx, func(ev any) {
 		e, ok := ev.(*network.EventRequestWillBeSent)
-		if !ok || !strings.HasPrefix(e.Request.URL, appBase+"/graph/") {
+		if !ok || !strings.HasPrefix(e.Request.URL, apiPrefix) {
 			return
 		}
 		for name, value := range e.Request.Headers {
@@ -519,7 +525,7 @@ func openCloudLogin(specCtx context.Context, account string, c identity.Credenti
 		var ready bool
 		_ = chromedp.Run(ctx, chromedp.Evaluate(`(() => {
 			if (document.querySelector("input#username")) return true;
-			const b = [...document.querySelectorAll("button, a")].find(b => /^(log ?in|sign in)$/i.test(b.innerText.trim()));
+			const b = [...document.querySelectorAll("button, a")].find(b => /^(log ?in|sign in|.*\bsso\b.*)$/i.test(b.innerText.trim()));
 			if (b) b.click();
 			return false;
 		})()`, &ready))
@@ -535,7 +541,7 @@ func openCloudLogin(specCtx context.Context, account string, c identity.Credenti
 		case <-deadline:
 			var location, text string
 			_ = chromedp.Run(ctx, chromedp.Location(&location), chromedp.Evaluate(`document.body ? document.body.innerText.slice(0, 500) : ""`, &text))
-			Fail(fmt.Sprintf("no OpenCloud token: %s: the web UI sent no bearer token to /graph; last at %s:\n%s", account, location, text))
+			Fail(fmt.Sprintf("no %s token: %s: the web UI sent no bearer token to %s; last at %s:\n%s", app, account, apiPrefix, location, text))
 		case <-time.After(500 * time.Millisecond):
 			acceptConsent(ctx)
 		}

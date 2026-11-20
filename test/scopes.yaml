@@ -86,6 +86,8 @@ labels:
   - hardware-proof
   - kiali
   - backstage
+  - delivery
+  - kargo
   - grafana
   - zot
   - actual-budget
@@ -99,7 +101,7 @@ labels:
 always: smoke
 # Each runs by itself after the main run, in this order (#78)
 alone: [backup-restore, node-power-cut, node-restart, rotation]
-full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || traces || ci || backstage || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
+full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || traces || ci || backstage || delivery || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
 # What every sandbox runs, and the groups of components it deploys only when a run needs them
 # (docs/superpowers/specs/2026-11-20-sandbox-groups-design.md): a group goes in when a selected spec carries one of
 # its labels, when the branch changes one of its components, or when a deployed group needs it. Every label a sandbox
@@ -159,6 +161,12 @@ deployGroups:
     components: [platform/backstage]
     needs: [ci]
     labels: [backstage]
+  # The app road: Argo Rollouts' analysis reads Prometheus, Kargo's verify checks the CI's signature, AppDelivery
+  # creates its repository from Backstage's template
+  delivery:
+    components: [system/argo-rollouts, platform/kargo, test/fixtures/apps/delivery-test.yaml]
+    needs: [ci, backstage, metrics]
+    labels: [delivery, kargo]
   # Alertmanager's delivery to ntfy is what its specs check; ntfy is a public route (GatewayPublicAllowList) and
   # NodePowerCut checks its data after the cut
   ntfy:
@@ -237,6 +245,11 @@ groups:
   # Backstage (always in the sandbox; its image built by every just dev)
   - paths: [backstage/**, platform/backstage/**, scripts/build-backstage-image, test/e2e/backstage_test.go]
     tests: backstage
+  # App delivery: Argo Rollouts and Kargo, driven end to end by AppDelivery
+  - paths: [system/argo-rollouts/**, test/e2e/argo_rollouts_test.go, test/e2e/app_delivery_test.go, test/fixtures/apps/**, platform/ci/templates/signature-analysis.yaml]
+    tests: delivery
+  - paths: [platform/kargo/**, test/e2e/sso_kargo_test.go]
+    tests: kargo || delivery
   - paths: [system/kiali/**]
     tests: kiali
   - paths: [system/kyverno/**]

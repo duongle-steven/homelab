@@ -263,3 +263,11 @@ func TestCheckImagesBaseWithoutRenderChart(t *testing.T) {
 	require.NoError(t, err, string(out))
 	assert.Contains(t, string(out), "excalidraw/excalidraw", "the target's image counts as new")
 }
+
+// A new pod's first lookups can race ztunnel's DNS proxy (curl: could not resolve host, exit 6): the commit status,
+// the pipeline's first step, retries instead of failing the run before its build (the sandbox, 2026-11-19)
+func TestCIStatusRetries(t *testing.T) {
+	script, err := os.ReadFile(filepath.Join(repo.Root(), "platform", "ci", "files", "status.sh"))
+	require.NoError(t, err)
+	assert.Contains(t, string(script), "curl -fsS --retry 5 --retry-all-errors")
+}

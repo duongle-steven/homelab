@@ -1,0 +1,3 @@
+# The app road's test app (test/fixtures/apps/delivery-test.yaml, sandbox only) pulls our images as zot's puller
+extraDestinations:
+  registry.puller: [delivery-test/generated/zot-puller]

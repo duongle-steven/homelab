@@ -1,0 +1,62 @@
+{{- with get .Values.rotationReaders .Release.Namespace }}
+{{- $r := . }}
+# The scheduled rotation (platform/secrets-rotation) in this reader's namespace: refresh its ExternalSecrets, restart
+# its workloads, wait for them (values.yaml's rotationReaders)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secrets-rotation
+  namespace: {{ $.Release.Namespace }}
+rules:
+  - apiGroups: [external-secrets.io]
+    resources: [externalsecrets]
+    resourceNames: {{ $r.externalSecrets | toJson }}
+    verbs: [get, patch]
+  {{- if or $r.deployments $r.statefulsets }}
+  # Listing finds who owns what (Kanidm's StatefulSets are kaniop's); only the named ones are patched (restarted)
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, replicasets]
+    verbs: [get, list]
+  {{- with $r.deployments }}
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: {{ . | toJson }}
+    verbs: [patch]
+  {{- end }}
+  {{- with $r.statefulsets }}
+  - apiGroups: [apps]
+    resources: [statefulsets]
+    resourceNames: {{ . | toJson }}
+    verbs: [patch]
+  {{- end }}
+  # Waiting restarts a crash-looping pod once
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, delete]
+  {{- end }}
+  {{- if $r.idle }}
+  # The idle wait lists the golden path's runs (an entry's idle: ci)
+  - apiGroups: [argoproj.io]
+    resources: [workflows]
+    verbs: [get, list]
+  {{- end }}
+  {{- if $r.exec }}
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: [create, get]
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: secrets-rotation
+  namespace: {{ $.Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: secrets-rotation
+subjects:
+  - kind: ServiceAccount
+    name: secrets-rotation
+    namespace: {{ $.Values.rotationNamespace }}
+{{- end }}

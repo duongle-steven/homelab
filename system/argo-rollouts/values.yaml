@@ -1,0 +1,34 @@
+# Progressive delivery for our apps (docs/how-to-guides/app-delivery.md): a Rollout shifts weight between its stable
+# and canary Services on its own HTTPRoute through the Gateway API plugin, judged by gateway-success-rate
+argo-rollouts:
+  # Its CRDs come from system/crds (scripts/vendor-crds)
+  installCRDs: false
+  controller:
+    # The plugin is downloaded at start (egress 443, system/egress) and checked against its release's sha256
+    trafficRouterPlugins:
+      - name: argoproj-labs/gatewayAPI
+        location: https://github.com/argoproj-labs/rollouts-plugin-trafficrouter-gatewayapi/releases/download/v0.18.0/gatewayapi-plugin-linux-amd64
+        sha256: b18ffefd53416f3c630d655e938fdf5b5b38bbf724326e20a124556bb134720d
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+  # Only the Gateway API among the traffic providers: the rest would grant RBAC on CRDs nothing here uses
+  providerRBAC:
+    providers:
+      istio: false
+      smi: false
+      ambassador: false
+      awsLoadBalancerController: false
+      awsAppMesh: false
+      traefik: false
+      apisix: false
+      contour: false
+      glooPlatform: false
+      gatewayAPI: true
+  # Argo CD and Kargo show rollouts: no dashboard
+  dashboard:
+    enabled: false
+# canary-responds' requests (templates/analysis-template.yaml): the same curl as platform/ci's
+images:
+  curl: docker.io/curlimages/curl:8.23.0

@@ -1,0 +1,26 @@
+# A rollout whose analysis failed is aborted: users are back on the stable version, git still names the bad one
+# (docs/how-to-guides/app-delivery.md: fix forward, or promote the previous Freight in Kargo)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argo-rollouts
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: argo-rollouts
+      rules:
+        - alert: RolloutAborted
+          # The controller reports an aborted rollout as phase Abort, one whose canary never became healthy as Timeout
+          # (progressDeadlineAbort), a broken spec as Error or InvalidSpec; the rollout's namespace arrives as
+          # exported_namespace (the target's own is the controller's)
+          expr: >-
+            max by (namespace, name) (label_replace(rollout_info{phase=~"Abort|Timeout|Error|InvalidSpec"}, "namespace", "$1", "exported_namespace", "(.+)")) == 1
+          for: 1m
+          labels:
+            severity: warning
+            source: argo-rollouts
+          annotations:
+            summary: Rollout {{`{{ $labels.namespace }}/{{ $labels.name }}`}} aborted
+            description: >-
+              Its canary failed its analysis and every request is back on the stable version; the release file in
+              ops/releases still names the failed tag (docs/how-to-guides/app-delivery.md).

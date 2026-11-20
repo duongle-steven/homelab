@@ -30,6 +30,36 @@ kube-prometheus-stack:
       - storageclasses
       - validatingwebhookconfigurations
       - volumeattachments
+    # Kargo's Promotions by phase (KargoPromotionFailed, platform/kargo): Kargo's own metrics count reconcile errors,
+    # and a promotion whose step fails ends Failed or Errored without one
+    customResourceState:
+      enabled: true
+      config:
+        spec:
+          resources:
+            - groupVersionKind:
+                group: kargo.akuity.io
+                version: v1alpha1
+                kind: Promotion
+              metricNamePrefix: kargo_promotion
+              labelsFromPath:
+                name: [metadata, name]
+                namespace: [metadata, namespace]
+                stage: [spec, stage]
+              metrics:
+                - name: phase
+                  help: The Promotion's phase (1 for its current one)
+                  each:
+                    type: StateSet
+                    stateSet:
+                      labelName: phase
+                      path: [status, phase]
+                      list: [Pending, Running, Succeeded, Failed, Errored, Aborted]
+    rbac:
+      extraRules:
+        - apiGroups: [kargo.akuity.io]
+          resources: [promotions]
+          verbs: [list, watch]
   prometheusOperator:
     # The operator starts a controller only for the CRDs it finds at its start: it comes after them (wave 0, healthy
     # once established), and Prometheus and Alertmanager after it (TestOperatorAfterItsCRDs)

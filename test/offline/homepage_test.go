@@ -12,11 +12,11 @@ import (
 func TestHomepageServicesKept(t *testing.T) {
 	services := renderVelero(t, "apps/homepage.yaml", "", `select(.kind == "ConfigMap") | .data."services.yaml" // ""`)
 	for _, host := range []string{"chat", "jellyfin", "jellyseerr", "paperless", "drive", "transmission", "prowlarr", "radarr",
-		"sonarr", "auth", "git", "ci", "argocd", "registry", "grafana", "draw", "speedtest", "backstage"} {
+		"sonarr", "auth", "git", "ci", "argocd", "registry", "grafana", "draw", "speedtest", "backstage", "kargo"} {
 		assert.Contains(t, services, "href: https://"+host+".", "homepage lost %s", host)
 	}
 	for _, group := range []string{"Popular", "Management", "Development", "Utilities"} {
 		assert.Contains(t, services, "- "+group+":")
 	}
-	assert.Equal(t, 18, strings.Count(services, "href: "), "homepage's entries:\n%s", services)
+	assert.Equal(t, 19, strings.Count(services, "href: "), "homepage's entries:\n%s", services)
 }

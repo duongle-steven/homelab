@@ -47,3 +47,32 @@ func TestCISigningRender(t *testing.T) {
 		assert.Equal(t, "https://slsa.dev/provenance/v1 https://spdx.dev/Document", policy(`[.spec.attestations[].intoto.type] | join(" ")`), env)
 	}
 }
+
+// Kargo admits an image to our apps' production only once a stage verify ran this template on it
+// (docs/superpowers/specs/2026-11-18-app-delivery-design.md): a Job in the app's namespace fetches ci-signing's
+// public key from ConfigMap ci/ci-signing-public-key (only the namespaces in publicKeyReaders may read it) and runs
+// cosign verify, with no transparency log, against zot with the namespace's zot-pull
+func TestCISignatureAnalysis(t *testing.T) {
+	for _, env := range []string{"", "dev"} {
+		tmpl := `select(.kind == "ClusterAnalysisTemplate" and .metadata.name == "ci-signature")`
+		assert.Equal(t, "image", renderVelero(t, "platform/ci", env, tmpl+` | [.spec.args[].name] | join(",")`), env)
+		pod := tmpl + ` | .spec.metrics[0].provider.job.spec.template.spec`
+		assert.Equal(t, "ci-signature", renderVelero(t, "platform/ci", env, pod+` | .serviceAccountName`), env)
+		script := renderVelero(t, "platform/ci", env, pod+` | [.initContainers[].args[], .containers[].args[]] | join("\n")`)
+		for _, want := range []string{"--cacert", "/api/v1/namespaces/ci/configmaps/ci-signing-public-key", "cosign verify", "--insecure-ignore-tlog=true", "{{args.image}}"} {
+			assert.Contains(t, script, want, env)
+		}
+		assert.NotContains(t, script, "--allow-insecure-registry", env)
+		// A passing DNS failure in the Job's first seconds failed signed images (the sandbox, 2026-11-19): the API server by
+		// its address, curl retrying, the Job twice more
+		assert.Contains(t, script, "https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/api/v1/namespaces/ci/configmaps/ci-signing-public-key", env)
+		assert.Contains(t, script, "--retry 5 --retry-all-errors", env)
+		assert.Equal(t, "2", renderVelero(t, "platform/ci", env, tmpl+` | .spec.metrics[0].provider.job.spec.backoffLimit`), env)
+		assert.Equal(t, "zot-pull", renderVelero(t, "platform/ci", env, pod+` | .volumes[] | select(.name == "docker-config") | .secret.secretName`), env)
+
+		readers := renderVelero(t, "platform/ci", env, `select(.kind == "RoleBinding" and .metadata.name == "ci-signing-public-key-readers") | [.subjects[] | .namespace + "/" + .name] | join(",")`)
+		assert.Contains(t, readers, "delivery-test/ci-signature", env)
+		assert.Equal(t, `[{"apiGroups":[""],"resourceNames":["ci-signing-public-key"],"resources":["configmaps"],"verbs":["get"]}]`,
+			renderVelero(t, "platform/ci", env, `select(.kind == "Role" and .metadata.name == "ci-signing-public-key-readers") | .rules | sort_keys(..) | to_json(0)`), env)
+	}
+}

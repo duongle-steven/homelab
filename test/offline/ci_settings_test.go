@@ -13,7 +13,8 @@ import (
 )
 
 // The golden path's settings step (platform/ci/files/settings.sh): a repository chooses only context, containerfile and
-// image in .ci.yaml; anything else, or a value that leaves the repository or names another image, fails the run; only a
+// image in .ci.yaml (on a publishing run only the repository's own name); anything else, or a value that leaves the
+// repository or names another image, fails the run; only a
 // push to the default branch publishes (pushes, SBOM, signature), never a pull request or another branch
 func TestCISettings(t *testing.T) {
 	script := filepath.Join(repo.Root(), "platform", "ci", "files", "settings.sh")
@@ -51,9 +52,18 @@ func TestCISettings(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Containerfile", got["containerfile"], "Containerfile first")
 
-	got, err = run(t, "context: web\ncontainerfile: web/Containerfile\nimage: site-web\n", []string{"web/Containerfile"})
+	got, err = run(t, "context: web\ncontainerfile: web/Containerfile\nimage: site\n", []string{"web/Containerfile"})
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"build": "true", "publish": "true", "context": "web", "containerfile": "web/Containerfile", "image": "site-web"}, got)
+	assert.Equal(t, map[string]string{"build": "true", "publish": "true", "context": "web", "containerfile": "web/Containerfile", "image": "site"}, got)
+
+	// A run that publishes signs what it pushes with the CI's key, which Kargo's verify trusts: any image name but the
+	// repository's own would let a new repository publish another app's image (image: blog), signed, and see it
+	// promoted (the app delivery review). A build that publishes nothing may name it freely
+	_, err = run(t, "image: blog\n", []string{"Dockerfile"})
+	assert.Error(t, err, "a publishing run named another repository's image")
+	got, err = run(t, "image: site-web\n", []string{"Dockerfile"}, "EVENT=pull_request", "REF=feature")
+	require.NoError(t, err)
+	assert.Equal(t, "site-web", got["image"])
 
 	got, err = run(t, "", nil)
 	require.NoError(t, err)

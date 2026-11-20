@@ -15,6 +15,7 @@ COMPONENTS=(
   "system/external-dns|"
   "system/istio-system|--set-json base.base.excludedCRDs=[]"
   "system/kyverno|--set kyverno.crds.install=true"
+  "system/argo-rollouts|--set argo-rollouts.installCRDs=true"
   "system/monitoring-system|--set kube-prometheus-stack.crds.enabled=true"
   "system/opentelemetry|--set opentelemetry-operator.crds.create=true"
   "system/rook-ceph|--set rook-ceph.crds.enabled=true --set snapshot-controller.installCRDs=true"
@@ -25,6 +26,7 @@ COMPONENTS=(
   "platform/cloudnative-pg|--set cloudnative-pg.crds.create=true"
   "platform/external-secrets|--set external-secrets.installCRDs=true"
   "platform/kanidm|"
+  "platform/kargo|--set kargo.crds.install=true"
 )
 
 render() { # dir sets outdir -> writes outdir/<crd>.yaml for each of the component's CRDs, annotated

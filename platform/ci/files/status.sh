@@ -9,7 +9,8 @@ Succeeded) result=success description="passed" ;;
 Failed) result=failure description="failed" ;;
 *) result=error description="did not finish ($STATE)" ;;
 esac
-curl -fsS -o /dev/null -X POST "https://git.$DOMAIN/api/v1/repos/$REPO/statuses/$SHA" \
+# A new pod's first lookups can race ztunnel's DNS proxy: retried
+curl -fsS --retry 5 --retry-all-errors -o /dev/null -X POST "https://git.$DOMAIN/api/v1/repos/$REPO/statuses/$SHA" \
 	-H "Authorization: token $FORGEJO_TOKEN" -H "Content-Type: application/json" \
 	-d "{\"state\": \"$result\", \"context\": \"ci/pipeline\", \"description\": \"$description\",
 		\"target_url\": \"https://ci.$DOMAIN/workflows/ci/$WORKFLOW\"}"

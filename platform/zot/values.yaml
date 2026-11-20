@@ -51,12 +51,17 @@ config:
           policies:
             - groups: [homelab-admins]
               actions: [read, create, update, delete]
+            # Images come only from the CI (user ci) or an admin: an editor's push would reach production through
+            # Kargo (docs/superpowers/specs/2026-11-18-app-delivery-design.md)
             - groups: [homelab-editors]
-              actions: [read, create, update]
+              actions: [read]
             - groups: [homelab-users]
               actions: [read]
             - users: [ci]
               actions: [read, create, update]
+            # Pods and Kargo pull our images with it (system/secret-store's zot-pull)
+            - users: [puller]
+              actions: [read]
           defaultPolicy: []
   log:
     level: info

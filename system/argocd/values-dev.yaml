@@ -110,6 +110,23 @@ argocd-apps:
                     matchLabels:
                       homelab/bootstrap: "true"
                       homelab/stage: all
+                      homelab/group-delivery: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        directories:
+                          - path: system/argo-rollouts
+                          - path: platform/kargo
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
                       homelab/group-git: "true"
               - matrix:
                   generators:
@@ -288,6 +305,22 @@ argocd-apps:
                     matchLabels:
                       homelab/bootstrap: "true"
                       homelab/stage: all
+                      homelab/group-delivery: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: test/fixtures/apps/delivery-test.yaml
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
                       homelab/group-homepage: "true"
               - matrix:
                   generators:
@@ -403,7 +436,11 @@ argocd-apps:
               helm:
                 releaseName: '{{ .path.filename | trimSuffix ".yaml" }}'
                 valueFiles:
-                  - '$values/apps/{{ .path.filename }}'
+                  - '$values/{{ .path.path }}/{{ .path.filename }}'
+                  # Our apps on the app road: the version Kargo promoted (docs/how-to-guides/app-delivery.md); missing
+                  # before the first promotion, and for every other app (its releases source is this repository)
+                  - '$releases/{{ .path.filename }}'
+                ignoreMissingValueFiles: true
                 parameters:
                   # No Cloudflare Tunnel in the sandbox: public apps use the LAN Gateway
                   - name: global.publicGateway
@@ -420,5 +457,9 @@ argocd-apps:
             - repoURL: *repoURL
               targetRevision: *revision
               ref: values
+            # ops/releases on Forgejo for the apps in the list (the templatePatch's too), this repository for the rest
+            - repoURL: '{{ if has (.path.filename | trimSuffix ".yaml") (list "blog" "delivery-test") }}http://forgejo-http.forgejo:3000/ops/releases{{ else }}{{ .metadata.annotations.repository }}{{ end }}'
+              targetRevision: '{{ if has (.path.filename | trimSuffix ".yaml") (list "blog" "delivery-test") }}main{{ else }}{{ .metadata.annotations.revision }}{{ end }}'
+              ref: releases
             - *egress
             - *secretStore

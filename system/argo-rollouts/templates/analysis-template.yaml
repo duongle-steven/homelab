@@ -1,0 +1,87 @@
+# Judges a canary from the Istio Gateways' request metrics (system/istio-system's PodMonitor "gateways"): its share of
+# 5xx and its p95 latency through the Gateway over the last minute. No traffic is no evidence against it, so it passes.
+# It measures from 45 s after the canary takes traffic (a minute's rate over 30 s scrapes needs two samples: measured
+# at once, it found nothing and passed a canary serving only errors, AppDelivery 2026-11-20), every 20 s, four times:
+# inside the canary's two minutes of pauses, two failures abort it
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterAnalysisTemplate
+metadata:
+  name: gateway-success-rate
+spec:
+  args:
+    - name: service
+    - name: namespace
+    - name: max-error-ratio
+      value: "0.05"
+    - name: max-p95-ms
+      value: "1000"
+    # The canary Service's port, for canary-responds
+    - name: port
+      value: "80"
+  metrics:
+    - name: error-ratio
+      initialDelay: 45s
+      interval: 20s
+      count: 4
+      failureLimit: 1
+      successCondition: len(result) == 0 || isNaN(result[0]) || result[0] <= {{ "{{args.max-error-ratio}}" }}
+      provider:
+        prometheus:
+          address: http://monitoring-system-kube-pro-prometheus.monitoring-system:9090
+          query: |
+            sum(rate(istio_requests_total{destination_service_name="{{ "{{args.service}}" }}", destination_service_namespace="{{ "{{args.namespace}}" }}", response_code=~"5.."}[1m]))
+            /
+            sum(rate(istio_requests_total{destination_service_name="{{ "{{args.service}}" }}", destination_service_namespace="{{ "{{args.namespace}}" }}"}[1m]))
+    - name: p95-latency
+      initialDelay: 45s
+      interval: 20s
+      count: 4
+      failureLimit: 1
+      successCondition: len(result) == 0 || isNaN(result[0]) || result[0] <= {{ "{{args.max-p95-ms}}" }}
+      provider:
+        prometheus:
+          address: http://monitoring-system-kube-pro-prometheus.monitoring-system:9090
+          query: |
+            histogram_quantile(0.95, sum by (le) (rate(istio_request_duration_milliseconds_bucket{destination_service_name="{{ "{{args.service}}" }}", destination_service_namespace="{{ "{{args.namespace}}" }}"}[1m])))
+    # A quiet app's canary gets no visitors, and the two above pass on no data: this one sends 20 requests to the
+    # canary Service itself, from a Job in the app's namespace (the mesh admits its own namespace), once the canary
+    # has been up 30 s. One 5xx or no answer fails it, and the canary is aborted
+    - name: canary-responds
+      initialDelay: 30s
+      count: 1
+      failureLimit: 0
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            activeDeadlineSeconds: 120
+            template:
+              spec:
+                restartPolicy: Never
+                automountServiceAccountToken: false
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  runAsGroup: 65532
+                  seccompProfile:
+                    type: RuntimeDefault
+                containers:
+                  - name: requests
+                    image: {{ .Values.images.curl }}
+                    command: [sh, -c]
+                    args:
+                      - |
+                        url='http://{{ "{{args.service}}" }}.{{ "{{args.namespace}}" }}:{{ "{{args.port}}" }}/'
+                        for i in $(seq 1 20); do
+                          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url" || true)
+                          case $code in
+                          5* | 000 | "") echo "request $i to $url: ${code:-no answer}"; exit 1 ;;
+                          esac
+                          sleep 1
+                        done
+                        echo "20 requests to $url answered"
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                        drop: [ALL]

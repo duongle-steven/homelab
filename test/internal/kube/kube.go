@@ -18,6 +18,11 @@ func Kubectl(ctx context.Context, namespace string, args ...string) (string, err
 	return run(ctx, namespace, "", args...)
 }
 
+// KubectlStdin is Kubectl with stdin as kubectl's standard input (a manifest for create -f -).
+func KubectlStdin(ctx context.Context, stdin, namespace string, args ...string) (string, error) {
+	return run(ctx, namespace, stdin, args...)
+}
+
 // GetJSON runs kubectl get args --output json and decodes its stdout into out (stderr's warnings ignored).
 func GetJSON(ctx context.Context, namespace string, out any, args ...string) error {
 	cmd := command(ctx, namespace, append(append([]string{"get"}, args...), "--output", "json")...)
