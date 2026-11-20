@@ -1,10 +1,14 @@
 {{- /* Our apps on the app road (docs/how-to-guides/app-delivery.md): one Kargo Project each, named after the app's
 namespace (labelled kargo.akuity.io/project by the apps ApplicationSet). Cluster-scoped, so here rather than in the app's
-own file; the app's ProjectConfig, Warehouse and Stages stay there */ -}}
+own file; the app's ProjectConfig, Warehouse and Stages stay there. A wave after Kargo's webhook server, which validates
+them: in the same wave a fresh cluster's first sync failed them, and every retry's dry-run then failed against the
+webhook before its certificate was ever applied */ -}}
 {{- range .Values.projects }}
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Project
 metadata:
   name: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 {{- end }}

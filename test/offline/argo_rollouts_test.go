@@ -117,3 +117,13 @@ func TestGatewaySuccessRateRequestsTheCanary(t *testing.T) {
 	assert.Equal(t, "8080", renderVelero(t, "test/fixtures/apps/delivery-test.yaml", "dev",
 		`select(.kind == "Rollout") | .spec.strategy.canary.analysis.args[] | select(.name == "port") | .value`))
 }
+
+// Kargo's webhook validates our Projects: they sync a wave after its webhook server (which needs its certificate),
+// or a fresh cluster's first sync fails them and every retry's dry-run fails against a webhook with no endpoint, so the
+// certificate is never applied (the sandbox, 2026-11-20)
+func TestKargoProjectsAfterTheWebhook(t *testing.T) {
+	for _, env := range []string{"", "dev"} {
+		assert.Equal(t, "1", renderVelero(t, "platform/kargo", env, `select(.kind == "Project") | .metadata.annotations["argocd.argoproj.io/sync-wave"]`), env)
+		assert.Equal(t, "", renderVelero(t, "platform/kargo", env, `select(.kind == "Deployment" and .metadata.name == "kargo-webhooks-server") | .metadata.annotations["argocd.argoproj.io/sync-wave"] // ""`), env)
+	}
+}
