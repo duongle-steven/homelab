@@ -22,8 +22,9 @@ and promotes, and Argo Rollouts releases *(user, 2026-11-18: the blog promotes i
   name on the wildcard certificate and no special case in the public map, and an apex CNAME is not portable off
   Cloudflare)*.
 - **Generator**: Hugo with the PaperMod theme. PaperMod is a blog theme with a profile mode, so the home page
-  introduces its owner and posts sit below *(user)*. Content stays plain Markdown, so the engine can be swapped later
-  (even for one written by hand, in Rust) without losing a post *(user, 2026-11-21)*.
+  introduces its owner and posts sit below *(user)*. Content is Markdown: Hugo's native format, easy to write and to edit
+  in Forgejo's web editor, with shortcodes for what it lacks *(user, 2026-11-21)*. That it also keeps the engine
+  swappable (even for one written by hand, in Rust) is a bonus, not the reason.
 - **Serving**: the image holds only the built site and a small web server that runs as non-root, with two replicas
   *(user)*. The server is `static-web-server` (Rust, a few MB, non-root by default, made for static files)
   *(Claude's call, agreed 2026-11-21)*.
