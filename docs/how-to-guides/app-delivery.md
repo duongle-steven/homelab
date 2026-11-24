@@ -32,7 +32,13 @@ Renovate leaves our images alone (`renovate.json5`: names starting `registry.{{`
    names the failed version. A canary that never becomes healthy is aborted at its progress deadline
    (`progressDeadlineAbort`) and alerts the same way. With no visitors the Gateway's metrics have nothing to judge
    and pass, so `canary-responds` also sends 20 requests to the canary Service itself, from a Job in the app's
-   namespace, and fails on any 5xx or no answer: a quiet app (the blog at night) is still judged, on its main page.
+   namespace, and fails on any 5xx or no answer: a quiet app is still judged, on its main page.
+
+   A static site releases **blue-green** instead (the blog, [The blog](blog.md)): its hashed assets cannot be mixed
+   across versions request by request. The new version comes up behind a `preview` Service, `static-site-responds`
+   fetches its page and every same-origin asset it names before the switch, every visitor moves at once, and
+   `gateway-success-rate` watches the live version after it, sending everyone back to the previous one (kept up by
+   `scaleDownDelaySeconds`) if it fails.
 
 ## When a version is aborted
 

@@ -203,4 +203,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | App delivery (final review) | AppDelivery's unsigned image is pushed with `ci`'s account (the plan said an admin's) and its `:unsigned` tag stays in zot | any |
 | App delivery (final review) | Argo Rollouts downloads its Gateway API plugin from GitHub at every controller start (sha256-checked): a GitHub outage stops rollouts; an init-container image would not | Blog |
 | App delivery (final review) | Deleting or renaming a Kargo `Project` may delete the adopted app namespace and its volumes (Kargo's keep-namespace annotation): check before the blog | Blog |
+| blog | `static-site-responds` reads `<link>`, `<script>` and `<img>` only: assets named in CSS (`url(...)`, fonts) or `srcset` are not checked | any |
+| blog | Hugo, PaperMod and `static-web-server` versions in the template's `Containerfile` and `apps/blog.yaml` are not bumped by Renovate (sha256 beside each); a regex manager could keep them current | any |
 
