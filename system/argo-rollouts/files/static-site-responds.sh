@@ -15,7 +15,12 @@ if ! get "$URL" "$page"; then
 fi
 failed=0
 checked=0
-for ref in $(grep -oiE '<(link|script|img)[^>]*>' "$page" | grep -oiE '(href|src)="[^"]+"' | sed -E 's/^[^"]*"//; s/"$//'); do
+# A value double-quoted, single-quoted or bare (hugo --minify drops the quotes: href=/assets/css/stylesheet.<hash>.css)
+refs=$(mktemp)
+grep -oiE '<(link|script|img)[^>]*>' "$page" |
+	grep -oiE "(href|src)=(\"[^\"]*\"|'[^']*'|[^ >\"']+)" |
+	sed -E "s/^[^=]*=//; s/^[\"']//; s/[\"']\$//" >"$refs"
+while IFS= read -r ref; do
 	case $ref in
 	data:* | '#'* | mailto:*) continue ;;
 	"$origin"/*) target=$ref ;;
@@ -24,10 +29,10 @@ for ref in $(grep -oiE '<(link|script|img)[^>]*>' "$page" | grep -oiE '(href|src
 	*) target=$dir$ref ;;
 	esac
 	checked=$((checked + 1))
-	if ! get "$target" /dev/null; then
+	if ! get "$target" /dev/null 2>/dev/null; then
 		echo "$ref ($target): no 2xx"
 		failed=1
 	fi
-done
+done <"$refs"
 [ "$failed" = 0 ] && echo "$URL and its $checked assets answered"
 exit "$failed"

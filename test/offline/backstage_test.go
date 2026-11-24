@@ -45,7 +45,7 @@ func TestBackstageRender(t *testing.T) {
 	// What Argo CD syncs: production's ops/homelab on Forgejo, the sandbox's GitHub branch
 	assert.Equal(t, "http://forgejo-http.forgejo:3000/ops/homelab/src/branch/master/catalog-info.yaml", env("", "CATALOG_LOCATION"))
 	assert.Equal(t, "https://github.com/duongle-steven/homelab/blob/sandbox/catalog-info.yaml", env("dev", "CATALOG_LOCATION"))
-	assert.Equal(t, "https://github.com/duongle-steven/homelab/blob/sandbox/backstage/templates/ci-repository/template.yaml", env("dev", "TEMPLATES_LOCATION"))
+	assert.Equal(t, "https://github.com/duongle-steven/homelab/blob/sandbox/backstage/templates/templates.yaml", env("dev", "TEMPLATES_LOCATION"))
 	assert.Equal(t, "https://backstage.127-0-0-1.nip.io", env("dev", "BACKSTAGE_BASE_URL"))
 
 	// The sandbox syncs it with its group backstage (test/scopes.yaml); production waits for its first release

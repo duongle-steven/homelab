@@ -50,4 +50,15 @@ func TestStaticSiteRespondsChecksAssets(t *testing.T) {
 	assert.Contains(t, out, "js/b.js")
 	_, err = run("", http.StatusInternalServerError)
 	assert.Error(t, err, "the page itself fails")
+
+	// hugo --minify drops attribute quotes (PaperMod's real page: href=/assets/css/stylesheet.<hash>.css)
+	page = `<!doctype html><html><head><link crossorigin=anonymous href=/assets/css/s.abc.css integrity=sha256-x rel="preload stylesheet" as=style><link rel=icon href='/favicon.ico'></head><body><img src=/img/me.png alt></body></html>`
+	out, err = run("/assets/css/s.abc.css", http.StatusOK)
+	assert.Error(t, err, "a missing stylesheet named without quotes")
+	assert.Contains(t, out, "/assets/css/s.abc.css")
+	out, err = run("/img/me.png", http.StatusOK)
+	assert.Error(t, err, "a missing image named without quotes")
+	out, err = run("", http.StatusOK)
+	assert.NoError(t, err, out)
+	assert.Contains(t, out, "3 assets", "every asset counted, quoted or not")
 }

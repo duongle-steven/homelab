@@ -63,7 +63,7 @@ backstage:
       - name: POSTGRES_PASSWORD
         valueFrom: {secretKeyRef: {name: backstage-db-app, key: password}}
       - {name: CATALOG_LOCATION, value: '{{ include "backstage.location" (dict "root" . "path" "catalog-info.yaml") }}'}
-      - {name: TEMPLATES_LOCATION, value: '{{ include "backstage.location" (dict "root" . "path" "backstage/templates/ci-repository/template.yaml") }}'}
+      - {name: TEMPLATES_LOCATION, value: '{{ include "backstage.location" (dict "root" . "path" "backstage/templates/templates.yaml") }}'}
       # Traces to the gateway Collector (system/opentelemetry, senders)
       - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: 'http://gateway-collector.opentelemetry:4318'}
   serviceAccount:

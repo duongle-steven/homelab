@@ -1,0 +1,19 @@
+# Built by the golden path (docs/how-to-guides/in-cluster-ci.md): Hugo builds the site, and the image keeps only the
+# site and static-web-server, as a numeric non-root user on 8080. Every download is pinned and checked; bump a version
+# with its sha256 (Hugo's release checksums, the theme archive's own hash)
+FROM docker.io/library/debian:13.8-slim AS build
+ADD --checksum=sha256:841a5462853aefc9942e4de1e8a5d75584b6a5181941e6ad3f1d745190e03cd8 https://github.com/gohugoio/hugo/releases/download/v0.170.1/hugo_extended_0.170.1_linux-amd64.tar.gz /tmp/hugo.tar.gz
+# PaperMod at a commit of master (its last release, v8.0, is from 2024)
+ADD --checksum=sha256:473ef4f28216c4b25b705c2ddc30775361d4cb0b477b401c36b7055202db3190 https://github.com/adityatelange/hugo-PaperMod/archive/118119693d8b5ac211b939775678310973bcb232.tar.gz /tmp/papermod.tar.gz
+RUN tar -xzf /tmp/hugo.tar.gz -C /usr/local/bin hugo \
+    && mkdir -p /src/themes/PaperMod \
+    && tar -xzf /tmp/papermod.tar.gz -C /src/themes/PaperMod --strip-components=1
+WORKDIR /src
+COPY . .
+RUN hugo --minify --destination /public
+
+FROM docker.io/joseluisq/static-web-server:2.44.3
+COPY --from=build /public /public
+ENV SERVER_PORT=8080 SERVER_ROOT=/public
+USER 65532
+EXPOSE 8080
