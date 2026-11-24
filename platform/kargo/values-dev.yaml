@@ -1,5 +1,5 @@
 # The app road's end-to-end test app (test/fixtures/apps/delivery-test.yaml)
-projects: [delivery-test]
+projects: [blog, delivery-test]
 kargo:
   api:
     # Helm replaces lists: values.yaml's issuer restated, with the sandbox CA for Kanidm

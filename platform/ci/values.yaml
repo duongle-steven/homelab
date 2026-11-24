@@ -24,4 +24,4 @@ images:
 devCA: false
 # Namespaces whose ServiceAccount ci-signature may read ConfigMap ci-signing-public-key: our apps on the app road, whose
 # Kargo stage verify runs ClusterAnalysisTemplate ci-signature (docs/how-to-guides/app-delivery.md)
-publicKeyReaders: [delivery-test]
+publicKeyReaders: [blog, delivery-test]

@@ -71,10 +71,11 @@
     zot's htpasswd (user puller) and every namespace that pulls our images read it (system/secret-store's zot-pull);
     a pull while they differ fails and the kubelet retries it
   period: 2160h
-  paths: [zot/generated/puller, kargo/generated/zot-puller, delivery-test/generated/zot-puller]
+  paths: [zot/generated/puller, kargo/generated/zot-puller, blog/generated/zot-puller, delivery-test/generated/zot-puller]
   readers:
     - {namespace: zot, externalSecrets: [zot-auth], workloads: [{kind: StatefulSet, name: zot}]}
     - {namespace: kargo, externalSecrets: [zot-pull]}
+    - {namespace: blog, externalSecrets: [zot-pull]}
     - {namespace: delivery-test, externalSecrets: [zot-pull]}
   settings: {key: password, length: 32, special: false}
 

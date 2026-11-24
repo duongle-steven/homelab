@@ -124,9 +124,10 @@ func TestGatewaySuccessRateRequestsTheCanary(t *testing.T) {
 // or a fresh cluster's first sync fails them and every retry's dry-run fails against a webhook with no endpoint, so the
 // certificate is never applied (the sandbox, 2026-11-20)
 func TestKargoProjectsAfterTheWebhook(t *testing.T) {
-	// Production has no Project until the blog joins the road
-	assert.Equal(t, "1", renderVelero(t, "platform/kargo", "dev", `select(.kind == "Project") | .metadata.annotations["argocd.argoproj.io/sync-wave"]`))
 	for _, env := range []string{"", "dev"} {
+		for _, wave := range strings.Fields(renderVelero(t, "platform/kargo", env, `select(.kind == "Project") | .metadata.annotations["argocd.argoproj.io/sync-wave"]`)) {
+			assert.Equal(t, "1", wave, env)
+		}
 		assert.Equal(t, "", renderVelero(t, "platform/kargo", env, `select(.kind == "Deployment" and .metadata.name == "kargo-webhooks-server") | .metadata.annotations["argocd.argoproj.io/sync-wave"] // ""`), env)
 	}
 }

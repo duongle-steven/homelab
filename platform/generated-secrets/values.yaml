@@ -34,7 +34,7 @@ secrets:
   # zotPull: its Secret zot-pull)
   - name: registry.puller
     key: password
-    destinations: [zot/generated/puller, kargo/generated/zot-puller]
+    destinations: [zot/generated/puller, kargo/generated/zot-puller, blog/generated/zot-puller]
   # Forgejo's org ci webhook to Argo Events (Authorization: Bearer, set by lab infra forgejo sync)
   - name: ci.webhook
     key: token
