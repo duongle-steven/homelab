@@ -71,6 +71,43 @@ resource "cloudflare_dns_record" "tunnel" {
   ttl     = 1 # Auto
 }
 
+# The apex answers only to redirect to www, the blog's canonical name (docs/how-to-guides/blog.md): a proxied record
+# so Cloudflare serves the apex, pointing at the discard prefix 100:: (RFC 6666), which nothing ever reaches since the
+# redirect below answers first. Not a CNAME: the apex may hold other records later (mail)
+resource "cloudflare_dns_record" "apex" {
+  zone_id = data.cloudflare_zone.zone.id
+  type    = "AAAA"
+  name    = var.domain
+  content = "100::"
+  proxied = true
+  ttl     = 1 # Auto
+}
+
+# https://<domain>/<path>?<query> → https://www.<domain>/<path>?<query>, permanently. Its own phase: the rate limit's
+# single rule stays as it is
+resource "cloudflare_ruleset" "redirect" {
+  zone_id     = data.cloudflare_zone.zone.id
+  name        = "${var.resource_prefix}-redirect"
+  description = "The apex to www"
+  kind        = "zone"
+  phase       = "http_request_dynamic_redirect"
+  rules = [{
+    ref         = "apex_to_www"
+    description = "The apex to www, keeping the path and query"
+    expression  = "(http.host eq \"${var.domain}\")"
+    action      = "redirect"
+    action_parameters = {
+      from_value = {
+        status_code           = 301
+        preserve_query_string = true
+        target_url = {
+          expression = "concat(\"https://www.${var.domain}\", http.request.uri.path)"
+        }
+      }
+    }
+  }]
+}
+
 resource "cloudflare_account_token" "external_dns" {
   account_id = local.account_id
   name       = "${var.resource_prefix}-external-dns"

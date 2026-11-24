@@ -91,3 +91,38 @@ run "no_free_managed_ruleset" {
 
   expect_failures = [cloudflare_ruleset.managed]
 }
+
+# The apex redirects to www, the blog's canonical name (docs/superpowers/specs/2026-11-21-blog-design.md), keeping the
+# path and query; the apex record exists only so Cloudflare answers for it
+run "redirect" {
+  command = plan
+
+  assert {
+    condition     = cloudflare_ruleset.redirect.phase == "http_request_dynamic_redirect" && cloudflare_ruleset.redirect.kind == "zone"
+    error_message = "the redirect is the zone's http_request_dynamic_redirect entry point"
+  }
+  assert {
+    condition     = length(cloudflare_ruleset.redirect.rules) == 1
+    error_message = "one rule: the apex"
+  }
+  assert {
+    condition     = strcontains(cloudflare_ruleset.redirect.rules[0].expression, "http.host eq \"${var.domain}\"")
+    error_message = "only the apex is redirected"
+  }
+  assert {
+    condition     = strcontains(cloudflare_ruleset.redirect.rules[0].action_parameters.from_value.target_url.expression, "https://www.${var.domain}") && strcontains(cloudflare_ruleset.redirect.rules[0].action_parameters.from_value.target_url.expression, "http.request.uri.path")
+    error_message = "to www, keeping the path"
+  }
+  assert {
+    condition     = cloudflare_ruleset.redirect.rules[0].action_parameters.from_value.status_code == 301 && cloudflare_ruleset.redirect.rules[0].action_parameters.from_value.preserve_query_string
+    error_message = "permanently, keeping the query"
+  }
+  assert {
+    condition     = cloudflare_dns_record.apex.proxied && cloudflare_dns_record.apex.type != "CNAME" && cloudflare_dns_record.apex.name == var.domain
+    error_message = "the apex is a proxied record, not a CNAME"
+  }
+  assert {
+    condition     = length(cloudflare_ruleset.rate_limit.rules) == 1
+    error_message = "the Free plan's one rate-limiting rule is unchanged"
+  }
+}
