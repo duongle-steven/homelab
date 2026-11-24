@@ -48,13 +48,15 @@ configMaps:
         </body>
         </html>
 persistence:
-  # The page before the first promotion, at the server's root; the release file sets enabled: false
+  # The page before the first promotion, at the server's root; the release file sets enabled: false. Mounted as one
+  # plain file (subPath): a ConfigMap volume's files are symlinks into ..data, which static-web-server refuses (403)
   coming-soon:
     enabled: true
     type: configMap
     identifier: coming-soon
     globalMounts:
-      - path: /public
+      - path: /public/index.html
+        subPath: index.html
 service:
   # Active and preview: the Rollout points each at its own pods
   active:

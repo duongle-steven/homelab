@@ -32,7 +32,9 @@ func TestBlogOnTheRoad(t *testing.T) {
 		assert.Equal(t, "true", render(`select(.kind == "Deployment") | .spec.template.spec.securityContext.runAsNonRoot`), env)
 		assert.Equal(t, `["^[0-9a-f]{40}$"]`, render(`select(.kind == "Warehouse") | .spec.subscriptions[0].image.allowTagsRegexes | @json`), env)
 		// Before the first promotion, /public is the "coming soon" page
-		assert.Equal(t, "/public", render(`select(.kind == "Deployment") | .spec.template.spec.containers[0].volumeMounts[] | select(.name == "coming-soon") | .mountPath`), env)
+		// as a plain file: a ConfigMap volume's files are symlinks into ..data, which static-web-server refuses (403,
+		// the sandbox 2026-11-24)
+		assert.Equal(t, "/public/index.html index.html", render(`select(.kind == "Deployment") | .spec.template.spec.containers[0].volumeMounts[] | select(.name == "coming-soon") | .mountPath + " " + .subPath`), env)
 	}
 }
 
