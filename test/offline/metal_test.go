@@ -65,6 +65,13 @@ type metalNode struct {
 		Before     []string `json:"before"`
 		WantedBy   []string `json:"wantedBy"`
 	} `json:"k3sName"`
+	Firewall struct {
+		TCP   []int  `json:"tcp"`
+		UDP   []int  `json:"udp"`
+		Extra string `json:"extra"`
+	} `json:"firewall"`
+	SSH           map[string]any `json:"ssh"`
+	Uplink        map[string]any `json:"uplink"`
 	TunnelOffload struct {
 		Condition string   `json:"condition"`
 		Script    string   `json:"script"`
@@ -117,6 +124,10 @@ func metalEval(t *testing.T) map[string]metalNode {
 				restartSec = toString (s.serviceConfig.RestartSec or "");
 				inherit (s) before wantedBy;
 			};
+			firewall = { tcp = c.config.networking.firewall.allowedTCPPorts; udp = c.config.networking.firewall.allowedUDPPorts;
+				extra = c.config.networking.firewall.extraCommands; };
+			ssh = { inherit (c.config.services.openssh.settings) PasswordAuthentication KbdInteractiveAuthentication PermitRootLogin; };
+			uplink = c.config.systemd.network.networks."10-uplink".networkConfig;
 			kernel = c.config.boot.kernelPackages.kernel.version;
 			tunnelOffload = let s = c.config.systemd.services.vm-tunnel-offload or null; in if s == null then {} else {
 				condition = s.unitConfig.ConditionVirtualization or "";
@@ -565,4 +576,42 @@ func TestMetalK3sNameForIstioTracked(t *testing.T) {
 	minors, err := os.ReadFile(filepath.Join(repo.Root(), "docs", "superpowers", "deferred-minors.md"))
 	require.NoError(t, err)
 	assert.Regexp(t, "(?m)^\\|.*k3s-name-for-istio.*k3s-server.*\\|", string(minors), "the stopgap's removal is tracked")
+}
+
+// G2 (docs/superpowers/specs/2026-11-24-node-ports-design.md): the cluster's own ports from the nodes only (the kubelet
+// also from the pods, where Prometheus scrapes it); the rest of the LAN keeps SSH, 6443, 80 and 443
+func TestMetalClusterPortsFromNodes(t *testing.T) {
+	for name, n := range metalEval(t) {
+		// 22: OpenSSH opens it itself (openFirewall), by key only (TestMetalSSHKeysOnly)
+		assert.ElementsMatch(t, []int{22, 6443, 80, 443}, n.Firewall.TCP, name)
+		assert.Empty(t, n.Firewall.UDP, name)
+		for _, ip := range []string{"10.0.0.11", "10.0.0.12", "10.0.0.13"} {
+			assert.Regexp(t, `-s `+regexp.QuoteMeta(ip)+` -p tcp -m multiport --dports [0-9,]*\b2379,2380,10250\b`, n.Firewall.Extra, name)
+			assert.Contains(t, n.Firewall.Extra, "-s "+ip+" -p udp --dport 8472 -j nixos-fw-accept", name)
+		}
+		pods := regexp.MustCompile(`-s 10\.42\.0\.0/16 -p tcp -m multiport --dports (\S+) `).FindStringSubmatch(n.Firewall.Extra)
+		require.NotNil(t, pods, name)
+		assert.Contains(t, strings.Split(pods[1], ","), "10250", name)
+		assert.NotContains(t, strings.Split(pods[1], ","), "2379", "pods never reach etcd: %s", name)
+		assert.NotContains(t, n.Firewall.Extra, "10.42.0.0/16 -p udp", name)
+	}
+}
+
+// SSH signs in by key only, said explicitly: today only the absence of passwords stops a password sign-in
+func TestMetalSSHKeysOnly(t *testing.T) {
+	for name, n := range metalEval(t) {
+		assert.Equal(t, false, n.SSH["PasswordAuthentication"], name)
+		assert.Equal(t, false, n.SSH["KbdInteractiveAuthentication"], name)
+		assert.Equal(t, "prohibit-password", n.SSH["PermitRootLogin"], name)
+	}
+}
+
+// No IPv6 on the uplink: nothing in the cluster uses it, and a global address would stand behind the router's firewall
+// alone (with no IPv6 configured, networkd sets disable_ipv6 on the link)
+func TestMetalNoIPv6(t *testing.T) {
+	for name, n := range metalEval(t) {
+		assert.Equal(t, "no", n.Uplink["DHCP"], name)
+		assert.Equal(t, false, n.Uplink["IPv6AcceptRA"], name)
+		assert.Equal(t, "no", n.Uplink["LinkLocalAddressing"], name)
+	}
 }

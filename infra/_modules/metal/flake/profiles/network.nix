@@ -25,9 +25,13 @@
         "8.8.8.8"
         "1.1.1.1"
       ];
+    # IPv4 only (G2, docs/superpowers/specs/2026-11-24-node-ports-design.md): nothing in the cluster uses IPv6, and a
+    # global address from DHCPv6 or router advertisements would stand behind the router's firewall alone. With no IPv6
+    # configured, networkd sets disable_ipv6 on the link; the loopback keeps ::1
     networkConfig = {
-      DHCP = "ipv6";
-      IPv6AcceptRA = true;
+      DHCP = "no";
+      IPv6AcceptRA = false;
+      LinkLocalAddressing = "no";
       KeepConfiguration = "static";
     };
   };

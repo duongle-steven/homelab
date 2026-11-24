@@ -36,23 +36,26 @@ in
 
   networking.firewall = {
     # https://docs.k3s.io/installation/requirements#inbound-rules-for-k3s-nodes
+    # Open to the whole LAN: the API (the workstation's kubectl; limited to it with G6) and the Gateway's VIP
     allowedTCPPorts = [
       6443 # Kubernetes API server
-      10250 # kubelet
-      2379 # etcd client
-      2380 # etcd peer
-      80 # HTTP (ServiceLB, kube-vip's Gateway address)
+      80 # HTTP (kube-vip's Gateway address)
       443 # HTTPS
     ];
-    allowedUDPPorts = [
-      8472 # flannel VXLAN
-    ];
-    # Metrics are reachable only from cluster pods and nodes: node exporter, etcd, kube-proxy, controller manager,
-    # scheduler
-    extraCommands = lib.concatMapStringsSep "\n" (
-      source:
-      "iptables -A nixos-fw -s ${source} -p tcp -m multiport --dports 9100,2381,10249,10257,10259 -j nixos-fw-accept"
-    ) ([ "10.42.0.0/16" ] ++ k3s.nodeIPs);
+    # The cluster's own ports, from the nodes only (G2, docs/superpowers/specs/2026-11-24-node-ports-design.md): etcd
+    # (2379, 2380) and the kubelet (10250) ask for client certificates, but flannel's VXLAN (UDP 8472) is neither
+    # encrypted nor authenticated, so a LAN device sending to it would inject packets into the pod network. Pods reach
+    # the kubelet (Prometheus scrapes it) and the metrics: node exporter, etcd, kube-proxy, controller manager,
+    # scheduler. A node added later is accepted once the others are rebuilt with its address (lab cluster upgrade)
+    extraCommands = lib.concatStringsSep "\n" (
+      [
+        "iptables -A nixos-fw -s 10.42.0.0/16 -p tcp -m multiport --dports 9100,2381,10249,10257,10259,10250 -j nixos-fw-accept"
+      ]
+      ++ lib.concatMap (node: [
+        "iptables -A nixos-fw -s ${node} -p tcp -m multiport --dports 9100,2381,10249,10257,10259,2379,2380,10250 -j nixos-fw-accept"
+        "iptables -A nixos-fw -s ${node} -p udp --dport 8472 -j nixos-fw-accept"
+      ]) k3s.nodeIPs
+    );
   };
 
   # A stopgap until Istio matches k3s-server (docs/superpowers/specs/2026-11-25-istio-cni-k3s-name-design.md): in native
