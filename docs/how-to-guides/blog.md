@@ -28,6 +28,11 @@ first build.
   `backstage/templates/hugo-site/skeleton/` into a new private repository `ci/blog` in Forgejo, replacing
   `${{ values.name }}` with `blog` and `${{ values.description }}` with a line about the site.
 
+The first release after creating `ci/blog` can take up to about 17 minutes after its first build: Kargo's Warehouse has
+been failing to list `registry.<domain>/blog` since before the repository existed, and its retries back off (the
+sandbox's first build waited 14 minutes). Press "Refresh" on the Warehouse in Kargo's UI to look at once. Later
+pushes are found within its one-minute interval.
+
 ## Writing
 
 - The profile: `hugo.toml`'s `params.profileMode` (title, subtitle, buttons) and `params.description`.
