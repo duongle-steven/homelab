@@ -205,4 +205,4 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | App delivery (final review) | Deleting or renaming a Kargo `Project` may delete the adopted app namespace and its volumes (Kargo's keep-namespace annotation): check before the blog | Blog |
 | blog | `static-site-responds` reads `<link>`, `<script>` and `<img>` only: assets named in CSS (`url(...)`, fonts) or `srcset` are not checked | any |
 | blog | Hugo, PaperMod and `static-web-server` versions in the template's `Containerfile` and `apps/blog.yaml` are not bumped by Renovate (sha256 beside each); a regex manager could keep them current | any |
-
+| blog | a fresh sandbox's suite start waits its whole 20 minutes: `openbao-snapshots` (WaitForFirstConsumer) stays Pending until its CronJob first runs at :55, and Argo CD counts OpenBao Progressing meanwhile | any |
