@@ -50,6 +50,11 @@ func TestTestbedLeftovers(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, out, "falco")
 	assert.Contains(t, out, "kubectl delete namespace falco")
+	// It runs before enroll (G2: the upgrade comes first), so on a fresh install no cluster answers yet: nothing can be
+	// left over
+	out, err = runScript(t, env(t, map[string]string{"kubectl": "echo 'The connection to the server was refused' >&2; exit 1"}), "testbed-leftovers")
+	assert.NoError(t, err, out)
+	assert.Contains(t, out, "no cluster")
 }
 
 // env is fakeBin's environment alone

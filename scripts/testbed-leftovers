@@ -6,7 +6,11 @@ set -eu
 root=$(git rev-parse --show-toplevel)
 listed=$(yq '.argocd-apps.applicationsets.root.generators | .. | select(has("directories")) | .directories[] | select(.exclude != true) | .path' \
 	"$root/system/argocd/values-testbed.yaml" | sed 's|.*/||')
-present=$(kubectl get namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+# It runs before enroll (the upgrade comes first, G2): on a fresh install no cluster answers yet, so nothing is left over
+if ! present=$(kubectl --request-timeout=20s get namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null); then
+	echo "testbed-leftovers: no cluster answers yet (a fresh install): nothing can be left over"
+	exit 0
+fi
 leftovers=""
 for ns in $present; do
 	case "$ns" in default | kube-system | kube-public | kube-node-lease | argocd) continue ;; esac

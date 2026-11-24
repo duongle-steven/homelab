@@ -30,6 +30,15 @@ terraform {
     execute     = ["scripts/testbed-trust", "infra/production/metal/hosts.json"]
   }
 
+  # Nodes already installed take the flake's changes in place, one at a time (drain, nixos-rebuild, wait, uncordon),
+  # before enroll: a node just installed is current and skipped, and the others accept its address before it joins
+  # etcd (G2: the cluster's ports answer only the nodes)
+  after_hook "upgrade" {
+    commands    = ["apply"]
+    working_dir = get_repo_root()
+    execute     = ["scripts/lab", "cluster", "upgrade", "--environment", "production", "--flake", "${get_working_dir()}/flake"]
+  }
+
   after_hook "enroll" {
     commands    = ["apply"]
     working_dir = get_repo_root()
@@ -42,12 +51,6 @@ terraform {
     execute     = ["scripts/lab", "cluster", "kubeconfig", "--environment", "production", "--output", "${get_repo_root()}/infra/production/kubeconfig.yaml"]
   }
 
-  # Nodes already installed take the flake's changes in place, one at a time (drain, nixos-rebuild, wait, uncordon)
-  after_hook "upgrade" {
-    commands    = ["apply"]
-    working_dir = get_repo_root()
-    execute     = ["scripts/lab", "cluster", "upgrade", "--environment", "production", "--flake", "${get_working_dir()}/flake"]
-  }
 }
 
 inputs = {

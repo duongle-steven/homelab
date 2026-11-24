@@ -615,3 +615,23 @@ func TestMetalNoIPv6(t *testing.T) {
 		assert.Equal(t, "no", n.Uplink["LinkLocalAddressing"], name)
 	}
 }
+
+// A node joins only once the others accept its address (G2): the installed nodes take the flake's changes (lab cluster
+// upgrade, which skips a node just installed from the same flake) before enroll waits for the new one to join etcd
+func TestMetalUpgradesBeforeEnroll(t *testing.T) {
+	for _, env := range []string{"testbed", "production"} {
+		unit, err := os.ReadFile(filepath.Join(repo.Root(), "infra", env, "metal", "terragrunt.hcl"))
+		require.NoError(t, err)
+		order := map[string]int{}
+		for _, hook := range []string{"nixie", "trust", "upgrade", "enroll"} {
+			order[hook] = strings.Index(string(unit), `after_hook "`+hook+`"`)
+			require.GreaterOrEqual(t, order[hook], 0, "%s: hook %s", env, hook)
+		}
+		assert.Less(t, order["trust"], order["upgrade"], "%s: the host keys before upgrade's SSH", env)
+		assert.Less(t, order["upgrade"], order["enroll"], "%s: the others accept the new node before it joins", env)
+		if env == "testbed" {
+			leftovers := strings.Index(string(unit), `after_hook "leftovers"`)
+			assert.Less(t, leftovers, order["upgrade"], "nothing outside the testbed's list runs while the nodes upgrade")
+		}
+	}
+}
