@@ -130,3 +130,15 @@ func TestKargoProjectsAfterTheWebhook(t *testing.T) {
 		assert.Equal(t, "", renderVelero(t, "platform/kargo", env, `select(.kind == "Deployment" and .metadata.name == "kargo-webhooks-server") | .metadata.annotations["argocd.argoproj.io/sync-wave"] // ""`), env)
 	}
 }
+
+// static-site-responds: one Job before a blue-green switch, its pod like canary-responds'
+func TestStaticSiteRespondsRender(t *testing.T) {
+	tmpl := `select(.kind == "ClusterAnalysisTemplate" and .metadata.name == "static-site-responds") | `
+	assert.Equal(t, "namespace,port,service", renderArgoRollouts(t, "", tmpl+`[.spec.args[].name] | sort | join(",")`))
+	metric := tmpl + `.spec.metrics[] | select(.name == "assets") | `
+	assert.Equal(t, "0 1", renderArgoRollouts(t, "", metric+`(.failureLimit | tostring) + " " + (.count | tostring)`))
+	pod := metric + `.provider.job.spec.template.spec | `
+	assert.Equal(t, "true", renderArgoRollouts(t, "", pod+`.securityContext.runAsNonRoot`))
+	canary := renderArgoRollouts(t, "", `select(.kind == "ClusterAnalysisTemplate" and .metadata.name == "gateway-success-rate") | .spec.metrics[] | select(.name == "canary-responds") | .provider.job.spec.template.spec.containers[0].image`)
+	assert.Equal(t, canary, renderArgoRollouts(t, "", pod+`.containers[0].image`))
+}
