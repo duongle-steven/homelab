@@ -88,6 +88,7 @@ labels:
   - backstage
   - delivery
   - kargo
+  - blog
   - grafana
   - zot
   - actual-budget
@@ -101,7 +102,7 @@ labels:
 always: smoke
 # Each runs by itself after the main run, in this order (#78)
 alone: [backup-restore, node-power-cut, node-restart, rotation]
-full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || traces || ci || backstage || delivery || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
+full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || traces || ci || backstage || delivery || blog || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
 # What every sandbox runs, and the groups of components it deploys only when a run needs them
 # (docs/superpowers/specs/2026-11-20-sandbox-groups-design.md): a group goes in when a selected spec carries one of
 # its labels, when the branch changes one of its components, or when a deployed group needs it. Every label a sandbox
@@ -167,6 +168,12 @@ deployGroups:
     components: [system/argo-rollouts, platform/kargo, test/fixtures/apps/delivery-test.yaml]
     needs: [ci, backstage, metrics]
     labels: [delivery, kargo]
+  # The blog on the app road, released blue-green (docs/how-to-guides/blog.md): the road's group, and Backstage's
+  # template creates its repository
+  blog:
+    components: [apps/blog.yaml]
+    needs: [delivery]
+    labels: [blog]
   # Alertmanager's delivery to ntfy is what its specs check; ntfy is a public route (GatewayPublicAllowList) and
   # NodePowerCut checks its data after the cut
   ntfy:
@@ -250,6 +257,9 @@ groups:
     tests: delivery
   - paths: [platform/kargo/**, test/e2e/sso_kargo_test.go]
     tests: kargo || delivery
+  # The blog: its app file, its template, the check before its blue-green switch, its spec
+  - paths: [apps/blog.yaml, backstage/templates/hugo-site/**, system/argo-rollouts/files/static-site-responds.sh, test/e2e/blog_test.go]
+    tests: blog
   - paths: [system/kiali/**]
     tests: kiali
   - paths: [system/kyverno/**]

@@ -106,7 +106,7 @@ var _ = Describe("AppDelivery", Label("sandbox", "delivery"), Ordered, ContinueO
 		forgejoAs(ctx, "", "DELETE", "/repos/ci/"+deliveryApp, nil, nil)
 		admin, _, _ := backstageIdentity(ctx, "dev-admin")
 		backstageUnregister(ctx, admin, deliveryApp)
-		backstageCreateRepository(ctx, deliveryApp, "AppDelivery's app")
+		backstageCreateRepository(ctx, "ci-repository", deliveryApp, "AppDelivery's app")
 		// The template's own first commit is built too: its build must finish before ours starts, or the two run
 		// side by side, the template's image may be built last, and the Warehouse (NewestBuild) takes it
 		var branch struct {
