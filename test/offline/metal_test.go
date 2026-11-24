@@ -57,6 +57,7 @@ type metalNode struct {
 	} `json:"reclaim"`
 	K3sName struct {
 		Exec       string   `json:"exec"`
+		User       string   `json:"user"`
 		Caps       string   `json:"caps"`
 		Network    bool     `json:"network"`
 		Restart    string   `json:"restart"`
@@ -111,7 +112,7 @@ func metalEval(t *testing.T) map[string]metalNode {
 			hosts = c.config.networking.hosts;
 			timeZone = c.config.time.timeZone;
 			k3sName = let s = c.config.systemd.services.k3s-name-for-istio or null; in if s == null then {} else {
-				exec = s.serviceConfig.ExecStart; caps = s.serviceConfig.CapabilityBoundingSet;
+				exec = s.serviceConfig.ExecStart; user = s.serviceConfig.User or ""; caps = s.serviceConfig.CapabilityBoundingSet;
 				network = s.serviceConfig.PrivateNetwork; restart = s.serviceConfig.Restart;
 				restartSec = toString (s.serviceConfig.RestartSec or "");
 				inherit (s) before wantedBy;
@@ -542,10 +543,26 @@ func TestMetalK3sNameForIstio(t *testing.T) {
 		assert.Regexp(t, `/bin/sleep infinity & wait'$`, n.K3sName.Exec, name)
 		assert.NotContains(t, n.K3sName.Exec, "while", name)
 		assert.Equal(t, "5", n.K3sName.RestartSec, name)
+		// root, as k3s itself: istio-cni takes this process's UID for the kubelet's, and another would mark the probes
+		// wrongly without failing
+		assert.Equal(t, "root", n.K3sName.User, name)
 		assert.Equal(t, "", n.K3sName.Caps, name)
 		assert.Equal(t, true, n.K3sName.Network, name)
 		assert.Equal(t, "always", n.K3sName.Restart, name)
 		assert.Contains(t, n.K3sName.Before, "k3s.service", name)
 		assert.Contains(t, n.K3sName.WantedBy, "multi-user.target", name)
 	}
+}
+
+// The stopgap is tracked until it goes: while the node flake runs k3s-name-for-istio, docs/superpowers/deferred-minors.md
+// says what removes it (the final review, 2026-11-25)
+func TestMetalK3sNameForIstioTracked(t *testing.T) {
+	profile, err := os.ReadFile(filepath.Join(repo.Root(), metalFlake, "profiles", "k3s-server.nix"))
+	require.NoError(t, err)
+	if !strings.Contains(string(profile), "k3s-name-for-istio") {
+		return
+	}
+	minors, err := os.ReadFile(filepath.Join(repo.Root(), "docs", "superpowers", "deferred-minors.md"))
+	require.NoError(t, err)
+	assert.Regexp(t, "(?m)^\\|.*k3s-name-for-istio.*k3s-server.*\\|", string(minors), "the stopgap's removal is tracked")
 }

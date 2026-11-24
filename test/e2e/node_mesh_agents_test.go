@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/duongle-steven/homelab/test/internal/kube"
+	"github.com/duongle-steven/homelab/test/internal/nodes"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -18,8 +19,7 @@ var _ = Describe("NodeMeshAgents", Label("testbed", "production", "proof"), func
 	It("runs a root process named k3s on every node", func(ctx SpecContext) {
 		names, ips := metalHosts()
 		for _, name := range names {
-			uids, err := testbedSSH(ctx, ips[name],
-				`for p in /proc/[0-9]*; do [ "$(cat $p/comm 2>/dev/null)" = k3s ] && awk '/^Uid/{print $2}' $p/status; done`)
+			uids, err := testbedSSH(ctx, ips[name], nodes.K3sNameUIDs)
 			Expect(err).NotTo(HaveOccurred(), uids)
 			Expect(strings.Fields(uids)).To(ContainElement("0"), "%s: no process named k3s owned by root", name)
 		}
