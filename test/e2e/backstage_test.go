@@ -145,7 +145,7 @@ var _ = Describe("BackstageTemplate", Label("sandbox", "backstage", "ci"), func(
 		editor, _, _ := backstageIdentity(ctx, "dev-editor")
 		Expect(backstageAPI(ctx, editor, http.MethodPost, "/api/scaffolder/v2/tasks", task, nil)).To(Equal(http.StatusForbidden))
 
-		admin := backstageCreateRepository(ctx, name, "Backstage's spec")
+		admin := backstageCreateRepository(ctx, "ci-repository", name, "Backstage's spec")
 
 		var branch struct {
 			Commit struct{ ID string } `json:"commit"`
@@ -225,11 +225,11 @@ var _ = Describe("BackstageRecovers", Label("sandbox", "backstage"), func() {
 	}, SpecTimeout(20*time.Minute))
 })
 
-// backstageCreateRepository runs template ci-repository as dev-admin, creating ci/<name>, and waits for the task to
+// backstageCreateRepository runs a template (ci-repository, hugo-site) as dev-admin, creating ci/<name>, and waits for the task to
 // complete; it returns dev-admin's Backstage token. Backstage must hold lab infra forgejo sync's token (BackstageTemplate)
-func backstageCreateRepository(ctx context.Context, name, description string) string {
+func backstageCreateRepository(ctx context.Context, template, name, description string) string {
 	GinkgoHelper()
-	task := map[string]any{"templateRef": "template:default/ci-repository", "values": map[string]string{"name": name, "description": description}}
+	task := map[string]any{"templateRef": "template:default/" + template, "values": map[string]string{"name": name, "description": description}}
 	admin, _, _ := backstageIdentity(ctx, "dev-admin")
 	var created struct{ ID string }
 	Eventually(ctx, func() int {

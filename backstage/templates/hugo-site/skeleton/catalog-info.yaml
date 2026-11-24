@@ -1,0 +1,13 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  # The source; the deployed app is component:${{ values.name }} (catalog/apps.yaml), which would conflict with this name
+  name: ${{ values.name }}-site
+  description: ${{ values.description }}
+  annotations:
+    backstage.io/kubernetes-namespace: ${{ values.name }}
+spec:
+  type: website
+  lifecycle: experimental
+  owner: group:default/homelab-admins
+  system: homelab-apps

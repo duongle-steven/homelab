@@ -58,8 +58,8 @@ func TestKargoRender(t *testing.T) {
 				assert.Equal(t, want, renderKargo(t, e, `select(.kind == "Deployment" and .metadata.name == "`+d+`") | .spec.template.spec.containers[0].env[] | select(.name == "SSL_CERT_DIR") | .value`), d)
 			}
 			// Projects are cluster-scoped and have no spec: here, not in an app's own chart (app-template renders one)
-			projects := map[string]string{"": "", "dev": "delivery-test"}[e]
-			assert.Equal(t, projects, renderKargo(t, e, `[select(.kind == "Project") | .metadata.name] | join(",")`))
+			projects := map[string]string{"": "blog", "dev": "blog,delivery-test"}[e]
+			assert.Equal(t, projects, strings.Join(strings.Fields(renderKargo(t, e, `select(.kind == "Project") | .metadata.name`)), ","))
 			assert.Empty(t, renderKargo(t, e, `select(.kind == "Project") | .spec // ""`))
 			assert.Equal(t, "KargoPromotionFailed", renderKargo(t, e,
 				`select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(.alert == "KargoPromotionFailed") | .alert`))

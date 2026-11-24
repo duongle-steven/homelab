@@ -321,6 +321,22 @@ argocd-apps:
                     matchLabels:
                       homelab/bootstrap: "true"
                       homelab/stage: all
+                      homelab/group-blog: "true"
+              - matrix:
+                  generators:
+                    - git:
+                        repoURL: *repoURL
+                        revision: *revision
+                        files:
+                          - path: apps/blog.yaml
+                    - git: *config
+        - matrix:
+            generators:
+              - clusters:
+                  selector:
+                    matchLabels:
+                      homelab/bootstrap: "true"
+                      homelab/stage: all
                       homelab/group-homepage: "true"
               - matrix:
                   generators:

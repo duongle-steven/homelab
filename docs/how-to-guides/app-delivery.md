@@ -32,7 +32,13 @@ Renovate leaves our images alone (`renovate.json5`: names starting `registry.{{`
    names the failed version. A canary that never becomes healthy is aborted at its progress deadline
    (`progressDeadlineAbort`) and alerts the same way. With no visitors the Gateway's metrics have nothing to judge
    and pass, so `canary-responds` also sends 20 requests to the canary Service itself, from a Job in the app's
-   namespace, and fails on any 5xx or no answer: a quiet app (the blog at night) is still judged, on its main page.
+   namespace, and fails on any 5xx or no answer: a quiet app is still judged, on its main page.
+
+   A static site releases **blue-green** instead (the blog, [The blog](blog.md)): its hashed assets cannot be mixed
+   across versions request by request. The new version comes up behind a `preview` Service, `static-site-responds`
+   fetches its page and every same-origin asset it names before the switch, every visitor moves at once, and
+   `gateway-success-rate` watches the live version after it, sending everyone back to the previous one (kept up by
+   `scaleDownDelaySeconds`) if it fails.
 
 ## When a version is aborted
 
@@ -77,4 +83,9 @@ Kargo and Argo Rollouts run there; the suite's setup runs `lab infra forgejo syn
 anything reads it. The spec `AppDelivery` (`just dev --tests delivery`) drives the whole road with `delivery-test`,
 which runs only there: Backstage's template creates `ci/delivery-test`, and the spec checks a promotion, an unsigned
 image stopped at `verify`, an aborted canary, a rollback by Freight, and the hold that follows it until the fix is
-promoted by hand.
+promoted by hand. The spec `Blog` (`just dev --tests blog`) drives the blog's blue-green release the same way.
+At rest after those runs, Kargo took about 160Mi (four pods) and Argo Rollouts about 140Mi (2026-11-24, `kubectl top`).
+
+A delivered app's namespace carries `kargo.akuity.io/keep-namespace: "true"` (the `apps` ApplicationSet's
+`templatePatch`): deleting or renaming its Kargo Project otherwise deletes the namespace it adopted, volumes and all
+(the sandbox, 2026-11-24).

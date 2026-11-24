@@ -2,7 +2,7 @@
 # its Stage writes the tag to Forgejo's ops/releases and asks Argo CD to sync. LAN only, signing in with Kanidm
 host: kargo
 # Our apps on the app road (templates/projects.yaml)
-projects: []
+projects: [blog]
 
 kargo:
   # Its CRDs come from system/crds (scripts/vendor-crds)

@@ -85,3 +85,62 @@ spec:
                       readOnlyRootFilesystem: true
                       capabilities:
                         drop: [ALL]
+---
+# Before a blue-green switch (a static site: its hashed assets cannot be mixed across versions, so no canary): the
+# preview's page and every same-origin stylesheet, script, icon and image it names must answer 2xx, from a Job in the
+# app's namespace (files/static-site-responds.sh). One failure keeps every visitor on the active version
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterAnalysisTemplate
+metadata:
+  name: static-site-responds
+spec:
+  args:
+    - name: service
+    - name: namespace
+    - name: port
+      value: "80"
+    # The site's public origin (https://www.<domain>): Hugo's baseURL names assets by it
+    - name: site-origin
+  metrics:
+    - name: assets
+      count: 1
+      failureLimit: 0
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            activeDeadlineSeconds: 180
+            template:
+              spec:
+                restartPolicy: Never
+                automountServiceAccountToken: false
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  runAsGroup: 65532
+                  seccompProfile:
+                    type: RuntimeDefault
+                containers:
+                  - name: assets
+                    image: {{ .Values.images.curl }}
+                    env:
+                      - name: URL
+                        value: 'http://{{ "{{args.service}}" }}.{{ "{{args.namespace}}" }}:{{ "{{args.port}}" }}/'
+                      - name: SITE_ORIGIN
+                        value: '{{ "{{args.site-origin}}" }}'
+                      - name: TMPDIR
+                        value: /tmp
+                    command: [sh, -c]
+                    args:
+                      - |
+{{ .Files.Get "files/static-site-responds.sh" | indent 24 }}
+                    volumeMounts:
+                      - {name: tmp, mountPath: /tmp}
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                        drop: [ALL]
+                volumes:
+                  - {name: tmp, emptyDir: {}}
+

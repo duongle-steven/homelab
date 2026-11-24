@@ -50,6 +50,19 @@ on 2026-11-07 found none, and the dashboard's WAF page offers only paid add-ons)
 module finds it by name (`Free`) among the managed rulesets the zone may run, and a plan fails, naming those it found,
 when there is not exactly one.
 
+The apex (`hoangduong.dev`) redirects to `www.`, the blog's canonical name (`docs/how-to-guides/blog.md`):
+`cloudflare_ruleset.redirect` (the zone's `http_request_dynamic_redirect` entry point, its own phase beside the rate
+limit) sends `https://<domain>/<path>?<query>` to `https://www.<domain>/<path>?<query>` with a 301, and
+`cloudflare_dns_record.apex` (a proxied `AAAA 100::`, the discard prefix, never reached) makes Cloudflare answer for
+the apex. Before the first apply that creates them, check the zone holds no record or ruleset made by hand (it had
+none when registered): a zone has one ruleset per phase, and a hand-made redirect makes the apply fail until it is
+imported or deleted.
+
+```sh
+cf auth login
+terragrunt --working-dir infra/production/cloudflare plan   # creates only what the module declares
+```
+
 Apply with the rest of production (`just infra deploy production`), or the unit alone:
 
 ```sh

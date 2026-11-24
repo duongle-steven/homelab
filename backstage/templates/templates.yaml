@@ -1,0 +1,9 @@
+# Every template Backstage offers (platform/backstage's TEMPLATES_LOCATION): add a template's file here
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: homelab-templates
+spec:
+  targets:
+    - ./ci-repository/template.yaml
+    - ./hugo-site/template.yaml

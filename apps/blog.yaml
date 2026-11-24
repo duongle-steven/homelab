@@ -1,24 +1,79 @@
-# Pod Security restricted (system/kyverno): RuntimeDefault seccomp, no privilege escalation
+# The public personal page and blog on the app road (docs/how-to-guides/blog.md): ci/blog (Hugo, PaperMod, from
+# Backstage's template hugo-site) built and signed by the golden path, verified and promoted by Kargo into
+# ops/releases/blog.yaml, released blue-green by Argo Rollouts (its hashed assets cannot be mixed across versions, so no
+# canary). Until the first promotion it serves the "coming soon" page below, which the release file turns off
 defaultPodOptions:
   securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
     seccompProfile:
       type: RuntimeDefault
+  # Our images in zot, as its read-only user puller (system/secret-store's zotPull)
+  imagePullSecrets:
+    - name: zot-pull
 controllers:
   main:
+    # The Rollout below runs the pods from this template (workloadRef): the Deployment itself runs none
+    replicas: 0
+    # Not ci-signature (below), which only the signature check uses
+    serviceAccount:
+      name: default
     defaultContainerOptionsStrategy: merge
     defaultContainerOptions:
       securityContext:
         allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
     containers:
       main:
+        # The site's own image replaces it (ops/releases/blog.yaml); the same server, so the settings below hold
         image:
-          repository: registry.{{ .Values.global.baseDomain }}/blog
-          tag: latest
+          repository: docker.io/joseluisq/static-web-server
+          tag: 2.44.3@sha256:ccf2d666ffe5f8ef2ec96bc40f07757605998c04b78f7d8fdb98a584dd4f5717
+        env:
+          SERVER_PORT: "8080"
+          SERVER_ROOT: /public
+# Marked (homelab-coming-soon): static-site-responds refuses it on a preview, so a release file that left it mounted is
+# never switched to
+configMaps:
+  coming-soon:
+    forceRename: coming-soon
+    data:
+      index.html: |
+        <!doctype html>
+        <html lang="en">
+        <head><meta charset="utf-8"><meta name="homelab-coming-soon"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Coming soon</title></head>
+        <body style="font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 90vh; margin: 0">
+        <p>Coming soon.</p>
+        </body>
+        </html>
+persistence:
+  # The page before the first promotion, at the server's root; the release file sets enabled: false. Mounted as one
+  # plain file (subPath): a ConfigMap volume's files are symlinks into ..data, which static-web-server refuses (403)
+  coming-soon:
+    enabled: true
+    type: configMap
+    identifier: coming-soon
+    globalMounts:
+      - path: /public/index.html
+        subPath: index.html
 service:
-  main:
+  # Active and preview: the Rollout points each at its own pods
+  active:
+    controller: main
+    forceRename: blog-active
     ports:
       http:
-        port: 3000
+        port: 8080
+        protocol: HTTP
+  preview:
+    controller: main
+    forceRename: blog-preview
+    ports:
+      http:
+        port: 8080
         protocol: HTTP
 route:
   main:
@@ -30,6 +85,14 @@ route:
       - name: '{{ .Values.global.publicGateway }}'
         namespace: istio-system
         sectionName: https
+    rules:
+      - backendRefs:
+          - identifier: active
+            port: 8080
+# Kargo's signature check (platform/ci's ClusterAnalysisTemplate ci-signature) runs as it
+serviceAccount:
+  ci-signature:
+    forceRename: ci-signature
 rawResources:
   # Under the mesh-wide deny-all (system/istio-system): who may call into this namespace
   authorization-policy:
@@ -40,7 +103,7 @@ rawResources:
       spec:
         action: ALLOW
         rules:
-          # Pods in this namespace call each other freely
+          # Pods in this namespace call each other freely (the preview check's Job)
           - from:
               - source:
                   namespaces: ['{{ .Release.Namespace }}']
@@ -50,25 +113,170 @@ rawResources:
                   principals: ['cluster.local/ns/istio-system/sa/{{ .Values.global.publicGateway }}-istio']
             to:
               - operation:
-                  ports: ["3000"]
-  # Pod Security restricted (system/kyverno) does not hold for this image: why, in homelab/reason
-  policy-exception:
-    forceRename: pod-security
+                  ports: ["8080"]
+  rollout:
+    forceRename: blog
     manifest:
-      apiVersion: policies.kyverno.io/v1
-      kind: PolicyException
-      metadata:
-        annotations:
-          homelab/reason: "the blog's image is built as root by its own pipeline, which is not written yet; its tag is latest until that pipeline tags releases"
+      apiVersion: argoproj.io/v1alpha1
+      kind: Rollout
       spec:
-        policyRefs:
-          - {name: require-run-as-nonroot, kind: ValidatingPolicy}
-          - {name: require-pinned-images, kind: ValidatingPolicy}
-        matchConditions:
-          - name: blog
-            expression: "object.metadata.namespace == 'blog' && object.metadata.name.startsWith('blog')"
+        replicas: 2
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: blog
+            app.kubernetes.io/instance: blog
+            app.kubernetes.io/controller: main
+        workloadRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: blog
+          scaleDown: never
+        # A version that never becomes healthy (an image that exits) is aborted at the deadline
+        progressDeadlineSeconds: 300
+        progressDeadlineAbort: true
+        strategy:
+          blueGreen:
+            activeService: blog-active
+            previewService: blog-preview
+            autoPromotionEnabled: true
+            # The previous version stays up this long after the switch, so a failing check sends everyone back at once
+            scaleDownDelaySeconds: 300
+            prePromotionAnalysis:
+              templates:
+                - templateName: static-site-responds
+                  clusterScope: true
+              args:
+                - name: service
+                  value: blog-preview
+                - name: port
+                  value: "8080"
+                - name: namespace
+                  value: '{{ .Release.Namespace }}'
+                # The route's host: a Hugo baseURL names assets by it
+                - name: site-origin
+                  value: https://www.{{ .Values.global.baseDomain }}
+            postPromotionAnalysis:
+              templates:
+                - templateName: gateway-success-rate
+                  clusterScope: true
+              args:
+                - name: service
+                  value: blog-active
+                - name: port
+                  value: "8080"
+                - name: namespace
+                  value: '{{ .Release.Namespace }}'
+  kargo-project-config:
+    forceRename: blog
+    manifest:
+      apiVersion: kargo.akuity.io/v1alpha1
+      kind: ProjectConfig
+      spec:
+        # The blog promotes itself (docs/superpowers/specs/2026-11-18-app-delivery-design.md)
+        promotionPolicies:
+          - stageSelector: {name: verify}
+            autoPromotionEnabled: true
+          - stageSelector: {name: production}
+            autoPromotionEnabled: true
+  kargo-warehouse:
+    forceRename: blog
+    manifest:
+      apiVersion: kargo.akuity.io/v1alpha1
+      kind: Warehouse
+      spec:
+        interval: 1m
+        subscriptions:
+          - image:
+              repoURL: registry.{{ .Values.global.baseDomain }}/blog
+              imageSelectionStrategy: NewestBuild
+              # Only the CI's builds (tagged with their commit): never cosign's .sig/.att tags or a hand-pushed one
+              allowTagsRegexes: ["^[0-9a-f]{40}$"]
+              discoveryLimit: 5
+  # An image reaches production only once verify checked the CI's signature on it
+  kargo-stage-verify:
+    forceRename: verify
+    manifest:
+      apiVersion: kargo.akuity.io/v1alpha1
+      kind: Stage
+      spec:
+        vars:
+          - name: image
+            value: registry.{{ .Values.global.baseDomain }}/blog
+        requestedFreight:
+          - origin: {kind: Warehouse, name: blog}
+            sources: {direct: true}
+        promotionTemplate:
+          spec:
+            steps:
+              # Nothing to deploy here: the stage exists for its verification
+              - uses: compose-output
+                config:
+                  image: ${{ "{{" }} vars.image {{ "}}" }}
+        verification:
+          analysisTemplates:
+            - name: ci-signature
+              kind: ClusterAnalysisTemplate
+          args:
+            - name: image
+              value: ${{ "{{" }} vars.image {{ "}}" }}@${{ "{{" }} imageFrom(vars.image).Digest {{ "}}" }}
+  kargo-stage-production:
+    forceRename: production
+    manifest:
+      apiVersion: kargo.akuity.io/v1alpha1
+      kind: Stage
+      spec:
+        vars:
+          - name: image
+            value: registry.{{ .Values.global.baseDomain }}/blog
+          - name: releases
+            value: http://forgejo-http.forgejo:3000/ops/releases
+        requestedFreight:
+          - origin: {kind: Warehouse, name: blog}
+            sources:
+              stages: [verify]
+        promotionTemplate:
+          spec:
+            steps:
+              - uses: git-clone
+                config:
+                  repoURL: ${{ "{{" }} vars.releases {{ "}}" }}
+                  checkout:
+                    - branch: main
+                      path: ./out
+              # The whole file (yaml-update only changes keys that exist): the site's image, and the "coming soon"
+              # page off so it never shadows the site
+              - uses: file-write
+                config:
+                  path: ./out/blog.yaml
+                  overwrite: true
+                  contents: |
+                    controllers:
+                      main:
+                        containers:
+                          main:
+                            image:
+                              repository: ${{ "{{" }} vars.image {{ "}}" }}
+                              tag: ${{ "{{" }} imageFrom(vars.image).Tag {{ "}}" }}@${{ "{{" }} imageFrom(vars.image).Digest {{ "}}" }}
+                    persistence:
+                      coming-soon:
+                        enabled: false
+              - uses: git-commit
+                as: commit
+                config:
+                  path: ./out
+                  message: 'blog: ${{ "{{" }} imageFrom(vars.image).Tag {{ "}}" }}'
+              - uses: git-push
+                config:
+                  path: ./out
+              - uses: argocd-update
+                config:
+                  apps:
+                    - name: blog
+                      sources:
+                        - repoURL: ${{ "{{" }} vars.releases {{ "}}" }}
+                          desiredRevision: ${{ "{{" }} outputs.commit.commit {{ "}}" }}
 # One description per route (lab catalog generate: Backstage's catalog and homepage's services)
 homelab:
   - route: main
     name: "Blog"
-    description: "The public blog"
+    description: "The public personal page and blog"

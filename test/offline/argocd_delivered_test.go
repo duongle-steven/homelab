@@ -76,6 +76,9 @@ func TestDeliveredAppsReadReleases(t *testing.T) {
 				assert.Equal(t, "main", argoTemplate(t, src.TargetRevision, params), "env=%s %s", env, app)
 				assert.Contains(t, patch, "kargo.akuity.io/authorized-stage: "+app+":production", "env=%s %s", env, app)
 				assert.Contains(t, patch, `kargo.akuity.io/project: "true"`, "env=%s %s", env, app)
+				// Deleting or renaming its Kargo Project deletes the namespace it adopted, volumes and all, unless the
+				// namespace keeps itself (the sandbox, 2026-11-24)
+				assert.Contains(t, patch, `kargo.akuity.io/keep-namespace: "true"`, "env=%s %s", env, app)
 				// Argo Rollouts moves the HTTPRoute's weights and the Services' selectors during a canary: Argo CD must not
 				// put them back (ServerSideApply and RespectIgnoreDifferences are on for every Application)
 				assert.Contains(t, patch, ".spec.rules[].backendRefs[].weight", "env=%s %s", env, app)

@@ -186,7 +186,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | Backstage-1 (final review) | `lab catalog generate` does not refuse duplicate component names (an app's route `foo-bar` against a chart `foo-bar`) | Backstage-2 |
 | Backstage-1 (final review) | Goal 2's catalog links to Argo CD and Grafana and the relations between components (an app's database) are not generated; the spec's "each host Homepage links answers" has no spec | Backstage-2 |
 | Backstage-1 (final review) | `@backstage/plugin-proxy-backend` is installed with no proxy configured; Argo CD's account `backstage` has no `passwordMtime`, so sessions from before a rotation stay valid up to 24 h; check Kanidm names can never hold the `.` identity.ts refuses | Backstage-2 |
-| App delivery (plan's review focus) | A Forgejo restart during a promotion is not driven by a spec: `KargoPromotionFailed` is only rendered | Blog |
+| App delivery (plan's review focus) | A Forgejo restart during a promotion is not driven by a spec: `KargoPromotionFailed` is only rendered | any |
 | App delivery | No production DNS for `auth.<domain>` from pods: Kargo's API reads Kanidm's issuer through it, like the other OIDC apps (LAN DNS step) | LAN DNS |
 | sandbox-groups | `scripts/warm-image-cache` fills the caches with every component's images, not only the deployed groups' (a fresh `just dev` pulls about 100 images, most never run) | any |
 | sandbox-groups | Groups are kept by label: a spec that reads another group's component without carrying its label (SecurityLogsNoSecretValues read Forgejo's Secret) is found only when a run leaves that group out | any |
@@ -194,13 +194,19 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | sandbox-groups (final review) | `system/argocd/values-seed.yaml` still disables Argo CD's metrics for "no Prometheus CRDs yet"; `system/crds` now installs them before Argo CD | 12b-3 |
 | sandbox-groups (final review) | A group's namespaces are deleted all at once: a controller's finalizer on an object in another namespace of the same group (Argo Events' EventBus, CloudNativePG's `forgejo-db`) could leave one Terminating; not seen yet | any |
 | sandbox-groups (final review) | An Ordered container's `BeforeAll` runs before the suite-wide group check, so a hand-run filter missing its group can fail there instead of skipping | any |
-| App delivery (final review) | After a rollback the Stage's auto-promotion hold stops the app's releases until a person promotes: nothing alerts on a hold older than a few hours | Blog |
+| App delivery (final review) | After a rollback the Stage's auto-promotion hold stops the app's releases until a person promotes: nothing alerts on a hold older than a few hours (the blog step left it: the hold needs a person anyway, and production's first weeks show whether one is missed) | 12b-3 |
 | App delivery (final review) | A Kargo admin can approve Freight for `production` directly, skipping `verify` (the threat model says so) | 15b-2 |
 | App delivery (final review) | Apps not on the road read `$releases/<name>.yaml` at this repository's root (a future app named like a root file would merge it), and `ignoreMissingValueFiles` now also hides a missing `$values` file | any |
 | App delivery (final review) | Sandbox-only names in production values: `zotPull`'s and `rotationReaders`' delivery-test, `publicKeyReaders`, OpenBao `rotator`'s paths, the templatePatch, releases and `deliveredApps` lists (harmless: rendered only where the namespace exists) | any |
 | App delivery (final review) | The spec lags its rulings: `<app>.yaml` not `<app>/production.yaml`, Renovate's rule in `renovate.json5`, RolloutAborted's phases | any |
-| App delivery (final review) | Kargo's and Argo Rollouts' sandbox memory not yet written into the guide | Blog |
 | App delivery (final review) | AppDelivery's unsigned image is pushed with `ci`'s account (the plan said an admin's) and its `:unsigned` tag stays in zot | any |
-| App delivery (final review) | Argo Rollouts downloads its Gateway API plugin from GitHub at every controller start (sha256-checked): a GitHub outage stops rollouts; an init-container image would not | Blog |
-| App delivery (final review) | Deleting or renaming a Kargo `Project` may delete the adopted app namespace and its volumes (Kargo's keep-namespace annotation): check before the blog | Blog |
-
+| App delivery (final review) | Argo Rollouts downloads its Gateway API plugin from GitHub at every controller start (sha256-checked): a GitHub outage stops rollouts; an init-container image would not | any |
+| blog | `static-site-responds` reads `<link>`, `<script>` and `<img>` only: assets named in CSS (`url(...)`, fonts) or `srcset` are not checked | any |
+| blog | Hugo, PaperMod and `static-web-server` versions in the template's `Containerfile` and `apps/blog.yaml` are not bumped by Renovate (sha256 beside each); a regex manager could keep them current | any |
+| blog | a fresh sandbox's suite start waits its whole 20 minutes: `openbao-snapshots` (WaitForFirstConsumer) stays Pending until its CronJob first runs at :55, and Argo CD counts OpenBao Progressing meanwhile | any |
+| blog (final review) | `static-site-responds` uses curl's URL globbing (`[`/`{` in an asset's name) and accepts a 3xx as an answer (the guide says 2xx): `--globoff` and a `%{http_code}` check | any |
+| blog (final review) | `Blog`'s last spec can pass on a reused sandbox before the new version is released (an older site already on www, an older AnalysisRun): wait for the stable pod template's image | any |
+| blog (final review) | Nothing drives a changed theme hash through the golden path (Buildah's `ADD --checksum` fails closed); GitHub's archive bytes are not promised stable: the guide could say to re-hash | any |
+| blog (final review) | The preview check's offline test proves other origins are skipped only because their host does not resolve: a second server counting hits would prove it | any |
+| blog (final review) | A site created under another name than `blog` names a Kubernetes namespace that does not exist: its README could say it is not deployed | any |
+| blog (ci-check) | `TestProofGateFindsAMarkPastTheCap` failed once on its temp dir's cleanup (`.git/objects` not empty: a background `git gc` from its many commits, likely); passes alone: `gc.auto=0` in `proofRepo` would remove the race | any |

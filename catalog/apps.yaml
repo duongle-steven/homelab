@@ -24,7 +24,7 @@ metadata:
     backstage.io/kubernetes-label-selector: app.kubernetes.io/instance=blog
     backstage.io/kubernetes-namespace: blog
     homelab/host: www
-  description: The public blog
+  description: The public personal page and blog
   name: blog
   title: Blog
 spec:

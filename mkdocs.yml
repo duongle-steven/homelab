@@ -79,6 +79,7 @@ nav:
     - how-to-guides/in-cluster-ci.md
     - how-to-guides/backstage.md
     - how-to-guides/app-delivery.md
+    - how-to-guides/blog.md
     - how-to-guides/add-or-remove-nodes.md
     - how-to-guides/power.md
     - how-to-guides/single-node-cluster-adjustments.md

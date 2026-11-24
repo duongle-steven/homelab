@@ -1,0 +1,31 @@
+# The site (https://adityatelange.github.io/hugo-PaperMod/): its profile page, then posts. Replace the placeholders
+# "/" or the site's address, https://www.<domain>/ (the check before each release reads assets named by either)
+baseURL = "/"
+languageCode = "en"
+title = "${{ values.name }}"
+theme = "PaperMod"
+
+[params]
+  description = "${{ values.description }}"
+
+  # One icon for every size PaperMod links (static/favicon.svg): a missing one fails the release's preview check
+  [params.assets]
+    favicon = "/favicon.svg"
+    favicon16x16 = "/favicon.svg"
+    favicon32x32 = "/favicon.svg"
+    apple_touch_icon = "/favicon.svg"
+    safari_pinned_tab = "/favicon.svg"
+
+  [params.profileMode]
+    enabled = true
+    title = "Your name"
+    subtitle = "A line about what you do"
+
+    [[params.profileMode.buttons]]
+      name = "Posts"
+      url = "/posts/"
+
+[[menu.main]]
+  name = "Posts"
+  url = "/posts/"
+  weight = 10

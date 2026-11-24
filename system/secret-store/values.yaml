@@ -9,7 +9,7 @@ server: http://openbao.openbao.svc.cluster.local:8200
 # Namespaces that pull our images from zot (docs/how-to-guides/app-delivery.md): each gets Secret zot-pull, a
 # dockerconfigjson for registry.<domain> as zot's read-only user puller, read from its own <namespace>/generated/zot-puller
 # (platform/generated-secrets' registry.puller lists the same namespaces)
-zotPull: [kargo, delivery-test]
+zotPull: [kargo, blog, delivery-test]
 
 # The scheduled rotation (platform/secrets-rotation) in the namespaces of its entries' readers: it may patch only these
 # ExternalSecrets (refresh) and workloads (rolling restart), exec into the pods of `exec`, and list the runs of `idle`
@@ -34,6 +34,8 @@ rotationReaders:
     statefulsets: [zot]
   # registry.puller: the namespaces that pull our images (system/secret-store's zotPull)
   kargo:
+    externalSecrets: [zot-pull]
+  blog:
     externalSecrets: [zot-pull]
   delivery-test:
     externalSecrets: [zot-pull]

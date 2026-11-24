@@ -322,6 +322,9 @@ argocd-apps:
               labels:
                 istio.io/dataplane-mode: ambient
                 kargo.akuity.io/project: "true"
+              # Deleting or renaming its Kargo Project would otherwise delete this namespace, volumes and all
+              annotations:
+                kargo.akuity.io/keep-namespace: "true"
           # Argo Rollouts moves these during a canary (the Gateway API plugin's weights, its pod-template-hash selector)
           ignoreDifferences:
             - group: gateway.networking.k8s.io

@@ -1,0 +1,56 @@
+# A Hugo site (PaperMod) in Forgejo's org ci, which the golden path builds into static-web-server, signs and attests on
+# its first push (docs/how-to-guides/blog.md). The blog's repository is named blog: Kargo's Warehouse watches
+# registry.<domain>/blog (apps/blog.yaml). Only homelab-admins run templates, and only fetch, publish:gitea,
+# catalog:register and debug:log (packages/backend/src/permissions/policy.ts)
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: hugo-site
+  title: A Hugo site in org ci
+  description: A personal page and blog (Hugo, PaperMod) served by static-web-server; name the blog's repository blog
+  tags: [ci, hugo, website]
+spec:
+  owner: group:default/homelab-admins
+  type: website
+  parameters:
+    - title: The repository
+      required: [name, description]
+      properties:
+        name:
+          title: Name
+          type: string
+          description: The repository's and the image's name (registry.<domain>/<name>); blog for the blog
+          pattern: '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'
+        description:
+          title: Description
+          type: string
+  steps:
+    - id: fetch
+      name: The skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+    - id: publish
+      name: Forgejo's org ci
+      action: publish:gitea
+      input:
+        repoUrl: forgejo-http.forgejo:3000?owner=ci&repo=${{ parameters.name }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: private
+    - id: register
+      name: The catalog
+      action: catalog:register
+      input:
+        # The whole URL: catalogInfoPath resolves against repoContentsUrl like a relative URL, dropping the branch
+        catalogInfoUrl: ${{ steps.publish.output.repoContentsUrl }}catalog-info.yaml
+  output:
+    links:
+      - title: The repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Its entry
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
