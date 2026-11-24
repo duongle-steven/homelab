@@ -55,6 +55,15 @@ type metalNode struct {
 		Timer     string `json:"timer"`
 		Start     string `json:"start"`
 	} `json:"reclaim"`
+	K3sName struct {
+		Exec       string   `json:"exec"`
+		Caps       string   `json:"caps"`
+		Network    bool     `json:"network"`
+		Restart    string   `json:"restart"`
+		RestartSec string   `json:"restartSec"`
+		Before     []string `json:"before"`
+		WantedBy   []string `json:"wantedBy"`
+	} `json:"k3sName"`
 	TunnelOffload struct {
 		Condition string   `json:"condition"`
 		Script    string   `json:"script"`
@@ -101,6 +110,12 @@ func metalEval(t *testing.T) map[string]metalNode {
 			dns = c.config.systemd.network.networks."10-uplink".dns;
 			hosts = c.config.networking.hosts;
 			timeZone = c.config.time.timeZone;
+			k3sName = let s = c.config.systemd.services.k3s-name-for-istio or null; in if s == null then {} else {
+				exec = s.serviceConfig.ExecStart; caps = s.serviceConfig.CapabilityBoundingSet;
+				network = s.serviceConfig.PrivateNetwork; restart = s.serviceConfig.Restart;
+				restartSec = toString (s.serviceConfig.RestartSec or "");
+				inherit (s) before wantedBy;
+			};
 			kernel = c.config.boot.kernelPackages.kernel.version;
 			tunnelOffload = let s = c.config.systemd.services.vm-tunnel-offload or null; in if s == null then {} else {
 				condition = s.unitConfig.ConditionVirtualization or "";
@@ -512,5 +527,25 @@ func TestNoRebootDaemon(t *testing.T) {
 func TestMetalRegistryHost(t *testing.T) {
 	for name, node := range metalEval(t) {
 		assert.Contains(t, node.Hosts["10.0.0.2"], "registry.example.test", name)
+	}
+}
+
+// istio-cni (native nftables) finds the kubelet by the comm of the process hosting it, and Istio 1.32 matches only
+// "k3s", while host-installed k3s runs as "k3s-server": a process named k3s, owned by root like k3s, with nothing else
+// (docs/superpowers/specs/2026-11-25-istio-cni-k3s-name-design.md)
+func TestMetalK3sNameForIstio(t *testing.T) {
+	for name, n := range metalEval(t) {
+		require.NotEmpty(t, n.K3sName.Exec, name)
+		assert.Regexp(t, `^\S+/bin/k3s -c `, n.K3sName.Exec, "%s: the executable is named k3s", name)
+		// bash stays the parent (a lone command would be exec'd and renamed) and waits without spinning: a loop around a
+		// failing sleep would burn a CPU; if sleep ends, the unit ends and systemd starts it again after a pause
+		assert.Regexp(t, `/bin/sleep infinity & wait'$`, n.K3sName.Exec, name)
+		assert.NotContains(t, n.K3sName.Exec, "while", name)
+		assert.Equal(t, "5", n.K3sName.RestartSec, name)
+		assert.Equal(t, "", n.K3sName.Caps, name)
+		assert.Equal(t, true, n.K3sName.Network, name)
+		assert.Equal(t, "always", n.K3sName.Restart, name)
+		assert.Contains(t, n.K3sName.Before, "k3s.service", name)
+		assert.Contains(t, n.K3sName.WantedBy, "multi-user.target", name)
 	}
 }
