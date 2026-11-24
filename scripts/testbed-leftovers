@@ -6,11 +6,21 @@ set -eu
 root=$(git rev-parse --show-toplevel)
 listed=$(yq '.argocd-apps.applicationsets.root.generators | .. | select(has("directories")) | .directories[] | select(.exclude != true) | .path' \
 	"$root/system/argocd/values-testbed.yaml" | sed 's|.*/||')
-# It runs before enroll (the upgrade comes first, G2): on a fresh install no cluster answers yet, so nothing is left over
-if ! present=$(kubectl --request-timeout=20s get namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null); then
-	echo "testbed-leftovers: no cluster answers yet (a fresh install): nothing can be left over"
+# It runs before enroll (the upgrade comes first, G2). A fresh install (testbed-clean removed the bootstrap's state) has
+# no cluster yet, so nothing is left over; a bootstrapped testbed whose VMs just booted is waited for
+state=${TESTBED_STATE:-$root/.state/testbed}
+if [ ! -d "$state/argocd" ]; then
+	echo "testbed-leftovers: a fresh install (no $state/argocd): nothing can be left over"
 	exit 0
 fi
+deadline=$(($(date +%s) + ${LEFTOVERS_WAIT:-600}))
+until present=$(kubectl --request-timeout=20s get namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null); do
+	if [ "$(date +%s)" -ge "$deadline" ]; then
+		echo "testbed-leftovers: no cluster answered within ${LEFTOVERS_WAIT:-600}s" >&2
+		exit 1
+	fi
+	sleep 10
+done
 leftovers=""
 for ns in $present; do
 	case "$ns" in default | kube-system | kube-public | kube-node-lease | argocd) continue ;; esac
