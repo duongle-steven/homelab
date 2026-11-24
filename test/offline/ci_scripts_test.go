@@ -240,6 +240,20 @@ func TestTestbedArgoCDLimitsTheFirstSync(t *testing.T) {
 // A base that predates scripts/render-chart (the first dev → master release: master was still the fork's start) has no
 // images to compare with: every image of the targets is new, so all are scanned rather than the check failing
 func TestCheckImagesBaseWithoutRenderChart(t *testing.T) {
+	assert.Contains(t, checkImagesAllNew(t, "apps/excalidraw.yaml"), "excalidraw/excalidraw", "the target's image counts as new")
+}
+
+// Kargo's Stages name images in its own expressions (${{ vars.image }}), which are no image to scan: Trivy cannot
+// parse them and the check failed (apps/blog.yaml, 2026-11-24)
+func TestCheckImagesSkipsKargoExpressions(t *testing.T) {
+	out := checkImagesAllNew(t, "apps/blog.yaml")
+	assert.Contains(t, out, "joseluisq/static-web-server", "the app's own image is still scanned")
+	assert.NotContains(t, out, "${{", "a Kargo expression is not an image")
+}
+
+// checkImagesAllNew runs check-images with IMAGES_ONLY against a base without scripts/render-chart, where every
+// image of the target counts as new, and returns its output
+func checkImagesAllNew(t *testing.T, target string) string {
 	root, err := filepath.Abs(repo.Root())
 	require.NoError(t, err)
 	index := filepath.Join(t.TempDir(), "index")
@@ -258,10 +272,10 @@ func TestCheckImagesBaseWithoutRenderChart(t *testing.T) {
 	git("rm", "-q", "--cached", "scripts/render-chart")
 	base := git("commit-tree", git("write-tree"), "-m", "the target without scripts/render-chart")
 	cmd := exec.Command("sh", root+"/scripts/check-images")
-	cmd.Env = append(os.Environ(), "BASE="+base, "TARGETS=apps/excalidraw.yaml", "IMAGES_ONLY=1")
+	cmd.Env = append(os.Environ(), "BASE="+base, "TARGETS="+target, "IMAGES_ONLY=1")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
-	assert.Contains(t, string(out), "excalidraw/excalidraw", "the target's image counts as new")
+	return string(out)
 }
 
 // A new pod's first lookups can race ztunnel's DNS proxy (curl: could not resolve host, exit 6): the commit status,
