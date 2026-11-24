@@ -22,6 +22,8 @@ func TestBlogOnTheRoad(t *testing.T) {
 		bg := `select(.kind == "Rollout") | .spec.strategy.blueGreen | `
 		assert.Equal(t, "blog-active blog-preview true", render(bg+`.activeService + " " + .previewService + " " + (.autoPromotionEnabled | tostring)`), env)
 		assert.Equal(t, "static-site-responds", render(bg+`.prePromotionAnalysis.templates[0].templateName`), env)
+		// Hugo's baseURL names assets by the public origin: the check fetches those from the preview
+		assert.Regexp(t, `^https://www\.`, render(bg+`.prePromotionAnalysis.args[] | select(.name == "site-origin") | .value`), env)
 		assert.Equal(t, "gateway-success-rate", render(bg+`.postPromotionAnalysis.templates[0].templateName`), env)
 		assert.Equal(t, "true", render(`select(.kind == "Rollout") | .spec.progressDeadlineAbort`), env)
 		assert.Equal(t, "false", render(`select(.kind == "Rollout") | .spec.strategy | has("canary")`), env)
@@ -34,6 +36,8 @@ func TestBlogOnTheRoad(t *testing.T) {
 		// Before the first promotion, /public is the "coming soon" page
 		// as a plain file: a ConfigMap volume's files are symlinks into ..data, which static-web-server refuses (403,
 		// the sandbox 2026-11-24)
+		// marked, so static-site-responds refuses it on a preview (a release file that left it mounted)
+		assert.Contains(t, render(`select(.kind == "ConfigMap" and .metadata.name == "coming-soon") | .data["index.html"]`), `name="homelab-coming-soon"`, env)
 		assert.Equal(t, "/public/index.html index.html", render(`select(.kind == "Deployment") | .spec.template.spec.containers[0].volumeMounts[] | select(.name == "coming-soon") | .mountPath + " " + .subPath`), env)
 	}
 }

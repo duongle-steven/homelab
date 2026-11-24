@@ -72,6 +72,10 @@ var _ = Describe("Blog", Label("sandbox", "blog"), Ordered, ContinueOnFailure, f
 		admin, _, _ := backstageIdentity(ctx, "dev-admin")
 		backstageUnregister(ctx, admin, blogApp)
 		backstageCreateRepository(ctx, "hugo-site", blogApp, "The blog's spec")
+		// The repository's entity beside the app's component:blog, without a conflict that would leave it out
+		Eventually(ctx, func() int {
+			return backstageAPI(ctx, admin, http.MethodGet, "/api/catalog/entities/by-name/component/default/"+blogApp+"-site", nil, nil)
+		}).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Equal(http.StatusOK), "Backstage did not ingest ci/blog's entity")
 		var branch struct {
 			Commit struct {
 				ID string `json:"id"`

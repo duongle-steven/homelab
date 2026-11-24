@@ -59,6 +59,12 @@ func TestHugoSiteTemplate(t *testing.T) {
 	}
 	assert.FileExists(t, filepath.Join(skeleton, "static", "favicon.svg"))
 
+	// The deployed app is component:blog (catalog/apps.yaml): the repository's own entity takes another name, or
+	// Backstage refuses one of the two as a conflict on every refresh (the final review, 2026-11-24)
+	info, err := os.ReadFile(filepath.Join(skeleton, "catalog-info.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(info), "name: ${{ values.name }}-site")
+
 	// An e-mail address, or a phone number as people write one (+84 …, (028) …): hashes and versions are neither
 	personal := regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}|\+[0-9]{1,3}[ .-]?[0-9][0-9 .-]{7,}|\([0-9]{2,4}\) ?[0-9][0-9 .-]{6,}`)
 	require.NoError(t, filepath.Walk(skeleton, func(path string, info os.FileInfo, err error) error {

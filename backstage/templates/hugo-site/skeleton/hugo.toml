@@ -1,4 +1,5 @@
 # The site (https://adityatelange.github.io/hugo-PaperMod/): its profile page, then posts. Replace the placeholders
+# "/" or the site's address, https://www.<domain>/ (the check before each release reads assets named by either)
 baseURL = "/"
 languageCode = "en"
 title = "${{ values.name }}"

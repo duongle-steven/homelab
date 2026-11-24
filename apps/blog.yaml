@@ -35,6 +35,8 @@ controllers:
         env:
           SERVER_PORT: "8080"
           SERVER_ROOT: /public
+# Marked (homelab-coming-soon): static-site-responds refuses it on a preview, so a release file that left it mounted is
+# never switched to
 configMaps:
   coming-soon:
     forceRename: coming-soon
@@ -42,7 +44,7 @@ configMaps:
       index.html: |
         <!doctype html>
         <html lang="en">
-        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Coming soon</title></head>
+        <head><meta charset="utf-8"><meta name="homelab-coming-soon"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Coming soon</title></head>
         <body style="font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 90vh; margin: 0">
         <p>Coming soon.</p>
         </body>
@@ -150,6 +152,9 @@ rawResources:
                   value: "8080"
                 - name: namespace
                   value: '{{ .Release.Namespace }}'
+                # The route's host: a Hugo baseURL names assets by it
+                - name: site-origin
+                  value: https://www.{{ .Values.global.baseDomain }}
             postPromotionAnalysis:
               templates:
                 - templateName: gateway-success-rate

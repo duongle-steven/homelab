@@ -83,4 +83,9 @@ Kargo and Argo Rollouts run there; the suite's setup runs `lab infra forgejo syn
 anything reads it. The spec `AppDelivery` (`just dev --tests delivery`) drives the whole road with `delivery-test`,
 which runs only there: Backstage's template creates `ci/delivery-test`, and the spec checks a promotion, an unsigned
 image stopped at `verify`, an aborted canary, a rollback by Freight, and the hold that follows it until the fix is
-promoted by hand.
+promoted by hand. The spec `Blog` (`just dev --tests blog`) drives the blog's blue-green release the same way.
+At rest after those runs, Kargo took about 160Mi (four pods) and Argo Rollouts about 140Mi (2026-11-24, `kubectl top`).
+
+A delivered app's namespace carries `kargo.akuity.io/keep-namespace: "true"` (the `apps` ApplicationSet's
+`templatePatch`): deleting or renaming its Kargo Project otherwise deletes the namespace it adopted, volumes and all
+(the sandbox, 2026-11-24).

@@ -22,6 +22,7 @@ func TestStaticSiteRespondsChecksAssets(t *testing.T) {
 <link rel="icon" href="/favicon.ico">
 <script src="js/b.js"></script>
 </head><body><img src="/img/me.png" alt=""></body></html>`
+	siteOrigin := "https://www.example.test"
 	run := func(missing string, pageStatus int) (string, error) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
@@ -36,7 +37,7 @@ func TestStaticSiteRespondsChecksAssets(t *testing.T) {
 		}))
 		defer srv.Close()
 		cmd := exec.Command("sh", script)
-		cmd.Env = []string{"URL=" + srv.URL + "/", "PATH=" + os.Getenv("PATH")}
+		cmd.Env = []string{"URL=" + srv.URL + "/", "SITE_ORIGIN=" + siteOrigin, "PATH=" + os.Getenv("PATH")}
 		out, err := cmd.CombinedOutput()
 		return string(out), err
 	}
@@ -61,4 +62,26 @@ func TestStaticSiteRespondsChecksAssets(t *testing.T) {
 	out, err = run("", http.StatusOK)
 	assert.NoError(t, err, out)
 	assert.Contains(t, out, "3 assets", "every asset counted, quoted or not")
+
+	// A real baseURL makes Hugo name every asset by the public origin: fetched from the preview, never skipped as
+	// another origin (the final review, 2026-11-24)
+	page = `<!doctype html><html><head><link href=https://www.example.test/assets/css/s.abc.css rel=stylesheet><link href=//www.example.test/favicon.ico rel=icon></head><body></body></html>`
+	out, err = run("/assets/css/s.abc.css", http.StatusOK)
+	assert.Error(t, err, "a missing stylesheet named by the public origin")
+	assert.Contains(t, out, "s.abc.css")
+	out, err = run("", http.StatusOK)
+	assert.NoError(t, err, out)
+	assert.Contains(t, out, "2 assets", "the public origin's assets, absolute and protocol-relative")
+
+	// A page naming nothing of its own checks nothing: refused rather than passed
+	page = `<!doctype html><html><head><link rel="stylesheet" href="https://fonts.example.com/f.css"></head><body>hi</body></html>`
+	out, err = run("", http.StatusOK)
+	assert.Error(t, err, "no asset on the site's origin")
+	assert.Contains(t, out, "no asset")
+
+	// The "coming soon" page (apps/blog.yaml) on a preview means its release file left it mounted over the site
+	page = `<!doctype html><html><head><meta name="homelab-coming-soon"><link rel=icon href=/favicon.ico></head><body>Coming soon.</body></html>`
+	out, err = run("", http.StatusOK)
+	assert.Error(t, err, "the coming soon page is never switched to")
+	assert.Contains(t, out, "coming soon")
 }

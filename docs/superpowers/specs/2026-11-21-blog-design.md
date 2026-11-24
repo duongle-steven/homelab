@@ -147,6 +147,12 @@ and promotes, and Argo Rollouts releases *(user, 2026-11-18: the blog promotes i
 - **How the "coming soon" page is served** before the first promotion. It must never shadow the real site afterwards,
   so a ConfigMap mounted over the real image's root will not do. For example, an image built by this repository, or
   `static-web-server` reading another root that the release replaces.
+  *Built (2026-11-24, after the final review):* a ConfigMap page mounted with `subPath` over the base image's
+  `/public/index.html` (a directory mount's symlinks are refused by `static-web-server`), turned off by the release
+  file Kargo writes on every promotion. This is the shape the line above set aside, so the risk is closed differently:
+  the page carries a marker (`homelab-coming-soon`), and `static-site-responds` refuses a preview showing it. A
+  release file that left the page mounted is therefore never switched to: `RolloutAborted` fires and the previous
+  version stays.
 - **How the Containerfile fetches and checks Hugo and the theme**: a release archive with its sha256, or an image
   digest.
 - **How Renovate keeps the template's pins current**: a regex manager, or the README saying where they are.
