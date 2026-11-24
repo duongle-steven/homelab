@@ -209,4 +209,4 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | blog (final review) | Nothing drives a changed theme hash through the golden path (Buildah's `ADD --checksum` fails closed); GitHub's archive bytes are not promised stable: the guide could say to re-hash | any |
 | blog (final review) | The preview check's offline test proves other origins are skipped only because their host does not resolve: a second server counting hits would prove it | any |
 | blog (final review) | A site created under another name than `blog` names a Kubernetes namespace that does not exist: its README could say it is not deployed | any |
-
+| blog (ci-check) | `TestProofGateFindsAMarkPastTheCap` failed once on its temp dir's cleanup (`.git/objects` not empty: a background `git gc` from its many commits, likely); passes alone: `gc.auto=0` in `proofRepo` would remove the race | any |
