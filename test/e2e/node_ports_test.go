@@ -76,8 +76,10 @@ var _ = Describe("NodePorts", Label("testbed", "production", "proof"), Ordered, 
 		for _, name := range names {
 			config, err := testbedSSH(ctx, ips[name], "sshd -T")
 			Expect(err).NotTo(HaveOccurred(), config)
-			lines := strings.Split(config, "\n")
-			Expect(lines).To(ContainElements("passwordauthentication no", "kbdinteractiveauthentication no", "permitrootlogin without-password"), name)
+			// sshd -T prints lower-case keys on older OpenSSH and CamelCase ones on 10.x, which also names root's key-only
+			// login prohibit-password where older releases said without-password
+			lines := strings.Split(strings.ToLower(strings.ReplaceAll(config, "without-password", "prohibit-password")), "\n")
+			Expect(lines).To(ContainElements("passwordauthentication no", "kbdinteractiveauthentication no", "permitrootlogin prohibit-password"), name)
 		}
 	}, SpecTimeout(5*time.Minute))
 
