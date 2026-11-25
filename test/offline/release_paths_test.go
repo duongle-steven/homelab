@@ -70,4 +70,5 @@ func TestTestbedVMsDefaults(t *testing.T) {
 	raw, err := os.ReadFile(repo.Root() + "/infra/_modules/testbed-vms/variables.tf")
 	require.NoError(t, err)
 	assert.Regexp(t, `variable "vcpus" \{[^}]*default\s*=\s*4\s`, string(raw))
+	assert.Regexp(t, `variable "memory_mib" \{[^}]*default\s*=\s*3072\s`, string(raw))
 }
