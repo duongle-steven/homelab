@@ -176,6 +176,31 @@ did not recur, so it says nothing about that and was not repeated at 4 vCPUs. k3
 networking: unable to initialize network policy controller: error getting node subnet` here, and in a first run (failed by a test reading stale status) a nil pointer in Flannel 0.28.4's
 `watchVXLANDevice`. Neither stopped the recovery; both go with k3s's own updates.
 
+## CRDs
+
+Each environment applies only the CRDs it needs: those of the components it runs and those of the kinds its renders use
+(`system/crds/environments/<env>.txt`, written by `lab crds generate`, kept by the basic check `crds`;
+`infra/_modules/argocd/apply-crds.sh`). The testbed applies about 50 of the 184 vendored CRDs; production runs every
+component, so its list holds them all; the sandbox applies every one. A CRD that leaves a list is never deleted: remove it
+by hand once (`kubectl delete crd <name>`, safe when no object of its kind exists), or rebuild with `just testbed-fresh`.
+
+Why (2026-11-25, `docs/superpowers/specs/2026-11-25-testbed-capacity-design.md`): from 14h (2026-11-20) the bootstrap
+applied all 205 CRDs everywhere, and the testbed stopped settling: every k3s server keeps and serves them, and every
+controller lists them again after a restart, so k3s lost its leader lease and restarted on every node. Each run: the VMs
+off, started 90 s apart, sampled for 36 minutes (the host and the VMs every 30 s, CPU and memory per namespace every
+2 minutes):
+
+| Run | k3s restarts (three nodes) | CPU pressure in the VMs | WSL swap in / out |
+|---|---|---|---|
+| 2 vCPUs, 3.5 GB | 9 | 60–95% | ~4 / 4 MB/s |
+| 4 vCPUs, 3.5 GB | 8 | 50–77% | ~3 / 3 MB/s |
+| 4 vCPUs, 3.5 GB, guests' `vm.swappiness` 180 | 8 | 45–80% | unchanged |
+| 4 vCPUs, 3 GB | 11 | 55–83% | ~2 / 2 MB/s |
+| 4 vCPUs, 3 GB, 138 of 205 CRDs removed at minute 12 | 2, none after minute 25 | 35–50% | ~1 / 1 MB/s |
+
+Every exit was `leaderelection lost` after etcd timeouts (peer round trips mostly over 100 ms; fsync under 8 ms); KSM
+merged nothing. Ceph then takes 2–3.5 cores across the nodes, within the bar.
+
 ## Memory
 
 The VMs hand the pages they free back to WSL (virtio balloon with free page reporting), but not their page cache: on a VM

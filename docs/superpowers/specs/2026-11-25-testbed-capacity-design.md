@@ -36,6 +36,8 @@ Other findings from these runs:
   - Every k3s server keeps and serves all of them.
   - Every controller and informer lists them again after a restart.
   - With all 205 in place, k3s took 100–175% of a CPU per node, against 60–100% without them.
+- Production runs every component, so its list holds every vendored CRD (184 at 2026-11-25): the gain is the
+  testbed's (50), and production's list only guards a future environment that runs less.
 - Ceph is the largest remaining consumer, at 2–3.5 cores across the three nodes once stable. It does not break the bar.
 
 ## Decisions
@@ -68,7 +70,8 @@ Other findings from these runs:
 2. **`infra/_modules/argocd/apply-crds.sh` takes the environment** and applies only that environment's list.
    - Its callers pass the environment: the bootstrap, `just dev`, `just testbed`, and `just infra deploy production`.
    - It never deletes a CRD it no longer applies. Removing one stays a manual step, as now.
-3. **The sandbox keeps every CRD**, as an explicit list "all", so nothing silently differs. The reason is accumulation,
+3. **The sandbox keeps every CRD**: it has no list, and `apply-crds.sh` applies every CRD only for `dev`, refusing any
+   other environment without a list, so nothing silently differs. The reason is accumulation,
    not resources.
    - The sandbox lives across many `just dev` runs, and each run turns a different set of deploy groups on.
    - CRDs are never deleted (14h's `Prune=false`), so a per-group list would converge to almost all of them within a

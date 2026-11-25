@@ -1,6 +1,7 @@
 package offline
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -110,6 +111,9 @@ esac`})
 		}
 	}
 	require.GreaterOrEqual(t, crd, 0, "system/crds never applied: %v", applied)
+	bootstrap, err := os.ReadFile(filepath.Join(root, "infra/_modules/argocd/bootstrap.sh"))
+	require.NoError(t, err)
+	assert.Contains(t, string(bootstrap), `apply-crds.sh" "$CHART/../.." "$environment"`, "the bootstrap passes its environment")
 	require.GreaterOrEqual(t, appset, 0)
 	assert.Less(t, crd, appset, "an ApplicationSet before system/crds")
 }
@@ -187,6 +191,9 @@ func TestCRDsBeforePush(t *testing.T) {
 	}
 	for name, push := range map[string]string{"dev $full": "sandbox-push", "testbed:": `git push --force origin "$proof_commit`} {
 		body := recipe(name)
+		// each with its own environment, whose list it applies (docs/superpowers/specs/2026-11-25-testbed-capacity-design.md)
+		env := map[string]string{"dev $full": "dev", "testbed:": "testbed"}[name]
+		assert.Regexp(t, `apply-crds\.sh "\$PWD" `+env+`\b`, body, name)
 		crds, pushed := strings.Index(body, "apply-crds.sh"), strings.Index(body, push)
 		require.GreaterOrEqual(t, crds, 0, "%s applies no CRDs", name)
 		require.GreaterOrEqual(t, pushed, 0, "%s pushes nothing", name)
@@ -223,4 +230,47 @@ func TestCICheckRunsEveryName(t *testing.T) {
 	out, err := cmd.CombinedOutput()
 	assert.Error(t, err)
 	assert.Contains(t, string(out), "unknown check no-such-check")
+}
+
+
+// apply-crds.sh applies an environment's list (system/crds/environments/<env>.txt), every CRD for the sandbox, and
+// refuses an environment it does not know
+func TestApplyCRDsByEnvironment(t *testing.T) {
+	dir, env := fakeBin(t, map[string]string{"kubectl": `yq -N 'select(.kind == "CustomResourceDefinition") | .metadata.name' > "$FIXTURES/applied"`})
+	root, err := filepath.Abs(repo.Root())
+	require.NoError(t, err)
+	apply := func(environment string) ([]string, error) {
+		_ = os.Remove(filepath.Join(dir, "applied"))
+		cmd := exec.Command("sh", root+"/infra/_modules/argocd/apply-crds.sh", root, environment)
+		cmd.Env = append(env, "KUBECONFIG=/dev/null")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return nil, fmt.Errorf("%w: %s", err, out)
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, "applied"))
+		return strings.Fields(string(raw)), err
+	}
+	all, err := apply("dev")
+	require.NoError(t, err)
+	testbed, err := apply("testbed")
+	require.NoError(t, err)
+	raw, err := os.ReadFile(filepath.Join(root, "system/crds/environments/testbed.txt"))
+	require.NoError(t, err)
+	listed := 0
+	for _, l := range strings.Split(string(raw), "\n") {
+		if l != "" && !strings.HasPrefix(l, "#") {
+			listed++
+		}
+	}
+	assert.Len(t, testbed, listed, "the testbed applies its list")
+	assert.Greater(t, len(all), len(testbed), "the sandbox applies every CRD")
+	assert.Contains(t, all, "policyexceptions.kyverno.io")
+	assert.NotContains(t, testbed, "policyexceptions.kyverno.io", "the testbed runs no Kyverno")
+	assert.Contains(t, testbed, "certificates.cert-manager.io")
+	seed, err := apply("seed")
+	require.NoError(t, err)
+	prod, err := apply("prod")
+	require.NoError(t, err)
+	assert.Equal(t, prod, seed, "the seed is production's first install: production's list")
+	_, err = apply("nowhere")
+	assert.Error(t, err, "an environment without a list is refused, never applied whole by mistake")
 }
