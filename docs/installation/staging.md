@@ -24,6 +24,8 @@ needs the mark. This gate is unit-tested, never run.
 
 - A target that deploys staging: `just infra deploy` runs `verify`, `sync` and `push` only for production
 - `lab`'s environments: `env.Load` refuses `--env staging` today
+- Its CRD list: `staging` in `Environments` (`cli/internal/crds`), then `lab crds generate`; `apply-crds.sh` refuses an
+  environment without a list
 - Its state's backend: `infra/root.hcl` gives only production R2
 - A step that writes the mark when its run passes (`scripts/mark-proof staging <commit>`)
 - A test suite. The suite's fixtures (Kanidm's `smoke` client, `dev-admin`, the local CA) live in `values-local.yaml`, so

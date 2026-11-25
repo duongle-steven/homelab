@@ -9,7 +9,8 @@ import (
 	"testing"
 )
 
-// The environments' ApplicationSets, as system/argocd's values files write them (nested in matrices)
+// The environments' ApplicationSets, as system/argocd's values files write them (nested in matrices): a second
+// generator includes what the first excludes (production's stage-gated components), and the template adds fixed sources
 const prodValues = `argocd-apps:
   applicationsets:
     root:
@@ -21,7 +22,19 @@ const prodValues = `argocd-apps:
                     - path: system/*
                     - path: system/crds
                       exclude: true
+                    - path: system/scan
+                      exclude: true
                     - path: platform/*
+        - matrix:
+            generators:
+              - git:
+                  directories:
+                    - path: system/scan
+      template:
+        spec:
+          sources:
+            - path: '{{ .path.path }}'
+            - path: system/secret-store
     apps:
       generators:
         - matrix:
@@ -55,6 +68,8 @@ func fixture(t *testing.T) string {
 		"system/metrics/Chart.yaml":                          "name: metrics\n",
 		"platform/policy/Chart.yaml":                         "name: policy\n",
 		"system/crds/Chart.yaml":                             "name: crds\n",
+		"system/scan/Chart.yaml":                             "name: scan\n",
+		"system/crds/files/scan/reports.example.io.yaml":     crd("scan.example.io", "Report"),
 		"apps/web.yaml":                                      "controllers: {}\n",
 		"system/crds/files/mesh/gateways.example.io.yaml":    crd("mesh.example.io", "Gateway"),
 		"system/crds/files/policy/policies.example.io.yaml":  crd("policy.example.io", "Policy"),
@@ -71,15 +86,23 @@ func fixture(t *testing.T) string {
 		}
 	}
 	renders := map[string]string{
+		// only through the second generator: its CRD is production's
+		"system/scan": "apiVersion: scan.example.io/v1\nkind: Report\n",
+		// the testbed's values switch the mesh's policy on (render-chart's env reaches the render)
+		"testbed system/mesh": "apiVersion: metrics.example.io/v1\nkind: Monitor\n---\napiVersion: policy.example.io/v1\nkind: Policy\n",
 		// the mesh renders a Monitor though the testbed runs no metrics: its CRD goes in the testbed's list
 		"system/mesh":         "apiVersion: v1\nkind: ConfigMap\n---\napiVersion: metrics.example.io/v1\nkind: Monitor\n",
 		"system/metrics":      "apiVersion: apps/v1\nkind: Deployment\n",
 		"platform/policy":     "apiVersion: policy.example.io/v1\nkind: Policy\n",
 		"apps/web.yaml":       "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\n",
 		"system/secret-store": "apiVersion: secrets.example.io/v1\nkind: Store\n",
-		"system/egress":       "apiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\n",
 	}
-	render = func(_, target, _ string) ([]byte, error) { return []byte(renders[target]), nil }
+	render = func(_, target, env string) ([]byte, error) {
+		if out, ok := renders[env+" "+target]; ok {
+			return []byte(out), nil
+		}
+		return []byte(renders[target]), nil
+	}
 	t.Cleanup(func() { render = renderChart })
 	return root
 }
@@ -91,12 +114,12 @@ func TestListsHoldComponentsAndRenderedKinds(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := []string{"mesh/gateways.example.io.yaml", "metrics/monitors.example.io.yaml",
-		"policy/policies.example.io.yaml", "secrets/stores.example.io.yaml"}; !reflect.DeepEqual(lists["prod"], want) {
+		"policy/policies.example.io.yaml", "scan/reports.example.io.yaml", "secrets/stores.example.io.yaml"}; !reflect.DeepEqual(lists["prod"], want) {
 		t.Errorf("prod: got %v, want %v", lists["prod"], want)
 	}
-	// mesh's own, the Monitor its render uses, and the Store every Application's secret-store source renders; not policy
+	// mesh's own, and the Monitor and Policy its testbed render uses; no Store: the testbed's template adds no source
 	if want := []string{"mesh/gateways.example.io.yaml", "metrics/monitors.example.io.yaml",
-		"secrets/stores.example.io.yaml"}; !reflect.DeepEqual(lists["testbed"], want) {
+		"policy/policies.example.io.yaml"}; !reflect.DeepEqual(lists["testbed"], want) {
 		t.Errorf("testbed: got %v, want %v", lists["testbed"], want)
 	}
 	if _, ok := lists["dev"]; ok {
@@ -140,5 +163,19 @@ func TestCheckFindsStaleList(t *testing.T) {
 	}
 	if err := Check(root); err == nil || !strings.Contains(err.Error(), "testbed") {
 		t.Errorf("got %v, want an error naming testbed", err)
+	}
+}
+
+// Only Argo CD's own kinds are skipped: another argoproj.io kind without a vendored CRD fails like any other
+func TestOnlyArgoCDKindsSkipped(t *testing.T) {
+	root := fixture(t)
+	render = func(_, target, _ string) ([]byte, error) {
+		if target == "system/mesh" {
+			return []byte("apiVersion: argoproj.io/v1alpha1\nkind: Application\n---\napiVersion: argoproj.io/v1alpha1\nkind: Rollout\n"), nil
+		}
+		return nil, nil
+	}
+	if _, err := Lists(root); err == nil || !strings.Contains(err.Error(), "argoproj.io/Rollout") || strings.Contains(err.Error(), "Application") {
+		t.Errorf("got %v, want an error naming argoproj.io/Rollout only", err)
 	}
 }

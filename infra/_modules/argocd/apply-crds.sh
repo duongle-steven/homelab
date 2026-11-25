@@ -15,6 +15,15 @@ env=${2:?apply-crds.sh: usage: apply-crds.sh <repository root> <environment>}
 list="$root/system/crds/environments/$env.txt"
 apply() { kubectl apply --server-side --field-manager argocd-controller --force-conflicts -f - >/dev/null; }
 if [ -f "$list" ]; then
+	# Every listed file first: a cat failing inside the pipeline would leave kubectl applying a partial list, and succeed
+	# (a redirect, not a pipe: exit leaves the script)
+	while read -r file; do
+		case "$file" in '#'* | '') continue ;; esac
+		[ -f "$root/system/crds/files/$file" ] || {
+			echo "apply-crds.sh: $list names $file, which system/crds/files lacks: run lab crds generate" >&2
+			exit 1
+		}
+	done < "$list"
 	grep -v '^#' "$list" | while read -r file; do
 		[ -n "$file" ] || continue
 		echo ---
@@ -23,6 +32,6 @@ if [ -f "$list" ]; then
 elif [ "$env" = dev ]; then
 	helm template crds "$root/system/crds" | apply
 else
-	echo "apply-crds.sh: no CRD list for environment $env (system/crds/environments): run lab crds generate" >&2
+	echo "apply-crds.sh: no CRD list for environment $env (system/crds/environments): add it to lab crds' Environments (cli/internal/crds) and run lab crds generate" >&2
 	exit 1
 fi

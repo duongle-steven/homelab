@@ -95,6 +95,6 @@
 - [ ] **Step 3:** Commit `feat(testbed): 3 GB VMs, measured: WSL's swap halved`.
 - [ ] **Step 4 (stop here and wait for the user):** the testbed proof.
   - It runs with G2's branch rebased onto this one.
-  - First remove the testbed's extra CRDs: run `just testbed-fresh`, or run the trim script once on the running testbed.
+  - First remove the testbed's extra CRDs: run `just testbed-fresh`, or `kubectl delete crd` the ones `testbed.txt` does not list, once, on the running testbed.
   - Then `just testbed` with the sampler running alongside.
   - Expected: no k3s restart in the 30 minutes after the last Application is healthy.

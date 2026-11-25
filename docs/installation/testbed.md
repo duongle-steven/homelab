@@ -180,7 +180,8 @@ networking: unable to initialize network policy controller: error getting node s
 
 Each environment applies only the CRDs it needs: those of the components it runs and those of the kinds its renders use
 (`system/crds/environments/<env>.txt`, written by `lab crds generate`, kept by the basic check `crds`;
-`infra/_modules/argocd/apply-crds.sh`). The testbed applies about 50 of the 184 vendored CRDs; production runs every
+`infra/_modules/argocd/apply-crds.sh`). The testbed applies 49 of the 184 vendored CRDs (the 205 a cluster then served
+also counted Argo CD's own, the Gateway API's and rook-ceph's `csi.ceph.io`); production runs every
 component, so its list holds them all; the sandbox applies every one. A CRD that leaves a list is never deleted: remove it
 by hand once (`kubectl delete crd <name>`, safe when no object of its kind exists), or rebuild with `just testbed-fresh`.
 

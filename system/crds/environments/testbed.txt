@@ -6,7 +6,6 @@ cert-manager/challenges.acme.cert-manager.io.yaml
 cert-manager/clusterissuers.cert-manager.io.yaml
 cert-manager/issuers.cert-manager.io.yaml
 cert-manager/orders.acme.cert-manager.io.yaml
-external-secrets/secretstores.external-secrets.io.yaml
 istio-system/authorizationpolicies.security.istio.io.yaml
 istio-system/destinationrules.networking.istio.io.yaml
 istio-system/envoyfilters.networking.istio.io.yaml

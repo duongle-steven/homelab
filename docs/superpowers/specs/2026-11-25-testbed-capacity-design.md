@@ -37,7 +37,7 @@ Other findings from these runs:
   - Every controller and informer lists them again after a restart.
   - With all 205 in place, k3s took 100–175% of a CPU per node, against 60–100% without them.
 - Production runs every component, so its list holds every vendored CRD (184 at 2026-11-25): the gain is the
-  testbed's (50), and production's list only guards a future environment that runs less.
+  testbed's (49), and production's list only guards a future environment that runs less.
 - Ceph is the largest remaining consumer, at 2–3.5 cores across the three nodes once stable. It does not break the bar.
 
 ## Decisions
