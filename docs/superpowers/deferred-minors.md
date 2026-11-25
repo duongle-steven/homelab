@@ -210,3 +210,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | blog (final review) | The preview check's offline test proves other origins are skipped only because their host does not resolve: a second server counting hits would prove it | any |
 | blog (final review) | A site created under another name than `blog` names a Kubernetes namespace that does not exist: its README could say it is not deployed | any |
 | blog (ci-check) | `TestProofGateFindsAMarkPastTheCap` failed once on its temp dir's cleanup (`.git/objects` not empty: a background `git gc` from its many commits, likely); passes alone: `gc.auto=0` in `proofRepo` would remove the race | any |
+| istio-cni k3s name | The nodes' stopgap `k3s-name-for-istio`: file the istio/istio issue and pull request matching `k3s-server` and `k3s-agent` (drafted 2026-11-25), write their numbers into the unit's comment and CLAUDE.md, and remove the unit once an Istio release matches `k3s-server` | when Istio releases the fix |
+| istio-cni k3s name (final review) | The spec's Goal 1 still says "a loop that never execs"; the unit waits on a background sleep (the Task 1 ruling): reword it | any |
+| istio-cni k3s name (final review) | `NodeMeshAgents` counts ready DaemonSet pods, not updated ones (`updatedNumberScheduled`): during a rollout old pods pass it | any |
+

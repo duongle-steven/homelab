@@ -55,6 +55,38 @@ in
     ) ([ "10.42.0.0/16" ] ++ k3s.nodeIPs);
   };
 
+  # A stopgap until Istio matches k3s-server (docs/superpowers/specs/2026-11-25-istio-cni-k3s-name-design.md): in native
+  # nftables mode istio-cni finds the kubelet by the comm of the process hosting it and accepts exactly "k3s", while k3s
+  # installed on a host runs as "k3s-server" (its launcher executes <data-dir>/bin/k3s-server), so istio-cni crash-loops
+  # on every node. It only reads that process's UID, so a process named k3s owned by root, like k3s, gives it the right
+  # one; this holds only because k3s runs rootful. Remove it once an Istio release matches k3s-server (tracked in
+  # docs/superpowers/deferred-minors.md until the upstream issue's number replaces it here). bash stays the
+  # parent, waiting on a background sleep: a lone command would be exec'd and renamed, and a loop around a failing sleep
+  # would spin; if sleep ends, so does the unit, and systemd starts it again after a pause
+  systemd.services.k3s-name-for-istio =
+    let
+      named = pkgs.runCommand "k3s-name-for-istio" { } "mkdir -p $out/bin && ln -s ${pkgs.bash}/bin/bash $out/bin/k3s";
+    in
+    {
+      description = "A process named k3s, where istio-cni looks for the kubelet's UID";
+      before = [ "k3s.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        ExecStart = "${named}/bin/k3s -c '${pkgs.coreutils}/bin/sleep infinity & wait'";
+        # As k3s itself: istio-cni takes this process's UID for the kubelet's
+        User = "root";
+        Restart = "always";
+        RestartSec = 5;
+        CapabilityBoundingSet = "";
+        NoNewPrivileges = true;
+        PrivateNetwork = true;
+        PrivateTmp = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        MemoryMax = "16M";
+      };
+    };
+
   systemd.services.k3s.unitConfig = lib.mkIf (!k3s.clusterInit) {
     ConditionPathExists = config.services.k3s.tokenFile;
     RequiresMountsFor = "/var/lib/rancher/k3s";
