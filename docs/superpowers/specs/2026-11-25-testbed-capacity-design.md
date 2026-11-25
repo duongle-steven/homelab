@@ -68,10 +68,16 @@ Other findings from these runs:
 2. **`infra/_modules/argocd/apply-crds.sh` takes the environment** and applies only that environment's list.
    - Its callers pass the environment: the bootstrap, `just dev`, `just testbed`, and `just infra deploy production`.
    - It never deletes a CRD it no longer applies. Removing one stays a manual step, as now.
-3. **The sandbox keeps every CRD.**
-   - Its deploy groups change from run to run, `just dev-fresh` runs every group, and its one k3d node is not nested.
-     14h measured it as fine.
-   - It becomes an explicit list, "all", so nothing silently differs.
+3. **The sandbox keeps every CRD**, as an explicit list "all", so nothing silently differs. The reason is accumulation,
+   not resources.
+   - The sandbox lives across many `just dev` runs, and each run turns a different set of deploy groups on.
+   - CRDs are never deleted (14h's `Prune=false`), so a per-group list would converge to almost all of them within a
+     few runs.
+   - `just dev-fresh` runs every group at once.
+   - Choosing per group would also make `apply-crds.sh` work out the coming run's groups before the push, for little
+     gain.
+   - No spec needs a CRD whose kind does not run there. The kinds that core components render for other groups (for
+     example `istio-system`'s `PodMonitor` without the `metrics` group) fall under the same rule as everywhere else.
 4. **The testbed's VMs default to 3 GB and 4 vCPUs** (`infra/_modules/testbed-vms`), with the reasons beside the
    values. The offline test that pins them follows.
 5. **`docs/installation/testbed.md`** records the measurements:
@@ -88,7 +94,7 @@ Other findings from these runs:
 - Ceph's CPU, which is noted for later and does not break the bar.
 - Changing what the testbed runs (its layers).
 - A Ceph-free testbed profile, which is not needed now that it holds.
-- The sandbox's CRDs.
+- Trimming the sandbox's CRDs, for the reasons in Goal 3.
 
 ## Anti-goals
 
