@@ -33,7 +33,7 @@ It force-pushes the commit you are on to GitHub branch `testbed`, which the test
 `infra/testbed`:
 
 1. `vms`: a libvirt network (`homelab-testbed`, `192.168.100.0/24`, NAT, one fixed DHCP lease per MAC address of
-   `infra/testbed/metal/hosts.json`) and three VMs (`homelab-1..3`: 3.5 GB, 2 vCPUs, UEFI, a sparse 100 GB raw disk,
+   `infra/testbed/metal/hosts.json`) and three VMs (`homelab-1..3`: 3.5 GB, 4 vCPUs (2 until 2026-11-25, when k3s at 142% of two kept losing its leases), UEFI, a sparse 100 GB raw disk,
    `cache=unsafe`, safe against `virsh destroy`: only a crash of WSL itself loses data)
 2. `metal`: `nixie` boots the VMs it has not installed from the network, one at a time, and installs them with
    `nixos-anywhere` ([PXE boot](../concepts/pxe-boot.md)); `scripts/testbed-wake` turns its Wake-on-LAN into a power cycle

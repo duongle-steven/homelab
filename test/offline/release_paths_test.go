@@ -63,9 +63,11 @@ func TestTestbedLayers(t *testing.T) {
 	assert.NotEmpty(t, render.Yq(t, "system/cert-manager", "", `select(.kind == "ServiceMonitor") | .metadata.name`))
 }
 
-// 12a-1's 2 vCPUs ran the nodes and rook-ceph: more needs a measurement showing CPU is the limit
+// 12a-1's 2 vCPUs ran the nodes and rook-ceph until the testbed held more (Istio, Argo CD, the stopgap's mesh): on
+// 2026-11-25 k3s took 142% of 2 vCPUs with CPU pressure at 75% and kept losing its leases, while WSL's 16 threads sat at
+// a load of 7, so four, the variable's ceiling (4 P-cores)
 func TestTestbedVMsDefaults(t *testing.T) {
 	raw, err := os.ReadFile(repo.Root() + "/infra/_modules/testbed-vms/variables.tf")
 	require.NoError(t, err)
-	assert.Regexp(t, `variable "vcpus" \{[^}]*default\s*=\s*2\s`, string(raw))
+	assert.Regexp(t, `variable "vcpus" \{[^}]*default\s*=\s*4\s`, string(raw))
 }

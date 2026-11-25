@@ -16,9 +16,11 @@ variable "memory_mib" {
 
 variable "vcpus" {
   type = number
-  # 12a-1's two ran the nodes and rook-ceph. More only with a measurement showing CPU is the limit, four at most: the
-  # workstation (i5-12500H) has 4 P-cores and 8 E-cores, and nested virtualization takes its share
-  default = 2
+  # 12a-1's two ran the nodes and rook-ceph. Four since 2026-11-25, measured: with Istio, Argo CD and the mesh's stopgap,
+  # k3s took 142% of two vCPUs at 75% CPU pressure and kept losing its leases and restarting, while the workstation's
+  # 16 threads ran at a load of 7. Four at most: the workstation (i5-12500H) has 4 P-cores and 8 E-cores, and nested
+  # virtualization takes its share. Memory, not CPU, is what WSL's 13 GB limits
+  default = 4
 }
 
 variable "disk_gib" {
