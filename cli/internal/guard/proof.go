@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -106,6 +108,50 @@ func GatedPaths(root, proofEnv, commit string) (Gated, error) {
 	}
 	return gated, nil
 }
+
+// Deployed is what an environment's ApplicationSets deploy, read from the working tree's system/argocd/values file
+// (values.yaml for prod, values-<env>.yaml otherwise): the root's directory globs, included and excluded, and the apps
+// ApplicationSet's file globs
+type Deployed struct {
+	Include, Exclude, Apps []string
+}
+
+// ReadDeployed reads an environment's Deployed from root, a checkout
+func ReadDeployed(root, env string) (Deployed, error) {
+	file := "system/argocd/values-" + env + ".yaml"
+	if env == "prod" {
+		file = "system/argocd/values.yaml"
+	}
+	raw, err := os.ReadFile(filepath.Join(root, file))
+	if err != nil {
+		return Deployed{}, err
+	}
+	var values proofValues
+	if err := yaml.Unmarshal(raw, &values); err != nil {
+		return Deployed{}, fmt.Errorf("%s: %w", file, err)
+	}
+	var d Deployed
+	for _, g := range gits(values.ArgoCDApps.ApplicationSets["root"].Generators) {
+		for _, dir := range g.Git.Directories {
+			if dir.Exclude {
+				d.Exclude = append(d.Exclude, dir.Path)
+			} else {
+				d.Include = append(d.Include, dir.Path)
+			}
+		}
+	}
+	for _, g := range gits(values.ArgoCDApps.ApplicationSets["apps"].Generators) {
+		for _, f := range g.Git.Files {
+			if strings.HasPrefix(f.Path, "apps/") {
+				d.Apps = append(d.Apps, f.Path)
+			}
+		}
+	}
+	return d, nil
+}
+
+// MatchesAny reports whether path matches one of the globs (doublestar, as Argo CD's directories use)
+func MatchesAny(globs []string, path string) bool { return matchesAny(globs, path) }
 
 // maxProofChecks bounds the gate's requests: GitHub allows 60 an hour without a token, just infra deploy runs the gate twice
 // and verify needs some of its own
