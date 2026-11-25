@@ -232,7 +232,6 @@ func TestCICheckRunsEveryName(t *testing.T) {
 	assert.Contains(t, string(out), "unknown check no-such-check")
 }
 
-
 // apply-crds.sh applies an environment's list (system/crds/environments/<env>.txt), every CRD for the sandbox, and
 // refuses an environment it does not know
 func TestApplyCRDsByEnvironment(t *testing.T) {
