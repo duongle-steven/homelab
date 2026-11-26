@@ -92,6 +92,13 @@ in
     RequiresMountsFor = "/var/lib/rancher/k3s";
   };
 
+  # The control plane before the pods (docs/installation/testbed.md, 2026-11-26): etcd and the API server run inside k3s,
+  # and under contention the pods won, since the kubelet weights kubepods.slice by its allocatable CPUs (157 for four)
+  # against system.slice's 100: etcd's reads took 13 s and k3s lost its leases. k3s gets a slice of its own that
+  # outweighs kubepods.slice, and the kubelet reserves a CPU (extraFlags) the scheduler never gives to pods
+  systemd.slices.k3s.sliceConfig.CPUWeight = 1000;
+  systemd.services.k3s.serviceConfig.Slice = "k3s.slice";
+
   # The API server's audit policy, shared with the k3d sandbox (step 15c): Alloy sends the log to Loki
   environment.etc."rancher/k3s/audit-policy.yaml".source = ../audit-policy.yaml;
   # The API server reads it only at start: a new policy restarts k3s at the switch (lab cluster upgrade drains first)
@@ -148,6 +155,9 @@ in
       "--kube-apiserver-arg=service-account-extend-token-expiration=false"
       "--kubelet-arg=pod-max-pids=4096"
       "--kubelet-arg=seccomp-default=true"
+      # A CPU for k3s and the system (the slice above): allocatable drops to the rest, and kubepods.slice's weight with it
+      "--kubelet-arg=kube-reserved=cpu=500m"
+      "--kubelet-arg=system-reserved=cpu=500m"
       "--node-ip=${hostConfig.ip}"
       "--tls-san=${k3s.vip}"
       "--cluster-cidr=10.42.0.0/16"

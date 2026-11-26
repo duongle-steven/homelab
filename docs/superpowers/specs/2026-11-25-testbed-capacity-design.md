@@ -121,3 +121,20 @@ Other findings from these runs:
 - How the renders are scanned for kinds: `lab test charts` already renders every component and app per environment.
 - How a component's directory maps to its CRD files, given that `system/crds/files/<component>` is already per
   component.
+
+## Follow-up (2026-11-26): the control plane first
+
+G2's `just testbed-fresh` with the per-environment CRDs (64 served instead of 205) had two k3s restarts in 60 minutes,
+against 8–11 in 36 before. Both came during `TestbedCeph`, at 81–89% CPU pressure, after etcd reads of 13–14 s. The
+nodes' cgroups showed the cause: `kubepods.slice` weighs 157 (the kubelet's allocatable four CPUs) against
+`system.slice`'s 100, where k3s runs, so the pods win the CPU from etcd.
+
+- **Decided** *(user, 2026-11-26)*: the Kubernetes best practice for nodes that also run the control plane.
+  - `kube-reserved=cpu=500m` and `system-reserved=cpu=500m`: allocatable is honest, and kubepods.slice's weight drops
+    to about 118.
+  - k3s in its own `k3s.slice` at `CPUWeight=1000`: etcd, the API server and the kubelet come first under contention.
+    The reservation alone would leave the pods ahead.
+- On the nodes only, so the testbed and production. The one-node sandbox runs in Docker, without systemd's slices.
+- Memory is not reserved: the measurements showed no memory pressure. Production's 16 GB may want it later.
+- Proven by the same scenario: a fresh install and the suite, with the sampler running, against the bar.
+

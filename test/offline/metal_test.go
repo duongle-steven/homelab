@@ -65,6 +65,10 @@ type metalNode struct {
 		Before     []string `json:"before"`
 		WantedBy   []string `json:"wantedBy"`
 	} `json:"k3sName"`
+	K3sSlice struct {
+		Slice     string `json:"slice"`
+		CPUWeight string `json:"cpuWeight"`
+	} `json:"k3sSlice"`
 	TunnelOffload struct {
 		Condition string   `json:"condition"`
 		Script    string   `json:"script"`
@@ -116,6 +120,10 @@ func metalEval(t *testing.T) map[string]metalNode {
 				network = s.serviceConfig.PrivateNetwork; restart = s.serviceConfig.Restart;
 				restartSec = toString (s.serviceConfig.RestartSec or "");
 				inherit (s) before wantedBy;
+			};
+			k3sSlice = {
+				slice = c.config.systemd.services.k3s.serviceConfig.Slice or "";
+				cpuWeight = toString ((c.config.systemd.slices.k3s or { sliceConfig = {}; }).sliceConfig.CPUWeight or "");
 			};
 			kernel = c.config.boot.kernelPackages.kernel.version;
 			tunnelOffload = let s = c.config.systemd.services.vm-tunnel-offload or null; in if s == null then {} else {
@@ -565,4 +573,17 @@ func TestMetalK3sNameForIstioTracked(t *testing.T) {
 	minors, err := os.ReadFile(filepath.Join(repo.Root(), "docs", "superpowers", "deferred-minors.md"))
 	require.NoError(t, err)
 	assert.Regexp(t, "(?m)^\\|.*k3s-name-for-istio.*k3s-server.*\\|", string(minors), "the stopgap's removal is tracked")
+}
+
+// The control plane before the pods (docs/installation/testbed.md, 2026-11-26): the kubelet reserves a CPU for k3s and
+// the system, so the scheduler never hands it to pods, and k3s (etcd, the API server, the kubelet) runs in a slice that
+// outweighs kubepods.slice, which the kubelet weights by its allocatable CPUs (157 for four, 118 for three, against
+// system.slice's 100): under contention etcd's reads and the leases come first
+func TestMetalControlPlaneFirst(t *testing.T) {
+	for name, n := range metalEval(t) {
+		assert.Contains(t, n.K3s.ExtraFlags, "--kubelet-arg=kube-reserved=cpu=500m", name)
+		assert.Contains(t, n.K3s.ExtraFlags, "--kubelet-arg=system-reserved=cpu=500m", name)
+		assert.Equal(t, "k3s.slice", n.K3sSlice.Slice, name)
+		assert.Equal(t, "1000", n.K3sSlice.CPUWeight, name)
+	}
 }

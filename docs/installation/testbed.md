@@ -202,6 +202,14 @@ off, started 90 s apart, sampled for 36 minutes (the host and the VMs every 30 s
 Every exit was `leaderelection lost` after etcd timeouts (peer round trips mostly over 100 ms; fsync under 8 ms); KSM
 merged nothing. Ceph then takes 2–3.5 cores across the nodes, within the bar.
 
+With only its own CRDs (2026-11-25, a fresh install and the testbed's suite), k3s still restarted twice in 60 minutes,
+both while `TestbedCeph` wrote across the nodes: etcd's reads took 13–14 s and the controller-manager lost its lease.
+The pods had outweighed k3s: the kubelet weights `kubepods.slice` by its allocatable CPUs (157 for four) against
+`system.slice`'s 100, where k3s (etcd, the API server, the kubelet) ran. Since 2026-11-26 the nodes run the control
+plane first: k3s in its own `k3s.slice` at `CPUWeight=1000`, and the kubelet reserving a CPU
+(`kube-reserved=cpu=500m`, `system-reserved=cpu=500m`) the scheduler never gives to pods (`profiles/k3s-server.nix`,
+`TestMetalControlPlaneFirst`).
+
 ## Memory
 
 The VMs hand the pages they free back to WSL (virtio balloon with free page reporting), but not their page cache: on a VM
