@@ -63,6 +63,6 @@ done
 kubectl -n "$ns" get job fio -o jsonpath='{.status.conditions[*].type}' | grep -q Complete ||
 	{ kubectl -n "$ns" logs job/fio >&2; echo "ceph-fio: the job failed" >&2; exit 1; }
 # The logs hold apk's and fio's own messages too: only what follows the marker is fio's JSON
-kubectl -n "$ns" logs job/fio | sed '1,/^---fio-json---$/d' | jq -r '.jobs[] | "\(.jobname): read \(.read.bw / 1024 | floor) MiB/s \(.read.iops | floor) IOPS, write \(.write.bw / 1024 | floor) MiB/s \(.write.iops | floor) IOPS"'
+kubectl -n "$ns" logs job/fio | awk 'found; /^---fio-json---$/ { found = 1 }' | jq -r '.jobs[] | "\(.jobname): read \(.read.bw / 1024 | floor) MiB/s \(.read.iops | floor) IOPS, write \(.write.bw / 1024 | floor) MiB/s \(.write.iops | floor) IOPS"'
 awk '{ s[$1] += $2; n[$1]++ } END { for (ip in s) printf "%s: CPU busy %.0f%%\n", ip, s[ip] / n[ip] }' "$cpu" | sort
 rm -f "$cpu"

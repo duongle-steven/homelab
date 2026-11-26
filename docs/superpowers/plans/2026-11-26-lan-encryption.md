@@ -25,7 +25,7 @@
 - Nothing goes in OpenBao or the rotation catalog for WireGuard's keys: flannel makes them at each boot (`/run/flannel/wgkey`). Confirm it on the testbed in Task 5. If it is false, stop and report.
 - Only by-hand scripts produce the capture and the cost; their raw output never enters the repository.
 - **Stop and ask the user:**
-  - if production's Ceph loses more than half its throughput;
+  - if production's throughput between nodes (`scripts/node-iperf`) drops by more than half;
   - if the testbed misses its bar with WireGuard (give the numbers next to the current runs);
   - before powering off or wiping production.
 - The testbed's bar is #113's: the suite passes, then 30 minutes with no k3s restart once settled.
@@ -159,9 +159,9 @@ Runs after Tasks 1–5's pull request is merged into `dev` (the user approves th
   - the cost numbers on the hardware.
 - Modify: `CLAUDE.md`: "Before the first production deploy" gets the backend's proof on the hardware.
 
-- [ ] **Step 1: Ask the user to power production on, and confirm.** `kubectl --kubeconfig infra/production/kubeconfig.yaml get nodes` shows three Ready nodes, and Ceph is `HEALTH_OK`. If production runs no Ceph, stop and ask: the gate has nothing to compare.
-- [ ] **Step 2:** Run `scripts/ceph-fio production` and `scripts/lan-flows production 600` on the VXLAN cluster. Save the outputs.
+- [ ] **Step 1: Ask the user to power production on, and confirm.** `kubectl --kubeconfig infra/production/kubeconfig.yaml get nodes` shows three Ready nodes, and Ceph is `HEALTH_OK`. Production ran no Ceph on 2026-11-26: the user chose `scripts/node-iperf` as the gate.
+- [ ] **Step 2:** Run `scripts/node-iperf production` and `scripts/lan-flows production 600` on the VXLAN cluster. Save the outputs.
 - [ ] **Step 3: Ask the user before the reinstall.** Then follow the new section to reinstall all three from the merged commit, using `just infra deploy production --force`. It applies only: the release gate is for releases.
-- [ ] **Step 4:** Run `scripts/ceph-fio production`. If the throughput is less than half the VXLAN number, stop and ask (Global Constraints). Then run `scripts/lan-flows production 600`.
+- [ ] **Step 4:** Run `scripts/node-iperf production`. If the throughput is less than half the VXLAN number, stop and ask (Global Constraints). Then run `scripts/lan-flows production 600`.
 - [ ] **Step 5:** Run `just test e2e --env production --labels proof`. Expected: PASS, `NodePorts` and `NodeWireGuard` included.
 - [ ] **Step 6:** Write the numbers and the proof into the docs above. Commit `docs(g12): production reinstalled on WireGuard, its cost on the hardware`.

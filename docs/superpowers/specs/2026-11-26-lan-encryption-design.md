@@ -59,12 +59,15 @@ Priorities *(user, 2026-11-26)*:
    - Each remaining flow in clear is in the table with its reason or its fix: the metrics ports on the host network,
      the nodes' DNS to the router until LAN DNS, and whatever the capture finds.
 4. **The cost** *(user, 2026-11-26)*.
-   - **The gate is on production's hardware.** Ceph's write and read throughput and the nodes' CPU, measured with
-     `fio` writing and reading one RBD volume from a pod:
+   - **The gate is on production's hardware.** Production runs no Ceph yet (12b-2 has not put it there), so the gate
+     is the path Ceph's replication would take *(user, 2026-11-26)*: TCP between two pods on two nodes, by pod IP, and
+     the nodes' CPU, measured with `iperf3` (`scripts/node-iperf`):
      - once on the running production cluster before its reinstall (VXLAN);
      - once after the reinstall (WireGuard);
      - the same job both times.
-   - If Ceph loses more than half its throughput, stop and ask the user before anything goes further.
+   - If the throughput drops by more than half, stop and ask the user before anything goes further.
+   - `fio` through Ceph (`scripts/ceph-fio`) runs on the testbed before and after, and on production once 12b-2 puts
+     Ceph there (WireGuard's number only).
    - **The testbed's numbers are a comparison only.** The three VMs share one workstation, so WireGuard is limited by
      CPU there, not by a 1 GbE link as on the hardware.
    - If the testbed misses its bar with WireGuard, stop and report to the user with the numbers next to the current
@@ -89,7 +92,7 @@ Priorities *(user, 2026-11-26)*:
      - A new spec checks every node has interface `flannel-wg` with a peer for each other node, and no `flannel.1`.
      - The suite passes on a fresh install, against the testbed's bar.
    - On production after its reinstall: `just test e2e --env production --labels proof` (`NodePorts` and the new spec
-     included), and the `fio` gate above.
+     included), and the `iperf3` gate above.
 7. **Docs.**
    - The threat model's G12 says what is covered and what is accepted.
    - `networking.md` holds the flow table.
