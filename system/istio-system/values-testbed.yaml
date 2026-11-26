@@ -2,3 +2,8 @@
 # sync holding a kind it cannot find
 policyExceptions: false
 podMonitors: false
+istiod:
+  pilot:
+    # Two replicas, no more (2026-11-26, docs/installation/testbed.md): under the suite's load the HPA went to its five
+    # on three 4-vCPU VMs, taking CPU from etcd and Ceph; production keeps room to scale
+    autoscaleMax: 2

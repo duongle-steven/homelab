@@ -26,3 +26,12 @@ func TestIstioTracingRender(t *testing.T) {
 		assert.Equal(t, "otel-json", render(telemetry+` | .accessLogging[].providers[0].name`), env)
 	}
 }
+
+// The testbed caps istiod at its two replicas (docs/installation/testbed.md, 2026-11-26): under the suite's load its HPA
+// went to five on three 4-vCPU VMs, taking CPU from etcd and Ceph; production keeps room to scale
+func TestIstiodReplicasPerEnvironment(t *testing.T) {
+	for env, max := range map[string]string{"": "5", "testbed": "2"} {
+		hpa := renderVelero(t, "system/istio-system", env, `select(.kind == "HorizontalPodAutoscaler" and .metadata.name == "istiod") | (.spec.minReplicas | tostring) + "/" + (.spec.maxReplicas | tostring)`)
+		assert.Equal(t, "2/"+max, hpa, "env %q", env)
+	}
+}
