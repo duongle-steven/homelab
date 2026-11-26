@@ -18,7 +18,7 @@ const nodePortsNamespace = "node-ports-test"
 // sits on the VMs' bridge like any LAN device and on production is one: the cluster's own ports answer only the nodes
 // (the kubelet also the pods), SSH signs in by key only, the uplink has no IPv6, and the cluster still works through
 // every port that closed
-var _ = Describe("NodePorts", Label("testbed", "production", "proof"), Ordered, func() {
+var _ = Describe("NodePorts", Label("testbed", "production", "proof"), Ordered, ContinueOnFailure, func() {
 	var names []string
 	var ips map[string]string
 	BeforeAll(func() { names, ips = metalHosts() })
