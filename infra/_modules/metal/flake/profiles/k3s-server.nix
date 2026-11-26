@@ -21,8 +21,12 @@ in
     }
   ];
 
-  # etcdctl: TestTestbedSecretsEncrypted reads a Secret raw, and k3s ships none
-  environment.systemPackages = [ pkgs.etcd ];
+  # etcdctl: TestTestbedSecretsEncrypted reads a Secret raw, and k3s ships none; wg: NodeWireGuard reads flannel's
+  # peers (G12)
+  environment.systemPackages = [
+    pkgs.etcd
+    pkgs.wireguard-tools
+  ];
 
   # TODO revisit THP after HA testing
   boot.kernelParams = [ "transparent_hugepage=never" ];

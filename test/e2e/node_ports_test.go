@@ -39,20 +39,22 @@ var _ = Describe("NodePorts", Label("testbed", "production", "proof"), Ordered, 
 		}
 	}, SpecTimeout(5*time.Minute))
 
-	// A VXLAN drop cannot be seen from outside: the node's rules say it
-	It("accepts VXLAN only from the nodes", func(ctx SpecContext) {
+	// A UDP drop cannot be seen from outside: the node's rules say it. flannel's WireGuard (G12) on 51820, VXLAN's
+	// 8472 gone
+	It("accepts WireGuard only from the nodes", func(ctx SpecContext) {
 		for _, name := range names {
 			rules, err := testbedSSH(ctx, ips[name], "iptables -S nixos-fw")
 			Expect(err).NotTo(HaveOccurred(), rules)
-			var vxlan []string
+			var wireguard []string
 			for _, line := range strings.Split(rules, "\n") {
-				if strings.Contains(line, "8472") {
-					vxlan = append(vxlan, line)
+				if strings.Contains(line, "51820") {
+					wireguard = append(wireguard, line)
 				}
+				Expect(line).NotTo(ContainSubstring("8472"), "%s: a VXLAN rule left", name)
 			}
-			Expect(vxlan).To(HaveLen(len(names)), "%s: one VXLAN rule per node: %v", name, vxlan)
+			Expect(wireguard).To(HaveLen(len(names)), "%s: one WireGuard rule per node: %v", name, wireguard)
 			for _, node := range names {
-				Expect(vxlan).To(ContainElement(ContainSubstring("-s "+ips[node]+"/32 ")), "%s: VXLAN from %s", name, node)
+				Expect(wireguard).To(ContainElement(ContainSubstring("-s "+ips[node]+"/32 ")), "%s: WireGuard from %s", name, node)
 			}
 		}
 	}, SpecTimeout(5*time.Minute))

@@ -55,7 +55,8 @@ type metalNode struct {
 		Timer     string `json:"timer"`
 		Start     string `json:"start"`
 	} `json:"reclaim"`
-	K3sName struct {
+	Packages []string `json:"packages"`
+	K3sName  struct {
 		Exec       string   `json:"exec"`
 		User       string   `json:"user"`
 		Caps       string   `json:"caps"`
@@ -128,6 +129,7 @@ func metalEval(t *testing.T) map[string]metalNode {
 				extra = c.config.networking.firewall.extraCommands; };
 			ssh = { inherit (c.config.services.openssh.settings) PasswordAuthentication KbdInteractiveAuthentication PermitRootLogin; };
 			uplink = c.config.systemd.network.networks."10-uplink".networkConfig;
+			packages = map (p: p.pname or p.name) c.config.environment.systemPackages;
 			kernel = c.config.boot.kernelPackages.kernel.version;
 			tunnelOffload = let s = c.config.systemd.services.vm-tunnel-offload or null; in if s == null then {} else {
 				condition = s.unitConfig.ConditionVirtualization or "";
@@ -655,9 +657,9 @@ func TestMetalUpgradesBeforeEnroll(t *testing.T) {
 func TestMetalFlannelWireGuard(t *testing.T) {
 	for name, n := range metalEval(t) {
 		assert.Contains(t, n.K3s.ExtraFlags, "--flannel-backend=wireguard-native", name)
+		assert.Contains(t, n.Packages, "wireguard-tools", "%s: NodeWireGuard reads the peers with wg", name)
 	}
 	k3d, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "_modules", "k3d", "k3d.yaml"))
 	require.NoError(t, err)
 	assert.NotContains(t, string(k3d), "flannel-backend", "the sandbox keeps VXLAN")
 }
-
