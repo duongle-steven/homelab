@@ -4,8 +4,8 @@
 # <client> <server> <proto>/<server port> <packets>, the server being the end on a port the nodes are known to serve
 # (the firewall's, DNS, NTP, HTTPS), else the end with the lower port: kube-proxy's SNAT gives a pod's call to the
 # API server (6443 through Service kubernetes) a low source port, which the lower port alone took for the server. SSH
-# is left out (it is how the capture runs). tcpdump comes from nixpkgs on the node, as node-fio's fio does. Run it next to the suite,
-# so every flow the cluster uses shows; the raw capture never leaves the nodes.
+# is left out (it is how the capture runs). tcpdump comes from nixpkgs on the node, as node-fio's fio does. Run it next
+# to the suite, so every flow the cluster uses shows; the raw capture never leaves the nodes.
 # Usage: lan-flows <testbed|production> <seconds>
 set -eu
 env=${1:?usage: lan-flows <testbed|production> <seconds>}
@@ -21,7 +21,10 @@ for ip in $(jq -r '.[].ip' "$hosts"); do
 done
 wait
 cat "$out"/* | awk '
-	BEGIN { split("53 80 123 443 2379 2380 2381 3300 6443 6789 8472 9100 10249 10250 10257 10259 51820", p, " "); for (i in p) known[p[i]] = 1 }
+	BEGIN {
+		split("53 80 123 443 2379 2380 2381 3300 6443 6789 8472 9100 10249 10250 10257 10259 51820", p, " ")
+		for (i in p) known[p[i]] = 1
+	}
 	# "IP 192.168.100.11.51820 > 192.168.100.12.51820: UDP, length 148" or "IP a.b.c.d.p > e.f.g.h.q: tcp 0"
 	$1 == "IP" {
 		split($2, s, "."); split($4, d, ".")
