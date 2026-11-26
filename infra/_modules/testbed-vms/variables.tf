@@ -9,16 +9,21 @@ variable "network" {
 }
 
 variable "memory_mib" {
-  type        = number
-  default     = 3584
-  description = "Each VM's memory: 3 x 3.5 GB in WSL's 13 GB (docs/installation/testbed.md)"
+  type = number
+  # 3.5 GB until 2026-11-25: at 3 GB WSL's swap traffic halved and 3.4 GB stayed available, while the nodes hold 1.5-2 GB
+  # of anonymous memory; 2.5 GB was not tried, a node that tight fails for reasons production never meets
+  default     = 3072
+  description = "Each VM's memory: 3 x 3 GB in WSL's 13 GB (docs/installation/testbed.md)"
 }
 
 variable "vcpus" {
   type = number
-  # 12a-1's two ran the nodes and rook-ceph. More only with a measurement showing CPU is the limit, four at most: the
-  # workstation (i5-12500H) has 4 P-cores and 8 E-cores, and nested virtualization takes its share
-  default = 2
+  # 12a-1's two ran the nodes and rook-ceph. Four since 2026-11-25, measured: with Istio, Argo CD and the mesh's stopgap,
+  # k3s took 142% of two vCPUs at 75% CPU pressure and kept losing its leases and restarting, while the workstation's
+  # 16 threads ran at a load of 7. Four at most: the workstation (i5-12500H) has 4 P-cores and 8 E-cores, and nested
+  # virtualization takes its share. What broke k3s was the 205 CRDs every environment applied, not the CPU count
+  # (docs/installation/testbed.md's CRDs)
+  default = 4
 }
 
 variable "disk_gib" {

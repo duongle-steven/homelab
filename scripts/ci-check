@@ -27,8 +27,9 @@ check() {
 		rotation-catalog) go -C cli run ./cmd/lab secrets check --root "$PWD" ;;
 		# Backstage's catalog and homepage's services, generated from each app's and component's description
 		catalog) go -C cli run ./cmd/lab catalog check ;;
-		# system/crds against the components' charts: a bumped chart needs scripts/vendor-crds <component>
-		crds) scripts/vendor-crds --check ;;
+		# system/crds against the components' charts: a bumped chart needs scripts/vendor-crds <component>; and each
+		# environment's list of the CRDs it applies (system/crds/environments): lab crds generate after a change
+		crds) scripts/vendor-crds --check && go -C cli run ./cmd/lab crds check ;;
 		# backstage/'s own checks (types, lint, unit tests), only when the branch changes it
 		backstage)
 			if git diff --quiet "${BASE:-origin/dev}...HEAD" -- backstage && git diff --quiet HEAD -- backstage; then

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -43,6 +45,13 @@ type proofValues struct {
 	ArgoCDApps struct {
 		ApplicationSets map[string]struct {
 			Generators []generator `yaml:"generators"`
+			Template   struct {
+				Spec struct {
+					Sources []struct {
+						Path string `yaml:"path"`
+					} `yaml:"sources"`
+				} `yaml:"spec"`
+			} `yaml:"template"`
 		} `yaml:"applicationsets"`
 	} `yaml:"argocd-apps"`
 }
@@ -105,6 +114,75 @@ func GatedPaths(root, proofEnv, commit string) (Gated, error) {
 		}
 	}
 	return gated, nil
+}
+
+// Deployed is what an environment's ApplicationSets deploy, read from the working tree's system/argocd/values file
+// (values.yaml for prod, values-<env>.yaml otherwise): each git generator of the root's directories (Argo CD applies a
+// generator's excludes to that generator only), the fixed sources its template adds to every Application, and the apps
+// ApplicationSet's file globs
+type Deployed struct {
+	Directories []Directories
+	Sources     []string
+	Apps        []string
+}
+
+// Directories is one git generator's directory globs
+type Directories struct {
+	Include, Exclude []string
+}
+
+// Deploys reports whether one of the generators selects dir
+func (d Deployed) Deploys(dir string) bool {
+	for _, g := range d.Directories {
+		if matchesAny(g.Include, dir) && !matchesAny(g.Exclude, dir) {
+			return true
+		}
+	}
+	return false
+}
+
+// ReadDeployed reads an environment's Deployed from root, a checkout
+func ReadDeployed(root, env string) (Deployed, error) {
+	file := "system/argocd/values-" + env + ".yaml"
+	if env == "prod" {
+		file = "system/argocd/values.yaml"
+	}
+	raw, err := os.ReadFile(filepath.Join(root, file))
+	if err != nil {
+		return Deployed{}, err
+	}
+	var values proofValues
+	if err := yaml.Unmarshal(raw, &values); err != nil {
+		return Deployed{}, fmt.Errorf("%s: %w", file, err)
+	}
+	var d Deployed
+	rootSet := values.ArgoCDApps.ApplicationSets["root"]
+	for _, g := range gits(rootSet.Generators) {
+		var dirs Directories
+		for _, dir := range g.Git.Directories {
+			if dir.Exclude {
+				dirs.Exclude = append(dirs.Exclude, dir.Path)
+			} else {
+				dirs.Include = append(dirs.Include, dir.Path)
+			}
+		}
+		if len(dirs.Include) > 0 {
+			d.Directories = append(d.Directories, dirs)
+		}
+	}
+	for _, src := range rootSet.Template.Spec.Sources {
+		if src.Path != "" && !strings.Contains(src.Path, "{{") {
+			d.Sources = append(d.Sources, src.Path)
+		}
+	}
+	for _, g := range gits(values.ArgoCDApps.ApplicationSets["apps"].Generators) {
+		for _, f := range g.Git.Files {
+			if strings.HasPrefix(f.Path, "apps/") {
+				d.Apps = append(d.Apps, f.Path)
+			}
+		}
+	}
+	return d, nil
 }
 
 // maxProofChecks bounds the gate's requests: GitHub allows 60 an hour without a token, just infra deploy runs the gate twice
