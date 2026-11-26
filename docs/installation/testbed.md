@@ -228,6 +228,18 @@ only, a timer (`profiles/vm-memory.nix`) reclaims cache each minute until a quar
 quarter goes back to WSL (without it each VM grew to 3.0–3.4 GB and WSL ran out). Each node also runs zram swap. QEMU holds
 2.8–3.4 GB per VM.
 
+## Adding a node
+
+The nodes accept etcd, the kubelet and flannel's VXLAN only from each other's addresses (G2,
+`docs/superpowers/specs/2026-11-24-node-ports-design.md`), and each node learns those addresses when it is built. Add the
+node to `infra/<env>/metal/hosts.json` (its MAC and address), commit, and run `just testbed`: the metal unit installs it
+(nixie), then rolls the installed nodes with `lab cluster upgrade` so their firewalls accept its address (the new node,
+built from the same flake, is current and skipped), and only then enrolls it. Run by hand in another order, the new
+node cannot reach the others' etcd: k3s may already have added it as an etcd member (a learner) before peer traffic
+fails, so check `etcdctl member list` on another node and remove a member that never started before trying again. A
+run that failed after the install but before the enroll is safe to repeat: `lab cluster upgrade` rebuilds a node that
+was never enrolled without draining it.
+
 ## Differences from production
 
 - VMs on one workstation: no real power loss ([Power](#power)), no real Wake-on-LAN (`scripts/testbed-wake` plays it), one disk per node

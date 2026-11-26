@@ -96,6 +96,20 @@ Three HP EliteDesk Minis (one 800 G4, two 800 G3), one 256 GB NVMe each, on a TP
 - **A power cut** of the three nodes and the Archer together: every node booted by itself and the API answered at its
   VIP 1m11s after it went. Data written before a cut is checked in 12b-2, with Ceph.
 
+## Adding a node
+
+The nodes accept etcd, the kubelet and flannel's VXLAN only from each other's addresses (G2,
+`docs/superpowers/specs/2026-11-24-node-ports-design.md`), and each node learns those addresses when it is built. Add the
+node to `infra/<env>/metal/hosts.json` (its MAC and address), commit, and run `just infra deploy production`: the metal unit installs it
+(nixie), then rolls the installed nodes with `lab cluster upgrade` so their firewalls accept its address (the new node,
+built from the same flake, is current and skipped), and only then enrolls it. `just infra deploy production` is the
+whole release gate (`lab infra forgejo verify`: `origin/master`, its checks and the release proof); between releases,
+`just infra deploy production --force` applies only. Run by hand in another order, the new node cannot reach the
+others' etcd: k3s may already have added it as an etcd member (a learner) before peer traffic fails, so check
+`etcdctl member list` on another node and remove a member that never started before trying again. A run that failed
+after the install but before the enroll is safe to repeat: `lab cluster upgrade` rebuilds a node that was never
+enrolled without draining it.
+
 ## The rest
 
 Build the lab:

@@ -44,12 +44,26 @@ func TestSSHKeyLoaded(t *testing.T) {
 
 func TestTestbedLeftovers(t *testing.T) {
 	ns := func(names string) string { return "printf '" + names + "'" }
-	out, err := runScript(t, env(t, map[string]string{"kubectl": ns(`argocd\ncert-manager\ndefault\nistio-system\nkube-node-lease\nkube-public\nkube-system\nrook-ceph\n`)}), "testbed-leftovers")
+	// A testbed that was bootstrapped (infra/_modules/argocd's state)
+	state := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(state, "argocd"), 0o755))
+	bootstrapped := func(e []string) []string { return append(e, "TESTBED_STATE="+state) }
+	out, err := runScript(t, bootstrapped(env(t, map[string]string{"kubectl": ns(`argocd\ncert-manager\ndefault\nistio-system\nkube-node-lease\nkube-public\nkube-system\nrook-ceph\n`)})), "testbed-leftovers")
 	assert.NoError(t, err, out)
-	out, err = runScript(t, env(t, map[string]string{"kubectl": ns(`argocd\nfalco\nistio-system\nkube-system\nrook-ceph\n`)}), "testbed-leftovers")
+	out, err = runScript(t, bootstrapped(env(t, map[string]string{"kubectl": ns(`argocd\nfalco\nistio-system\nkube-system\nrook-ceph\n`)})), "testbed-leftovers")
 	assert.Error(t, err)
 	assert.Contains(t, out, "falco")
 	assert.Contains(t, out, "kubectl delete namespace falco")
+	// It runs before enroll (G2: the upgrade comes first). On a fresh install (testbed-clean removed the bootstrap's
+	// state) no cluster answers yet: nothing can be left over
+	refused := map[string]string{"kubectl": "echo 'The connection to the server was refused' >&2; exit 1"}
+	out, err = runScript(t, append(env(t, refused), "TESTBED_STATE="+t.TempDir()), "testbed-leftovers")
+	assert.NoError(t, err, out)
+	assert.Contains(t, out, "fresh install")
+	// A testbed that was bootstrapped and whose VMs just booted: it waits for the API rather than skip the guard
+	out, err = runScript(t, append(bootstrapped(env(t, refused)), "LEFTOVERS_WAIT=2"), "testbed-leftovers")
+	assert.Error(t, err)
+	assert.Contains(t, out, "no cluster answered")
 }
 
 // env is fakeBin's environment alone

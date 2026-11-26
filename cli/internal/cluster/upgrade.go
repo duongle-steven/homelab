@@ -16,6 +16,8 @@ import (
 type upgrader interface {
 	// isCurrent reports whether the node runs the system its flake builds now
 	isCurrent(context.Context, host) (bool, error)
+	// enrolled reports whether a joiner holds the token enroll writes: without it its k3s never started
+	enrolled(context.Context, host) (bool, error)
 	drain(context.Context, host) error
 	// rebuild switches the node to its flake's system, rebooting it when the kernel or initrd changed
 	rebuild(context.Context, host) error
@@ -47,7 +49,7 @@ func Upgrade(ctx context.Context, environment, flakeDir string, progress io.Writ
 }
 
 func upgrade(ctx context.Context, cfg config, nodes upgrader, progress io.Writer) error {
-	for _, node := range append([]host{cfg.seed}, cfg.joiners...) {
+	for i, node := range append([]host{cfg.seed}, cfg.joiners...) {
 		current, err := nodes.isCurrent(ctx, node)
 		if err != nil {
 			return fmt.Errorf("%s: %w", node.name, err)
@@ -55,6 +57,21 @@ func upgrade(ctx context.Context, cfg config, nodes upgrader, progress io.Writer
 		if current {
 			_, _ = fmt.Fprintf(progress, "%s: up to date\n", node.name)
 			continue
+		}
+		// A joiner nixie installed but enroll never reached is no node of the cluster yet: nothing to drain or wait
+		// for, and enroll joins it after this with the new system (gating on it would stop that enroll for good)
+		if i > 0 {
+			enrolled, err := nodes.enrolled(ctx, node)
+			if err != nil {
+				return fmt.Errorf("%s: %w", node.name, err)
+			}
+			if !enrolled {
+				_, _ = fmt.Fprintf(progress, "%s: not enrolled yet: rebuilding without draining\n", node.name)
+				if err := nodes.rebuild(ctx, node); err != nil {
+					return fmt.Errorf("%s: rebuild: %w (fix it, then run the upgrade again)", node.name, err)
+				}
+				continue
+			}
 		}
 		_, _ = fmt.Fprintf(progress, "%s: upgrading\n", node.name)
 		for _, step := range []struct {
@@ -125,6 +142,14 @@ func (c commands) isCurrent(ctx context.Context, node host) (bool, error) {
 		return false, err
 	}
 	return running == want, nil
+}
+
+func (c commands) enrolled(ctx context.Context, node host) (bool, error) {
+	out, err := c.ssh(ctx, node, "test -f "+tokenPath+" && echo yes || echo no")
+	if err != nil {
+		return false, err
+	}
+	return out == "yes", nil
 }
 
 func (c commands) drain(ctx context.Context, node host) error {

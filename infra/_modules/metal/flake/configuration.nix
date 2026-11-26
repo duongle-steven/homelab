@@ -44,7 +44,15 @@
     serviceConfig.ExecStart = ''@${pkgs.bash}/bin/bash @poweroff-deadline -c "(exec -a @poweroff-sleep ${pkgs.coreutils}/bin/coreutils --coreutils-prog=sleep 180) && echo o > /proc/sysrq-trigger"'';
   };
 
-  services.openssh.enable = true;
+  services.openssh = {
+    enable = true;
+    # By key only, said explicitly (G2): today only the absence of passwords stops a password sign-in
+    settings = {
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+      PermitRootLogin = "prohibit-password";
+    };
+  };
   security.sudo.wheelNeedsPassword = false;
 
   users.users.admin = {

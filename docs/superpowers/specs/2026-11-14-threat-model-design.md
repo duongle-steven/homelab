@@ -105,6 +105,15 @@ like the metrics ports already are; set SSH to keys only explicitly (`PasswordAu
 has a password today, which is all that stops it). A small change to `infra/_modules/metal`, proven on the testbed (it gates releases there
 anyway). Restricting 6443 and SSH to the workstation needs a fixed admin address: it comes with G6.
 
+*G2's final review (2026-11-26):* the source-address rules stop a device that sends by mistake or casually, not one
+that forges a node's address: VXLAN is UDP, so a forged sender still injects blind into the pod network. Only G12
+(flannel's traffic encrypted) or G5 (segmentation) closes that.
+
+*Settled 2026-11-24 (`docs/superpowers/specs/2026-11-24-node-ports-design.md`):* also the nodes' IPv6. `network.nix` takes
+DHCPv6 and router advertisements (from upstream), so a node can hold a global IPv6 address that only the router's
+firewall stands in front of, and `allowedTCPPorts` opened the cluster ports on IPv6 too. Nothing in the cluster uses
+IPv6, so the LAN interface drops it *(user, 2026-11-24)*.
+
 ### G3. Kanidm on the internet (step 13, E1)
 
 Headscale's OIDC sign-in needs Kanidm reachable from the internet, through the Tunnel. Kanidm is the key to every app, and its admin API shares
@@ -214,11 +223,33 @@ manager and indexer alone need several GB). What is left:
 - **Files from outside:** one shared `clamd` for OpenCloud's uploads, paperless's consume and Transmission's finished
   downloads (CLAUDE.md's Ideas).
 
+### G12. What crosses the LAN unencrypted (E3)
+
+Added 2026-11-24 *(user)*, from G2's discussion. A firewall stops a LAN device sending in; it does not stop one listening.
+Inside the mesh, pods talk mTLS (HBONE), but what runs outside it crosses the LAN as it is:
+
+- **Ceph**, the most sensitive: OSD to OSD, and every volume's reads and writes from the nodes' kernel RBD client to the
+  OSDs (Forgejo's database, OpenBao's raft, every app's data), in msgr2's `crc` mode. Rook encrypts it with
+  `network.connections.encryption` (msgr2 `secure`, kernel 5.11 or later: the nodes run 7.0), Ceph's traffic only, so
+  the mesh is not encrypted twice (flannel's `wireguard-native` would encrypt everything, the mesh again with it).
+- **Metrics** Prometheus scrapes over plain HTTP from the nodes' network: node-exporter 9100, kube-proxy 10249, etcd 2381.
+- **DNS**: pods to CoreDNS (outside the mesh) across nodes, and the nodes to the router on UDP/53. Inside a cluster this
+  is commonly accepted; the way out is LAN DNS's (DoH/DoT upstream).
+- **Unchecked**: CloudNativePG's operator to the instances' port 8000, and pods on the host network (ceph-csi, kube-vip,
+  Falco).
+
+Proposal *(Claude's call, agreed 2026-11-24)*: measure first, on the testbed: `tcpdump` between the nodes lists every
+flow that crosses unencrypted, rather than trusting the list above. Then turn on Ceph's encryption if its CPU cost on
+the hardware's i5s is acceptable (measured on the testbed), and write down the reason for each remaining flow accepted
+or the fix for it. Before 12b-3: Ceph on the hardware holds no real data yet, so turning it on restarts its daemons and
+remounts volumes at no cost; after, it is a migration on a cluster holding the family's data.
+
 ## Order
 
 *(Claude's call)*, to debate:
 
-1. Before 12b-3 (the first production deploy): G2 (node ports, proven on the testbed), G1's alert on new `fail` results,
+1. Before 12b-3 (the first production deploy): G2 (node ports, proven on the testbed), then G12 (what crosses the LAN
+   unencrypted: measured on the testbed, Ceph's encryption) *(user, 2026-11-24)*, G1's alert on new `fail` results,
    and LAN DNS (Blocky, with Tailscale's split DNS: the LAN apps' names resolve nowhere in production yet, and
    publishing their private address in public DNS would leak the LAN's layout and meet routers' rebinding protection).
 2. After 12b-3, within about two weeks of production's reports and before step 13 at the latest: G1 (15b-2 Enforce) *(user, 2026-11-14)*.
