@@ -60,9 +60,13 @@ The nodes' host keys are trusted on first contact (only on the workstation's own
 
 ## What runs
 
-`system/argocd/values-testbed.yaml` lists it, by layers, each measured from a fresh install. A layer is stable when, over
-30 minutes after the last Application is healthy, there is no k3s restart, no etcd leader change, no API server or lease
-error, and WSL keeps at least 2 GB available. `leader failed to send out heartbeat` warnings are counted, not failed.
+`system/argocd/values-testbed.yaml` lists it, by layers, each measured from a fresh install. A layer is stable when
+`just testbed`'s suite passes and, once the cluster has settled, 30 minutes go by with no k3s restart, no etcd leader
+change, no API server or lease error, and WSL keeps at least 2 GB available. The 30 minutes start at the later of the
+last Application turning healthy and the last k3s restart. Restarts while a fresh install settles are counted and
+recorded, not failed *(user, 2026-11-26)*: on three nested VMs they come and go from run to run (one to three, see
+[CRDs](#crds)), while production keeps the stricter bar on its own hardware. `leader failed to send out heartbeat`
+warnings are counted, not failed.
 
 | Layer | Adds | Proves | Here (i5-12500H, WSL 13 GB) |
 | --- | --- | --- | --- |
@@ -201,6 +205,21 @@ off, started 90 s apart, sampled for 36 minutes (the host and the VMs every 30 s
 
 Every exit was `leaderelection lost` after etcd timeouts (peer round trips mostly over 100 ms; fsync under 8 ms); KSM
 merged nothing. Ceph then takes 2–3.5 cores across the nodes, within the bar.
+
+Then three runs of the whole scenario (a fresh install and `just testbed`'s suite, 60 minutes sampled from the
+bootstrap, 2026-11-25 and 26), one change each:
+
+| Run | k3s restarts | Suite | When |
+|---|---|---|---|
+| Only its own CRDs (64 served) | 2 | 11 of 14 | while `TestbedCeph` wrote across nodes; etcd reads took 13–14 s |
+| And k3s first: its own slice at `CPUWeight=1000`, a CPU reserved | 1 | 15 of 16 | while settling; the pods starved instead (Ceph's and Argo CD's probes timed out), the Applications flapped for 55 minutes. Not adopted |
+| And istiod at two replicas (its HPA had gone to five) | 3 | 16 of 16 | 17 and 29 minutes in, while settling; none in the 32 minutes after |
+
+From one restart to three is noise on this workstation, so one run per change cannot tell such small changes apart:
+the CRDs were the cause, and the bar above counts the settled cluster. Settled, Ceph takes about 0.75 of a core across
+the nodes (sampled every 30 s for 3 minutes): its three mons about 0.3, its OSDs about 0.25. Turning off its dashboard
+and device health and probing its daemons every 30 s (`system/rook-ceph/values-testbed.yaml`) changed that by less than
+the noise; they stay off because nothing on the testbed reads them.
 
 ## Memory
 

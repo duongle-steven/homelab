@@ -121,3 +121,18 @@ Other findings from these runs:
 - How the renders are scanned for kinds: `lab test charts` already renders every component and app per environment.
 - How a component's directory maps to its CRD files, given that `system/crds/files/<component>` is already per
   component.
+
+## Follow-up (2026-11-26): the bar and the load
+
+- Three measured runs (`docs/installation/testbed.md`, "CRDs") had one to three k3s restarts while a fresh install
+  settled, and none once it had. One run per change cannot tell such small changes apart.
+- **The bar** *(user)*: the suite passes and, once the cluster has settled, 30 minutes with no restart. Restarts while
+  settling are counted and recorded.
+- **istiod at two replicas on the testbed** *(user)*: its HPA had gone to five under the suite's load.
+- **A lighter Ceph on the testbed** *(user: only what the testbed does not need)*. It does without the dashboard and
+  device health, and probes its daemons every 30 s. Ceph's settled CPU did not change beyond the noise: its mons and
+  OSDs are the rest, and the testbed needs them. `monitoring.metricsDisabled` would also drop the prometheus module and
+  the exporters, but the chart does not render it (`docs/superpowers/deferred-minors.md`).
+- **k3s first** (its own slice, a reserved CPU) was measured and not adopted: the pods starved instead. Branch
+  `fix/k3s-cpu-priority` keeps it, for production's hardware to measure if etcd ever shows the need.
+
