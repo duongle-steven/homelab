@@ -11,10 +11,11 @@ import (
 )
 
 type fakeUpgrader struct {
-	current   map[string]bool
-	unhealthy string // healthy fails after this node's upgrade
-	sick      bool   // healthy always fails: the cluster is degraded already
-	calls     []string
+	current    map[string]bool
+	unenrolled map[string]bool // installed by nixie, never enrolled
+	unhealthy  string          // healthy fails after this node's upgrade
+	sick       bool            // healthy always fails: the cluster is degraded already
+	calls      []string
 }
 
 func (f *fakeUpgrader) record(call string) { f.calls = append(f.calls, call) }
@@ -22,6 +23,9 @@ func (f *fakeUpgrader) record(call string) { f.calls = append(f.calls, call) }
 func (f *fakeUpgrader) isCurrent(_ context.Context, node host) (bool, error) {
 	f.record("current " + node.name)
 	return f.current[node.name], nil
+}
+func (f *fakeUpgrader) enrolled(_ context.Context, node host) (bool, error) {
+	return !f.unenrolled[node.name], nil
 }
 func (f *fakeUpgrader) drain(_ context.Context, node host) error {
 	f.record("drain " + node.name)
@@ -110,5 +114,19 @@ func TestUpgradeWaitsForHealthBeforeDraining(t *testing.T) {
 		if strings.HasPrefix(call, "drain ") {
 			t.Fatalf("drained a node of a degraded cluster: %v", f.calls)
 		}
+	}
+}
+
+// A joiner nixie installed but enroll never reached (a run that failed between them) has no k3s running and is no
+// node of the cluster: it is rebuilt without the drain or the health gates, and enroll then joins it with the new
+// system; gating on it would stop the upgrade, and so the enroll after it, for good (the G2 review)
+func TestUpgradeRebuildsAnUnenrolledJoiner(t *testing.T) {
+	f := &fakeUpgrader{current: map[string]bool{"node-a": true, "node-b": true}, unenrolled: map[string]bool{"node-c": true}, sick: true}
+	if err := upgrade(t.Context(), upgradeFixture(), f, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"current node-a", "current node-b", "current node-c", "rebuild node-c"}
+	if !slices.Equal(f.calls, want) {
+		t.Fatalf("calls = %v, want %v", f.calls, want)
 	}
 }

@@ -105,6 +105,10 @@ like the metrics ports already are; set SSH to keys only explicitly (`PasswordAu
 has a password today, which is all that stops it). A small change to `infra/_modules/metal`, proven on the testbed (it gates releases there
 anyway). Restricting 6443 and SSH to the workstation needs a fixed admin address: it comes with G6.
 
+*G2's final review (2026-11-26):* the source-address rules stop a device that sends by mistake or casually, not one
+that forges a node's address: VXLAN is UDP, so a forged sender still injects blind into the pod network. Only G12
+(flannel's traffic encrypted) or G5 (segmentation) closes that.
+
 *Settled 2026-11-24 (`docs/superpowers/specs/2026-11-24-node-ports-design.md`):* also the nodes' IPv6. `network.nix` takes
 DHCPv6 and router advertisements (from upstream), so a node can hold a global IPv6 address that only the router's
 firewall stands in front of, and `allowedTCPPorts` opened the cluster ports on IPv6 too. Nothing in the cluster uses

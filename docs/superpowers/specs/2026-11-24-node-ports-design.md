@@ -12,6 +12,14 @@ own ports on every node: etcd (2379, 2380) and the kubelet (10250) ask for clien
 if from a pod. This step closes those ports to everything but the nodes (and, for the kubelet, the pods), and closes
 two doors that are open by default rather than by choice: SSH's password sign-in and the nodes' IPv6.
 
+What a source address stops *(the final review, 2026-11-26)*: a device that sends to those ports by mistake or by
+casual probing, not one that forges a node's address. VXLAN is UDP, which needs no handshake: a LAN device sending UDP
+8472 from a node's address passes the reverse-path check (the way back to that address really is the uplink) and the
+rule, and flannel decapsulates it into the pod network, blind (the answers go to the real node). The same blind trick
+reaches 10250 and the metrics ports from an unused 10.42 address. The real fix is G12's (flannel's VXLAN encrypted,
+e.g. `wireguard-native` or IPsec) or G5's (the homelab on its own segment). Matching each node's MAC too was set
+aside: it is forged as easily and needs every MAC in the firewall.
+
 ## Goals
 
 1. **Cluster ports from the nodes only.** 2379, 2380, 10250 and UDP 8472 accept only the nodes' addresses

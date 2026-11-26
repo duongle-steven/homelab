@@ -594,6 +594,18 @@ func TestMetalClusterPortsFromNodes(t *testing.T) {
 		assert.Contains(t, strings.Split(pods[1], ","), "10250", name)
 		assert.NotContains(t, strings.Split(pods[1], ","), "2379", "pods never reach etcd: %s", name)
 		assert.NotContains(t, n.Firewall.Extra, "10.42.0.0/16 -p udp", name)
+		// Every accept in the extra rules names an allowed source: a line opening a cluster port, or any port, to
+		// everyone would pass the checks above (the G2 review)
+		allowed := map[string]bool{"10.0.0.11": true, "10.0.0.12": true, "10.0.0.13": true, "10.42.0.0/16": true}
+		for _, line := range strings.Split(n.Firewall.Extra, "\n") {
+			if !strings.Contains(line, "-j nixos-fw-accept") && !strings.Contains(line, "-j ACCEPT") {
+				continue
+			}
+			source := regexp.MustCompile(`-s (\S+)`).FindStringSubmatch(line)
+			if assert.NotNil(t, source, "%s: an accept without a source: %s", name, line) {
+				assert.True(t, allowed[source[1]], "%s: an accept from %s: %s", name, source[1], line)
+			}
+		}
 	}
 }
 

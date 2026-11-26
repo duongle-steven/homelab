@@ -64,7 +64,6 @@ terraform {
     working_dir = get_repo_root()
     execute     = ["scripts/lab", "cluster", "kubeconfig", "--environment", "testbed", "--output", "${get_repo_root()}/infra/testbed/kubeconfig.yaml"]
   }
-
 }
 
 dependencies {

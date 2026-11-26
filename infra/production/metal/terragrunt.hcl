@@ -50,7 +50,6 @@ terraform {
     working_dir = get_repo_root()
     execute     = ["scripts/lab", "cluster", "kubeconfig", "--environment", "production", "--output", "${get_repo_root()}/infra/production/kubeconfig.yaml"]
   }
-
 }
 
 inputs = {

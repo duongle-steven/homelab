@@ -69,6 +69,11 @@ var _ = Describe("NodePorts", Label("testbed", "production", "proof"), Ordered, 
 			v6, err := testbedSSH(ctx, ips[name], "ip -o -6 addr show dev "+uplink)
 			Expect(err).NotTo(HaveOccurred(), v6)
 			Expect(v6).To(BeEmpty(), "%s: IPv6 on %s", name, uplink)
+			// The mechanism, not only today's state: networkd turns IPv6 off on the link, so a later router
+			// advertisement or DHCPv6 answer gives it nothing
+			off, err := testbedSSH(ctx, ips[name], "cat /proc/sys/net/ipv6/conf/"+uplink+"/disable_ipv6")
+			Expect(err).NotTo(HaveOccurred(), off)
+			Expect(strings.TrimSpace(off)).To(Equal("1"), "%s: IPv6 still enabled on %s", name, uplink)
 		}
 	}, SpecTimeout(5*time.Minute))
 
@@ -91,7 +96,9 @@ var _ = Describe("NodePorts", Label("testbed", "production", "proof"), Ordered, 
 		}).WithTimeout(2*time.Minute).WithPolling(10*time.Second).Should(Equal(len(names)), "etcd's members through 2379 and 2380")
 	}, SpecTimeout(5*time.Minute))
 
-	// The API server reaches every kubelet (logs, exec), and a pod reaches another node's kubelet (Prometheus's scrape)
+	// The API server reaches every kubelet (logs, exec), and a pod reaches its own node's kubelet and another's
+	// (Prometheus's scrape): flannel masquerades the second to its node's address, so only the first goes through the
+	// pod network's rule (the G2 review)
 	It("lets the API server and the pods reach every kubelet", func(ctx SpecContext) {
 		Expect(kube.CreateNamespace(ctx, nodePortsNamespace)).To(Succeed())
 		DeferCleanup(func(ctx SpecContext) { _ = kube.DeleteNamespace(ctx, nodePortsNamespace) }, NodeTimeout(2*time.Minute))
@@ -118,11 +125,12 @@ spec:
 				logs, _ := kube.Kubectl(ctx, nodePortsNamespace, "logs", pod)
 				return logs
 			}).WithTimeout(time.Minute).Should(ContainSubstring("ready"), "kubectl logs on %s", name)
-			next := ips[names[(i+1)%len(names)]]
-			code, err := kube.Kubectl(ctx, nodePortsNamespace, "exec", pod, "--", "curl", "-sk", "--max-time", "10", "-o", "/dev/null",
-				"-w", "%{http_code}", "https://"+next+":10250/healthz")
-			Expect(err).NotTo(HaveOccurred(), "kubectl exec on %s, or the kubelet at %s: %s", name, next, code)
-			Expect(strings.TrimSpace(code)).To(BeElementOf("401", "403"), "%s's pod to the kubelet at %s", name, next)
+			for _, kubelet := range []string{ips[name], ips[names[(i+1)%len(names)]]} {
+				code, err := kube.Kubectl(ctx, nodePortsNamespace, "exec", pod, "--", "curl", "-sk", "--max-time", "10", "-o", "/dev/null",
+					"-w", "%{http_code}", "https://"+kubelet+":10250/healthz")
+				Expect(err).NotTo(HaveOccurred(), "kubectl exec on %s, or the kubelet at %s: %s", name, kubelet, code)
+				Expect(strings.TrimSpace(code)).To(BeElementOf("401", "403"), "%s's pod to the kubelet at %s", name, kubelet)
+			}
 		}
 	}, SpecTimeout(15*time.Minute))
 })

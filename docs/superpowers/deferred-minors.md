@@ -215,3 +215,7 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | istio-cni k3s name (final review) | `NodeMeshAgents` counts ready DaemonSet pods, not updated ones (`updatedNumberScheduled`): during a rollout old pods pass it | any |
 | testbed capacity (final review) | `lab crds generate` runs four `scripts/render-chart` at once, sharing Helm's repository cache: a race is only masked by the three tries; serialise or give each its own cache if CI flakes | any |
 | testbed load (2026-11-26) | rook-ceph-cluster's chart documents `monitoring.metricsDisabled` but never renders it into the CephCluster: the testbed keeps the prometheus module and the exporters it does not read; report it upstream or render the field ourselves | any |
+| G2 (final review) | `NodePorts`' closed-port checks pass on a dial timeout even when the daemon is down: add a positive control from a node (another node's 2379 answers) | any |
+| G2 (final review) | `NodePorts` reads the VXLAN rules as strings: also assert no `nixos-fw` accept lacks both a source and a port on the nodes themselves | any |
+| G2 (final review) | The source-address rules stop casual senders, not a forged node address (VXLAN is UDP): encrypting flannel is G12's, segmentation G5's | G12 |
+
