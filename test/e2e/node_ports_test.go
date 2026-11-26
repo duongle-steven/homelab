@@ -69,11 +69,14 @@ var _ = Describe("NodePorts", Label("testbed", "production", "proof"), Ordered, 
 			v6, err := testbedSSH(ctx, ips[name], "ip -o -6 addr show dev "+uplink)
 			Expect(err).NotTo(HaveOccurred(), v6)
 			Expect(v6).To(BeEmpty(), "%s: IPv6 on %s", name, uplink)
-			// The mechanism, not only today's state: networkd turns IPv6 off on the link, so a later router
-			// advertisement or DHCPv6 answer gives it nothing
-			off, err := testbedSSH(ctx, ips[name], "cat /proc/sys/net/ipv6/conf/"+uplink+"/disable_ipv6")
-			Expect(err).NotTo(HaveOccurred(), off)
-			Expect(strings.TrimSpace(off)).To(Equal("1"), "%s: IPv6 still enabled on %s", name, uplink)
+			// The mechanism, not only today's state: the kernel ignores router advertisements (networkd handles them, and
+			// is told to ignore them too) and makes no link-local address, so a later advertisement gives the link
+			// nothing; DHCPv6 is off. IPv6 itself stays on (disable_ipv6 0): loopback keeps ::1
+			for key, want := range map[string]string{"accept_ra": "0", "addr_gen_mode": "1"} {
+				got, err := testbedSSH(ctx, ips[name], "cat /proc/sys/net/ipv6/conf/"+uplink+"/"+key)
+				Expect(err).NotTo(HaveOccurred(), got)
+				Expect(strings.TrimSpace(got)).To(Equal(want), "%s: %s on %s", name, key, uplink)
+			}
 		}
 	}, SpecTimeout(5*time.Minute))
 
