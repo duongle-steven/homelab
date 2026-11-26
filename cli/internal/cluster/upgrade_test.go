@@ -12,9 +12,10 @@ import (
 
 type fakeUpgrader struct {
 	current    map[string]bool
-	unenrolled map[string]bool // installed by nixie, never enrolled
-	unhealthy  string          // healthy fails after this node's upgrade
-	sick       bool            // healthy always fails: the cluster is degraded already
+	unenrolled map[string]bool      // installed by nixie, never enrolled
+	backends   map[string][2]string // flannel's backend: running, wanted (the same when absent)
+	unhealthy  string               // healthy fails after this node's upgrade
+	sick       bool                 // healthy always fails: the cluster is degraded already
 	calls      []string
 }
 
@@ -26,6 +27,12 @@ func (f *fakeUpgrader) isCurrent(_ context.Context, node host) (bool, error) {
 }
 func (f *fakeUpgrader) enrolled(_ context.Context, node host) (bool, error) {
 	return !f.unenrolled[node.name], nil
+}
+func (f *fakeUpgrader) backend(_ context.Context, node host) (string, string, error) {
+	if b, ok := f.backends[node.name]; ok {
+		return b[0], b[1], nil
+	}
+	return "vxlan", "vxlan", nil
 }
 func (f *fakeUpgrader) drain(_ context.Context, node host) error {
 	f.record("drain " + node.name)
@@ -128,5 +135,20 @@ func TestUpgradeRebuildsAnUnenrolledJoiner(t *testing.T) {
 	want := []string{"current node-a", "current node-b", "current node-c", "rebuild node-c"}
 	if !slices.Equal(f.calls, want) {
 		t.Fatalf("calls = %v, want %v", f.calls, want)
+	}
+}
+
+// k3s changes flannel's backend only when every node has it at once: rolled one node at a time, the nodes on the old
+// backend and those on the new one cannot reach each other's pods. The upgrade refuses before touching anything
+// (G12: production is reinstalled instead)
+func TestUpgradeRefusesABackendChange(t *testing.T) {
+	f := &fakeUpgrader{backends: map[string][2]string{"node-a": {"vxlan", "wireguard-native"}}}
+	err := upgrade(t.Context(), upgradeFixture(), f, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "flannel backend changes from vxlan to wireguard-native") ||
+		!strings.Contains(err.Error(), "reinstall") {
+		t.Fatalf("err = %v, want a refusal naming both backends and the reinstall", err)
+	}
+	if want := []string{"current node-a"}; !slices.Equal(f.calls, want) {
+		t.Fatalf("calls = %v, want %v: nothing drained, rebuilt or waited for", f.calls, want)
 	}
 }
