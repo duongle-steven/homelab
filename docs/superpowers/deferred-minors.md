@@ -218,4 +218,6 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | G2 (final review) | `NodePorts`' closed-port checks pass on a dial timeout even when the daemon is down: add a positive control from a node (another node's 2379 answers) | any |
 | G2 (final review) | `NodePorts` reads the VXLAN rules as strings: also assert no `nixos-fw` accept lacks both a source and a port on the nodes themselves | any |
 | G2 (final review) | The source-address rules stop casual senders, not a forged node address (VXLAN is UDP): encrypting flannel is G12's, segmentation G5's | G12 |
+| G2 (testbed proof) | `EgressBlocksInternet`/`EgressBlocksNodePorts` carry the label `testbed`, but the testbed runs no `system/egress`: run alone there they wait 30 minutes for its policies and fail; drop the label or run egress there | any |
+| G2 (testbed proof) | `NodePorts`' cleanup deletes its namespace without waiting, so a `just testbed` right after a focused run stops at `testbed-leftovers` on the namespace still terminating: wait for the deletion | any |
 
