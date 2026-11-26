@@ -8,10 +8,30 @@ rook-ceph:
   monitoring:
     enabled: false
 rook-ceph-cluster:
+  # Lighter than production where nothing on the testbed reads it (2026-11-26, docs/installation/testbed.md): settled,
+  # Ceph took 0.9 of a core across the VMs. No dashboard, no device health (SMART on virtual disks), and the daemons'
+  # liveness probes (each a Python ceph call, 0.1-0.3 s of CPU) every 30 s instead of 10. The metrics stay: the chart
+  # does not render monitoring.metricsDisabled (docs/superpowers/deferred-minors.md)
   monitoring:
     enabled: false
     createPrometheusRules: false
   cephClusterSpec:
+    dashboard:
+      enabled: false
+    cephConfig:
+      mgr:
+        mgr/devicehealth/enable_monitoring: "false"
+    healthCheck:
+      livenessProbe:
+        mon:
+          probe:
+            periodSeconds: 30
+        mgr:
+          probe:
+            periodSeconds: 30
+        osd:
+          probe:
+            periodSeconds: 30
     mgr:
       count: 1
     resources:
