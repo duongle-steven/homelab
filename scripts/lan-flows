@@ -1,0 +1,35 @@
+#!/bin/sh
+# What crosses the LAN (G12, docs/superpowers/specs/2026-11-26-lan-encryption-design.md): tcpdump on every node's
+# uplink for <seconds>, each packet counted once at the node that sends it, merged into one line per flow:
+# <client> <server> <proto>/<server port> <packets>, the server being the end with the lower port. SSH is left out (it
+# is how the capture runs). tcpdump comes from nixpkgs on the node, as node-fio's fio does. Run it next to the suite,
+# so every flow the cluster uses shows; the raw capture never leaves the nodes.
+# Usage: lan-flows <testbed|production> <seconds>
+set -eu
+env=${1:?usage: lan-flows <testbed|production> <seconds>}
+seconds=${2:?usage: lan-flows <testbed|production> <seconds>}
+hosts="$(dirname "$0")/../infra/$env/metal/hosts.json"
+out=$(mktemp -d)
+trap 'rm -rf "$out"' EXIT
+for ip in $(jq -r '.[].ip' "$hosts"); do
+	# shellcheck disable=SC2029 # expanded here on purpose: the node's own address and the duration
+	ssh -o BatchMode=yes "root@$ip" "uplink=\$(ip -o -4 addr show | awk -v ip=$ip '\$4 ~ \"^\"ip\"/\" {print \$2}');
+		timeout $seconds nix --extra-experimental-features 'nix-command flakes' shell nixpkgs#tcpdump -c \
+			tcpdump -nn -q -t -l -i \"\$uplink\" 'src host $ip and not port 22' 2>/dev/null || true" > "$out/$ip" &
+done
+wait
+cat "$out"/* | awk '
+	# "IP 192.168.100.11.51820 > 192.168.100.12.51820: UDP, length 148" or "IP a.b.c.d.p > e.f.g.h.q: tcp 0"
+	$1 == "IP" {
+		split($2, s, "."); split($4, d, ".")
+		sport = s[5]; dport = d[5]; sub(":", "", dport)
+		src = s[1] "." s[2] "." s[3] "." s[4]; dst = d[1] "." d[2] "." d[3] "." d[4]
+		proto = ($5 == "UDP,") ? "udp" : ($5 == "tcp") ? "tcp" : $5
+		if (sport + 0 < dport + 0) { key = dst " " src " " proto "/" sport } else { key = src " " dst " " proto "/" dport }
+		n[key]++
+	}
+	$1 != "IP" && NF > 0 { other[$1]++ }
+	END {
+		for (k in n) print k, n[k]
+		for (o in other) print "other", o, "-", other[o]
+	}' | sort -k3,3 -k1,1
