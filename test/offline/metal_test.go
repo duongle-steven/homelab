@@ -587,13 +587,14 @@ func TestMetalClusterPortsFromNodes(t *testing.T) {
 		assert.Empty(t, n.Firewall.UDP, name)
 		for _, ip := range []string{"10.0.0.11", "10.0.0.12", "10.0.0.13"} {
 			assert.Regexp(t, `-s `+regexp.QuoteMeta(ip)+` -p tcp -m multiport --dports [0-9,]*\b2379,2380,10250\b`, n.Firewall.Extra, name)
-			assert.Contains(t, n.Firewall.Extra, "-s "+ip+" -p udp --dport 8472 -j nixos-fw-accept", name)
+			assert.Contains(t, n.Firewall.Extra, "-s "+ip+" -p udp --dport 51820 -j nixos-fw-accept", name)
 		}
 		pods := regexp.MustCompile(`-s 10\.42\.0\.0/16 -p tcp -m multiport --dports (\S+) `).FindStringSubmatch(n.Firewall.Extra)
 		require.NotNil(t, pods, name)
 		assert.Contains(t, strings.Split(pods[1], ","), "10250", name)
 		assert.NotContains(t, strings.Split(pods[1], ","), "2379", "pods never reach etcd: %s", name)
 		assert.NotContains(t, n.Firewall.Extra, "10.42.0.0/16 -p udp", name)
+		assert.NotContains(t, n.Firewall.Extra, "8472", "%s: VXLAN is gone (G12)", name)
 		// Every accept in the extra rules names an allowed source: a line opening a cluster port, or any port, to
 		// everyone would pass the checks above (the G2 review)
 		allowed := map[string]bool{"10.0.0.11": true, "10.0.0.12": true, "10.0.0.13": true, "10.42.0.0/16": true}
@@ -647,3 +648,16 @@ func TestMetalUpgradesBeforeEnroll(t *testing.T) {
 		}
 	}
 }
+
+// G12 (docs/superpowers/specs/2026-11-26-lan-encryption-design.md): the nodes carry pod traffic through flannel's
+// WireGuard, which encrypts it and authenticates each packet with the sending node's key; the one-node sandbox keeps
+// k3s's default VXLAN, with nothing crossing between nodes
+func TestMetalFlannelWireGuard(t *testing.T) {
+	for name, n := range metalEval(t) {
+		assert.Contains(t, n.K3s.ExtraFlags, "--flannel-backend=wireguard-native", name)
+	}
+	k3d, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "_modules", "k3d", "k3d.yaml"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(k3d), "flannel-backend", "the sandbox keeps VXLAN")
+}
+
