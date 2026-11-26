@@ -214,3 +214,4 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | istio-cni k3s name (final review) | The spec's Goal 1 still says "a loop that never execs"; the unit waits on a background sleep (the Task 1 ruling): reword it | any |
 | istio-cni k3s name (final review) | `NodeMeshAgents` counts ready DaemonSet pods, not updated ones (`updatedNumberScheduled`): during a rollout old pods pass it | any |
 | testbed capacity (final review) | `lab crds generate` runs four `scripts/render-chart` at once, sharing Helm's repository cache: a race is only masked by the three tries; serialise or give each its own cache if CI flakes | any |
+| testbed load (2026-11-26) | rook-ceph-cluster's chart documents `monitoring.metricsDisabled` but never renders it into the CephCluster: the testbed keeps the prometheus module and the exporters it does not read; report it upstream or render the field ourselves | any |

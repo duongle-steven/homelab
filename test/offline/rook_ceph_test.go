@@ -20,3 +20,20 @@ func TestRookCephAES256K(t *testing.T) {
 			cluster+`.healthCheck.muteHealthWarning // {} | keys | .[] | select(test("^AUTH_INSECURE"))`), env)
 	}
 }
+
+// The testbed's Ceph does without what nothing there reads (docs/installation/testbed.md, 2026-11-26): settled, Ceph
+// took 0.9 of a core across the VMs, more than anything else. No dashboard, no device health (SMART on virtual disks),
+// and the daemons' liveness probes, each a Python ceph call, every 30 s instead of 10; production keeps them all
+func TestTestbedCephLighter(t *testing.T) {
+	cluster := func(env, expr string) string {
+		return renderVelero(t, "system/rook-ceph", env, `select(.kind == "CephCluster") | `+expr)
+	}
+	for env, want := range map[string][]string{
+		"":        {"true", "", ""},
+		"testbed": {"false", "false", "30 30 30"},
+	} {
+		assert.Equal(t, want[0], cluster(env, `.spec.dashboard.enabled | tostring`), "dashboard, env %q", env)
+		assert.Equal(t, want[1], cluster(env, `.spec.cephConfig.mgr["mgr/devicehealth/enable_monitoring"] // ""`), "devicehealth, env %q", env)
+		assert.Equal(t, want[2], cluster(env, `[.spec.healthCheck.livenessProbe.mon.probe.periodSeconds, .spec.healthCheck.livenessProbe.mgr.probe.periodSeconds, .spec.healthCheck.livenessProbe.osd.probe.periodSeconds] | map(select(. != null)) | join(" ")`), "probes, env %q", env)
+	}
+}
