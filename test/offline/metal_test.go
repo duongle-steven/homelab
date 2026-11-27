@@ -59,6 +59,16 @@ type metalNode struct {
 		Nixpkgs       string   `json:"nixpkgs"`
 		NixpkgsCopy   string   `json:"nixpkgsCopy"`
 		NixpkgsCopyOn []string `json:"nixpkgsCopyOn"`
+		Verify        struct {
+			Type     string   `json:"type"`
+			IOClass  string   `json:"ioClass"`
+			Nice     int      `json:"nice"`
+			Exec     string   `json:"exec"`
+			Calendar string   `json:"calendar"`
+			Persist  bool     `json:"persist"`
+			Delay    string   `json:"delay"`
+			WantedBy []string `json:"wantedBy"`
+		} `json:"verify"`
 	} `json:"nodeMetrics"`
 	Packages []string `json:"packages"`
 	K3sName  struct {
@@ -150,6 +160,13 @@ func metalEval(t *testing.T) map[string]metalNode {
 				nixpkgs = (c.config.environment.etc."node-exporter/nixpkgs.prom" or { text = ""; }).text;
 				nixpkgsCopy = (c.config.system.activationScripts.node-exporter-nixpkgs or { text = ""; }).text;
 				nixpkgsCopyOn = (c.config.system.activationScripts.node-exporter-nixpkgs or { deps = []; }).deps;
+				verify = let s = c.config.systemd.services.nix-store-verify or null; tm = c.config.systemd.timers.nix-store-verify or null;
+				in if s == null || tm == null then {} else {
+					type = s.serviceConfig.Type; ioClass = s.serviceConfig.IOSchedulingClass; nice = s.serviceConfig.Nice;
+					exec = toString s.serviceConfig.ExecStart; calendar = tm.timerConfig.OnCalendar;
+					persist = tm.timerConfig.Persistent; delay = toString tm.timerConfig.RandomizedDelaySec;
+					wantedBy = tm.wantedBy;
+				};
 			};
 			reclaim = let s = c.config.systemd.services.memory-reclaim or null; in if s == null then {} else {
 				condition = s.unitConfig.ConditionVirtualization or "";
@@ -692,4 +709,23 @@ func TestMetalNixpkgsAge(t *testing.T) {
 		assert.Contains(t, m.NixpkgsCopy, "install -D -m 0644 /etc/node-exporter/nixpkgs.prom /var/lib/node-exporter/nixpkgs.prom", name)
 		assert.Contains(t, m.NixpkgsCopyOn, "etc", "%s: copies after /etc is in place", name)
 	}
+}
+
+// A weekly store check on each node, at idle I/O (it reads the whole store, on etcd's disk), each node on its own hour
+// so a power cut's catch-up (Persistent) does not load every disk at once
+func TestMetalStoreVerify(t *testing.T) {
+	calendars := map[string]bool{}
+	for name, node := range metalEval(t) {
+		v := node.NodeMetrics.Verify
+		assert.Equal(t, "oneshot", v.Type, name)
+		assert.Equal(t, "idle", v.IOClass, name)
+		assert.Equal(t, 19, v.Nice, name)
+		assert.Contains(t, v.Exec, "nix-store-verify", name)
+		assert.Regexp(t, `^Sun \*-\*-\* \d\d:30:00$`, v.Calendar, name)
+		calendars[v.Calendar] = true
+		assert.True(t, v.Persist, name)
+		assert.Equal(t, "1h", v.Delay, name)
+		assert.Contains(t, v.WantedBy, "timers.target", name)
+	}
+	assert.Len(t, calendars, 3, "each node on its own hour: %v", calendars)
 }
