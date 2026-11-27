@@ -517,8 +517,7 @@
       "TestbedNodes",
       "TestbedPostgresFailover",
       "TestbedSecretsEncrypted",
-      "TestbedSynced",
-      "TestbedVIPMoves"
+      "TestbedSynced"
     ],
     "testbed/power/PowerCutEveryNode": [
       "PowerCutEveryNode"
@@ -531,6 +530,9 @@
     ],
     "testbed/power/PowerShutdownStartup": [
       "PowerShutdownStartup"
+    ],
+    "testbed/power/TestbedVIPMoves": [
+      "TestbedVIPMoves"
     ],
     "testbed/scan": [
       "ScanBench"

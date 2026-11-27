@@ -163,6 +163,7 @@ func TestE2EKeepsSelection(t *testing.T) {
 		"testbed/power/PowerShutdownStartup":  {"shutdown-startup", "testbed"},
 		"testbed/power/PowerNodeNotReturning": {"node-not-returning", "testbed"},
 		"testbed/power/PowerCutPostgres":      {"cut-postgres", "testbed"},
+		"testbed/power/TestbedVIPMoves":       {"vip-moves", "testbed"},
 		"testbed/scan":                        {"scan", "testbed"},
 		"sandbox/scan":                        {"scan", "sandbox"},
 		"production":                          {"!hardware-proof && !scan", "production"},

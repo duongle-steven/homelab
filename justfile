@@ -13,7 +13,7 @@ terragrunt_apply := terragrunt + " run --all apply --non-interactive -- -auto-ap
 testbed_kubeconfig := justfile_directory() / "infra/testbed/kubeconfig.yaml"
 # The power specs' labels, on a healthy testbed, one run each since each takes the whole cluster down
 # (docs/how-to-guides/power.md): --tests runs others (cut-postgres). They do not count towards the mark
-power_tests := "cut-every-node shutdown-startup node-not-returning"
+power_tests := "cut-every-node shutdown-startup node-not-returning vip-moves"
 
 [private]
 default:
