@@ -70,6 +70,7 @@ node-exporter's textfile collector). Production only: the sandbox's k3d node is 
 - `NodeStoreVerifyFailed`: `nix-store --verify --check-contents` found a store path that does not match its recorded
   hash. `journalctl -u nix-store-verify` on the node names it; `nix-store --repair-path <path>` fetches it again, or
   reinstall the node (`docs/installation/production/deployment.md`) if someone changed it.
-- `NodeStoreVerifyMissing`: no store check ended on a node for 9 days (Sundays at 03:30, 05:30 or 07:30 by its place
-  in `hosts.json`, caught up after a power cut). See `systemctl status nix-store-verify.timer`; run one by hand with
+- `NodeStoreVerifyMissing`: no store check ended on a node for 15 days (Sundays at 03:30, 05:30 or 07:30 by its place
+  in `hosts.json`; a run missed while the node was off waits for the next Sunday, never caught up at boot, where the
+  three nodes would read at once while Ceph and etcd recover). See `systemctl status nix-store-verify.timer`; run one by hand with
   `systemctl start nix-store-verify`.

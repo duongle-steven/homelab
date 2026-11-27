@@ -34,9 +34,9 @@ or on(nodename)
 		rules("", `select(.alert == "NodePackagesStale") | .expr | trim`))
 	assert.Equal(t, `node_nix_store_verify_success * on(instance) group_left(nodename) node_uname_info == 0`,
 		rules("", `select(.alert == "NodeStoreVerifyFailed") | .expr | trim`))
-	assert.Equal(t, `time() - (node_nix_store_verify_last_run_seconds * on(instance) group_left(nodename) node_uname_info) > 9 * 86400
+	assert.Equal(t, `time() - (node_nix_store_verify_last_run_seconds * on(instance) group_left(nodename) node_uname_info) > 15 * 86400
 or on(nodename)
-(label_replace(time() - kube_node_created > 9 * 86400, "nodename", "$1", "node", "(.*)")
+(label_replace(time() - kube_node_created > 15 * 86400, "nodename", "$1", "node", "(.*)")
   unless on(nodename) (node_nix_store_verify_last_run_seconds * on(instance) group_left(nodename) node_uname_info))`,
 		rules("", `select(.alert == "NodeStoreVerifyMissing") | .expr | trim`))
 	assert.Equal(t, "1h", rules("", `select(.alert == "NodePackagesStale") | .for`))

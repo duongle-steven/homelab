@@ -34,7 +34,7 @@ var _ = Describe("NodeTextfileMetrics", Label("sandbox", "monitoring"), func() {
 })
 
 // Every node publishes the age of the nixpkgs it was built from, the one this repository locks, and checks its store
-// weekly at idle I/O (G11)
+// weekly with its reads capped (G11)
 var _ = Describe("NodePatches", Label("testbed", "production", "proof"), Ordered, ContinueOnFailure, func() {
 	var names []string
 	var ips map[string]string
@@ -54,9 +54,13 @@ var _ = Describe("NodePatches", Label("testbed", "production", "proof"), Ordered
 			enabled, err := testbedSSH(ctx, ips[name], "systemctl is-enabled nix-store-verify.timer")
 			Expect(err).NotTo(HaveOccurred(), "%s: %s", name, enabled)
 			Expect(enabled).To(Equal("enabled"), name)
-			class, err := testbedSSH(ctx, ips[name], "systemctl show nix-store-verify -p IOSchedulingClass")
-			Expect(err).NotTo(HaveOccurred(), "%s: %s", name, class)
-			Expect(class).To(Equal("IOSchedulingClass=3"), "%s: the check reads the whole store, at idle I/O only", name)
+			limit, err := testbedSSH(ctx, ips[name], "systemctl show nix-store-verify -p IOReadBandwidthMax")
+			Expect(err).NotTo(HaveOccurred(), "%s: %s", name, limit)
+			Expect(limit).To(Equal("IOReadBandwidthMax=/nix/store 40000000"),
+				"%s: the check reads the whole store on etcd's disk, capped (the idle class does nothing under scheduler none)", name)
+			persistent, err := testbedSSH(ctx, ips[name], "systemctl show nix-store-verify.timer -p Persistent")
+			Expect(err).NotTo(HaveOccurred(), "%s: %s", name, persistent)
+			Expect(persistent).To(Equal("Persistent=no"), "%s: no catch-up, so a power cut does not start every node's check at once", name)
 		}
 	}, SpecTimeout(5*time.Minute))
 })

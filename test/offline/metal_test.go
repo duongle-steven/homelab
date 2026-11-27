@@ -67,6 +67,7 @@ type metalNode struct {
 			Calendar string   `json:"calendar"`
 			Persist  bool     `json:"persist"`
 			Delay    string   `json:"delay"`
+			ReadMax  string   `json:"readMax"`
 			WantedBy []string `json:"wantedBy"`
 		} `json:"verify"`
 	} `json:"nodeMetrics"`
@@ -164,7 +165,8 @@ func metalEval(t *testing.T) map[string]metalNode {
 				in if s == null || tm == null then {} else {
 					type = s.serviceConfig.Type; ioClass = s.serviceConfig.IOSchedulingClass; nice = s.serviceConfig.Nice;
 					exec = toString s.serviceConfig.ExecStart; calendar = tm.timerConfig.OnCalendar;
-					persist = tm.timerConfig.Persistent; delay = toString tm.timerConfig.RandomizedDelaySec;
+					persist = tm.timerConfig.Persistent or false; delay = toString (tm.timerConfig.RandomizedDelaySec or "");
+					readMax = s.serviceConfig.IOReadBandwidthMax or "";
 					wantedBy = tm.wantedBy;
 				};
 			};
@@ -711,8 +713,9 @@ func TestMetalNixpkgsAge(t *testing.T) {
 	}
 }
 
-// A weekly store check on each node, at idle I/O (it reads the whole store, on etcd's disk), each node on its own hour
-// so a power cut's catch-up (Persistent) does not load every disk at once
+// A weekly store check on each node, its reads capped (it reads the whole store, on etcd's disk; the nodes' NVMe
+// disks run scheduler none, where the idle I/O class does nothing), each node on its own hour. No catch-up
+// (Persistent): after a power cut the nodes would check at once while Ceph and etcd recover (G11's final review)
 func TestMetalStoreVerify(t *testing.T) {
 	calendars := map[string]bool{}
 	for name, node := range metalEval(t) {
@@ -723,8 +726,9 @@ func TestMetalStoreVerify(t *testing.T) {
 		assert.Contains(t, v.Exec, "nix-store-verify", name)
 		assert.Regexp(t, `^Sun \*-\*-\* \d\d:30:00$`, v.Calendar, name)
 		calendars[v.Calendar] = true
-		assert.True(t, v.Persist, name)
-		assert.Equal(t, "1h", v.Delay, name)
+		assert.Equal(t, "/nix/store 40M", v.ReadMax, "%s: io.max works under scheduler none", name)
+		assert.False(t, v.Persist, "%s: no catch-up after a power cut", name)
+		assert.Empty(t, v.Delay, "%s: the hours alone keep the nodes apart", name)
 		assert.Contains(t, v.WantedBy, "timers.target", name)
 	}
 	assert.Len(t, calendars, 3, "each node on its own hour: %v", calendars)

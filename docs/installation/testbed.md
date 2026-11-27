@@ -211,7 +211,7 @@ old peer two hours later), with no allowed IPs; the spec now counts the peers th
 ### The store check, one measurement (G11)
 
 Each node runs `nix-store --verify --check-contents` weekly (`infra/_modules/metal/flake/profiles/node-patches.nix`,
-Sundays, idle I/O class, `Nice=19`, from 03:30 two hours apart per node, each with up to an hour's random delay; `docs/how-to-guides/alerts.md`). Measured once on 2026-11-27
+Sundays from 03:30, two hours apart per node, its reads capped at 40 MB/s, `Nice=19`; `docs/how-to-guides/alerts.md`). Measured once on 2026-11-27
 by `systemctl start nix-store-verify` on `homelab-2` (4 vCPUs, 3 GB), right after a fresh install with layers 1 and 2:
 
 | | |
@@ -220,7 +220,7 @@ by `systemctl start nix-store-verify` on `homelab-2` (4 vCPUs, 3 GB), right afte
 | Time | 304 s, result `node_nix_store_verify_success 1` |
 | Read | 3.46 GB (about 11 MB/s) |
 | CPU | 120 s (the node's CPU 29% user, 39% system, 22% idle on average, the cluster included) |
-| I/O wait | 3% on average |
+| I/O wait | 3% on average (before the 40 MB/s cap, which this run's 11 MB/s stayed under) |
 | Memory peak | 398 MB |
 
 It reads the whole store and hashes every file, so it scales with the store's size: a node's store grows with each

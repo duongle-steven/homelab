@@ -39,15 +39,18 @@ in
     text = "install -D -m 0644 /etc/node-exporter/nixpkgs.prom /var/lib/node-exporter/nixpkgs.prom";
   };
 
-  # The store checked weekly against its recorded hashes (nix-store-verify.sh), its result for node-exporter. Idle I/O:
-  # it reads the whole store on etcd's disk. Each node on its own hour (03:30, 05:30, 07:30, by its place in hosts.json),
-  # and Persistent catches up a missed run after a power cut, spread by an hour so the nodes do not read at once
+  # The store checked weekly against its recorded hashes (nix-store-verify.sh), its result for node-exporter. It reads the
+  # whole store on etcd's disk, so its reads are capped (cgroup io.max, which works under the NVMe disks' scheduler none,
+  # where the idle class does nothing). Each node on its own hour (03:30, 05:30, 07:30, by its place in hosts.json), with
+  # no catch-up: after a power cut the nodes would check at once while Ceph and etcd recover. A missed Sunday waits a
+  # week, which NodeStoreVerifyMissing's 15 days allows
   systemd.services.nix-store-verify = {
     description = "Check the Nix store against its recorded hashes";
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${nix-store-verify}/bin/nix-store-verify";
       IOSchedulingClass = "idle";
+      IOReadBandwidthMax = "/nix/store 40M";
       Nice = 19;
     };
   };
@@ -55,8 +58,6 @@ in
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnCalendar = "Sun *-*-* ${lib.fixedWidthNumber 2 (3 + 2 * nodeIndex)}:30:00";
-      Persistent = true;
-      RandomizedDelaySec = "1h";
     };
   };
 }

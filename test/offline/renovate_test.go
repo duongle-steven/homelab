@@ -2,6 +2,7 @@ package offline
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -82,8 +83,8 @@ func TestRenovateTokenEgress(t *testing.T) {
 	assert.Equal(t, "false", strings.TrimSpace(string(out)))
 }
 
-// Review findings: Renovate reads its schedules in the
-// environment's time zone, so lockFileMaintenance's "before 5am on monday" matches the 05:00 run
+// Review findings: Renovate reads its schedules in the environment's time zone (TestRenovateLockMaintenanceInRun checks
+// the window against the run)
 func TestRenovateConfig(t *testing.T) {
 	global := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(renderRenovate(t, `select(.kind == "ConfigMap" and .metadata.name == "renovate-config") | .data["config.json"]`)), &global))
@@ -93,6 +94,51 @@ func TestRenovateConfig(t *testing.T) {
 	assert.Equal(t, strings.TrimSpace(string(timezone)), renderRenovate(t, `select(.kind == "CronJob") | .spec.timeZone`))
 	// The image has no nix, go or npm: Renovate installs each when a lock file needs it (G11: the nodes' flake.lock)
 	assert.Equal(t, "install", global["binarySource"])
+}
+
+// Lock file maintenance (the nodes' flake.lock among them, G11) runs only inside its schedule, read by Renovate's own
+// code at a Monday run's start and near its end: "before 5am on monday" never matched the 05:00 run, so no lock file
+// pull request ever opened (G11's final review)
+func TestRenovateLockMaintenanceInRun(t *testing.T) {
+	cron := strings.Fields(renderRenovate(t, `select(.kind == "CronJob") | .spec.schedule`))
+	require.Len(t, cron, 5)
+	require.Equal(t, "0", cron[0], "the run starts on the hour")
+	require.Equal(t, "*", cron[4], "the run is daily, Mondays included")
+	timezone := renderRenovate(t, `select(.kind == "CronJob") | .spec.timeZone`)
+	script := `const path = require("path"), fs = require("fs");
+const pkg = path.join(path.dirname(fs.realpathSync(process.argv[1])), "..", "lib", "node_modules", "renovate");
+const json5 = require(require.resolve("json5", {paths: [pkg]}));
+const schedule = json5.parse(fs.readFileSync("renovate.json5", "utf8")).lockFileMaintenance.schedule;
+(async () => {
+  const at = JSON.parse(process.argv[2]), timezone = process.argv[3], result = {};
+  for (const iso of at) {
+    Date.now = () => Date.parse(iso);
+    const { isScheduledNow } = await import(path.join(pkg, "dist/workers/repository/update/branch/schedule.js"));
+    result[iso] = isScheduledNow({ schedule, timezone });
+  }
+  console.log(JSON.stringify(result));
+})();`
+	bin, err := exec.LookPath("renovate")
+	require.NoError(t, err)
+	// 2026-11-30 is a Monday; the run ends within activeDeadlineSeconds (55 minutes); +07:00 is the time zone's offset
+	require.Equal(t, "Asia/Ho_Chi_Minh", timezone, "the offset below is +07:00")
+	var at []string
+	for _, minute := range []string{"00", "30", "54"} {
+		at = append(at, "2026-11-30T"+fmt.Sprintf("%02s", cron[1])+":"+minute+":00+07:00")
+	}
+	arg, err := json.Marshal(at)
+	require.NoError(t, err)
+	cmd := exec.Command("node", "-e", script, bin, string(arg), timezone)
+	cmd.Dir = repo.Root()
+	cmd.Env = append(os.Environ(), "LOG_LEVEL=fatal")
+	out, err := cmd.Output()
+	require.NoError(t, err, string(out))
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	result := map[string]bool{}
+	require.NoError(t, json.Unmarshal([]byte(lines[len(lines)-1]), &result), string(out))
+	for _, iso := range at {
+		assert.True(t, result[iso], "lock file maintenance is not scheduled at %s, when Renovate runs", iso)
+	}
 }
 
 // Renovate finds what this repository pins: every app file's images (but our own registry's), the app-template chart in each of the root

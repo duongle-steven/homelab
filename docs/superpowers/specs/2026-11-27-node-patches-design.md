@@ -50,6 +50,12 @@ by about two weeks at most, not a month.
   `node_nix_store_verify_last_run_seconds`. Alerts in the same `PrometheusRule`: `NodeStoreVerifyFailed` (a failure,
   `warning`: a corrupted or changed store path; the description says to run it by hand and read its output, `nix-store
   --repair-path` or a reinstall) and `NodeStoreVerifyMissing` (no run for 9 days).
+- *(the final review, 2026-11-27)* Changed after the merge: the nodes' NVMe disks run scheduler `none`, where
+  `IOSchedulingClass=idle` does nothing, so the check's reads are capped at 40 MB/s (`IOReadBandwidthMax` on
+  `/nix/store`, cgroup `io.max`); the timer has no catch-up (`Persistent`, `RandomizedDelaySec` dropped: after a power
+  cut the three nodes would check at once while Ceph and etcd recover), so `NodeStoreVerifyMissing` waits 15 days, one
+  missed Sunday allowed; and lock file maintenance's window became `before 7am on monday`, since `before 5am` never held
+  Renovate's 05:00 run.
 - The three alerts also fire for a Ready node that has no such metric at all (joined on the node's name), so a node whose
   file was never written is not quiet. They are on in production only: the sandbox's k3d node is no NixOS node and
   would always alert (`values-local.yaml` turns them off; the testbed runs no monitoring).
