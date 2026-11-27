@@ -55,6 +55,11 @@ type metalNode struct {
 		Timer     string `json:"timer"`
 		Start     string `json:"start"`
 	} `json:"reclaim"`
+	NodeMetrics struct {
+		Nixpkgs       string   `json:"nixpkgs"`
+		NixpkgsCopy   string   `json:"nixpkgsCopy"`
+		NixpkgsCopyOn []string `json:"nixpkgsCopyOn"`
+	} `json:"nodeMetrics"`
 	Packages []string `json:"packages"`
 	K3sName  struct {
 		Exec       string   `json:"exec"`
@@ -140,6 +145,11 @@ func metalEval(t *testing.T) map[string]metalNode {
 				inherit (s) wantedBy;
 				dependencies = s.unitConfig.DefaultDependencies or true;
 				exec = s.serviceConfig.ExecStart;
+			};
+			nodeMetrics = {
+				nixpkgs = (c.config.environment.etc."node-exporter/nixpkgs.prom" or { text = ""; }).text;
+				nixpkgsCopy = (c.config.system.activationScripts.node-exporter-nixpkgs or { text = ""; }).text;
+				nixpkgsCopyOn = (c.config.system.activationScripts.node-exporter-nixpkgs or { deps = []; }).deps;
 			};
 			reclaim = let s = c.config.systemd.services.memory-reclaim or null; in if s == null then {} else {
 				condition = s.unitConfig.ConditionVirtualization or "";
@@ -662,4 +672,24 @@ func TestMetalFlannelWireGuard(t *testing.T) {
 	k3d, err := os.ReadFile(filepath.Join(repo.Root(), "infra", "_modules", "k3d", "k3d.yaml"))
 	require.NoError(t, err)
 	assert.NotContains(t, string(k3d), "flannel-backend", "the sandbox keeps VXLAN")
+}
+
+// Each node publishes how old the nixpkgs it was built from is (G11, docs/superpowers/specs/2026-11-27-node-patches-design.md):
+// the locked inputs' lastModified, for node-exporter's textfile collector, copied out of /etc at activation since
+// node-exporter reads the host's root under /host/root, where a link into /nix/store resolves inside its own container
+func TestMetalNixpkgsAge(t *testing.T) {
+	lock := filepath.Join(repo.Root(), metalFlake, "flake.lock")
+	modified := func(input string) string {
+		out, err := exec.Command("jq", "-r", ".nodes[.nodes.root.inputs[\""+input+"\"]].locked.lastModified", lock).CombinedOutput()
+		require.NoError(t, err, string(out))
+		return strings.TrimSpace(string(out))
+	}
+	for name, node := range metalEval(t) {
+		m := node.NodeMetrics
+		assert.Contains(t, m.Nixpkgs, "# TYPE node_nixpkgs_last_modified_seconds gauge\n", name)
+		assert.Contains(t, m.Nixpkgs, `node_nixpkgs_last_modified_seconds{input="nixpkgs"} `+modified("nixpkgs")+"\n", name)
+		assert.Contains(t, m.Nixpkgs, `node_nixpkgs_last_modified_seconds{input="nixpkgs-unstable"} `+modified("nixpkgs-unstable")+"\n", name)
+		assert.Contains(t, m.NixpkgsCopy, "install -D -m 0644 /etc/node-exporter/nixpkgs.prom /var/lib/node-exporter/nixpkgs.prom", name)
+		assert.Contains(t, m.NixpkgsCopyOn, "etc", "%s: copies after /etc is in place", name)
+	}
 }
