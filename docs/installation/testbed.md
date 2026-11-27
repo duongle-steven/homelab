@@ -109,8 +109,10 @@ just testbed-power
 
 On a healthy testbed, from the main checkout, alone: it wrecks the cluster's availability, so it is never part of `just testbed` and gives
 no mark. Run it when `lab cluster shutdown|startup`, the node profile or the recovery path change, and before step 12b. `--tests` picks
-the specs by label, one run each (`cut-every-node`, `shutdown-startup`, `node-not-returning`: PowerCutEveryNode,
-PowerShutdownStartup, PowerNodeNotReturning). A probe on a Ceph volume writes numbered lines, flushing
+the specs by label, one run each (`cut-every-node`, `shutdown-startup`, `node-not-returning`, `vip-moves`: PowerCutEveryNode,
+PowerShutdownStartup, PowerNodeNotReturning, TestbedVIPMoves). TestbedVIPMoves shuts the VIP's holder down and starts it
+again; it left `just testbed` on 2026-11-26, when k3s on another node lost its leases two to five minutes after the node
+came back, twice in two runs: run it when kube-vip, the network profile or the API's VIP change. A probe on a Ceph volume writes numbered lines, flushing
 each, and every number it reported must be in its file afterwards ([what they cover](../how-to-guides/power.md)).
 
 Measured at 2 vCPUs from a fresh install, from the moment the VMs start:

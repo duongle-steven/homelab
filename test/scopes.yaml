@@ -98,6 +98,7 @@ labels:
   - cut-every-node
   - shutdown-startup
   - node-not-returning
+  - vip-moves
   - cut-postgres
 always: smoke
 # Each runs by itself after the main run, in this order (#78)
