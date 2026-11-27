@@ -221,3 +221,5 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 | G2 (testbed proof) | `EgressBlocksInternet`/`EgressBlocksNodePorts` carry the label `testbed`, but the testbed runs no `system/egress`: run alone there they wait 30 minutes for its policies and fail; drop the label or run egress there | any |
 | G2 (testbed proof) | `NodePorts`' cleanup deletes its namespace without waiting, so a `just testbed` right after a focused run stops at `testbed-leftovers` on the namespace still terminating: wait for the deletion | any |
 
+| G11 (final review) | `nix-store-verify` may run while `lab cluster upgrade`'s `nixos-rebuild` writes the store (Sunday mornings): a path still being added could read as modified and fire `NodeStoreVerifyFailed` once; rerun it before acting, or make the upgrade wait for the unit | 12b-3 |
+| G11 (testbed proof) | The testbed has no registry cache: every `just testbed-fresh` pulls every image again, and a slow quay.io (Ceph's 1.5 GB image timing out on 2026-11-27) fails `TestbedSynced` and `TestbedCeph`; mirror through the sandbox's `homelab-cache-*` registries over the bridge | any |

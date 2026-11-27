@@ -34,6 +34,13 @@
       # The environment's disk (config.json's disk) when hosts.json names none: nixie keeps only the fields it knows
       defaultDisk = cluster.disk or null;
       timezone = cluster.timezone;
+      # How old the nixpkgs a node runs is (profiles/node-patches.nix), and its place among the hosts (sorted), which
+      # staggers the weekly store check
+      nixpkgsLastModified = {
+        nixpkgs = nixpkgs.lastModified;
+        nixpkgs-unstable = nixpkgs-unstable.lastModified;
+      };
+      nodeIndex = nixpkgs.lib.lists.findFirstIndex (n: n == name) null (builtins.attrNames hosts);
       k3s = {
         clusterInit = name == cluster.init_host;
         vip = cluster.vip;
@@ -51,6 +58,7 @@
       ./profiles/zram.nix
       ./profiles/vm-memory.nix
       ./profiles/cluster-startup.nix
+      ./profiles/node-patches.nix
       {
         networking.hostName = name;
       }

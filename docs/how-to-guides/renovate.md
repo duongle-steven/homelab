@@ -57,6 +57,16 @@ sandbox's k3s image and Gateway API CRDs (`infra/_modules/k3d`, regex managers).
 Renovate finds, offline. A new commit from Renovate on its labelled pull request (a rebase, a newer version) runs
 `sandbox-label` again.
 
+The nodes' flake lock (`infra/_modules/metal/flake/flake.lock`) gets a pull request of its own,
+`renovate/lock-file-maintenance-nodes`, without the `sandbox` label (G11,
+`docs/superpowers/specs/2026-11-27-node-patches-design.md`): it brings the nodes' kernel and packages, and a bump that
+breaks holds no other lock back. Merging it means a release: the testbed's proof (the node flake is a gated path), then
+`just infra deploy production`, whose `lab cluster upgrade` rolls the nodes one at a time. `NodePackagesStale` fires when
+a node's nixpkgs is over 14 days old. A NixOS release (`nixos-26.05` to the next) comes as its own major pull request
+on `flake.nix`, never inside the lock's. Renovate's image has no Nix: with `binarySource: install` it installs it as the
+pod's user; checked once with this image (2026-11-27: Nix 2.31.2, `nix flake update` moved nixpkgs from 2026-10-29 to
+2026-11-22), and `renovate --platform=local` showed the two lock branches apart.
+
 A chart bump whose CRDs changed fails the basic check `crds` until someone regenerates `system/crds` on that pull
 request: check it out, run `scripts/vendor-crds <component>` (the component's directory name) and push the result
 (`docs/superpowers/specs/2026-11-20-sandbox-groups-design.md`).
