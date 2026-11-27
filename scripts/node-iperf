@@ -22,6 +22,8 @@ trap cleanup EXIT
 image=docker.io/library/alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
 install="apk add --no-cache -q iperf3=3.20-r0 >&2"
 kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+# A bare Pod, unlike a Job, is refused until the new namespace's ServiceAccount exists
+timeout 60 sh -c "until kubectl -n $ns get serviceaccount default >/dev/null 2>&1; do sleep 1; done"
 kubectl -n "$ns" apply -f - >/dev/null <<YAML
 apiVersion: v1
 kind: Pod
