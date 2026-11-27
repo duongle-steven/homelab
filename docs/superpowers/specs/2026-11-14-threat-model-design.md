@@ -259,7 +259,9 @@ crosses the LAN") shows pod traffic between the nodes only as UDP 51820, which t
 the kubelet 10250). In clear and accepted: the nodes' DNS to their resolvers (LAN DNS's step), NTP, and in production
 the metrics scrape on the host network (9100, 10249, 2381: no secrets). The testbed's bar held on WireGuard; its cost
 there (CPU-bound VMs: a third of Ceph's writes, most of a pod-to-pod stream, `docs/installation/testbed.md`) is a
-comparison only, the gate being production's `scripts/node-iperf` before and after its reinstall.
+comparison only, the gate being production's `scripts/node-iperf` before and after its reinstall. Production was
+reinstalled on it the same day: `node-iperf` 792/876 Mbit/s against VXLAN's 810/898, the node specs (`NodePorts`,
+`NodeWireGuard`) passing on the hardware. G12 is done.
 
 ## Order
 

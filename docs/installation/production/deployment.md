@@ -78,6 +78,23 @@ just test e2e --env production --labels hardware-proof --verbose  # powers nodes
 `--labels hardware-proof` runs `ProductionVIPMoves` (a node powered off, woken by Wake-on-LAN) and `ProductionPowerCut`
 (you switch the power strip off and on). A routine `just test e2e --env production` never runs them, nor kube-bench.
 
+### Reinstalling every node
+
+Some changes k3s takes only on every server at once, such as flannel's backend (G12: `lab cluster upgrade` refuses it
+node by node, since a mixed cluster splits the pod network). On a cluster with no data, reinstall all of them rather
+than switch, as G12 did on 2026-11-27:
+
+1. Measure what the change could cost first (for G12, `scripts/node-iperf production`).
+2. Power every node off (`ssh root@<address> systemctl poweroff`): `nixie` wakes only machines that are off. There is no
+   drain or `kubectl delete node`: the whole cluster goes.
+3. Delete every `machine_id_hash` in `hosts.json` (the keys), commit.
+4. Forget their host keys: `ssh-keygen -R <address>` for each.
+5. Apply as for the first install, with the firewall rules and `HOMELAB_PXE_ADDRESS`. `lab cluster enroll` starts the
+   cluster on `init_host` and joins the others; the kubeconfig is written again. Commit the new `hosts.json`.
+6. Prove the nodes as above.
+
+A cluster holding data is not reinstalled this way: its switch is designed and tested when one is needed.
+
 ### Measured on the hardware (2026-11-11)
 
 Three HP EliteDesk Minis (one 800 G4, two 800 G3), one 256 GB NVMe each, on a TP-Link Archer C64:
@@ -96,9 +113,27 @@ Three HP EliteDesk Minis (one 800 G4, two 800 G3), one 256 GB NVMe each, on a TP
 - **A power cut** of the three nodes and the Archer together: every node booted by itself and the API answered at its
   VIP 1m11s after it went. Data written before a cut is checked in 12b-2, with Ceph.
 
+### WireGuard between the nodes (2026-11-27)
+
+G12 (`docs/reference/architecture/networking.md`, "What crosses the LAN"): the three nodes reinstalled from VXLAN to
+flannel's `wireguard-native` as above, in about 7 minutes from the apply to three Ready nodes. `scripts/node-iperf
+production` (iperf3 between pods on `homelab-1` and `homelab-2`, 30 s with 4 streams each way), the same job before and
+after:
+
+| | VXLAN | WireGuard |
+| --- | --- | --- |
+| `homelab-2` to `homelab-1` | 810 Mbit/s | 792 Mbit/s |
+| `homelab-1` to `homelab-2` | 898 Mbit/s | 876 Mbit/s |
+| CPU busy, the two nodes | 11–14% | 14–17% |
+
+About 2% of the link and 3 points of CPU: the 1 GbE link, not the CPU, limits it here, unlike the testbed's VMs
+(`docs/installation/testbed.md`). Afterwards `NodePorts`, `NodeWireGuard`, `TestbedNodes`, `TestbedSecretsEncrypted` and
+`TestbedSeccomp` passed (`--labels proof --focus ...`); `TestbedCeph` and `NodeMeshAgents`, also in `proof`, need
+12b-2's Ceph and Istio and fail until then.
+
 ## Adding a node
 
-The nodes accept etcd, the kubelet and flannel's VXLAN only from each other's addresses (G2,
+The nodes accept etcd, the kubelet and flannel's WireGuard only from each other's addresses (G2,
 `docs/superpowers/specs/2026-11-24-node-ports-design.md`), and each node learns those addresses when it is built. Add the
 node to `infra/<env>/metal/hosts.json` (its MAC and address), commit, and run `just infra deploy production`: the metal unit installs it
 (nixie), then rolls the installed nodes with `lab cluster upgrade` so their firewalls accept its address (the new node,
