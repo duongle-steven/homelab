@@ -2,7 +2,7 @@
 # The nodes must not age silently, and their store must stay as built (G11,
 # docs/superpowers/specs/2026-11-27-node-patches-design.md). infra/_modules/metal's node-patches profile writes the
 # metric files node-exporter reads; node_uname_info gives each its node's name. A Ready node with no file at all alerts
-# too: an activation that never wrote it, or a store check that never ran on a node older than 9 days
+# too: an activation that never wrote it, or a store check that never ran on a node older than 15 days
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -41,9 +41,9 @@ spec:
               --repair-path, or reinstall the node if it was changed on purpose (docs/how-to-guides/alerts.md).
         - alert: NodeStoreVerifyMissing
           expr: |
-            time() - (node_nix_store_verify_last_run_seconds * on(instance) group_left(nodename) node_uname_info) > 9 * 86400
+            time() - (node_nix_store_verify_last_run_seconds * on(instance) group_left(nodename) node_uname_info) > 15 * 86400
             or on(nodename)
-            (label_replace(time() - kube_node_created > 9 * 86400, "nodename", "$1", "node", "(.*)")
+            (label_replace(time() - kube_node_created > 15 * 86400, "nodename", "$1", "node", "(.*)")
               unless on(nodename) (node_nix_store_verify_last_run_seconds * on(instance) group_left(nodename) node_uname_info))
           for: 1h
           labels:
@@ -51,6 +51,6 @@ spec:
           annotations:
             summary: A node's weekly store check has not run
             description: >-
-              No store check has ended on {{`{{ $labels.nodename }}`}} for over 9 days. See systemctl status
+              No store check has ended on {{`{{ $labels.nodename }}`}} for over 15 days. See systemctl status
               nix-store-verify.timer and journalctl -u nix-store-verify on the node (docs/how-to-guides/alerts.md).
 {{- end }}

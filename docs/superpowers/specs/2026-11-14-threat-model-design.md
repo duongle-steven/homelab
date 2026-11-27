@@ -218,7 +218,8 @@ manager and indexer alone need several GB). What is left:
 - **Patches:** the nodes' kernel and packages come from the node flake's `flake.lock`; check that it is bumped on a
   schedule (Renovate or a recipe) and rolled out with `lab cluster upgrade`, or the nodes age silently.
 - **Integrity:** a weekly `nix-store --verify --check-contents` from a systemd service and timer in `infra/_modules/metal`,
-  staggered per node and at `IOSchedulingClass=idle` (it reads the whole store, on etcd's disk), writing a `.prom` file
+  staggered per node with its reads capped (`IOReadBandwidthMax`, 40 MB/s: it reads the whole store, on etcd's disk,
+  whose NVMe scheduler `none` ignores the idle I/O class), writing a `.prom` file
   for node-exporter's textfile collector, with alerts on a failure and on no recent success; proven on the testbed.
 - **Files from outside:** one shared `clamd` for OpenCloud's uploads, paperless's consume and Transmission's finished
   downloads (CLAUDE.md's Ideas).

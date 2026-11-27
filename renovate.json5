@@ -5,9 +5,10 @@
   extends: ['config:recommended'],
   baseBranchPatterns: ['dev'],
   labels: ['sandbox'],
+  // The window must hold the daily run (platform/renovate's CronJob, 05:00, at most 55 minutes): "before 5am" never did
   lockFileMaintenance: {
     enabled: true,
-    schedule: ['before 5am on monday'],
+    schedule: ['before 7am on monday'],
   },
   // app-template values files (apps/*.yaml) besides the default values*.yaml
   'helm-values': {

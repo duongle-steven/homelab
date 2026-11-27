@@ -223,3 +223,9 @@ removes the lines it fixes. "When" names the step that must handle it, or "any" 
 
 | G11 (final review) | `nix-store-verify` may run while `lab cluster upgrade`'s `nixos-rebuild` writes the store (Sunday mornings): a path still being added could read as modified and fire `NodeStoreVerifyFailed` once; rerun it before acting, or make the upgrade wait for the unit | 12b-3 |
 | G11 (testbed proof) | The testbed has no registry cache: every `just testbed-fresh` pulls every image again, and a slow quay.io (Ceph's 1.5 GB image timing out on 2026-11-27) fails `TestbedSynced` and `TestbedCeph`; mirror through the sandbox's `homelab-cache-*` registries over the bridge | any |
+| G11 (final review) | A node reinstalled under the same name keeps its old `kube_node_created`, so `NodeStoreVerifyMissing` fires an hour after the reinstall until its first Sunday check: gate on `node_boot_time_seconds`, or run `systemctl start nix-store-verify` after a reinstall | 12b-3 |
+| G11 (final review) | `TestNodePatchesRules` compares the expressions as strings: add a promtool rule unit test (a node with no file, a stale input, `kube_node_info{node}` joined to `node_uname_info{nodename}`); promtool is not in the dev shell | any |
+| G11 (final review) | `node-patches.nix`'s hour `3 + 2 * nodeIndex` passes 23 from the eleventh host: wrap it or assert the host count | any |
+| G11 (final review) | `NodePatches` checks only `nixpkgs`'s value against the lock, `nixpkgs-unstable`'s line only for presence | any |
+| G11 (final review) | `nix-store-verify.sh` leaves its `mktemp` file in `/var/lib/node-exporter` if `cat` or `chmod` fails (no `.prom` suffix, so node-exporter ignores it): add it to the trap | any |
+| G11 (final review) | Whether Renovate's nix manager also opens digest pull requests for the nodes' flake inputs outside `renovate/lock-file-maintenance-nodes` (those would carry `sandbox`): read the first real run's log | 12b-3 |
