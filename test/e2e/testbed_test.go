@@ -197,8 +197,11 @@ var _ = Describe("TestbedNodes", Label("testbed", "production", "proof"), func()
 	}, SpecTimeout(20*time.Minute))
 })
 
-// The API's VIP moves: with the node holding it shut down, the API still answers through the VIP from another node
-var _ = Describe("TestbedVIPMoves", Label("testbed", "proof"), func() {
+// The API's VIP moves: with the node holding it shut down, the API still answers through the VIP from another node.
+// Not in the mark: a node shut down and started again loads the other two VMs (etcd catching up, Ceph peering, every
+// container of the node starting) enough that k3s lost its leases right after it on the testbed (2026-11-26), so it runs
+// by hand with the power specs (just testbed-power), as production's ProductionVIPMoves does with hardware-proof
+var _ = Describe("TestbedVIPMoves", Label("testbed", "power", "vip-moves"), func() {
 	It("moves the API's VIP off a shut-down node", func(ctx SpecContext) {
 		// The specs run in any order: on a fresh install kube-vip may not hold the lease yet
 		var holder string
