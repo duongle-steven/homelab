@@ -223,6 +223,13 @@ manager and indexer alone need several GB). What is left:
 - **Files from outside:** one shared `clamd` for OpenCloud's uploads, paperless's consume and Transmission's finished
   downloads (CLAUDE.md's Ideas).
 
+*Done 2026-11-27 (`docs/superpowers/specs/2026-11-27-node-patches-design.md`):* the patches and the integrity check.
+Renovate bumps the node flake's lock weekly in a pull request of its own (`renovate/lock-file-maintenance-nodes`), a
+release rolls it, and each node publishes the age of its nixpkgs: `NodePackagesStale` fires past 14 days *(user,
+2026-11-27: vulnerabilities are found and exploited faster with AI)*. The store check runs weekly as planned above
+(`NodeStoreVerifyFailed`, `NodeStoreVerifyMissing`). The shared `clamd` is its own step after 12b-3 *(user,
+2026-11-27)*, when the apps it scans first run in production.
+
 ### G12. What crosses the LAN unencrypted (E3)
 
 Added 2026-11-24 *(user)*, from G2's discussion. A firewall stops a LAN device sending in; it does not stop one listening.
@@ -269,16 +276,16 @@ reinstalled on it the same day: `node-iperf` 792/876 Mbit/s against VXLAN's 810/
 
 1. Before 12b-3 (the first production deploy), what costs a migration or a rebuild once real data is in, then the small
    steps *(user, 2026-11-26)*: G2 (node ports, done), G12 (what crosses the LAN unencrypted: measured on the testbed,
-   flannel's `wireguard-native`), G9 with 12b-3's backup bucket (its lock rules before the first real backup), G11's
-   patches (the node flake's lock bumped on a schedule), G1's alert on new `fail` results, and LAN DNS (Blocky, with
+   flannel's `wireguard-native`, done), G9 with 12b-3's backup bucket (its lock rules before the first real backup),
+   G11's patches and store check (done 2026-11-27), G1's alert on new `fail` results, and LAN DNS (Blocky, with
    Tailscale's split DNS: the LAN apps' names resolve nowhere in production yet, and publishing their private address
    in public DNS would leak the LAN's layout and meet routers' rebinding protection).
 2. After 12b-3, within about two weeks of production's reports and before step 13 at the latest: G1 (15b-2 Enforce) *(user, 2026-11-14)*.
 3. With step 13: G3 and G4, as preconditions of publishing Kanidm and starting the VPS.
 4. After 12b-3: G6 (admin path) as its own step.
 5. Ideas: G5 (segmentation: when it comes, it also limits SSH and 6443 to the admin's segment, G6's fixed address, and
-   its DNS forwards the homelab's domain to Blocky, so LAN DNS is not redone), G10 (Matrix public), G11 (nodes'
-   integrity, files from outside).
+   its DNS forwards the homelab's domain to Blocky, so LAN DNS is not redone), G10 (Matrix public).
+6. After 12b-3: G11's files from outside (one shared `clamd`), its own step *(user, 2026-11-27)*.
 
 ## How it stays current
 
