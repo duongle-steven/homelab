@@ -89,6 +89,9 @@ renovate:
       allowPrivilegeEscalation: false
       capabilities:
         drop: [ALL]
+    # binarySource install: the image carries no nix, go or npm, and Renovate installs each (containerbase, as the pod's
+    # user, over 443) when a lock file needs it; without it every lock file update fails (G11: proven for the nodes'
+    # flake.lock with this image, docs/how-to-guides/renovate.md)
     config: |
       {
         "platform": "github",
@@ -97,5 +100,6 @@ renovate:
         "onboarding": false,
         "requireConfig": "required",
         "timezone": "Asia/Ho_Chi_Minh",
+        "binarySource": "install",
         "gitAuthor": "duongle-lab-renovate[bot] <345657674+duongle-lab-renovate[bot]@users.noreply.github.com>"
       }

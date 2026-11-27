@@ -48,6 +48,15 @@
       matchPackageNames: ['/^registry\\.\\{\\{/'],
       enabled: false,
     },
+    // The nodes' flake lock in a pull request of its own (G11, docs/superpowers/specs/2026-11-27-node-patches-design.md):
+    // a node bump that breaks holds no other lock file back, and the others hold no patch back. No sandbox label: the
+    // sandbox runs no node. Merging it means a release, whose lab cluster upgrade rolls the nodes one at a time
+    {
+      matchFileNames: ['infra/_modules/metal/flake/**'],
+      matchUpdateTypes: ['lockFileMaintenance'],
+      branchTopic: 'lock-file-maintenance-nodes',
+      labels: [],
+    },
     {
       matchUpdateTypes: ['minor', 'patch'],
       groupName: 'all non-major dependencies',

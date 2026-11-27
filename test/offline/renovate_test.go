@@ -91,6 +91,8 @@ func TestRenovateConfig(t *testing.T) {
 	require.NoError(t, err, string(timezone))
 	assert.Equal(t, strings.TrimSpace(string(timezone)), global["timezone"], "Renovate's schedules run in UTC otherwise")
 	assert.Equal(t, strings.TrimSpace(string(timezone)), renderRenovate(t, `select(.kind == "CronJob") | .spec.timeZone`))
+	// The image has no nix, go or npm: Renovate installs each when a lock file needs it (G11: the nodes' flake.lock)
+	assert.Equal(t, "install", global["binarySource"])
 }
 
 // Renovate finds what this repository pins: every app file's images (but our own registry's), the app-template chart in each of the root
@@ -150,6 +152,7 @@ func TestRenovateManagers(t *testing.T) {
 		assert.Contains(t, deps[file], "app-template", "%s: the app-template pin is not managed", file)
 	}
 	assert.True(t, managers["nix"], "flake.lock is not managed")
+	assert.Contains(t, deps, "infra/_modules/metal/flake/flake.nix", "the nodes' flake is not managed")
 	// Renovate's image and its initContainer's: one update moves both
 	assert.Equal(t, 2, found["platform/renovate/values.yaml ghcr.io/renovatebot/renovate"], "Renovate's two images are not both managed")
 	assert.Contains(t, deps["infra/_modules/k3d/k3d.yaml"], "rancher/k3s", "the sandbox's k3s is not managed")
@@ -202,4 +205,39 @@ console.log(JSON.stringify(json5.parse(fs.readFileSync("renovate.json5", "utf8")
 	}
 	assert.True(t, matched, "no rule disables %s", ours)
 	assert.False(t, regexp.MustCompile(`^registry\.\{\{`).MatchString("ghcr.io/renovatebot/renovate"))
+}
+
+// The nodes' flake lock is bumped in a pull request of its own (G11, docs/superpowers/specs/2026-11-27-node-patches-design.md):
+// a node bump that breaks holds no other lock file back, and it takes no sandbox label, since the sandbox runs no node
+func TestRenovateNodeLockApart(t *testing.T) {
+	script := `const path = require("path"), fs = require("fs");
+const pkg = path.join(path.dirname(fs.realpathSync(process.argv[1])), "..", "lib", "node_modules", "renovate");
+const json5 = require(require.resolve("json5", {paths: [pkg]}));
+console.log(JSON.stringify(json5.parse(fs.readFileSync("renovate.json5", "utf8")).packageRules || []));`
+	bin, err := exec.LookPath("renovate")
+	require.NoError(t, err)
+	cmd := exec.Command("node", "-e", script, bin)
+	cmd.Dir = repo.Root()
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	var rules []struct {
+		MatchFileNames   []string  `json:"matchFileNames"`
+		MatchUpdateTypes []string  `json:"matchUpdateTypes"`
+		BranchTopic      string    `json:"branchTopic"`
+		Labels           *[]string `json:"labels"`
+		AddLabels        []string  `json:"addLabels"`
+	}
+	require.NoError(t, json.Unmarshal(out, &rules))
+	found := false
+	for _, r := range rules {
+		if len(r.MatchFileNames) == 1 && r.MatchFileNames[0] == "infra/_modules/metal/flake/**" {
+			found = true
+			assert.Equal(t, []string{"lockFileMaintenance"}, r.MatchUpdateTypes)
+			assert.Equal(t, "lock-file-maintenance-nodes", r.BranchTopic, "a branch of its own")
+			require.NotNil(t, r.Labels, "labels: [] drops the global sandbox label")
+			assert.Empty(t, *r.Labels)
+			assert.Empty(t, r.AddLabels)
+		}
+	}
+	assert.True(t, found, "no rule for infra/_modules/metal/flake/**")
 }
