@@ -239,23 +239,44 @@ Inside the mesh, pods talk mTLS (HBONE), but what runs outside it crosses the LA
   Falco).
 
 Proposal *(Claude's call, agreed 2026-11-24)*: measure first, on the testbed: `tcpdump` between the nodes lists every
-flow that crosses unencrypted, rather than trusting the list above. Then turn on Ceph's encryption if its CPU cost on
-the hardware's i5s is acceptable (measured on the testbed), and write down the reason for each remaining flow accepted
-or the fix for it. Before 12b-3: Ceph on the hardware holds no real data yet, so turning it on restarts its daemons and
-remounts volumes at no cost; after, it is a migration on a cluster holding the family's data.
+flow that crosses unencrypted, rather than trusting the list above, and write down the reason for each remaining flow
+accepted or the fix for it. Before 12b-3: changing how the nodes carry pod traffic later is a migration on a cluster
+holding the family's data.
+
+*Revised 2026-11-26 (user), after G2's final review:* flannel's `wireguard-native` backend instead of Ceph's msgr2
+encryption (`docs/superpowers/specs/2026-11-26-lan-encryption-design.md`). Ceph runs on the pod network (no host
+network), so its OSD traffic and the nodes' RBD client both cross the nodes inside flannel: WireGuard covers them, and
+msgr2 on top would encrypt Ceph twice. WireGuard also authenticates every packet with the sending node's key, which
+closes what G2's source rules leave open (a LAN device forging a node's address to inject into the pod network), and it
+covers the other flows outside the mesh (pods to CoreDNS, CloudNativePG's operator). The mesh's traffic between nodes is
+encrypted twice (HBONE inside WireGuard): accepted, since apps' traffic between nodes is small next to Ceph's, and its
+cost is measured. Not covered: what runs on the host network (the metrics ports, the nodes to the router's DNS until
+LAN DNS). G5 (segmentation) is no duplicate: it decides who reaches the nodes at all, which encryption does not.
+
+*Result (2026-11-27, the testbed):* the capture before and after (`docs/reference/architecture/networking.md`, "What
+crosses the LAN") shows pod traffic between the nodes only as UDP 51820, which the nodes accept only from each other
+(`NodePorts`); VXLAN's 8472 is gone. Between the nodes' own addresses only TLS remains (etcd 2379/2380, the API 6443,
+the kubelet 10250). In clear and accepted: the nodes' DNS to their resolvers (LAN DNS's step), NTP, and in production
+the metrics scrape on the host network (9100, 10249, 2381: no secrets). The testbed's bar held on WireGuard; its cost
+there (CPU-bound VMs: a third of Ceph's writes, most of a pod-to-pod stream, `docs/installation/testbed.md`) is a
+comparison only, the gate being production's `scripts/node-iperf` before and after its reinstall.
 
 ## Order
 
 *(Claude's call)*, to debate:
 
-1. Before 12b-3 (the first production deploy): G2 (node ports, proven on the testbed), then G12 (what crosses the LAN
-   unencrypted: measured on the testbed, Ceph's encryption) *(user, 2026-11-24)*, G1's alert on new `fail` results,
-   and LAN DNS (Blocky, with Tailscale's split DNS: the LAN apps' names resolve nowhere in production yet, and
-   publishing their private address in public DNS would leak the LAN's layout and meet routers' rebinding protection).
+1. Before 12b-3 (the first production deploy), what costs a migration or a rebuild once real data is in, then the small
+   steps *(user, 2026-11-26)*: G2 (node ports, done), G12 (what crosses the LAN unencrypted: measured on the testbed,
+   flannel's `wireguard-native`), G9 with 12b-3's backup bucket (its lock rules before the first real backup), G11's
+   patches (the node flake's lock bumped on a schedule), G1's alert on new `fail` results, and LAN DNS (Blocky, with
+   Tailscale's split DNS: the LAN apps' names resolve nowhere in production yet, and publishing their private address
+   in public DNS would leak the LAN's layout and meet routers' rebinding protection).
 2. After 12b-3, within about two weeks of production's reports and before step 13 at the latest: G1 (15b-2 Enforce) *(user, 2026-11-14)*.
 3. With step 13: G3 and G4, as preconditions of publishing Kanidm and starting the VPS.
-4. After 12b-3: G6 (admin path) as its own step; G9 with the backup bucket's next change.
-5. Ideas: G5 (segmentation), G10 (Matrix public), G11 (nodes, files from outside; patches checked before 12b-3).
+4. After 12b-3: G6 (admin path) as its own step.
+5. Ideas: G5 (segmentation: when it comes, it also limits SSH and 6443 to the admin's segment, G6's fixed address, and
+   its DNS forwards the homelab's domain to Blocky, so LAN DNS is not redone), G10 (Matrix public), G11 (nodes'
+   integrity, files from outside).
 
 ## How it stays current
 

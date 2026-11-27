@@ -21,8 +21,12 @@ in
     }
   ];
 
-  # etcdctl: TestTestbedSecretsEncrypted reads a Secret raw, and k3s ships none
-  environment.systemPackages = [ pkgs.etcd ];
+  # etcdctl: TestTestbedSecretsEncrypted reads a Secret raw, and k3s ships none; wg: NodeWireGuard reads flannel's
+  # peers (G12)
+  environment.systemPackages = [
+    pkgs.etcd
+    pkgs.wireguard-tools
+  ];
 
   # TODO revisit THP after HA testing
   boot.kernelParams = [ "transparent_hugepage=never" ];
@@ -43,17 +47,18 @@ in
       443 # HTTPS
     ];
     # The cluster's own ports, from the nodes only (G2, docs/superpowers/specs/2026-11-24-node-ports-design.md): etcd
-    # (2379, 2380) and the kubelet (10250) ask for client certificates, but flannel's VXLAN (UDP 8472) is neither
-    # encrypted nor authenticated, so a LAN device sending to it would inject packets into the pod network. Pods reach
-    # the kubelet (Prometheus scrapes it) and the metrics: node exporter, etcd, kube-proxy, controller manager,
-    # scheduler. A node added later is accepted once the others are rebuilt with its address (lab cluster upgrade)
+    # (2379, 2380) and the kubelet (10250) ask for client certificates, and flannel's WireGuard (UDP 51820, G12,
+    # docs/superpowers/specs/2026-11-26-lan-encryption-design.md) drops any packet not sealed by a node's key, which a
+    # source address alone could not stop. Pods reach the kubelet (Prometheus scrapes it) and the metrics: node exporter,
+    # etcd, kube-proxy, controller manager, scheduler. A node added later is accepted once the others are rebuilt with
+    # its address (lab cluster upgrade)
     extraCommands = lib.concatStringsSep "\n" (
       [
         "iptables -A nixos-fw -s 10.42.0.0/16 -p tcp -m multiport --dports 9100,2381,10249,10257,10259,10250 -j nixos-fw-accept"
       ]
       ++ lib.concatMap (node: [
         "iptables -A nixos-fw -s ${node} -p tcp -m multiport --dports 9100,2381,10249,10257,10259,2379,2380,10250 -j nixos-fw-accept"
-        "iptables -A nixos-fw -s ${node} -p udp --dport 8472 -j nixos-fw-accept"
+        "iptables -A nixos-fw -s ${node} -p udp --dport 51820 -j nixos-fw-accept"
       ]) k3s.nodeIPs
     );
   };
@@ -130,6 +135,10 @@ in
       "gateway-api-crd"
     ];
     extraFlags = [
+      # Pod traffic between the nodes through WireGuard (G12, docs/superpowers/specs/2026-11-26-lan-encryption-design.md):
+      # encrypted, and each packet authenticated by the sending node's key, Ceph's included (it runs on the pod network).
+      # The same on every server, and a change needs every node switched at once: lab cluster upgrade refuses it
+      "--flannel-backend=wireguard-native"
       "--secrets-encryption"
       "--disable-helm-controller"
       # Control plane metrics for kube-prometheus-stack

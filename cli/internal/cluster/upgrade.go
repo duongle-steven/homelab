@@ -18,6 +18,8 @@ type upgrader interface {
 	isCurrent(context.Context, host) (bool, error)
 	// enrolled reports whether a joiner holds the token enroll writes: without it its k3s never started
 	enrolled(context.Context, host) (bool, error)
+	// backend is flannel's backend the node runs and the one its flake builds
+	backend(context.Context, host) (running, wanted string, err error)
 	drain(context.Context, host) error
 	// rebuild switches the node to its flake's system, rebooting it when the kernel or initrd changed
 	rebuild(context.Context, host) error
@@ -72,6 +74,15 @@ func upgrade(ctx context.Context, cfg config, nodes upgrader, progress io.Writer
 				}
 				continue
 			}
+		}
+		// k3s changes flannel's backend only with every node at once: rolled node by node, the nodes on each side
+		// cannot reach the others' pods (G12, docs/superpowers/specs/2026-11-26-lan-encryption-design.md)
+		running, wanted, err := nodes.backend(ctx, node)
+		if err != nil {
+			return fmt.Errorf("%s: flannel backend: %w", node.name, err)
+		}
+		if running != wanted {
+			return fmt.Errorf("%s: flannel backend changes from %s to %s: k3s needs every node switched at once; reinstall the cluster (docs/installation/production/deployment.md)", node.name, running, wanted)
 		}
 		_, _ = fmt.Fprintf(progress, "%s: upgrading\n", node.name)
 		for _, step := range []struct {
@@ -150,6 +161,25 @@ func (c commands) enrolled(ctx context.Context, node host) (bool, error) {
 		return false, err
 	}
 	return out == "yes", nil
+}
+
+func (c commands) backend(ctx context.Context, node host) (string, string, error) {
+	running, err := c.ssh(ctx, node, "if ip link show flannel-wg >/dev/null 2>&1; then echo wireguard-native; "+
+		"elif ip link show flannel.1 >/dev/null 2>&1; then echo vxlan; else echo none; fi")
+	if err != nil {
+		return "", "", err
+	}
+	if running == "none" {
+		return "", "", fmt.Errorf("neither flannel-wg nor flannel.1 on the node: is k3s running?")
+	}
+	wanted, err := c.output(ctx, "nix", "eval", "--raw", "--no-write-lock-file",
+		"path:"+c.flake+"#nixosConfigurations."+node.name+".config.services.k3s.extraFlags",
+		"--apply", `flags: let b = builtins.filter (f: builtins.match "--flannel-backend=.*" f != null) flags; in `+
+			`if b == [] then "vxlan" else builtins.substring 18 100 (builtins.head b)`)
+	if err != nil {
+		return "", "", err
+	}
+	return running, wanted, nil
 }
 
 func (c commands) drain(ctx context.Context, node host) error {

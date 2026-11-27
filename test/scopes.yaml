@@ -348,6 +348,9 @@ groups:
       - scripts/metal-nixie
       - scripts/node-fio
       - scripts/node-fio-remote
+      - scripts/lan-flows
+      - scripts/ceph-fio
+      - scripts/node-iperf
       - scripts/testbed-wake
       - scripts/mark-proof
       - scripts/testbed-trust

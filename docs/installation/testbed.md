@@ -182,6 +182,31 @@ did not recur, so it says nothing about that and was not repeated at 4 vCPUs. k3
 networking: unable to initialize network policy controller: error getting node subnet` here, and in a first run (failed by a test reading stale status) a nil pointer in Flannel 0.28.4's
 `watchVXLANDevice`. Neither stopped the recovery; both go with k3s's own updates.
 
+### WireGuard between the nodes (G12)
+
+The nodes carry pod traffic through flannel's `wireguard-native` (`docs/reference/architecture/networking.md`, "What
+crosses the LAN"). Measured on 2026-11-27 at 4 vCPUs and 3 GB per VM, layers 1 and 2, WireGuard installed fresh from
+G12's branch the day before and its VMs started again two minutes apart, VXLAN installed fresh from `dev`; then twice
+`just testbed` with 30 minutes watched after each; then `scripts/ceph-fio testbed` (twice) and `scripts/node-iperf
+testbed`:
+
+| | VXLAN | WireGuard |
+| --- | --- | --- |
+| `just testbed`, twice | pass, pass | pass, pass (`NodeWireGuard` fixed between, below) |
+| k3s exits during the suites; in the 30 minutes after | 1 (one node); 0 | 0; 0 |
+| Ceph, 1 MiB sequential write | 25, 19 MiB/s | 14, 15 MiB/s |
+| Ceph, 1 MiB sequential read | 48, 42 MiB/s | 44, 37 MiB/s |
+| Ceph, 4 KiB random read and write | 171, 173 IOPS each | 114, 117 IOPS each |
+| Nodes' CPU busy during fio | 70–90% | 87–97% |
+| iperf3 pod to pod, 4 streams, each way | 1126, 859 Mbit/s | 180, 314 Mbit/s |
+| Nodes' CPU busy during iperf3 | 59–85% | 72–95% |
+
+The bar held on both. WireGuard costs about a third of Ceph's writes and random I/O, a tenth of its reads and most of a
+pod-to-pod stream here: the three VMs' 12 vCPUs share the workstation's 16 threads, and every packet is encrypted on
+that CPU, so the testbed is limited by CPU rather than by a link. It is a comparison only; the gate is on production's
+hardware (`docs/installation/production/deployment.md`). In the first runs `NodeWireGuard` failed on the nodes started
+first: they kept a peer for a later node's previous key (flannel makes a new key at every boot and had not removed the
+old peer two hours later), with no allowed IPs; the spec now counts the peers that route, by each node's current key.
 ## CRDs
 
 Each environment applies only the CRDs it needs: those of the components it runs and those of the kinds its renders use
