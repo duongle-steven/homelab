@@ -216,5 +216,14 @@ kube-prometheus-stack:
                 sequence_id: watchdog
   crds:
     enabled: false
+  prometheus-node-exporter:
+    # The nodes' metric files (G11: the age of their nixpkgs, their weekly store check; infra/_modules/metal's
+    # node-patches profile) under the host's root. The chart's own two arguments restated: Helm replaces the list
+    extraArgs:
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+      - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|erofs)$
+      - --collector.textfile.directory=/host/root/var/lib/node-exporter
+# The nodes' packages and store check (templates/node-patches-rule.yaml): NixOS nodes only, so off in the sandbox
+nodeAlerts: true
 # Telegram, the second path for every alert (templates/telegram-secret.yaml): off in the sandbox, which has no bot
 telegram: true

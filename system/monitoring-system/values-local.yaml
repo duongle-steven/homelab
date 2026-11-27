@@ -42,3 +42,6 @@ kube-prometheus-stack:
                 delay: 15m
                 sequence_id: watchdog
 telegram: false
+# The sandbox's k3d node is no NixOS node and writes no metric files, so these would always fire; the testbed runs no
+# monitoring
+nodeAlerts: false

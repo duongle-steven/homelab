@@ -1,0 +1,56 @@
+{{- if .Values.nodeAlerts }}
+# The nodes must not age silently, and their store must stay as built (G11,
+# docs/superpowers/specs/2026-11-27-node-patches-design.md). infra/_modules/metal's node-patches profile writes the
+# metric files node-exporter reads; node_uname_info gives each its node's name. A Ready node with no file at all alerts
+# too: an activation that never wrote it, or a store check that never ran on a node older than 9 days
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-patches
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: node-patches
+      rules:
+        - alert: NodePackagesStale
+          expr: |
+            time() - (node_nixpkgs_last_modified_seconds * on(instance) group_left(nodename) node_uname_info) > 14 * 86400
+            or on(nodename)
+            (label_replace(kube_node_info, "nodename", "$1", "node", "(.*)")
+              unless on(nodename) (node_nixpkgs_last_modified_seconds * on(instance) group_left(nodename) node_uname_info))
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: A node's packages are over 14 days behind its channel
+            description: >-
+              {{`{{ $labels.nodename }}`}} runs a nixpkgs over 14 days old, or publishes no age at all. Merge Renovate's
+              renovate/lock-file-maintenance-nodes pull request and release (just infra deploy production rolls the
+              nodes). If no such pull request is open, check status.nixos.org first: a channel that has not moved
+              alerts too (docs/how-to-guides/renovate.md).
+        - alert: NodeStoreVerifyFailed
+          expr: |
+            node_nix_store_verify_success * on(instance) group_left(nodename) node_uname_info == 0
+          labels:
+            severity: warning
+          annotations:
+            summary: A node's Nix store does not match its recorded hashes
+            description: >-
+              The weekly store check on {{`{{ $labels.nodename }}`}} failed: a store path is corrupted or was changed.
+              Read journalctl -u nix-store-verify on the node, which names the paths; repair one with nix-store
+              --repair-path, or reinstall the node if it was changed on purpose (docs/how-to-guides/alerts.md).
+        - alert: NodeStoreVerifyMissing
+          expr: |
+            time() - (node_nix_store_verify_last_run_seconds * on(instance) group_left(nodename) node_uname_info) > 9 * 86400
+            or on(nodename)
+            (label_replace(time() - kube_node_created > 9 * 86400, "nodename", "$1", "node", "(.*)")
+              unless on(nodename) (node_nix_store_verify_last_run_seconds * on(instance) group_left(nodename) node_uname_info))
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: A node's weekly store check has not run
+            description: >-
+              No store check has ended on {{`{{ $labels.nodename }}`}} for over 9 days. See systemctl status
+              nix-store-verify.timer and journalctl -u nix-store-verify on the node (docs/how-to-guides/alerts.md).
+{{- end }}
