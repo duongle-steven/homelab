@@ -253,6 +253,14 @@ encrypted twice (HBONE inside WireGuard): accepted, since apps' traffic between 
 cost is measured. Not covered: what runs on the host network (the metrics ports, the nodes to the router's DNS until
 LAN DNS). G5 (segmentation) is no duplicate: it decides who reaches the nodes at all, which encryption does not.
 
+*Result (2026-11-27, the testbed):* the capture before and after (`docs/reference/architecture/networking.md`, "What
+crosses the LAN") shows pod traffic between the nodes only as UDP 51820, which the nodes accept only from each other
+(`NodePorts`); VXLAN's 8472 is gone. Between the nodes' own addresses only TLS remains (etcd 2379/2380, the API 6443,
+the kubelet 10250). In clear and accepted: the nodes' DNS to their resolvers (LAN DNS's step), NTP, and in production
+the metrics scrape on the host network (9100, 10249, 2381: no secrets). The testbed's bar held on WireGuard; its cost
+there (CPU-bound VMs: a third of Ceph's writes, most of a pod-to-pod stream, `docs/installation/testbed.md`) is a
+comparison only, the gate being production's `scripts/node-iperf` before and after its reinstall.
+
 ## Order
 
 *(Claude's call)*, to debate:

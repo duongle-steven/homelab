@@ -56,3 +56,35 @@ Every namespace Argo CD manages (except `istio-system` and `rook-ceph`) gets `sy
 
 ESO's controller reads every namespace's Secrets, so it never reaches the internet: anything that needs a token from
 outside mints it in its own namespace (Renovate's GitHub token, in Renovate's pod; `docs/how-to-guides/renovate.md`).
+
+## What crosses the LAN
+
+The nodes carry pod traffic between them with flannel's `wireguard-native` backend (G12,
+`docs/superpowers/specs/2026-11-26-lan-encryption-design.md`): each node has interface `flannel-wg` (UDP 51820, MTU
+1420) with a peer for every other node, keyed by the public key in that node's annotation
+`flannel.alpha.coreos.com/backend-data`. The private key is flannel's own, in `/run/flannel/wgkey`: a new one at every
+boot, never in git or OpenBao. A node started before another keeps a peer for that node's previous key, with no allowed
+IPs: it routes nothing. The firewall takes 51820 only from the nodes' addresses. The sandbox keeps k3s's VXLAN: it has
+one node.
+
+What crossed the testbed's uplinks during `just testbed` (`scripts/lan-flows testbed 1800`, each node's uplink:
+WireGuard on 2026-11-26, VXLAN again on 2026-11-27, the same flows but UDP 8472 in place of 51820):
+
+| Flow | Port | Protected by | |
+|---|---|---|---|
+| Pod to pod on another node: Ceph's OSDs and the RBD client (Ceph is on the pod network), the mesh's HBONE, pods to CoreDNS, CloudNativePG's operator | UDP 51820 | WireGuard (and mTLS inside it for the mesh) | was UDP 8472 in clear with VXLAN |
+| etcd between the servers, clients to etcd | TCP 2380, 2379 | TLS (etcd's peer and client certificates) | |
+| The API server (kubelets, pods through Service `kubernetes`, the VIP `.10`) | TCP 6443 | TLS | |
+| The API server to the kubelets | TCP 10250 | TLS | |
+| DNS from the nodes to their resolvers | UDP 53 | none | accepted until LAN DNS (DoH/DoT upstream) |
+| NTP | UDP 123 | none | accepted: public time, nothing secret |
+| ICMP to the resolvers, ARP | | none | carries nothing |
+| Pulls and other calls to the internet | TCP 443 | TLS | |
+| The VMs' metadata address `169.254.169.254` | TCP 80 | none | the testbed's VMs only (libvirt's NAT network); not in production's capture (10 minutes, 2026-11-26) |
+
+Not seen on the testbed, which runs no monitoring, but on the host network in production: Prometheus scraping the nodes'
+metrics (node-exporter 9100, kube-proxy 10249, etcd 2381) over plain HTTP. Accepted: they carry no secrets, and TLS
+would need a proxy in front of each exporter. One packet left a node's uplink for a Service address (`10.43.x`) on
+Ceph's monitor port 3300, once in 30 minutes: from the host network (ceph-csi's RBD plugin runs there), untranslated by
+kube-proxy; nothing else of that connection crossed in clear, and production's capture checks for it once 12b-2 runs
+Ceph there.
