@@ -207,6 +207,24 @@ that CPU, so the testbed is limited by CPU rather than by a link. It is a compar
 hardware (`docs/installation/production/deployment.md`). In the first runs `NodeWireGuard` failed on the nodes started
 first: they kept a peer for a later node's previous key (flannel makes a new key at every boot and had not removed the
 old peer two hours later), with no allowed IPs; the spec now counts the peers that route, by each node's current key.
+
+### The store check, one measurement (G11)
+
+Each node runs `nix-store --verify --check-contents` weekly (`infra/_modules/metal/flake/profiles/node-patches.nix`,
+Sundays, idle I/O class, `Nice=19`, from 03:30 two hours apart per node, each with up to an hour's random delay; `docs/how-to-guides/alerts.md`). Measured once on 2026-11-27
+by `systemctl start nix-store-verify` on `homelab-2` (4 vCPUs, 3 GB), right after a fresh install with layers 1 and 2:
+
+| | |
+| --- | --- |
+| Store | 3.2 GB |
+| Time | 304 s, result `node_nix_store_verify_success 1` |
+| Read | 3.46 GB (about 11 MB/s) |
+| CPU | 120 s (the node's CPU 29% user, 39% system, 22% idle on average, the cluster included) |
+| I/O wait | 3% on average |
+| Memory peak | 398 MB |
+
+It reads the whole store and hashes every file, so it scales with the store's size: a node's store grows with each
+release until the garbage collector runs. Production's NVMe disks read faster than the VMs' image files.
 ## CRDs
 
 Each environment applies only the CRDs it needs: those of the components it runs and those of the kinds its renders use
