@@ -37,11 +37,12 @@ func TestAlertmanagerDevReceiversFollowProduction(t *testing.T) {
 // whose operator came up before the Prometheus and Alertmanager CRDs were established never made either (the first
 // release's sandbox, 2026-11-13). Argo CD's sync waves order them: the CRDs and the rest (wave 0, healthy once
 // established), the operator (1), the resources it serves (2); Telegram's ExternalSecret last (3), since it stays
-// unhealthy until a person writes the bot and a wave waits for every resource before it to be healthy
+// unhealthy until a person writes the bot and a wave waits for every resource before it to be healthy. node-exporter's
+// PolicyException comes before them all (-1), as every exception does (scripts/check-policy)
 func TestOperatorAfterItsCRDs(t *testing.T) {
 	for _, env := range []string{"", "dev"} {
 		waves := renderVelero(t, "system/monitoring-system", env, `select(.metadata.annotations."argocd.argoproj.io/sync-wave" != null) | .kind + "/" + .metadata.name + "=" + .metadata.annotations."argocd.argoproj.io/sync-wave"`)
-		want := "Deployment/monitoring-system-kube-pro-operator=1\nAlertmanager/monitoring-system-kube-pro-alertmanager=2\nPrometheus/monitoring-system-kube-pro-prometheus=2"
+		want := "PolicyException/node-exporter=-1\nDeployment/monitoring-system-kube-pro-operator=1\nAlertmanager/monitoring-system-kube-pro-alertmanager=2\nPrometheus/monitoring-system-kube-pro-prometheus=2"
 		if env == "" {
 			want += "\nExternalSecret/telegram=3"
 		}

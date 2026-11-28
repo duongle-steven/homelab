@@ -105,49 +105,29 @@ var _ = Describe("Policy", Label("sandbox", "testbed", "policy"), func() {
 			return err == nil && strings.Contains(out, "require-run-as-nonroot")
 		}).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(BeTrue(), "no report of the bare pod's failure")
 
-		// No repository workload fails: Enforce (15b-2) can follow. Only pods created once every PolicyException
-		// existed in its current form (created or last changed) count: a pod (and its Deployment's report) admitted while Kyverno had not yet cached the
-		// exceptions keeps its fail until the next background scan (6 hours here), which is a startup race, not a
-		// missing fix; scripts/ci-check policy judges every rendered workload anyway
+		// No repository workload fails: Enforce (15b-2) can follow. Every PolicyException applies before its workloads
+		// (a sync wave below theirs, scripts/check-policy), so no pod is admitted before the exception that excuses it.
+		// k3s's own pods (kube-system) are not the repository's, nor the specs' fixtures (TrivyOperator's old alpine,
+		// left by a run cut by a timeout, until that spec deletes it; Logs' and PolicyAlerts' sample pods); passes leave
+		// no report, so the pods judged are counted from the pods themselves
 		type meta struct {
-			Namespace         string    `json:"namespace"`
-			UID               string    `json:"uid"`
-			CreationTimestamp time.Time `json:"creationTimestamp"`
-			ManagedFields     []struct {
-				Time time.Time `json:"time"`
-			} `json:"managedFields"`
+			Namespace string `json:"namespace"`
+			UID       string `json:"uid"`
 		}
-		var exceptions, pods struct {
+		var pods struct {
 			Items []struct {
 				Metadata meta `json:"metadata"`
 			} `json:"items"`
 		}
-		kubectlJSON(ctx, &exceptions, "get", "policyexceptions.policies.kyverno.io", "-A", "--show-managed-fields")
-		Expect(exceptions.Items).NotTo(BeEmpty(), "no PolicyException in the sandbox")
-		var newest time.Time
-		for _, e := range exceptions.Items {
-			if e.Metadata.CreationTimestamp.After(newest) {
-				newest = e.Metadata.CreationTimestamp
-			}
-			for _, f := range e.Metadata.ManagedFields {
-				if f.Time.After(newest) {
-					newest = f.Time
-				}
-			}
-		}
-		// k3s's own pods (kube-system) are not the repository's, nor the specs' fixtures (TrivyOperator's old alpine,
-		// left by a run cut by a timeout, until that spec deletes it); passes leave no report, so the
-		// pods judged are counted from the pods themselves
 		outside := func(namespace string) bool {
-			return namespace == "kube-system" || strings.HasPrefix(namespace, "policy-test-") ||
-				strings.HasPrefix(namespace, "trivy-test-")
+			return namespace == "kube-system" || namespace == logsNamespace || strings.HasPrefix(namespace, "policy-test-") ||
+				strings.HasPrefix(namespace, "policy-alert-") || strings.HasPrefix(namespace, "trivy-test-")
 		}
-		cutoff := newest.Add(time.Minute) // for Kyverno to cache the newest exception
 		kubectlJSON(ctx, &pods, "get", "pods", "-A")
-		fresh := map[string]bool{}
+		judged := map[string]bool{}
 		for _, p := range pods.Items {
-			if !outside(p.Metadata.Namespace) && p.Metadata.CreationTimestamp.After(cutoff) {
-				fresh[p.Metadata.UID] = true
+			if !outside(p.Metadata.Namespace) {
+				judged[p.Metadata.UID] = true
 			}
 		}
 		var reports struct {
@@ -167,7 +147,7 @@ var _ = Describe("Policy", Label("sandbox", "testbed", "policy"), func() {
 		kubectlJSON(ctx, &reports, "get", "policyreports.wgpolicyk8s.io", "-A")
 		var failing []string
 		for _, r := range reports.Items {
-			if r.Scope.Kind != "Pod" || !fresh[r.Scope.UID] {
+			if r.Scope.Kind != "Pod" || !judged[r.Scope.UID] {
 				continue
 			}
 			for _, res := range r.Results {
@@ -176,8 +156,7 @@ var _ = Describe("Policy", Label("sandbox", "testbed", "policy"), func() {
 				}
 			}
 		}
-		// On a fresh cluster few pods start that late; the renders are judged in full by scripts/ci-check policy
-		GinkgoWriter.Printf("judged %d of %d pods: those created after the newest PolicyException change (%s)\n", len(fresh), len(pods.Items), newest)
+		GinkgoWriter.Printf("judged %d of %d pods\n", len(judged), len(pods.Items))
 		Expect(failing).To(BeEmpty(), "workloads failing Kyverno's policies (a fix or a PolicyException is missing)")
 	}, SpecTimeout(15*time.Minute))
 })
