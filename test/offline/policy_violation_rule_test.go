@@ -48,3 +48,13 @@ func TestPolicyViolationRule(t *testing.T) {
 	assert.Contains(t, r.Annotations["description"], "PolicyException")
 	assert.Contains(t, r.Annotations["description"], "docs/how-to-guides/policy.md")
 }
+
+// A known failure the reports already alert on (PolicyReportFail, silenced or not) keeps its admission events quiet:
+// otherwise every new pod of a known-failing workload (a CronJob's runs, a rollout) would notify again
+func TestPolicyViolationEventInhibited(t *testing.T) {
+	const config = `select(.kind == "Secret" and .metadata.name == "alertmanager-monitoring-system-kube-pro-alertmanager") | .data."alertmanager.yaml" | @base64d | from_yaml`
+	for _, env := range []string{"", "dev"} {
+		rule := render.Yq(t, "system/monitoring-system", env, config+` | .inhibit_rules[] | select(.target_matchers[] == "alertname=\"PolicyViolationEvent\"") | (.source_matchers | join(",")) + " " + (.equal | join(","))`)
+		assert.Equal(t, `alertname="PolicyReportFail" namespace,policy`, rule, "env %q", env)
+	}
+}

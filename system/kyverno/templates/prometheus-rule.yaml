@@ -13,7 +13,10 @@ spec:
   groups:
     - name: kyverno-policy-reports
       rules:
-        # A pod's report goes to its controller; a pod with no owner (or one not exported yet) stays itself
+        # A pod's report goes to its controller, a pod kube-state-metrics shows without one stays itself. Only on that
+        # evidence: Kyverno's report outlives its resource for a moment (the garbage collector) while the owner series
+        # go at once, and a report with neither drops out (its alert keeps firing through keep_firing_for) instead of
+        # taking a new name
         - record: kyverno:policy_result:subject
           expr: |
             max by (namespace, kind, name, policy, rule, result) (kyverno_policyreport_result{kind!="Pod"})
@@ -25,10 +28,11 @@ spec:
             )
             or max by (namespace, kind, name, policy, rule, result) (
               label_replace(kyverno_policyreport_result{kind="Pod"}, "pod", "$1", "name", "(.*)")
-              unless on(namespace, pod) kube_pod_owner{owner_kind!="<none>", owner_is_controller="true"}
+              * on(namespace, pod) group_left() max by (namespace, pod) (kube_pod_owner{owner_kind="<none>"})
             )
-        # Then to the top: a ReplicaSet's Deployment, a Job's CronJob; a Workflow without its name (a new one every
-        # run of the golden path)
+        # Then to the top: a ReplicaSet's owner (a Deployment, an Argo Rollout), a Job's (a CronJob, an operator's
+        # resource such as CloudNativePG's Cluster), each only when kube-state-metrics shows it or shows none; a
+        # Workflow without its name (a new one every run of the golden path)
         - record: kyverno:policy_result:owner
           expr: |
             max by (namespace, owner_kind, owner_name, policy, rule, result) (
@@ -37,22 +41,22 @@ spec:
             )
             or max by (namespace, owner_kind, owner_name, policy, rule, result) (
               label_replace(kyverno:policy_result:subject{kind="ReplicaSet"}, "replicaset", "$1", "name", "(.*)")
-              * on(namespace, replicaset) group_left(owner_kind, owner_name) max by (namespace, replicaset, owner_kind, owner_name) (kube_replicaset_owner{owner_kind="Deployment"})
+              * on(namespace, replicaset) group_left(owner_kind, owner_name) max by (namespace, replicaset, owner_kind, owner_name) (kube_replicaset_owner{owner_kind!="<none>"})
             )
             or max by (namespace, owner_kind, owner_name, policy, rule, result) (
               label_replace(label_replace(
                 label_replace(kyverno:policy_result:subject{kind="ReplicaSet"}, "replicaset", "$1", "name", "(.*)")
-                unless on(namespace, replicaset) kube_replicaset_owner{owner_kind="Deployment"},
+                * on(namespace, replicaset) group_left() max by (namespace, replicaset) (kube_replicaset_owner{owner_kind="<none>"}),
               "owner_kind", "$1", "kind", "(.*)"), "owner_name", "$1", "name", "(.*)")
             )
             or max by (namespace, owner_kind, owner_name, policy, rule, result) (
               label_replace(kyverno:policy_result:subject{kind="Job"}, "job_name", "$1", "name", "(.*)")
-              * on(namespace, job_name) group_left(owner_kind, owner_name) max by (namespace, job_name, owner_kind, owner_name) (kube_job_owner{owner_kind="CronJob"})
+              * on(namespace, job_name) group_left(owner_kind, owner_name) max by (namespace, job_name, owner_kind, owner_name) (kube_job_owner{owner_kind!="<none>"})
             )
             or max by (namespace, owner_kind, owner_name, policy, rule, result) (
               label_replace(label_replace(
                 label_replace(kyverno:policy_result:subject{kind="Job"}, "job_name", "$1", "name", "(.*)")
-                unless on(namespace, job_name) kube_job_owner{owner_kind="CronJob"},
+                * on(namespace, job_name) group_left() max by (namespace, job_name) (kube_job_owner{owner_kind="<none>"}),
               "owner_kind", "$1", "kind", "(.*)"), "owner_name", "$1", "name", "(.*)")
             )
             or max by (namespace, owner_kind, policy, rule, result) (

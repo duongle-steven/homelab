@@ -158,3 +158,12 @@ before. Kyverno keeps only `fail`, `error` and `warn` in its reports (`allowedRe
   `system/opentelemetry` synced its operator's `Issuer` and `Certificate`; the operator waited for the Secret, its
   collectors stayed Progressing in the same wave, and Argo CD's operation never ended (no retry), so every `logs` spec
   failed until the operation was terminated by hand. Recorded in `docs/superpowers/deferred-minors.md`.
+
+## Changed by the final review (2026-11-28)
+
+- The owner is lifted on positive evidence only: a ReplicaSet's or Job's owner whatever its kind (an Argo Rollout for
+  the apps on the delivery road, CloudNativePG's `Cluster` for its Jobs), and a resource stays itself only when
+  kube-state-metrics shows it has no owner. Kyverno's report outlives its resource for a moment while the owner series
+  go at once, so falling back on a missing owner series named a deleted pod, Job or ReplicaSet as a new failure.
+- `PolicyViolationEvent` is inhibited in Alertmanager while `PolicyReportFail` fires for the same namespace and policy:
+  every admission of a known failure's next pod would otherwise notify again.

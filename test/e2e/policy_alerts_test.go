@@ -49,21 +49,23 @@ var _ = Describe("PolicyAlerts", Label("sandbox", "policy-alerts"), func() {
 		}, NodeTimeout(5*time.Minute))
 
 		// fired returns the alerts of that name in the namespace that Prometheus or Loki's ruler holds firing (not
-		// Alertmanager's view: it mutes warnings at night)
-		fired := func(name string) func() []map[string]string {
-			return func() []map[string]string {
-				all, err := prometheusQuery(ctx, fmt.Sprintf(`ALERTS{alertname=%q,alertstate="firing"}`, name))
-				Expect(err).NotTo(HaveOccurred())
-				ruler, err := rulerAlerts(ctx)
-				Expect(err).NotTo(HaveOccurred())
-				var found []map[string]string
-				for _, a := range append(all, ruler...) {
-					if a["alertname"] == name && a["namespace"] == namespace {
-						found = append(found, a)
-					}
-				}
-				return found
+		// Alertmanager's view: it mutes warnings at night); a failed query is an error for the polling to retry
+		fired := func(name string) ([]map[string]string, error) {
+			all, err := prometheusQuery(ctx, fmt.Sprintf(`ALERTS{alertname=%q,alertstate="firing"}`, name))
+			if err != nil {
+				return nil, err
 			}
+			ruler, err := rulerAlerts(ctx)
+			if err != nil {
+				return nil, err
+			}
+			var found []map[string]string
+			for _, a := range append(all, ruler...) {
+				if a["alertname"] == name && a["namespace"] == namespace {
+					found = append(found, a)
+				}
+			}
+			return found, nil
 		}
 		owner := func(a map[string]string) string { return a["owner_kind"] + "/" + a["owner_name"] + " " + a["policy"] }
 
@@ -73,13 +75,19 @@ var _ = Describe("PolicyAlerts", Label("sandbox", "policy-alerts"), func() {
 		Eventually(ctx, func() ([]map[string]string, error) {
 			return prometheusQuery(ctx, fmt.Sprintf(`kyverno:policy_result:owner{namespace=%q,owner_kind="Deployment",owner_name="web",policy="require-run-as-nonroot"}`, namespace))
 		}).WithTimeout(5*time.Minute).WithPolling(15*time.Second).Should(HaveLen(1), "no result for the Deployment")
-		var before []string
-		Eventually(ctx, func() []string {
-			before = nil
-			for _, a := range fired("PolicyReportFail")() {
-				before = append(before, owner(a))
+		owners := func(name string) ([]string, error) {
+			alerts, err := fired(name)
+			var keys []string
+			for _, a := range alerts {
+				keys = append(keys, owner(a))
 			}
-			return before
+			return keys, err
+		}
+		var before []string
+		Eventually(ctx, func() ([]string, error) {
+			var err error
+			before, err = owners("PolicyReportFail")
+			return before, err
 		}).WithTimeout(5 * time.Minute).WithPolling(15 * time.Second).Should(ContainElement("Deployment/web require-run-as-nonroot"))
 		Expect(before).To(HaveEach(HavePrefix("Deployment/web ")), "an alert named a pod or ReplicaSet")
 
@@ -91,23 +99,18 @@ var _ = Describe("PolicyAlerts", Label("sandbox", "policy-alerts"), func() {
 		Eventually(ctx, func() ([]map[string]string, error) {
 			return prometheusQuery(ctx, fmt.Sprintf(`kyverno_policyreport_result{namespace=%q,kind="Pod",name!=%q,policy="require-run-as-nonroot"}`, namespace, old))
 		}).WithTimeout(5*time.Minute).WithPolling(15*time.Second).ShouldNot(BeEmpty(), "the new pod was not reported")
-		Consistently(ctx, func() []string {
-			var now []string
-			for _, a := range fired("PolicyReportFail")() {
-				now = append(now, owner(a))
-			}
-			return now
-		}).WithTimeout(90*time.Second).WithPolling(15*time.Second).Should(ConsistOf(before), "the new pod changed the alerts")
+		Consistently(ctx, func() ([]string, error) { return owners("PolicyReportFail") }).WithTimeout(90*time.Second).WithPolling(15*time.Second).Should(ConsistOf(before), "the new pod changed the alerts")
 
 		// A pod that exits at once alerts from its admission event
 		out, err = kube.Kubectl(ctx, namespace, "run", "brief", "--image=docker.io/library/busybox:1.37.0", "--restart=Never", "--", "true")
 		Expect(err).NotTo(HaveOccurred(), out)
-		Eventually(ctx, func() []string {
+		Eventually(ctx, func() ([]string, error) {
+			alerts, err := fired("PolicyViolationEvent")
 			var kinds []string
-			for _, a := range fired("PolicyViolationEvent")() {
+			for _, a := range alerts {
 				kinds = append(kinds, a["kind"]+" "+a["policy"])
 			}
-			return kinds
+			return kinds, err
 		}).WithTimeout(5 * time.Minute).WithPolling(15 * time.Second).Should(ContainElement("Pod require-run-as-nonroot"))
 
 		// Gone with its namespace

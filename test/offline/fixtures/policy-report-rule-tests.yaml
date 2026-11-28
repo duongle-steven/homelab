@@ -91,16 +91,48 @@ tests:
             value: 1
           - labels: kyverno:policy_result:owner{namespace="forgejo",owner_kind="Cluster",owner_name="forgejo-db",policy="require-run-as-nonroot",rule="check",result="error"}
             value: 1
-  - name: a pod whose owner is not exported yet maps to itself
+  # Kyverno's report goes after its resource (the garbage collector), kube-state-metrics' owner series at once: a report
+  # whose subject is gone changes no identity (its alert keeps firing through keep_firing_for)
+  - name: a report whose subject is gone changes no alert
     interval: 1m
     input_series:
-      - series: kyverno_policyreport_result{namespace="t",kind="Pod",name="early",policy="require-run-as-nonroot",rule="check",result="fail"}
+      - series: kyverno_policyreport_result{namespace="web",kind="Pod",name="web-5d-old",policy="require-run-as-nonroot",result="fail"}
+        values: 1x10
+      - series: kyverno_policyreport_result{namespace="velero",kind="Job",name="backup-28911",policy="require-run-as-nonroot",result="fail"}
+        values: 1x10
+      - series: kyverno_policyreport_result{namespace="web",kind="ReplicaSet",name="web-4c",policy="require-run-as-nonroot",result="fail"}
+        values: 1x10
+    promql_expr_test:
+      - expr: kyverno:policy_result:owner
+        eval_time: 5m
+        exp_samples: []
+  # Argo Rollouts own the ReplicaSets of the apps on the delivery road; CloudNativePG's Cluster owns its Jobs
+  - name: rollouts and operators own their replicasets and jobs
+    interval: 1m
+    input_series:
+      - series: kyverno_policyreport_result{namespace="blog",kind="Pod",name="blog-6f-abc",policy="require-run-as-nonroot",result="fail"}
+        values: 1x10
+      - series: kube_pod_owner{namespace="blog",pod="blog-6f-abc",owner_kind="ReplicaSet",owner_name="blog-6f",owner_is_controller="true"}
+        values: 1x10
+      - series: kube_replicaset_owner{namespace="blog",replicaset="blog-6f",owner_kind="Rollout",owner_name="blog",owner_is_controller="true"}
+        values: 1x10
+      - series: kyverno_policyreport_result{namespace="forgejo",kind="Job",name="forgejo-db-1-initdb",policy="require-run-as-nonroot",result="fail"}
+        values: 1x10
+      - series: kube_job_owner{namespace="forgejo",job_name="forgejo-db-1-initdb",owner_kind="Cluster",owner_name="forgejo-db",owner_is_controller="true"}
+        values: 1x10
+      - series: kyverno_policyreport_result{namespace="t",kind="Job",name="once",policy="require-run-as-nonroot",result="fail"}
+        values: 1x10
+      - series: kube_job_owner{namespace="t",job_name="once",owner_kind="<none>",owner_name="<none>",owner_is_controller="<none>"}
         values: 1x10
     promql_expr_test:
       - expr: kyverno:policy_result:owner
         eval_time: 5m
         exp_samples:
-          - labels: kyverno:policy_result:owner{namespace="t",owner_kind="Pod",owner_name="early",policy="require-run-as-nonroot",rule="check",result="fail"}
+          - labels: kyverno:policy_result:owner{namespace="blog",owner_kind="Rollout",owner_name="blog",policy="require-run-as-nonroot",result="fail"}
+            value: 1
+          - labels: kyverno:policy_result:owner{namespace="forgejo",owner_kind="Cluster",owner_name="forgejo-db",policy="require-run-as-nonroot",result="fail"}
+            value: 1
+          - labels: kyverno:policy_result:owner{namespace="t",owner_kind="Job",owner_name="once",policy="require-run-as-nonroot",result="fail"}
             value: 1
   - name: workflow pods share an identity
     interval: 1m

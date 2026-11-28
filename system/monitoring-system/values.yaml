@@ -209,6 +209,24 @@ kube-prometheus-stack:
               - severity!="critical"
             mute_time_intervals:
               - night
+      # The chart's inhibit rules (Helm replaces the list: compare them with the chart's at each bump), and one of ours: a
+      # failure the reports already alert on (PolicyReportFail, silenced or not) keeps Kyverno's admission events for it
+      # quiet, or every new pod of a known-failing workload (a CronJob's runs, a rollout) would notify again (G1,
+      # docs/superpowers/specs/2026-11-27-policy-report-alert-design.md)
+      inhibit_rules:
+        - source_matchers: [severity = critical]
+          target_matchers: [severity =~ warning|info]
+          equal: [namespace, alertname]
+        - source_matchers: [severity = warning]
+          target_matchers: [severity = info]
+          equal: [namespace, alertname]
+        - source_matchers: [alertname = InfoInhibitor]
+          target_matchers: [severity = info]
+          equal: [namespace]
+        - target_matchers: [alertname = InfoInhibitor]
+        - source_matchers: ['alertname="PolicyReportFail"']
+          target_matchers: ['alertname="PolicyViolationEvent"']
+          equal: [namespace, policy]
       # The time zone is the environment's (global.timezone): tplConfig passes this config through Helm's templating
       time_intervals:
         - name: night

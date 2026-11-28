@@ -79,20 +79,23 @@ the reports (the threat model's G1, `docs/superpowers/specs/2026-11-27-policy-re
 
 - **`PolicyReportFail`** (Prometheus, `system/kyverno/templates/prometheus-rule.yaml`): a report holds a `fail` or
   `error`. kube-state-metrics exports each result, and the rule names the workload at the top of the pod's owners
-  (the Deployment, StatefulSet, DaemonSet or CronJob; an operator's resource; the pod itself when it has no owner), so a
-  rollout's new pod or a CronJob's next run is the same alert. Pods of Argo Workflows share one per namespace, policy
+  (the Deployment, Argo Rollout, StatefulSet, DaemonSet or CronJob; an operator's resource such as CloudNativePG's
+  `Cluster`; the pod itself when kube-state-metrics shows it has none), so a rollout's new pod or a CronJob's next run
+  is the same alert. A report whose resource is already gone names nothing new. Pods of Argo Workflows share one per namespace, policy
   and rule (owner kind `Workflow`, no name: a new Workflow every run). It keeps firing 15 minutes after the report is
   gone, so a short-lived pod still notifies.
 - **`PolicyViolationEvent`** (Loki's ruler, `system/loki/files/policy-rules.yaml`): Kyverno's admission event for a
   violation, per namespace, kind and policy. It catches a pod deleted before any scrape saw its report (a passing CI
-  step).
+  step). While `PolicyReportFail` fires (silenced or not) for the same namespace and policy, Alertmanager holds it back
+  (`inhibit_rules`), so a known failure's next pods do not notify again; two workloads of one namespace breaking the
+  same policy share it.
 
 What to do:
 
 1. Read the report: `kubectl -n <namespace> get policyreports -o yaml` (the alert's description has the command).
 2. Fix the workload's securityContext (above), or add a `PolicyException` beside it with its `homelab/reason` and its
-   wave. The alert resolves once the report is clean: at once for a fixed workload (its pods are new), at the next
-   background scan for a new exception.
+   wave. The alert resolves 15 minutes after the report is clean (`keep_firing_for`): the report of a fixed
+   workload is clean once its new pods are, a new exception's only after the next background scan.
 3. Until then, silence it in Alertmanager by its labels (`alertname`, `namespace`, `owner_kind`, `owner_name`,
    `policy`): the labels stay the same across pods and runs, and a silence expires by itself.
 
