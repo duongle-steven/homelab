@@ -42,7 +42,11 @@ var _ = Describe("PolicyAlerts", Label("sandbox", "policy-alerts"), func() {
 		waitForDeployment(ctx, "kyverno", "kyverno-admission-controller")
 		namespace := fmt.Sprint("policy-alert-", time.Now().Unix())
 		Expect(kube.CreateNamespace(ctx, namespace)).To(Succeed())
-		DeferCleanup(func(ctx SpecContext) { Expect(kube.DeleteNamespace(ctx, namespace)).To(Succeed()) }, NodeTimeout(5*time.Minute))
+		// The spec deletes it itself at the end; this covers a failure before that
+		DeferCleanup(func(ctx SpecContext) {
+			out, err := kube.Kubectl(ctx, "", "delete", "namespace", namespace, "--ignore-not-found", "--wait=false")
+			Expect(err).NotTo(HaveOccurred(), out)
+		}, NodeTimeout(5*time.Minute))
 
 		// fired returns the alerts of that name in the namespace that Prometheus or Loki's ruler holds firing (not
 		// Alertmanager's view: it mutes warnings at night)
