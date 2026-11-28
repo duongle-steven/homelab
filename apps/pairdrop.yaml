@@ -13,7 +13,7 @@ controllers:
       main:
         image:
           repository: lscr.io/linuxserver/pairdrop
-          tag: 1.11.2
+          tag: 1.11.3
 service:
   main:
     ports:

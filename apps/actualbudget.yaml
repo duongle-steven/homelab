@@ -13,7 +13,7 @@ controllers:
       main:
         image:
           repository: docker.io/actualbudget/actual-server
-          tag: 26.10.0-alpine
+          tag: 26.11.0-alpine
         env:
           ACTUAL_OPENID_DISCOVERY_URL: 'https://auth.{{ .Values.global.baseDomain }}/oauth2/openid/actualbudget/.well-known/openid-configuration'
           ACTUAL_OPENID_SERVER_HOSTNAME: 'https://budget.{{ .Values.global.baseDomain }}'
