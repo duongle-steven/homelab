@@ -18,6 +18,10 @@ grafana:
     namespaces: [monitoring-system]
     useExistingRole: grafana-sidecar
   sidecar:
+    # The chart's 2.14.1 bundles certifi's leaked emSign root (GHSA-6q48-6c7w-9gw2), fixed in 2.14.3: drop this once the
+    # chart's default is newer
+    image:
+      tag: 2.14.3
     dashboards:
       enabled: true
       searchNamespace: monitoring-system

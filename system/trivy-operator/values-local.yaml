@@ -2,7 +2,7 @@
 trivy-operator:
   # The limits below change Trivy's ConfigMap, so its hash too (values.yaml)
   podAnnotations:
-    homelab/trivy-config: 33c4540f293dff77
+    homelab/trivy-config: 36ba70a8b7d9af6b
   operator:
     scanJobsConcurrentLimit: 1
   trivy:
