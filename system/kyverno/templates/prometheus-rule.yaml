@@ -73,9 +73,9 @@ spec:
             severity: warning
           annotations:
             summary: >-
-              {{`{{ $labels.owner_kind }}{{ with $labels.owner_name }} {{ . }}{{ end }}{{ with $labels.namespace }} in {{ . }}{{ end }} breaks {{ $labels.policy }} ({{ $labels.rule }})`}}
+              {{`{{ $labels.owner_kind }}{{ with $labels.owner_name }} {{ . }}{{ end }}{{ with $labels.namespace }} in {{ . }}{{ end }} breaks {{ $labels.policy }}{{ with $labels.rule }} ({{ . }}){{ end }}`}}
             description: >-
-              {{`Kyverno reports a {{ $labels.result }} for {{ $labels.owner_kind }}{{ with $labels.owner_name }} {{ . }}{{ end }}{{ with $labels.namespace }} in {{ . }}{{ end }} under {{ $labels.policy }}, rule {{ $labels.rule }}.`}}
+              {{`Kyverno reports a {{ $labels.result }} for {{ $labels.owner_kind }}{{ with $labels.owner_name }} {{ . }}{{ end }}{{ with $labels.namespace }} in {{ . }}{{ end }} under {{ $labels.policy }}{{ with $labels.rule }}, rule {{ . }}{{ end }}.`}}
               Fix the workload, or add a PolicyException beside it with its homelab/reason and a sync wave before it
               (docs/how-to-guides/policy.md).
               {{`{{ if $labels.namespace }}kubectl get policyreports -n {{ $labels.namespace }} -o yaml{{ else }}kubectl get clusterpolicyreports -o yaml{{ end }}`}}

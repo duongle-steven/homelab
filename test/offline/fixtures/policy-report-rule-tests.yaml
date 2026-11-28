@@ -122,7 +122,7 @@ tests:
   - name: keep firing after the pod is gone
     interval: 1m
     input_series:
-      - series: kyverno_policyreport_result{namespace="t",kind="Pod",name="brief",policy="require-run-as-nonroot",rule="check",result="fail"}
+      - series: kyverno_policyreport_result{namespace="t",kind="Pod",name="brief",policy="require-run-as-nonroot",rule="",result="fail"}
         values: 1x2
       - series: kube_pod_owner{namespace="t",pod="brief",owner_kind="<none>",owner_name="<none>",owner_is_controller="<none>"}
         values: 1x2
@@ -130,13 +130,13 @@ tests:
       - alertname: PolicyReportFail
         eval_time: 10m
         exp_alerts:
-          - exp_labels: {severity: warning, namespace: t, owner_kind: Pod, owner_name: brief, policy: require-run-as-nonroot, rule: check, result: fail}
+          - exp_labels: {severity: warning, namespace: t, owner_kind: Pod, owner_name: brief, policy: require-run-as-nonroot, result: fail}
             exp_annotations:
-              summary: Pod brief in t breaks require-run-as-nonroot (check)
+              summary: Pod brief in t breaks require-run-as-nonroot
               description: >-
-                Kyverno reports a fail for Pod brief in t under require-run-as-nonroot, rule check. Fix the workload, or
-                add a PolicyException beside it with its homelab/reason and a sync wave before it
-                (docs/how-to-guides/policy.md). kubectl get policyreports -n t -o yaml
+                Kyverno reports a fail for Pod brief in t under require-run-as-nonroot. Fix the workload, or add a
+                PolicyException beside it with its homelab/reason and a sync wave before it (docs/how-to-guides/policy.md).
+                kubectl get policyreports -n t -o yaml
       - alertname: PolicyReportFail
         eval_time: 25m
         exp_alerts: []
