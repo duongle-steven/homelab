@@ -68,3 +68,17 @@ signedImages:
       what: Backstage's image (platform/backstage)
       image: ghcr.io/duongle-steven/homelab-backstage*
       workflow: backstage-image.yaml
+# k3s's own workloads in kube-system (templates/kube-system-exceptions.yaml): they break restricted, and k3s rewrites
+# their manifests at every start, so they are excused here rather than fixed (G1,
+# docs/superpowers/specs/2026-11-27-policy-report-alert-design.md). Each matches the names starting with its key (or
+# prefix)
+kubeSystemExceptions:
+  coredns:
+    reason: "k3s's packaged CoreDNS adds NET_BIND_SERVICE and states no runAsNonRoot or seccomp profile (the nodes' seccomp-default gives it RuntimeDefault)"
+    policies: [disallow-capabilities-strict, require-run-as-nonroot, restrict-seccomp-strict]
+  metrics-server:
+    reason: "k3s's packaged metrics-server states no seccomp profile (the nodes' seccomp-default gives it RuntimeDefault)"
+    policies: [restrict-seccomp-strict]
+  kube-vip:
+    reason: "kube-vip (infra/_modules/metal) announces the VIPs on the host network as root with NET_ADMIN and NET_RAW, and states no seccomp profile or allowPrivilegeEscalation: revisit (a change rolls the nodes). Listed from its manifest: no Kyverno has judged it yet"
+    policies: [disallow-capabilities, disallow-capabilities-strict, disallow-host-namespaces, disallow-privilege-escalation, require-run-as-nonroot, restrict-seccomp-strict]

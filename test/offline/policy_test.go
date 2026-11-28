@@ -144,6 +144,12 @@ func TestCheckPolicyExceptionWaves(t *testing.T) {
 		assert.Error(t, err, out)
 		assert.Contains(t, out, "PolicyException fixture/waved at -1, workloads from -2")
 	})
+	// An exception for another namespace's workloads (k3s's own, in kube-system) is not in this render's sync
+	t.Run("exception for another namespace", func(t *testing.T) {
+		other := strings.Replace(exception("1"), "namespace: fixture", "namespace: kube-system", 1)
+		out, err := check(good + "---\n" + other)
+		assert.NoError(t, err, out)
+	})
 	t.Run("exception alone", func(t *testing.T) {
 		out, err := check(exception("-1"))
 		assert.NoError(t, err, out)

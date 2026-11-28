@@ -1,0 +1,23 @@
+# k3s's own workloads in kube-system break Pod Security restricted (values.yaml's kubeSystemExceptions say why). After
+# Kyverno's own workloads (wave 1), not before them as every other exception: Kyverno's exception webhook fails closed,
+# so an exception that cannot be applied while Kyverno is down would hold the very sync that brings it back. They excuse
+# no workload of this sync, so applying them late costs nothing
+{{- range $name, $exception := .Values.kubeSystemExceptions }}
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: {{ $name }}
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    homelab/reason: {{ $exception.reason | quote }}
+spec:
+  policyRefs:
+    {{- range $exception.policies }}
+    - {name: {{ . }}, kind: ValidatingPolicy}
+    {{- end }}
+  matchConditions:
+    - name: {{ $name }}
+      expression: "object.metadata.namespace == 'kube-system' && (object.metadata.name.startsWith('{{ $exception.prefix | default $name }}'))"
+{{- end }}
