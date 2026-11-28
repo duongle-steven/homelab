@@ -182,6 +182,8 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
+          # Before its workloads: admitted first, they would keep a false fail until the next background scan
+          argocd.argoproj.io/sync-wave: "-1"
           homelab/reason: "jellyfin, the linuxserver *arr images and transmission run as root (s6-overlay drops to PUID); production only, so a non-root user is unproven: revisit in 12b"
       spec:
         policyRefs:

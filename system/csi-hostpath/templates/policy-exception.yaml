@@ -6,6 +6,8 @@ metadata:
   name: hostpath-plugin
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Before its workloads: admitted first, they would keep a false fail until the next background scan
+    argocd.argoproj.io/sync-wave: "-1"
     homelab/reason: "the sandbox's CSI driver mounts volumes on its node: privileged, hostPath"
 spec:
   policyRefs:

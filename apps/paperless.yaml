@@ -181,6 +181,8 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
+          # Before its workloads: admitted first, they would keep a false fail until the next background scan
+          argocd.argoproj.io/sync-wave: "-1"
           homelab/reason: "paperless-ngx starts as root (s6-overlay) and drops to USERMAP_UID"
       spec:
         policyRefs:

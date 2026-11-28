@@ -57,6 +57,8 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
+          # Before its workloads: admitted first, they would keep a false fail until the next background scan
+          argocd.argoproj.io/sync-wave: "-1"
           homelab/reason: "production only: openspeedtest's user 101 is unproven here (nginx on port 3000): revisit in 12b"
       spec:
         policyRefs:
