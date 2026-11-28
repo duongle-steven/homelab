@@ -27,7 +27,7 @@ tests:
       - alertname: PolicyReportFail
         eval_time: 5m
         exp_alerts:
-          - exp_labels: {severity: warning, namespace: web, owner_kind: Deployment, owner_name: web, policy: disallow-privilege-escalation, rule: check, result: fail}
+          - exp_labels: {severity: warning, source: kyverno, namespace: web, owner_kind: Deployment, owner_name: web, policy: disallow-privilege-escalation, rule: check, result: fail}
             exp_annotations: &webAnnotations
               summary: Deployment web in web breaks disallow-privilege-escalation (check)
               description: >-
@@ -53,7 +53,7 @@ tests:
       - alertname: PolicyReportFail
         eval_time: 8m
         exp_alerts:
-          - exp_labels: {severity: warning, namespace: web, owner_kind: Deployment, owner_name: web, policy: disallow-privilege-escalation, rule: check, result: fail}
+          - exp_labels: {severity: warning, source: kyverno, namespace: web, owner_kind: Deployment, owner_name: web, policy: disallow-privilege-escalation, rule: check, result: fail}
             exp_annotations: *webAnnotations
   - name: cronjob runs map to the cronjob
     interval: 1m
@@ -162,7 +162,7 @@ tests:
       - alertname: PolicyReportFail
         eval_time: 10m
         exp_alerts:
-          - exp_labels: {severity: warning, namespace: t, owner_kind: Pod, owner_name: brief, policy: require-run-as-nonroot, result: fail}
+          - exp_labels: {severity: warning, source: kyverno, namespace: t, owner_kind: Pod, owner_name: brief, policy: require-run-as-nonroot, result: fail}
             exp_annotations:
               summary: Pod brief in t breaks require-run-as-nonroot
               description: >-
@@ -192,7 +192,7 @@ tests:
       - alertname: PolicyReportFail
         eval_time: 5m
         exp_alerts:
-          - exp_labels: {severity: warning, owner_kind: Namespace, owner_name: t, policy: p, rule: r, result: fail}
+          - exp_labels: {severity: warning, source: kyverno, owner_kind: Namespace, owner_name: t, policy: p, rule: r, result: fail}
             exp_annotations:
               summary: Namespace t breaks p (r)
               description: >-

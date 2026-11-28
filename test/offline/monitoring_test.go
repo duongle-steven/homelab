@@ -67,12 +67,12 @@ func TestKubeletJobOwnMetricsOnly(t *testing.T) {
 }
 
 // One person is on call around the clock: below critical, alerts wait out the night in the environment's time zone,
-// except the security sources (audit logs, Falco) and the Watchdog, routed before the muted route. The sandbox and the
+// except the security sources (audit logs, Falco, Kyverno's policy alerts) and the Watchdog, routed before the muted route. The sandbox and the
 // testbed keep the same hours on a date that never comes (the suite posts warnings at any hour)
 func TestAlertmanagerQuietHours(t *testing.T) {
 	const config = `select(.kind == "Secret" and .metadata.name == "alertmanager-monitoring-system-kube-pro-alertmanager") | .data."alertmanager.yaml" | @base64d | from_yaml`
 	routes := renderVelero(t, "system/monitoring-system", "", config+` | .route.routes[] | (.matchers | join(",")) + "=" + ((.mute_time_intervals // []) | join(","))`)
-	assert.Equal(t, strings.Join([]string{`alertname = "Watchdog"=`, `source="audit"=`, `source="falco"=`, `severity!="critical"=night`}, "\n"), routes)
+	assert.Equal(t, strings.Join([]string{`alertname = "Watchdog"=`, `source="audit"=`, `source="falco"=`, `source="kyverno"=`, `severity!="critical"=night`}, "\n"), routes)
 
 	night := func(env string) string {
 		return renderVelero(t, "system/monitoring-system", env, config+` | .time_intervals[] | select(.name == "night") | .time_intervals[0]`)

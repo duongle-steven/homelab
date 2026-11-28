@@ -23,7 +23,7 @@ func TestPolicyReportRule(t *testing.T) {
 	assert.Equal(t, "15m", alert(".keep_firing_for"))
 	assert.Equal(t, "null", alert(".for"))
 	assert.Equal(t, "warning", alert(".labels.severity"))
-	assert.Equal(t, "null", alert(".labels.source"), "routed like every warning: by namespace, muted at night")
+	assert.Equal(t, "kyverno", alert(".labels.source"), "routed past the night's mute, like Falco: a short-lived pod's alert resolves before morning")
 	description := alert(".annotations.description")
 	assert.Contains(t, description, "PolicyException")
 	assert.Contains(t, description, "docs/how-to-guides/policy.md")

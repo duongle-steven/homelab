@@ -74,7 +74,7 @@ fresh cluster they report until that first scan, so `TestPolicy` leaves `kube-sy
 
 ## When it alerts
 
-Two alerts reach ntfy and Telegram (warnings: muted at night), so the Audit window does not depend on someone reading
+Two alerts reach ntfy and Telegram, at night too (`source: kyverno`, routed like Falco's: a short-lived pod's alert resolves within minutes, so a muted one would never be sent), so the Audit window does not depend on someone reading
 the reports (the threat model's G1, `docs/superpowers/specs/2026-11-27-policy-report-alert-design.md`):
 
 - **`PolicyReportFail`** (Prometheus, `system/kyverno/templates/prometheus-rule.yaml`): a report holds a `fail` or

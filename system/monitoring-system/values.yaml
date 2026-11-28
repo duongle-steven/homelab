@@ -201,6 +201,11 @@ kube-prometheus-stack:
           - receiver: ntfy
             matchers:
               - source="falco"
+          # Kyverno's policy alerts (system/kyverno, system/loki): a short-lived pod's alert resolves within minutes, so
+          # muted at night it would never be sent (G1, docs/superpowers/specs/2026-11-27-policy-report-alert-design.md)
+          - receiver: ntfy
+            matchers:
+              - source="kyverno"
           # One person is on call around the clock: anything below critical waits for the morning (a muted alert still
           # firing is sent when the night ends; one that resolved during it is not). Critical always rings (ntfy's
           # priority 5), and so do the security alerts above

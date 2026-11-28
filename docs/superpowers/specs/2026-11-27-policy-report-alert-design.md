@@ -96,8 +96,8 @@ before. Kyverno keeps only `fail`, `error` and `warn` in its reports (`allowedRe
   judge Deployments, StatefulSets, DaemonSets and CronJobs too) map to themselves, so a violation reported on a
   Deployment and on its pods is one alert. Its description names the fix: correct the workload, or add a
   `PolicyException` beside it with `homelab/reason` (`docs/how-to-guides/policy.md`). Routing stays as it is: grouped by
-  namespace (so one violation reported on its Deployment, ReplicaSet and Pod is one notification) and muted at night
-  like every warning.
+  namespace (so one violation reported on its Deployment, ReplicaSet and Pod is one notification); past the night's
+  mute since the final review (below).
 - **Events alert** (`system/loki/files/`, beside the audit rules, Loki's ruler): `PolicyViolationEvent` on Kyverno's
   `PolicyViolation` events (reporting component `kyverno-admission`), keyed like the metrics alert as far as the event
   allows (namespace, policy, the involved object's kind; a Pod's name reduced to its owner where the event names it,
@@ -167,3 +167,6 @@ before. Kyverno keeps only `fail`, `error` and `warn` in its reports (`allowedRe
   go at once, so falling back on a missing owner series named a deleted pod, Job or ReplicaSet as a new failure.
 - `PolicyViolationEvent` is inhibited in Alertmanager while `PolicyReportFail` fires for the same namespace and policy:
   every admission of a known failure's next pod would otherwise notify again.
+- Both alerts carry `source: kyverno` and are routed past the night's mute, like Falco's *(user, 2026-11-28)*: a
+  short-lived pod's alert resolves within minutes (`keep_firing_for: 15m`, the event's 5-minute window), and a muted
+  alert that resolved during the night is never sent, so muting lost exactly the pods G1 is about.

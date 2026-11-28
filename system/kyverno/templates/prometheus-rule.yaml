@@ -75,6 +75,9 @@ spec:
           keep_firing_for: 15m
           labels:
             severity: warning
+            # Past the night's mute, like Falco's (system/monitoring-system): a short-lived pod's alert would resolve
+            # before morning and never be sent
+            source: kyverno
           annotations:
             summary: >-
               {{`{{ $labels.owner_kind }}{{ with $labels.owner_name }} {{ . }}{{ end }}{{ with $labels.namespace }} in {{ . }}{{ end }} breaks {{ $labels.policy }}{{ with $labels.rule }} ({{ . }}){{ end }}`}}
