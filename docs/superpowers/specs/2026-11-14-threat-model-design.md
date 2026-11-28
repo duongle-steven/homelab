@@ -92,6 +92,14 @@ Enforcing before 12b-3 would risk refusing those pods on the first deploy. Durin
   `PolicyException` restricted, the golden path's pods rendered for the policy check (10f's deferred minor) and the first release's signatures
   (lab's image) verified.
 
+*The alert (done 2026-11-28, `docs/superpowers/specs/2026-11-27-policy-report-alert-design.md`):* `PolicyReportFail`
+from kube-state-metrics' copy of the reports, one alert per namespace, top owner, policy and rule, kept firing 15 minutes
+so a short-lived pod notifies; `PolicyViolationEvent` from Kyverno's admission events in Loki, for a pod deleted before
+any scrape. Every `PolicyException` now applies before its workloads (a sync wave, checked by `scripts/ci-check
+policy`), and k3s's own workloads in `kube-system` have theirs. A new exception clears a running workload's alert only
+at the next background scan (an hour), and Kyverno's exception webhook fails closed, so an exception's wave holds its
+Application while Kyverno is down (accepted).
+
 ### G2. The nodes' cluster ports are open to the whole LAN (E3)
 
 `infra/_modules/metal/flake/profiles/k3s-server.nix` opens 2379 and 2380 (etcd), 10250 (the kubelet) and UDP 8472 (flannel's VXLAN) to any
@@ -278,7 +286,7 @@ reinstalled on it the same day: `node-iperf` 792/876 Mbit/s against VXLAN's 810/
 1. Before 12b-3 (the first production deploy), what costs a migration or a rebuild once real data is in, then the small
    steps *(user, 2026-11-26)*: G2 (node ports, done), G12 (what crosses the LAN unencrypted: measured on the testbed,
    flannel's `wireguard-native`, done), G9 with 12b-3's backup bucket (its lock rules before the first real backup),
-   G11's patches and store check (done 2026-11-27), G1's alert on new `fail` results, and LAN DNS (Blocky, with
+   G11's patches and store check (done 2026-11-27), G1's alert on new `fail` results (done 2026-11-28), and LAN DNS (Blocky, with
    Tailscale's split DNS: the LAN apps' names resolve nowhere in production yet, and publishing their private address
    in public DNS would leak the LAN's layout and meet routers' rebinding protection).
 2. After 12b-3, within about two weeks of production's reports and before step 13 at the latest: G1 (15b-2 Enforce) *(user, 2026-11-14)*.
