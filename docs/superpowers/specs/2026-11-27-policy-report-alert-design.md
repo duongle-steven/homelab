@@ -131,3 +131,30 @@ before. Kyverno keeps only `fail`, `error` and `warn` in its reports (`allowedRe
 - The exact kube-state-metrics metric names (a prefix like `kyverno_policyreport`), within the repository's style.
 - Which waves each chart's exceptions take, under the rule above.
 - How the offline test walks the renders (reusing `lab test charts`' list or the existing render helpers).
+
+## Found on the sandbox (2026-11-28)
+
+- **Kyverno's webhooks for its own kinds fail closed**: `kyverno-exception-validating-webhook-cfg` and
+  `kyverno-cel-exception-validating-webhook-cfg` (`policyexceptions`) are `failurePolicy: Fail`, as is the policy webhook;
+  the resource webhooks for workloads are `Ignore`. So a `PolicyException` at wave `-1` holds its Application while
+  Kyverno is down, as accepted above. The exceptions for k3s's own workloads (below) live in `system/kyverno` and go
+  *after* its workloads, so Kyverno can always sync itself.
+- **Events**: Kyverno emits `PolicyViolation` at admission (`reportingComponent: kyverno-admission`) and at each
+  background scan (`kyverno-scan`), on the involved Pod, ReplicaSet and Deployment, and a copy on the `ValidatingPolicy`
+  itself (in namespace `default`). Loki stores the OpenTelemetry gateway's watch record: the fields are under
+  `object.` (`object.reason`, `object.reportingComponent`, `object.involvedObject.kind|name|namespace`), and the
+  policy's name only in the message (`policy <name>/ fail: ...`). `PolicyViolationEvent` reads admission events only:
+  a scan repeats every known failure each interval, which the reports already carry.
+- **Report scopes**: a Deployment that breaks a policy gets results on its Deployment, its ReplicaSet and its Pod, each
+  under the same policies; `results[].rule` is empty for a `ValidatingPolicy`.
+- **k3s's own workloads fail**: in `kube-system`, CoreDNS (`disallow-capabilities-strict`, `require-run-as-nonroot`,
+  `restrict-seccomp-strict`), metrics-server (`restrict-seccomp-strict`) and, in the sandbox, ServiceLB's `svclb-*`
+  (seven policies; ServiceLB is off on the nodes). k3s rewrites its packaged manifests at every start, so they cannot
+  be fixed here; production adds kube-vip (`infra/_modules/metal`, never judged by Kyverno: the testbed runs none).
+  Without exceptions they would keep `PolicyReportFail` firing forever. Each gets a `PolicyException` in
+  `kube-system` with its reason *(Claude's call, 2026-11-28: the decision that a known failure is fixed or excepted,
+  never listed elsewhere)*; kube-vip's list is read from its manifest, so production's first reports confirm it.
+- **A first-sync race, not this step's**: on this fresh cluster cert-manager's webhook was not answering when
+  `system/opentelemetry` synced its operator's `Issuer` and `Certificate`; the operator waited for the Secret, its
+  collectors stayed Progressing in the same wave, and Argo CD's operation never ended (no retry), so every `logs` spec
+  failed until the operation was terminated by hand. Recorded in `docs/superpowers/deferred-minors.md`.
