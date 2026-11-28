@@ -1,0 +1,169 @@
+# promtool's unit tests for system/kyverno's PrometheusRule kyverno-policy-reports (TestPolicyReportRule writes the
+# rendered rule next to this file as rules.yaml): one alert per namespace, top owner, policy, rule and result
+# (docs/superpowers/specs/2026-11-27-policy-report-alert-design.md)
+rule_files: [rules.yaml]
+evaluation_interval: 1m
+tests:
+  - name: deployment and its pods are one alert
+    interval: 1m
+    input_series:
+      - series: kyverno_policyreport_result{namespace="web",kind="Deployment",name="web",policy="disallow-privilege-escalation",rule="check",result="fail"}
+        values: 1x20
+      - series: kyverno_policyreport_result{namespace="web",kind="ReplicaSet",name="web-5d",policy="disallow-privilege-escalation",rule="check",result="fail"}
+        values: 1x20
+      - series: kyverno_policyreport_result{namespace="web",kind="Pod",name="web-5d-abc",policy="disallow-privilege-escalation",rule="check",result="fail"}
+        values: 1x20
+      - series: kube_pod_owner{namespace="web",pod="web-5d-abc",owner_kind="ReplicaSet",owner_name="web-5d",owner_is_controller="true"}
+        values: 1x20
+      - series: kube_replicaset_owner{namespace="web",replicaset="web-5d",owner_kind="Deployment",owner_name="web",owner_is_controller="true"}
+        values: 1x20
+    promql_expr_test:
+      - expr: kyverno:policy_result:owner
+        eval_time: 5m
+        exp_samples:
+          - labels: kyverno:policy_result:owner{namespace="web",owner_kind="Deployment",owner_name="web",policy="disallow-privilege-escalation",rule="check",result="fail"}
+            value: 1
+    alert_rule_test:
+      - alertname: PolicyReportFail
+        eval_time: 5m
+        exp_alerts:
+          - exp_labels: {severity: warning, namespace: web, owner_kind: Deployment, owner_name: web, policy: disallow-privilege-escalation, rule: check, result: fail}
+            exp_annotations: &webAnnotations
+              summary: Deployment web in web breaks disallow-privilege-escalation (check)
+              description: >-
+                Kyverno reports a fail for Deployment web in web under disallow-privilege-escalation, rule check. Fix the
+                workload, or add a PolicyException beside it with its homelab/reason and a sync wave before it
+                (docs/how-to-guides/policy.md). kubectl get policyreports -n web -o yaml
+  - name: rollout keeps one alert
+    interval: 1m
+    input_series:
+      - series: kyverno_policyreport_result{namespace="web",kind="Pod",name="web-5d-abc",policy="disallow-privilege-escalation",rule="check",result="fail"}
+        values: 1x5
+      - series: kube_pod_owner{namespace="web",pod="web-5d-abc",owner_kind="ReplicaSet",owner_name="web-5d",owner_is_controller="true"}
+        values: 1x5
+      - series: kube_replicaset_owner{namespace="web",replicaset="web-5d",owner_kind="Deployment",owner_name="web",owner_is_controller="true"}
+        values: 1x20
+      - series: kyverno_policyreport_result{namespace="web",kind="Pod",name="web-7f-xyz",policy="disallow-privilege-escalation",rule="check",result="fail"}
+        values: _x5 1x15
+      - series: kube_pod_owner{namespace="web",pod="web-7f-xyz",owner_kind="ReplicaSet",owner_name="web-7f",owner_is_controller="true"}
+        values: _x5 1x15
+      - series: kube_replicaset_owner{namespace="web",replicaset="web-7f",owner_kind="Deployment",owner_name="web",owner_is_controller="true"}
+        values: _x5 1x15
+    alert_rule_test:
+      - alertname: PolicyReportFail
+        eval_time: 8m
+        exp_alerts:
+          - exp_labels: {severity: warning, namespace: web, owner_kind: Deployment, owner_name: web, policy: disallow-privilege-escalation, rule: check, result: fail}
+            exp_annotations: *webAnnotations
+  - name: cronjob runs map to the cronjob
+    interval: 1m
+    input_series:
+      - series: kyverno_policyreport_result{namespace="velero",kind="Pod",name="backup-28911-q",policy="require-run-as-nonroot",rule="check",result="fail"}
+        values: 1x10
+      - series: kyverno_policyreport_result{namespace="velero",kind="Job",name="backup-28911",policy="require-run-as-nonroot",rule="check",result="fail"}
+        values: 1x10
+      - series: kube_pod_owner{namespace="velero",pod="backup-28911-q",owner_kind="Job",owner_name="backup-28911",owner_is_controller="true"}
+        values: 1x10
+      - series: kube_job_owner{namespace="velero",job_name="backup-28911",owner_kind="CronJob",owner_name="backup",owner_is_controller="true"}
+        values: 1x10
+    promql_expr_test:
+      - expr: kyverno:policy_result:owner
+        eval_time: 5m
+        exp_samples:
+          - labels: kyverno:policy_result:owner{namespace="velero",owner_kind="CronJob",owner_name="backup",policy="require-run-as-nonroot",rule="check",result="fail"}
+            value: 1
+  - name: bare and operator pods
+    interval: 1m
+    input_series:
+      - series: kyverno_policyreport_result{namespace="t",kind="Pod",name="bare",policy="require-run-as-nonroot",rule="check",result="fail"}
+        values: 1x10
+      - series: kube_pod_owner{namespace="t",pod="bare",owner_kind="<none>",owner_name="<none>",owner_is_controller="<none>"}
+        values: 1x10
+      - series: kyverno_policyreport_result{namespace="forgejo",kind="Pod",name="forgejo-db-1",policy="require-run-as-nonroot",rule="check",result="error"}
+        values: 1x10
+      - series: kube_pod_owner{namespace="forgejo",pod="forgejo-db-1",owner_kind="Cluster",owner_name="forgejo-db",owner_is_controller="true"}
+        values: 1x10
+    promql_expr_test:
+      - expr: kyverno:policy_result:owner
+        eval_time: 5m
+        exp_samples:
+          - labels: kyverno:policy_result:owner{namespace="t",owner_kind="Pod",owner_name="bare",policy="require-run-as-nonroot",rule="check",result="fail"}
+            value: 1
+          - labels: kyverno:policy_result:owner{namespace="forgejo",owner_kind="Cluster",owner_name="forgejo-db",policy="require-run-as-nonroot",rule="check",result="error"}
+            value: 1
+  - name: a pod whose owner is not exported yet maps to itself
+    interval: 1m
+    input_series:
+      - series: kyverno_policyreport_result{namespace="t",kind="Pod",name="early",policy="require-run-as-nonroot",rule="check",result="fail"}
+        values: 1x10
+    promql_expr_test:
+      - expr: kyverno:policy_result:owner
+        eval_time: 5m
+        exp_samples:
+          - labels: kyverno:policy_result:owner{namespace="t",owner_kind="Pod",owner_name="early",policy="require-run-as-nonroot",rule="check",result="fail"}
+            value: 1
+  - name: workflow pods share an identity
+    interval: 1m
+    input_series:
+      - series: kyverno_policyreport_result{namespace="ci",kind="Pod",name="pipeline-aaa-build-1",policy="require-run-as-nonroot",rule="check",result="fail"}
+        values: 1x10
+      - series: kube_pod_owner{namespace="ci",pod="pipeline-aaa-build-1",owner_kind="Workflow",owner_name="pipeline-aaa",owner_is_controller="true"}
+        values: 1x10
+      - series: kyverno_policyreport_result{namespace="ci",kind="Pod",name="pipeline-bbb-build-2",policy="require-run-as-nonroot",rule="check",result="fail"}
+        values: 1x10
+      - series: kube_pod_owner{namespace="ci",pod="pipeline-bbb-build-2",owner_kind="Workflow",owner_name="pipeline-bbb",owner_is_controller="true"}
+        values: 1x10
+    promql_expr_test:
+      - expr: kyverno:policy_result:owner
+        eval_time: 5m
+        exp_samples:
+          - labels: kyverno:policy_result:owner{namespace="ci",owner_kind="Workflow",policy="require-run-as-nonroot",rule="check",result="fail"}
+            value: 1
+  - name: keep firing after the pod is gone
+    interval: 1m
+    input_series:
+      - series: kyverno_policyreport_result{namespace="t",kind="Pod",name="brief",policy="require-run-as-nonroot",rule="check",result="fail"}
+        values: 1x2
+      - series: kube_pod_owner{namespace="t",pod="brief",owner_kind="<none>",owner_name="<none>",owner_is_controller="<none>"}
+        values: 1x2
+    alert_rule_test:
+      - alertname: PolicyReportFail
+        eval_time: 10m
+        exp_alerts:
+          - exp_labels: {severity: warning, namespace: t, owner_kind: Pod, owner_name: brief, policy: require-run-as-nonroot, rule: check, result: fail}
+            exp_annotations:
+              summary: Pod brief in t breaks require-run-as-nonroot (check)
+              description: >-
+                Kyverno reports a fail for Pod brief in t under require-run-as-nonroot, rule check. Fix the workload, or
+                add a PolicyException beside it with its homelab/reason and a sync wave before it
+                (docs/how-to-guides/policy.md). kubectl get policyreports -n t -o yaml
+      - alertname: PolicyReportFail
+        eval_time: 25m
+        exp_alerts: []
+  - name: pass and warn do not alert
+    interval: 1m
+    input_series:
+      - series: kyverno_policyreport_result{namespace="t",kind="Deployment",name="a",policy="p",rule="r",result="pass"}
+        values: 1x10
+      - series: kyverno_policyreport_result{namespace="t",kind="Deployment",name="b",policy="p",rule="r",result="warn"}
+        values: 1x10
+    alert_rule_test:
+      - alertname: PolicyReportFail
+        eval_time: 5m
+        exp_alerts: []
+  - name: cluster reports alert by their own resource
+    interval: 1m
+    input_series:
+      - series: kyverno_clusterpolicyreport_result{kind="Namespace",name="t",policy="p",rule="r",result="fail"}
+        values: 1x10
+    alert_rule_test:
+      - alertname: PolicyReportFail
+        eval_time: 5m
+        exp_alerts:
+          - exp_labels: {severity: warning, owner_kind: Namespace, owner_name: t, policy: p, rule: r, result: fail}
+            exp_annotations:
+              summary: Namespace t breaks p (r)
+              description: >-
+                Kyverno reports a fail for Namespace t under p, rule r. Fix the workload, or add a PolicyException
+                beside it with its homelab/reason and a sync wave before it (docs/how-to-guides/policy.md). kubectl
+                get clusterpolicyreports -o yaml
