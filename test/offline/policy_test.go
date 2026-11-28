@@ -74,6 +74,8 @@ kind: PolicyException
 metadata:
   name: pod-security
   namespace: fixture
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   policyRefs:
     - {name: require-run-as-nonroot, kind: ValidatingPolicy}
@@ -92,4 +94,67 @@ spec:
 	// docker.io is implied for a bare name; a digest pins
 	out, err = check(deployment("hub", "library/busybox@sha256:"+strings.Repeat("b", 64), true))
 	assert.NoError(t, err, out)
+}
+
+// exception renders a PolicyException in namespace fixture, with its sync wave when wave is not empty
+func exception(wave string) string {
+	annotations := ""
+	if wave != "" {
+		annotations = "\n  annotations:\n    argocd.argoproj.io/sync-wave: \"" + wave + "\""
+	}
+	return `apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: waved
+  namespace: fixture` + annotations + `
+spec:
+  policyRefs:
+    - {name: require-run-as-nonroot, kind: ValidatingPolicy}
+  matchConditions:
+    - name: none
+      expression: "false"
+`
+}
+
+// Every PolicyException applies before the workloads it excuses (a sync wave below theirs): Argo CD applies kinds it
+// does not know last in a wave, so pods admitted before their exception would keep a false fail until the next
+// background scan (docs/superpowers/specs/2026-11-27-policy-report-alert-design.md)
+func TestCheckPolicyExceptionWaves(t *testing.T) {
+	check := func(resources string) (string, error) {
+		file := filepath.Join(t.TempDir(), "workloads.yaml")
+		if err := os.WriteFile(file, []byte(resources), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return runCheck(t, "check-policy", repo.Root(), "WORKLOADS="+file)
+	}
+	good := deployment("good", "ghcr.io/x/app:1.2.3", true)
+	t.Run("exception wave below workloads", func(t *testing.T) {
+		out, err := check(good + "---\n" + exception("-1"))
+		assert.NoError(t, err, out)
+	})
+	t.Run("exception without wave", func(t *testing.T) {
+		out, err := check(good + "---\n" + exception(""))
+		assert.Error(t, err, out)
+		assert.Contains(t, out, "wave: ")
+		assert.Contains(t, out, "PolicyException fixture/waved")
+	})
+	t.Run("exception wave below a negative workload wave", func(t *testing.T) {
+		early := strings.Replace(good, "  namespace: fixture\n", "  namespace: fixture\n  annotations:\n    argocd.argoproj.io/sync-wave: \"-2\"\n", 1)
+		out, err := check(early + "---\n" + exception("-1"))
+		assert.Error(t, err, out)
+		assert.Contains(t, out, "PolicyException fixture/waved at -1, workloads from -2")
+	})
+	// An exception for another namespace's workloads (k3s's own, in kube-system) is not in this render's sync
+	t.Run("exception for another namespace", func(t *testing.T) {
+		other := strings.Replace(exception("1"), "namespace: fixture", "namespace: kube-system", 1)
+		out, err := check(good + "---\n" + other)
+		assert.NoError(t, err, out)
+	})
+	t.Run("exception alone", func(t *testing.T) {
+		out, err := check(exception("-1"))
+		assert.NoError(t, err, out)
+		out, err = check(exception(""))
+		assert.Error(t, err, out)
+		assert.Contains(t, out, "PolicyException fixture/waved at 0, workloads from 0")
+	})
 }

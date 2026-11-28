@@ -6,6 +6,8 @@ metadata:
   name: node-exporter
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Before its workloads: admitted first, they would keep a false fail until the next background scan
+    argocd.argoproj.io/sync-wave: "-1"
     homelab/reason: "node-exporter reads its node's metrics: host network and PID, the host's / and /proc read-only"
 spec:
   policyRefs:

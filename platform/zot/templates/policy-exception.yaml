@@ -6,6 +6,8 @@ metadata:
   name: zot
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Before its workloads: admitted first, they would keep a false fail until the next background scan
+    argocd.argoproj.io/sync-wave: "-1"
     homelab/reason: "zot's image runs as root (USER 0) and its chart has no securityContext values"
 spec:
   policyRefs:

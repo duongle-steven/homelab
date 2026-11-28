@@ -57,6 +57,7 @@
             wireguard-tools
             yamllint
             yq-go
+            unstable.prometheus.cli # promtool: test/offline/policy_report_rule_test.go runs the alert rules' unit tests (3.16.0 is not packaged yet)
             grafana-loki # lokitool: test/security_logs_test.go lints the alert rules (the same version as Loki, 3.7.8)
 
             (python3.withPackages (p: with p; [

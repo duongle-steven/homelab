@@ -128,6 +128,8 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
+          # Before its workloads: admitted first, they would keep a false fail until the next background scan
+          argocd.argoproj.io/sync-wave: "-1"
           homelab/reason: "actual-server's image runs as root (no USER)"
       spec:
         policyRefs:

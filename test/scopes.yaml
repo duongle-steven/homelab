@@ -72,6 +72,7 @@ labels:
   - matrix
   - seccomp
   - policy
+  - policy-alerts
   - supply-chain
   - trivy-operator
   - falco
@@ -103,7 +104,7 @@ labels:
 always: smoke
 # Each runs by itself after the main run, in this order (#78)
 alone: [backup-restore, node-power-cut, node-restart, rotation]
-full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || traces || ci || backstage || delivery || blog || matrix || seccomp || policy || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
+full: smoke || argocd || identity || sso || gateway || forgejo || mesh || monitoring || egress || secrets || ntfy || logs || traces || ci || backstage || delivery || blog || matrix || seccomp || policy || policy-alerts || supply-chain || trivy-operator || falco || public || node-restart || node-power-cut || backup-restore || rotation
 # What every sandbox runs, and the groups of components it deploys only when a run needs them
 # (docs/superpowers/specs/2026-11-20-sandbox-groups-design.md): a group goes in when a selected spec carries one of
 # its labels, when the branch changes one of its components, or when a deployed group needs it. Every label a sandbox
@@ -140,6 +141,11 @@ deployGroups:
   policy:
     components: [system/kyverno]
     labels: [policy, supply-chain]
+  # PolicyAlerts reads Kyverno's alerts from Prometheus (kube-state-metrics' reports) and Loki's ruler (its events)
+  policy-alerts:
+    components: []
+    needs: [policy, observability]
+    labels: [policy-alerts]
   # Falco's and the public scan's alerts are Loki's ruler's
   security:
     components: [system/trivy-operator, system/falco, system/public-scan]
@@ -263,8 +269,10 @@ groups:
     tests: blog
   - paths: [system/kiali/**]
     tests: kiali
-  - paths: [system/kyverno/**]
-    tests: policy || supply-chain
+  - paths: [system/kyverno/**, test/e2e/policy_alerts_test.go]
+    tests: policy || policy-alerts || supply-chain
+  - paths: [system/loki/files/policy-rules.yaml]
+    tests: policy-alerts
   - paths: [system/trivy-operator/**]
     tests: trivy-operator
   - paths: [system/falco/**, system/loki/files/falco-rules.yaml, test/e2e/falco_test.go]

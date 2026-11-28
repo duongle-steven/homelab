@@ -37,11 +37,12 @@ func TestAlertmanagerDevReceiversFollowProduction(t *testing.T) {
 // whose operator came up before the Prometheus and Alertmanager CRDs were established never made either (the first
 // release's sandbox, 2026-11-13). Argo CD's sync waves order them: the CRDs and the rest (wave 0, healthy once
 // established), the operator (1), the resources it serves (2); Telegram's ExternalSecret last (3), since it stays
-// unhealthy until a person writes the bot and a wave waits for every resource before it to be healthy
+// unhealthy until a person writes the bot and a wave waits for every resource before it to be healthy. node-exporter's
+// PolicyException comes before them all (-1), as every exception does (scripts/check-policy)
 func TestOperatorAfterItsCRDs(t *testing.T) {
 	for _, env := range []string{"", "dev"} {
 		waves := renderVelero(t, "system/monitoring-system", env, `select(.metadata.annotations."argocd.argoproj.io/sync-wave" != null) | .kind + "/" + .metadata.name + "=" + .metadata.annotations."argocd.argoproj.io/sync-wave"`)
-		want := "Deployment/monitoring-system-kube-pro-operator=1\nAlertmanager/monitoring-system-kube-pro-alertmanager=2\nPrometheus/monitoring-system-kube-pro-prometheus=2"
+		want := "PolicyException/node-exporter=-1\nDeployment/monitoring-system-kube-pro-operator=1\nAlertmanager/monitoring-system-kube-pro-alertmanager=2\nPrometheus/monitoring-system-kube-pro-prometheus=2"
 		if env == "" {
 			want += "\nExternalSecret/telegram=3"
 		}
@@ -66,12 +67,12 @@ func TestKubeletJobOwnMetricsOnly(t *testing.T) {
 }
 
 // One person is on call around the clock: below critical, alerts wait out the night in the environment's time zone,
-// except the security sources (audit logs, Falco) and the Watchdog, routed before the muted route. The sandbox and the
+// except the security sources (audit logs, Falco, Kyverno's policy alerts) and the Watchdog, routed before the muted route. The sandbox and the
 // testbed keep the same hours on a date that never comes (the suite posts warnings at any hour)
 func TestAlertmanagerQuietHours(t *testing.T) {
 	const config = `select(.kind == "Secret" and .metadata.name == "alertmanager-monitoring-system-kube-pro-alertmanager") | .data."alertmanager.yaml" | @base64d | from_yaml`
 	routes := renderVelero(t, "system/monitoring-system", "", config+` | .route.routes[] | (.matchers | join(",")) + "=" + ((.mute_time_intervals // []) | join(","))`)
-	assert.Equal(t, strings.Join([]string{`alertname = "Watchdog"=`, `source="audit"=`, `source="falco"=`, `severity!="critical"=night`}, "\n"), routes)
+	assert.Equal(t, strings.Join([]string{`alertname = "Watchdog"=`, `source="audit"=`, `source="falco"=`, `source="kyverno"=`, `severity!="critical"=night`}, "\n"), routes)
 
 	night := func(env string) string {
 		return renderVelero(t, "system/monitoring-system", env, config+` | .time_intervals[] | select(.name == "night") | .time_intervals[0]`)

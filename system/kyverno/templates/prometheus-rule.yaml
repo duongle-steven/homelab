@@ -1,0 +1,88 @@
+# A new fail or error in Kyverno's reports reaches a person while the policies only audit, and after Enforce too: a pod
+# admitted while Kyverno was down, or a new policy judging what already runs (G1,
+# docs/superpowers/specs/2026-11-27-policy-report-alert-design.md). kube-state-metrics exports each result
+# (system/monitoring-system); each alert is one namespace, top owner, policy, rule and result, never a pod's or
+# ReplicaSet's name, so a rollout or a CronJob's next run is not a new failure and a silence keeps holding.
+# test/offline/fixtures/policy-report-rule-tests.yaml runs it with promtool
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kyverno-policy-reports
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: kyverno-policy-reports
+      rules:
+        # A pod's report goes to its controller, a pod kube-state-metrics shows without one stays itself. Only on that
+        # evidence: Kyverno's report outlives its resource for a moment (the garbage collector) while the owner series
+        # go at once, and a report with neither drops out (its alert keeps firing through keep_firing_for) instead of
+        # taking a new name
+        - record: kyverno:policy_result:subject
+          expr: |
+            max by (namespace, kind, name, policy, rule, result) (kyverno_policyreport_result{kind!="Pod"})
+            or max by (namespace, kind, name, policy, rule, result) (
+              label_replace(label_replace(
+                label_replace(kyverno_policyreport_result{kind="Pod"}, "pod", "$1", "name", "(.*)")
+                * on(namespace, pod) group_left(owner_kind, owner_name) max by (namespace, pod, owner_kind, owner_name) (kube_pod_owner{owner_kind!="<none>", owner_is_controller="true"}),
+              "kind", "$1", "owner_kind", "(.*)"), "name", "$1", "owner_name", "(.*)")
+            )
+            or max by (namespace, kind, name, policy, rule, result) (
+              label_replace(kyverno_policyreport_result{kind="Pod"}, "pod", "$1", "name", "(.*)")
+              * on(namespace, pod) group_left() max by (namespace, pod) (kube_pod_owner{owner_kind="<none>"})
+            )
+        # Then to the top: a ReplicaSet's owner (a Deployment, an Argo Rollout), a Job's (a CronJob, an operator's
+        # resource such as CloudNativePG's Cluster), each only when kube-state-metrics shows it or shows none; a
+        # Workflow without its name (a new one every run of the golden path)
+        - record: kyverno:policy_result:owner
+          expr: |
+            max by (namespace, owner_kind, owner_name, policy, rule, result) (
+              label_replace(label_replace(kyverno:policy_result:subject{kind!~"ReplicaSet|Job|Workflow"},
+              "owner_kind", "$1", "kind", "(.*)"), "owner_name", "$1", "name", "(.*)")
+            )
+            or max by (namespace, owner_kind, owner_name, policy, rule, result) (
+              label_replace(kyverno:policy_result:subject{kind="ReplicaSet"}, "replicaset", "$1", "name", "(.*)")
+              * on(namespace, replicaset) group_left(owner_kind, owner_name) max by (namespace, replicaset, owner_kind, owner_name) (kube_replicaset_owner{owner_kind!="<none>"})
+            )
+            or max by (namespace, owner_kind, owner_name, policy, rule, result) (
+              label_replace(label_replace(
+                label_replace(kyverno:policy_result:subject{kind="ReplicaSet"}, "replicaset", "$1", "name", "(.*)")
+                * on(namespace, replicaset) group_left() max by (namespace, replicaset) (kube_replicaset_owner{owner_kind="<none>"}),
+              "owner_kind", "$1", "kind", "(.*)"), "owner_name", "$1", "name", "(.*)")
+            )
+            or max by (namespace, owner_kind, owner_name, policy, rule, result) (
+              label_replace(kyverno:policy_result:subject{kind="Job"}, "job_name", "$1", "name", "(.*)")
+              * on(namespace, job_name) group_left(owner_kind, owner_name) max by (namespace, job_name, owner_kind, owner_name) (kube_job_owner{owner_kind!="<none>"})
+            )
+            or max by (namespace, owner_kind, owner_name, policy, rule, result) (
+              label_replace(label_replace(
+                label_replace(kyverno:policy_result:subject{kind="Job"}, "job_name", "$1", "name", "(.*)")
+                * on(namespace, job_name) group_left() max by (namespace, job_name) (kube_job_owner{owner_kind="<none>"}),
+              "owner_kind", "$1", "kind", "(.*)"), "owner_name", "$1", "name", "(.*)")
+            )
+            or max by (namespace, owner_kind, policy, rule, result) (
+              label_replace(kyverno:policy_result:subject{kind="Workflow"}, "owner_kind", "$1", "kind", "(.*)")
+            )
+        # No for: a short-lived pod's report goes with it, so one scrape is enough, and it keeps firing long enough for
+        # Alertmanager to send it. PolicyExceptions apply before their workloads (scripts/check-policy), so a deploy
+        # raises no false failure
+        - alert: PolicyReportFail
+          expr: |
+            kyverno:policy_result:owner{result=~"fail|error"}
+            or max by (owner_kind, owner_name, policy, rule, result) (
+              label_replace(label_replace(kyverno_clusterpolicyreport_result{result=~"fail|error"},
+              "owner_kind", "$1", "kind", "(.*)"), "owner_name", "$1", "name", "(.*)")
+            )
+          keep_firing_for: 15m
+          labels:
+            severity: warning
+            # Past the night's mute, like Falco's (system/monitoring-system): a short-lived pod's alert would resolve
+            # before morning and never be sent
+            source: kyverno
+          annotations:
+            summary: >-
+              {{`{{ $labels.owner_kind }}{{ with $labels.owner_name }} {{ . }}{{ end }}{{ with $labels.namespace }} in {{ . }}{{ end }} breaks {{ $labels.policy }}{{ with $labels.rule }} ({{ . }}){{ end }}`}}
+            description: >-
+              {{`Kyverno reports a {{ $labels.result }} for {{ $labels.owner_kind }}{{ with $labels.owner_name }} {{ . }}{{ end }}{{ with $labels.namespace }} in {{ . }}{{ end }} under {{ $labels.policy }}{{ with $labels.rule }}, rule {{ . }}{{ end }}.`}}
+              Fix the workload, or add a PolicyException beside it with its homelab/reason and a sync wave before it
+              (docs/how-to-guides/policy.md).
+              {{`{{ if $labels.namespace }}kubectl get policyreports -n {{ $labels.namespace }} -o yaml{{ else }}kubectl get clusterpolicyreports -o yaml{{ end }}`}}

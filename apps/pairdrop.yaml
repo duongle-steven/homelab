@@ -57,6 +57,8 @@ rawResources:
       kind: PolicyException
       metadata:
         annotations:
+          # Before its workloads: admitted first, they would keep a false fail until the next background scan
+          argocd.argoproj.io/sync-wave: "-1"
           homelab/reason: "linuxserver's pairdrop runs as root (s6-overlay drops to PUID); production only: revisit in 12b"
       spec:
         policyRefs:

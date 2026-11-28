@@ -6,6 +6,8 @@ metadata:
   name: secrets-rotation
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Before its workloads: admitted first, they would keep a false fail until the next background scan
+    argocd.argoproj.io/sync-wave: "-1"
     homelab/reason: "production's lab image is set by digest after the first release builds it (CLAUDE.md); until then the CronJob is suspended"
 spec:
   policyRefs:

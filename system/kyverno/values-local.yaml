@@ -55,3 +55,10 @@ kyverno:
 # proves Kyverno's verification with its own signed image instead
 signedImages:
   enabled: false
+
+# k3d's ServiceLB, off on the nodes (templates/kube-system-exceptions.yaml)
+kubeSystemExceptions:
+  svclb:
+    prefix: svclb-
+    reason: "k3s's ServiceLB (k3d only) forwards the LoadBalancer Services' ports from the node: host ports, NET_ADMIN, sysctls, root"
+    policies: [disallow-capabilities, disallow-capabilities-strict, disallow-host-ports, disallow-privilege-escalation, require-run-as-nonroot, restrict-seccomp-strict, restrict-sysctls]

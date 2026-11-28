@@ -11,3 +11,5 @@ data:
 {{ .Files.Get "files/public-scan-rules.yaml" | indent 4 }}
   falco-rules.yaml: |
 {{ .Files.Get "files/falco-rules.yaml" | indent 4 }}
+  policy-rules.yaml: |
+{{ .Files.Get "files/policy-rules.yaml" | indent 4 }}

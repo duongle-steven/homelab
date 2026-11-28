@@ -6,6 +6,8 @@ metadata:
   name: agent
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Before its workloads: admitted first, they would keep a false fail until the next background scan
+    argocd.argoproj.io/sync-wave: "-1"
     homelab/reason: "The agent reads every pod's log files and the API server's audit log on its node (/var/log/pods, /var/log/kubernetes/audit: hostPath), which root owns, and keeps its positions and queue in /var/lib/otelcol (hostPath); every capability dropped"
 spec:
   policyRefs:

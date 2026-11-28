@@ -5,6 +5,8 @@ metadata:
   name: kanidm
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Before its workloads: admitted first, they would keep a false fail until the next background scan
+    argocd.argoproj.io/sync-wave: "-1"
     homelab/reason: "kaniop creates Kanidm's StatefulSet and takes only the pod's securityContext (seccomp is set), not the container's; Kanidm's image runs as root (no USER)"
 spec:
   policyRefs:

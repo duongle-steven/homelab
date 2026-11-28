@@ -6,6 +6,8 @@ metadata:
   name: rook
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Before its workloads: admitted first, they would keep a false fail until the next background scan
+    argocd.argoproj.io/sync-wave: "-1"
     homelab/reason: "production only: Ceph's operator creates OSD, monitor and CSI pods that need the node (privileged, host network, hostPath), and Rook 1.13's charts set no seccomp; the whole namespace is privileged under Pod Security Admission too. Revisit with Rook's upgrade in 12b"
 spec:
   policyRefs:

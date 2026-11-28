@@ -28,6 +28,24 @@ exceptions() {
 		cat "$work/found" >>"$work/exceptions.yaml"
 	fi
 }
+: >"$work/waves"
+# waves <file> <target> [namespace]: every PolicyException must apply before the workloads beside it, in a sync wave
+# below theirs (0 when unset; below 0 when the render has none). Argo CD applies the kinds it does not know last in a
+# wave, so pods admitted before their exception would keep a false fail until the next background scan
+# (docs/superpowers/specs/2026-11-27-policy-report-alert-design.md). An exception for a namespace none of the render's
+# workloads is in (k3s's own, in kube-system) excuses nothing this sync makes
+waves() {
+	wave='(.metadata.annotations["argocd.argoproj.io/sync-wave"] // "0")'
+	ns='(.metadata.namespace // "'"${3:-default}"'")'
+	pods="select($workloads or .kind == \"Rollout\")"
+	min=$(yq -N "$pods | $wave" "$1" | sort -n | head -n 1)
+	spaces=" $(yq -N "$pods | $ns" "$1" | sort -u | tr '\n' ' ')"
+	yq -N "select(.kind == \"PolicyException\") | $ns + \" \" + .metadata.name + \" \" + $wave" "$1" |
+		while read -r space name w; do
+			[ "$spaces" = " " ] || case "$spaces" in *" $space "*) ;; *) continue ;; esac
+			[ "$w" -lt "${min:-0}" ] || echo "wave: $2: PolicyException $space/$name at $w, workloads from ${min:-0}"
+		done >>"$work/waves"
+}
 workloads='(.kind == "Deployment" or .kind == "StatefulSet" or .kind == "DaemonSet" or .kind == "Job" or .kind == "CronJob" or .kind == "Pod") and ((.metadata.annotations["helm.sh/hook"] // "") | test("test") | not)'
 
 : >"$work/exceptions.yaml"
@@ -35,6 +53,8 @@ if [ -n "${WORKLOADS:-}" ]; then
 	mkdir -p "$work/prod"
 	keep "$workloads" "$WORKLOADS" >"$work/prod/workloads.yaml"
 	exceptions "$WORKLOADS"
+	waves "$WORKLOADS" "$WORKLOADS"
+	find "$work/prod" -empty -delete
 else
 	if [ "${TARGETS+set}" != set ]; then
 		TARGETS="$(for d in system/*/ platform/*/; do [ -f "$d/Chart.yaml" ] && echo "${d%/}"; done) $(ls apps/*.yaml)"
@@ -48,7 +68,10 @@ else
 			n=$(echo "$t" | tr / _)
 			ns=$(basename "$t" .yaml)
 			keep "$workloads" "$work/render" "$ns" >"$work/$env/$n.yaml"
-			[ "$env" = prod ] && exceptions "$work/render" "$ns"
+			if [ "$env" = prod ]; then
+				exceptions "$work/render" "$ns"
+				waves "$work/render" "$t" "$ns"
+			fi
 		done
 		find "$work/$env" -empty -delete
 	done
@@ -75,5 +98,9 @@ for env in prod dev; do
 		status=1
 	fi
 done
+if [ -s "$work/waves" ]; then
+	cat "$work/waves"
+	status=1
+fi
 [ "$status" = 0 ] && echo "check-policy: every workload passes"
 exit "$status"

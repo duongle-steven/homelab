@@ -55,10 +55,43 @@ kube-prometheus-stack:
                       labelName: phase
                       path: [status, phase]
                       list: [Pending, Running, Succeeded, Failed, Errored, Aborted]
+            # Kyverno's reports, one series per result (Kyverno keeps fail, error and warn only): PolicyReportFail
+            # (system/kyverno) alerts on a new failure (G1, docs/superpowers/specs/2026-11-27-policy-report-alert-design.md)
+            - groupVersionKind: &policyReport
+                group: wgpolicyk8s.io
+                version: v1alpha2
+                kind: PolicyReport
+              metricNamePrefix: kyverno_policyreport
+              labelsFromPath:
+                namespace: [metadata, namespace]
+                kind: [scope, kind]
+                name: [scope, name]
+              metrics: &policyResults
+                - name: result
+                  help: A result of a Kyverno policy on the report's resource
+                  each:
+                    type: Info
+                    info:
+                      path: [results]
+                      labelsFromPath:
+                        policy: [policy]
+                        rule: [rule]
+                        result: [result]
+            - groupVersionKind:
+                <<: *policyReport
+                kind: ClusterPolicyReport
+              metricNamePrefix: kyverno_clusterpolicyreport
+              labelsFromPath:
+                kind: [scope, kind]
+                name: [scope, name]
+              metrics: *policyResults
     rbac:
       extraRules:
         - apiGroups: [kargo.akuity.io]
           resources: [promotions]
+          verbs: [list, watch]
+        - apiGroups: [wgpolicyk8s.io]
+          resources: [policyreports, clusterpolicyreports]
           verbs: [list, watch]
   prometheusOperator:
     # The operator starts a controller only for the CRDs it finds at its start: it comes after them (wave 0, healthy
@@ -168,6 +201,11 @@ kube-prometheus-stack:
           - receiver: ntfy
             matchers:
               - source="falco"
+          # Kyverno's policy alerts (system/kyverno, system/loki): a short-lived pod's alert resolves within minutes, so
+          # muted at night it would never be sent (G1, docs/superpowers/specs/2026-11-27-policy-report-alert-design.md)
+          - receiver: ntfy
+            matchers:
+              - source="kyverno"
           # One person is on call around the clock: anything below critical waits for the morning (a muted alert still
           # firing is sent when the night ends; one that resolved during it is not). Critical always rings (ntfy's
           # priority 5), and so do the security alerts above
@@ -176,6 +214,24 @@ kube-prometheus-stack:
               - severity!="critical"
             mute_time_intervals:
               - night
+      # The chart's inhibit rules (Helm replaces the list: compare them with the chart's at each bump), and one of ours: a
+      # failure the reports already alert on (PolicyReportFail, silenced or not) keeps Kyverno's admission events for it
+      # quiet, or every new pod of a known-failing workload (a CronJob's runs, a rollout) would notify again (G1,
+      # docs/superpowers/specs/2026-11-27-policy-report-alert-design.md)
+      inhibit_rules:
+        - source_matchers: [severity = critical]
+          target_matchers: [severity =~ warning|info]
+          equal: [namespace, alertname]
+        - source_matchers: [severity = warning]
+          target_matchers: [severity = info]
+          equal: [namespace, alertname]
+        - source_matchers: [alertname = InfoInhibitor]
+          target_matchers: [severity = info]
+          equal: [namespace]
+        - target_matchers: [alertname = InfoInhibitor]
+        - source_matchers: ['alertname="PolicyReportFail"']
+          target_matchers: ['alertname="PolicyViolationEvent"']
+          equal: [namespace, policy]
       # The time zone is the environment's (global.timezone): tplConfig passes this config through Helm's templating
       time_intervals:
         - name: night

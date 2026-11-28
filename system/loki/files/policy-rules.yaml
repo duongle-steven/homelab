@@ -1,0 +1,17 @@
+# Kyverno's admission events (G1, docs/superpowers/specs/2026-11-27-policy-report-alert-design.md): a pod gone before
+# kube-state-metrics saw its report (a passing CI step, deleted at once) leaves no series for PolicyReportFail
+# (system/kyverno), but its admission left an event, which the OpenTelemetry gateway sends here. Admission only: each
+# background scan repeats every known failure, which the reports already carry. The copy Kyverno writes on the policy
+# itself (kind ValidatingPolicy) drops out; the policy's name is only in the message ("policy <name>/ fail: ...")
+groups:
+  - name: kyverno
+    rules:
+      - alert: PolicyViolationEvent
+        expr: |
+          sum by (namespace, kind, policy) (count_over_time({service_name="kubernetes-events"} |= "PolicyViolation" | json reason="object.reason", component="object.reportingComponent", kind="object.involvedObject.kind", namespace="object.involvedObject.namespace", message="object.message" | __error__="" | reason="PolicyViolation" | component="kyverno-admission" | kind!="ValidatingPolicy" | label_format policy=`{{ regexReplaceAll "^policy ([^/ ]+)/.*" .message "${1}" }}` [5m])) > 0
+        labels:
+          severity: warning
+          source: kyverno
+        annotations:
+          summary: 'A {{ $labels.kind }} admitted in {{ $labels.namespace }} breaks {{ $labels.policy }}'
+          description: 'Kyverno admitted it in Audit. Fix the workload, or add a PolicyException beside it with its homelab/reason and a sync wave before it (docs/how-to-guides/policy.md). Explore (Loki): {service_name="kubernetes-events"} |= "PolicyViolation" |= "{{ $labels.namespace }}"'

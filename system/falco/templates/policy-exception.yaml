@@ -6,6 +6,8 @@ metadata:
   name: falco
   namespace: {{ .Release.Namespace }}
   annotations:
+    # Before its workloads: admitted first, they would keep a false fail until the next background scan
+    argocd.argoproj.io/sync-wave: "-1"
     homelab/reason: "Falco loads its eBPF probe into the node's kernel and reads every process through the host's /proc, /sys, /etc and the container runtime's sockets (hostPath): a privileged container as root"
 spec:
   policyRefs:
